@@ -185,7 +185,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex bg-gray-50 min-h-screen">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -195,7 +195,7 @@ export default function Layout() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-teal-800 flex flex-col h-full overflow-y-auto transition-transform duration-300 ${
+      <aside className={`fixed lg:sticky lg:top-0 left-0 z-50 w-64 bg-teal-800 flex flex-col h-screen lg:h-screen overflow-y-auto transition-transform duration-300 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         {/* Logo */}
@@ -318,9 +318,9 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
+        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-30">
           <div className="flex items-center justify-between gap-4">
             <button
               className="lg:hidden p-2 text-gray-600 hover:text-gray-800"

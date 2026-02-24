@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 
-// Icons
 const Icons = {
   Dashboard: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,9 +69,14 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
     </svg>
   ),
-  Calendar: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  Menu: () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  ),
+  Close: () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
     </svg>
   ),
 };
@@ -97,9 +102,10 @@ const SidebarItem = ({ icon: Icon, label, to, active, onClick }) => (
   </Link>
 );
 
-const SubMenuItem = ({ label, to, active }) => (
+const SubMenuItem = ({ label, to, active, onClick }) => (
   <Link
     to={to}
+    onClick={onClick}
     className={`flex items-center gap-2 px-4 py-2 pl-12 rounded-lg transition-colors text-sm ${
       active
         ? 'bg-teal-700 text-white'
@@ -133,44 +139,85 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
   </div>
 );
 
-export default function Layout({ children }) {
+export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const toggleMenu = (menu) => {
     setOpenMenu(openMenu === menu ? null : menu);
   };
 
   const isActive = (path) => location.pathname === path;
+  const isPathActive = (path) => location.pathname.startsWith(path);
 
-  // HR Submenu items
   const hrSubMenus = [
     { label: 'Attendance', path: '/hr/attendance' },
     { label: 'Leave Request', path: '/hr/leave-request' },
     { label: 'Job Application', path: '/hr/job-application' },
     { label: 'Add Vendor', path: '/hr/add-vendor' },
-    { label: 'Purchase Request Finance', path: '/hr/purchase-request' },
+    { label: 'Purchase Request', path: '/hr/purchase-request' },
     { label: 'Staff Task', path: '/hr/staff-task' },
     { label: 'Planner', path: '/hr/planner' },
     { label: 'Visitor Log', path: '/hr/visitor-log' },
   ];
 
+  const closeSidebar = () => setSidebarOpen(false);
+
+  const handleLogout = () => {
+    Swal.fire({
+      title: 'Logout?',
+      text: 'Are you sure you want to logout?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#0d9488',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, logout'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
+    });
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={closeSidebar}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-teal-800 flex flex-col fixed h-full overflow-y-auto">
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-teal-800 flex flex-col h-full overflow-y-auto transition-transform duration-300 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
         {/* Logo */}
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-            </svg>
+        <div className="p-4 sm:p-6 flex items-center justify-between lg:justify-start gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-teal-600 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-white font-bold text-base sm:text-lg">Wifaq School</h1>
+              <p className="text-teal-300 text-xs uppercase tracking-wider">Admin Portal</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-white font-bold text-lg">Wifaq School</h1>
-            <p className="text-teal-300 text-xs uppercase tracking-wider">Admin Portal</p>
-          </div>
+          <button 
+            className="lg:hidden text-teal-200 hover:text-white"
+            onClick={closeSidebar}
+          >
+            <Icons.Close />
+          </button>
         </div>
 
         {/* Navigation */}
@@ -181,20 +228,21 @@ export default function Layout({ children }) {
             label="Dashboard"
             to="/"
             active={isActive('/')}
+            onClick={closeSidebar}
           />
           <SidebarItem
             icon={Icons.Departments}
             label="Departments"
             to="/departments"
             active={isActive('/departments')}
+            onClick={closeSidebar}
           />
 
-          {/* HR Parent Menu */}
           <MenuSection title="Human Resource" />
           <ParentMenu
             icon={Icons.HR}
             label="HR Management"
-            isOpen={openMenu === 'hr'}
+            isOpen={openMenu === 'hr' || isPathActive('/hr')}
             onClick={() => toggleMenu('hr')}
           >
             {hrSubMenus.map((item) => (
@@ -203,6 +251,7 @@ export default function Layout({ children }) {
                 label={item.label}
                 to={item.path}
                 active={isActive(item.path)}
+                onClick={closeSidebar}
               />
             ))}
           </ParentMenu>
@@ -213,18 +262,21 @@ export default function Layout({ children }) {
             label="Payroll"
             to="/payroll"
             active={isActive('/payroll')}
+            onClick={closeSidebar}
           />
           <SidebarItem
             icon={Icons.Leave}
             label="Leave Requests"
             to="/leave-requests"
             active={isActive('/leave-requests')}
+            onClick={closeSidebar}
           />
           <SidebarItem
             icon={Icons.Puzzle}
             label="Number Puzzle"
             to="/number-puzzle"
             active={isActive('/number-puzzle')}
+            onClick={closeSidebar}
           />
 
           <MenuSection title="System" />
@@ -233,26 +285,32 @@ export default function Layout({ children }) {
             label="Settings"
             to="/settings"
             active={isActive('/settings')}
+            onClick={closeSidebar}
           />
           <SidebarItem
             icon={Icons.Support}
             label="Support"
             to="/support"
             active={isActive('/support')}
+            onClick={closeSidebar}
           />
         </nav>
 
         {/* User Profile */}
         <div className="p-4 border-t border-teal-700">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center text-white font-medium">
-              S
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-teal-600 flex items-center justify-center text-white font-medium text-sm sm:text-base">
+              {user.name?.charAt(0) || 'U'}
             </div>
-            <div className="flex-1">
-              <p className="text-white font-medium text-sm">Sarah Jenkins</p>
-              <p className="text-teal-300 text-xs">Super Admin</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-medium text-sm truncate">{user.name || 'User'}</p>
+              <p className="text-teal-300 text-xs">{user.email || ''}</p>
             </div>
-            <button className="text-teal-300 hover:text-white">
+            <button 
+              onClick={handleLogout}
+              className="text-teal-300 hover:text-white flex-shrink-0"
+              title="Logout"
+            >
               <Icons.Logout />
             </button>
           </div>
@@ -260,11 +318,17 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col ml-64">
+      <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 max-w-xl">
+        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <button
+              className="lg:hidden p-2 text-gray-600 hover:text-gray-800"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Icons.Menu />
+            </button>
+            <div className="flex-1 max-w-xl hidden sm:block">
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                   <Icons.Search />
@@ -272,12 +336,12 @@ export default function Layout({ children }) {
                 <input
                   type="text"
                   placeholder="Search modules, teachers, or documents..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
                 />
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="hidden sm:flex items-center gap-2">
                 <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-800">EN</button>
                 <button className="px-3 py-1 text-sm font-medium text-gray-400 hover:text-gray-600">AR</button>
               </div>
@@ -290,8 +354,8 @@ export default function Layout({ children }) {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 p-6 overflow-auto">
-          {children}
+        <div className="flex-1 overflow-auto">
+          <Outlet />
         </div>
       </main>
     </div>

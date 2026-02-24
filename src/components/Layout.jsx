@@ -144,14 +144,21 @@ export default function Layout() {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userToggled, setUserToggled] = useState(false);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
+  useState(() => {
+    if (!userToggled && location.pathname.startsWith('/hr')) {
+      setOpenMenu('hr');
+    }
+  }, [location.pathname]);
+
   const toggleMenu = (menu) => {
+    setUserToggled(true);
     setOpenMenu(openMenu === menu ? null : menu);
   };
 
   const isActive = (path) => location.pathname === path;
-  const isPathActive = (path) => location.pathname.startsWith(path);
 
   const hrSubMenus = [
     { label: 'Attendance', path: '/hr/attendance' },
@@ -242,7 +249,7 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.HR}
             label="HR Management"
-            isOpen={openMenu === 'hr' || isPathActive('/hr')}
+            isOpen={openMenu === 'hr'}
             onClick={() => toggleMenu('hr')}
           >
             {hrSubMenus.map((item) => (

@@ -5,7 +5,7 @@ function App() {
   const [testMessage, setTestMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Example: Test API connection
+
   const testApi = async () => {
     setLoading(true);
     try {

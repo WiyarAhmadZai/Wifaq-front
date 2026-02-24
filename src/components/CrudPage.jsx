@@ -26,7 +26,10 @@ export default function CrudPage({
       const response = await get(apiEndpoint);
       setItems(response.data);
     } catch (error) {
-      console.error(error);
+      console.error('Fetch error:', error);
+      if (error.response?.status === 500) {
+        Swal.fire('Server Error', 'Database error occurred. Please check if migrations have been run.', 'error');
+      }
     } finally {
       setLoading(false);
     }

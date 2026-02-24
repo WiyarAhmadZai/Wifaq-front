@@ -102,7 +102,7 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
       <div className="bg-white rounded-lg shadow-md">
         <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{title} Details</h2>
@@ -141,13 +141,13 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
             <h3 className="text-sm font-semibold text-teal-600 uppercase tracking-wide mb-4">
               Primary Details
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               {fields.map(field => (
-                <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                <div key={field.name} className={field.type === 'textarea' ? 'lg:col-span-2' : ''}>
                   <label className="block text-xs sm:text-sm font-medium text-gray-500 mb-1">
                     {field.label}
                   </label>
-                  <p className="text-sm sm:text-base text-gray-900">
+                  <p className="text-sm sm:text-base text-gray-900 bg-white px-3 py-2 rounded border border-gray-200">
                     {getFieldValue(field)}
                   </p>
                 </div>

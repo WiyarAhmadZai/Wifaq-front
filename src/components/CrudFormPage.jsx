@@ -8,6 +8,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
   const navigate = useNavigate();
   const isEdit = Boolean(id);
   const [formData, setFormData] = useState({});
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -43,10 +44,14 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrors({});
     setSaving(true);
     try {
       if (isEdit) {
@@ -58,79 +63,107 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
       }
       navigate(listRoute);
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to save', 'error');
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        setErrors(error.response.data.errors);
+        const firstError = Object.values(error.response.data.errors)[0][0];
+        Swal.fire('Validation Error', firstError, 'warning');
+      } else {
+        Swal.fire('Error', error.response?.data?.message || 'Failed to save', 'error');
+      }
     } finally {
       setSaving(false);
     }
   };
 
+  const getFieldClass = (fieldName) => {
+    const baseClass = "w-full px-3 py-2 sm:px-4 sm:py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm sm:text-base transition-colors";
+    const errorClass = errors[fieldName] ? "border-red-500 bg-red-50" : "border-gray-300";
+    return `${baseClass} ${errorClass}`;
+  };
+
   const renderField = (field) => {
     const value = formData[field.name] ?? '';
+    const hasError = errors[field.name];
 
     if (field.type === 'select') {
       return (
-        <select
-          name={field.name}
-          value={value}
-          onChange={handleChange}
-          required={field.required}
-          className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm sm:text-base"
-        >
-          <option value="">Select {field.label}</option>
-          {field.options?.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        <div>
+          <select
+            name={field.name}
+            value={value}
+            onChange={handleChange}
+            required={field.required}
+            className={getFieldClass(field.name)}
+          >
+            <option value="">Select {field.label}</option>
+            {field.options?.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        </div>
       );
     }
 
     if (field.type === 'textarea') {
       return (
-        <textarea
-          name={field.name}
-          value={value}
-          onChange={handleChange}
-          required={field.required}
-          rows={4}
-          className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm sm:text-base"
-        />
+        <div>
+          <textarea
+            name={field.name}
+            value={value}
+            onChange={handleChange}
+            required={field.required}
+            rows={4}
+            className={getFieldClass(field.name)}
+          />
+          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        </div>
       );
     }
 
     if (field.type === 'checkbox') {
       return (
-        <input
-          type="checkbox"
-          name={field.name}
-          checked={Boolean(value)}
-          onChange={handleChange}
-          className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"
-        />
+        <div>
+          <input
+            type="checkbox"
+            name={field.name}
+            checked={Boolean(value)}
+            onChange={handleChange}
+            className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"
+          />
+          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        </div>
       );
     }
 
     if (field.type === 'date') {
       return (
-        <input
-          type="date"
-          name={field.name}
-          value={value}
-          onChange={handleChange}
-          required={field.required}
-          className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm sm:text-base"
-        />
+        <div>
+          <input
+            type="date"
+            name={field.name}
+            value={value}
+            onChange={handleChange}
+            required={field.required}
+            className={getFieldClass(field.name)}
+          />
+          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        </div>
       );
     }
 
     return (
-      <input
-        type={field.type || 'text'}
-        name={field.name}
-        value={value}
-        onChange={handleChange}
-        required={field.required}
-        className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm sm:text-base"
-      />
+      <div>
+        <input
+          type={field.type || 'text'}
+          name={field.name}
+          value={value}
+          onChange={handleChange}
+          required={field.required}
+          className={getFieldClass(field.name)}
+        />
+        {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+      </div>
     );
   };
 
@@ -143,7 +176,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
       <div className="bg-white rounded-lg shadow-md">
         <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
@@ -156,9 +189,9 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
             <h3 className="text-sm font-semibold text-teal-600 uppercase tracking-wide mb-4">
               Primary Details
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               {fields.map(field => (
-                <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                <div key={field.name} className={field.type === 'textarea' ? 'lg:col-span-2' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     {field.label}
                     {field.required && <span className="text-red-500 ml-1">*</span>}

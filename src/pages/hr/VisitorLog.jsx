@@ -1,7 +1,6 @@
 import CrudPage from '../../components/CrudPage';
 
 export const visitorLogFields = [
-  { name: 'date', label: 'Date', type: 'date', required: true },
   { name: 'visitor_name', label: 'Visitor Name', type: 'text', required: true },
   { name: 'purpose', label: 'Purpose', type: 'text', required: true },
   { name: 'time_in', label: 'Time In', type: 'time', required: true },
@@ -11,7 +10,7 @@ export const visitorLogFields = [
 ];
 
 export const visitorLogColumns = [
-  { key: 'date', label: 'Date' },
+  { key: 'created_at', label: 'Date & Time', render: (val) => val ? new Date(val).toLocaleString() : '-' },
   { key: 'visitor_name', label: 'Visitor Name' },
   { key: 'purpose', label: 'Purpose' },
   { key: 'time_in', label: 'Time In' },

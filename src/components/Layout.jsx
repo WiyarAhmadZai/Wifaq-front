@@ -106,13 +106,12 @@ const SubMenuItem = ({ label, to, active, onClick }) => (
   <Link
     to={to}
     onClick={onClick}
-    className={`flex items-center gap-2 px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
+    className={`flex items-center px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
       active
         ? 'bg-teal-700 text-white'
         : 'text-teal-200 hover:bg-teal-800 hover:text-white'
     }`}
   >
-    <Icons.ChevronRight />
     <span>{label}</span>
   </Link>
 );
@@ -169,6 +168,7 @@ export default function Layout() {
     { label: 'Staff Task', path: '/hr/staff-task' },
     { label: 'Planner', path: '/hr/planner' },
     { label: 'Visitor Log', path: '/hr/visitor-log' },
+    { label: 'HR Reports', path: '/hr/reports' },
   ];
 
   const closeSidebar = () => setSidebarOpen(false);

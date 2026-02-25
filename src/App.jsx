@@ -12,6 +12,7 @@ import PurchaseRequest from './pages/hr/PurchaseRequest';
 import StaffTask from './pages/hr/StaffTask';
 import Planner from './pages/hr/Planner';
 import VisitorLog from './pages/hr/VisitorLog';
+import HRReports from './pages/hr/HRReports';
 
 // HR Pages - Form (Create/Edit)
 import AttendanceForm from './pages/hr/AttendanceForm';
@@ -120,6 +121,9 @@ function App() {
           <Route path="hr/visitor-log/create" element={<VisitorLogForm />} />
           <Route path="hr/visitor-log/edit/:id" element={<VisitorLogForm />} />
           <Route path="hr/visitor-log/show/:id" element={<VisitorLogShow />} />
+
+          {/* HR Routes - Reports */}
+          <Route path="hr/reports" element={<HRReports />} />
         </Route>
       </Routes>
     </Router>

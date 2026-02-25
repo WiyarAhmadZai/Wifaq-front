@@ -81,19 +81,19 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-teal-600"></div>
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">Record not found</p>
+      <div className="text-center py-8">
+        <p className="text-gray-500 text-xs">Record not found</p>
         <button
           onClick={() => navigate(listRoute)}
-          className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+          className="mt-3 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs"
         >
           Back to List
         </button>
@@ -102,52 +102,52 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
   }
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-      <div className="bg-white rounded-lg shadow-md">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{title} Details</h2>
-          <div className="flex flex-wrap gap-2">
+    <div className="w-full px-4 py-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="px-4 py-3 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-800">{title} Details</h2>
+          <div className="flex flex-wrap gap-1.5">
             <button
               onClick={() => navigate(`${editRoute}/${id}`)}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+              className="px-3 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium"
             >
               Edit
             </button>
             <button
               onClick={handleDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+              className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs font-medium"
             >
               Delete
             </button>
             <button
               onClick={() => navigate(listRoute)}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+              className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-xs font-medium"
             >
               Back
             </button>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6">
+        <div className="p-4">
           {data.status && (
-            <div className="mb-6">
-              <span className={`inline-flex px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${getStatusBadge(data.status)}`}>
+            <div className="mb-4">
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadge(data.status)}`}>
                 {data.status}
               </span>
             </div>
           )}
 
-          <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6">
-            <h3 className="text-sm font-semibold text-teal-600 uppercase tracking-wide mb-4">
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <h3 className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3">
               Primary Details
             </h3>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               {fields.map(field => (
                 <div key={field.name} className={field.type === 'textarea' ? 'lg:col-span-2' : ''}>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-500 mb-1">
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">
                     {field.label}
                   </label>
-                  <p className="text-sm sm:text-base text-gray-900 bg-white px-3 py-2 rounded border border-gray-200">
+                  <p className="text-xs text-gray-900 bg-white px-2.5 py-1.5 rounded border border-gray-200">
                     {getFieldValue(field)}
                   </p>
                 </div>
@@ -155,9 +155,9 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
             </div>
           </div>
 
-          <div className="border-t pt-4 sm:pt-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Log</h3>
-            <div className="text-xs sm:text-sm text-gray-500 space-y-1">
+          <div className="border-t pt-3">
+            <h3 className="text-xs font-semibold text-gray-700 mb-2">Activity Log</h3>
+            <div className="text-[10px] text-gray-500 space-y-0.5">
               <p>Created: {data.created_at ? new Date(data.created_at).toLocaleString() : '-'}</p>
               <p>Updated: {data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}</p>
             </div>

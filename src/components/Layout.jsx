@@ -82,7 +82,7 @@ const Icons = {
 };
 
 const MenuSection = ({ title }) => (
-  <div className="px-4 py-2 text-xs font-semibold text-teal-400 uppercase tracking-wider">
+  <div className="px-4 py-1.5 text-[10px] font-semibold text-teal-400 uppercase tracking-wider">
     {title}
   </div>
 );
@@ -91,7 +91,7 @@ const SidebarItem = ({ icon: Icon, label, to, active, onClick }) => (
   <Link
     to={to}
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${
       active
         ? 'bg-teal-700 text-white'
         : 'text-teal-100 hover:bg-teal-800 hover:text-white'
@@ -106,7 +106,7 @@ const SubMenuItem = ({ label, to, active, onClick }) => (
   <Link
     to={to}
     onClick={onClick}
-    className={`flex items-center gap-2 px-4 py-2 pl-12 rounded-lg transition-colors text-sm ${
+    className={`flex items-center gap-2 px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
       active
         ? 'bg-teal-700 text-white'
         : 'text-teal-200 hover:bg-teal-800 hover:text-white'
@@ -121,13 +121,13 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
   <div>
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-sm ${
         isOpen
           ? 'bg-teal-700 text-white'
           : 'text-teal-100 hover:bg-teal-800 hover:text-white'
       }`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <Icon />
         <span className="font-medium">{label}</span>
       </div>
@@ -135,7 +135,7 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
         <Icons.ChevronDown />
       </div>
     </button>
-    {isOpen && <div className="mt-1 space-y-1">{children}</div>}
+    {isOpen && <div className="mt-1 space-y-0.5">{children}</div>}
   </div>
 );
 
@@ -206,17 +206,17 @@ export default function Layout() {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         {/* Logo */}
-        <div className="p-4 sm:p-6 flex items-center justify-between lg:justify-start gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-teal-600 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="p-3 flex items-center justify-between lg:justify-start gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-teal-600 rounded-lg flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
               </svg>
             </div>
             <div>
-              <h1 className="text-white font-bold text-base sm:text-lg">Wifaq School</h1>
-              <p className="text-teal-300 text-xs uppercase tracking-wider">Admin Portal</p>
+              <h1 className="text-white font-bold text-sm">Wifaq School</h1>
+              <p className="text-teal-300 text-[10px] uppercase tracking-wider">Admin Portal</p>
             </div>
           </div>
           <button 
@@ -304,14 +304,14 @@ export default function Layout() {
         </nav>
 
         {/* User Profile */}
-        <div className="p-4 border-t border-teal-700">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-teal-600 flex items-center justify-center text-white font-medium text-sm sm:text-base">
+        <div className="p-3 border-t border-teal-700">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-teal-600 flex items-center justify-center text-white font-medium text-xs">
               {user.name?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-sm truncate">{user.name || 'User'}</p>
-              <p className="text-teal-300 text-xs">{user.email || ''}</p>
+              <p className="text-white font-medium text-xs truncate">{user.name || 'User'}</p>
+              <p className="text-teal-300 text-[10px]">{user.email || ''}</p>
             </div>
             <button 
               onClick={handleLogout}
@@ -327,30 +327,30 @@ export default function Layout() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-30">
-          <div className="flex items-center justify-between gap-4">
+        <header className="bg-white border-b border-gray-200 px-3 py-2 sticky top-0 z-30">
+          <div className="flex items-center justify-between gap-3">
             <button
-              className="lg:hidden p-2 text-gray-600 hover:text-gray-800"
+              className="lg:hidden p-1.5 text-gray-600 hover:text-gray-800"
               onClick={() => setSidebarOpen(true)}
             >
               <Icons.Menu />
             </button>
-            <div className="flex-1 max-w-xl hidden sm:block">
+            <div className="flex-1 max-w-lg hidden sm:block">
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
                   <Icons.Search />
                 </div>
                 <input
                   type="text"
-                  placeholder="Search modules, teachers, or documents..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                  placeholder="Search..."
+                  className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="hidden sm:flex items-center gap-2">
-                <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-800">EN</button>
-                <button className="px-3 py-1 text-sm font-medium text-gray-400 hover:text-gray-600">AR</button>
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-1">
+                <button className="px-2 py-0.5 text-xs font-medium text-gray-600 hover:text-gray-800">EN</button>
+                <button className="px-2 py-0.5 text-xs font-medium text-gray-400 hover:text-gray-600">AR</button>
               </div>
               <button className="relative p-2 text-gray-600 hover:text-gray-800">
                 <Icons.Bell />

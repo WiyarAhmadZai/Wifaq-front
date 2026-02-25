@@ -76,7 +76,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
   };
 
   const getFieldClass = (fieldName) => {
-    const baseClass = "w-full px-3 py-2 sm:px-4 sm:py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm sm:text-base transition-colors";
+    const baseClass = "w-full px-2.5 py-1.5 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs transition-colors";
     const errorClass = errors[fieldName] ? "border-red-500 bg-red-50" : "border-gray-300";
     return `${baseClass} ${errorClass}`;
   };
@@ -169,30 +169,30 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-teal-600"></div>
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-      <div className="bg-white rounded-lg shadow-md">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
+    <div className="w-full px-4 py-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="px-4 py-3 border-b border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-800">
             {isEdit ? `Edit ${title}` : `Create ${title}`}
           </h2>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
-          <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6">
-            <h3 className="text-sm font-semibold text-teal-600 uppercase tracking-wide mb-4">
+        <form onSubmit={handleSubmit} className="p-4">
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <h3 className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3">
               Primary Details
             </h3>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               {fields.map(field => (
                 <div key={field.name} className={field.type === 'textarea' ? 'lg:col-span-2' : ''}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     {field.label}
                     {field.required && <span className="text-red-500 ml-1">*</span>}
                   </label>
@@ -202,18 +202,18 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-auto px-6 py-2 sm:py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium text-sm sm:text-base"
+              className="w-full sm:w-auto px-4 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium text-xs"
             >
               {saving ? 'Saving...' : (isEdit ? 'Update' : 'Create')}
             </button>
             <button
               type="button"
               onClick={() => navigate(listRoute)}
-              className="w-full sm:w-auto px-6 py-2 sm:py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium text-sm sm:text-base"
+              className="w-full sm:w-auto px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium text-xs"
             >
               Cancel
             </button>

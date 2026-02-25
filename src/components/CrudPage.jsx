@@ -117,17 +117,17 @@ export default function CrudPage({
   };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="px-4 py-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{title}</h2>
-          <p className="text-sm text-gray-500 mt-1">Manage {title.toLowerCase()} records</p>
+          <h2 className="text-base font-bold text-gray-800">{title}</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Manage {title.toLowerCase()} records</p>
         </div>
         <button
           onClick={handleCreate}
-          className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
+          className="w-full sm:w-auto px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1.5 font-medium text-xs"
         >
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Create Entry
@@ -135,28 +135,28 @@ export default function CrudPage({
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 sm:h-10 sm:w-10 border-4 border-teal-600 border-t-transparent"></div>
-          <p className="mt-2 text-gray-500 text-sm sm:text-base">Loading...</p>
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent"></div>
+          <p className="mt-2 text-gray-500 text-xs">Loading...</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px]">
               <thead className="bg-teal-50">
                 <tr>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-teal-800 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
                     ID
                   </th>
                   {listColumns.map(col => (
-                    <th key={col.key} className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-teal-800 uppercase tracking-wider">
+                    <th key={col.key} className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
                       {col.label}
                     </th>
                   ))}
-                  <th className="px-3 sm:px-4 py-3 text-center text-xs font-semibold text-teal-800 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-teal-800 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -164,46 +164,46 @@ export default function CrudPage({
               <tbody className="divide-y divide-gray-100">
                 {items.map((item, index) => (
                   <tr key={item[idField]} className="hover:bg-gray-50">
-                    <td className="px-3 sm:px-4 py-3 sm:py-4 text-sm font-medium text-teal-600">
+                    <td className="px-3 py-2 text-xs font-medium text-teal-600">
                       #{String(index + 1).padStart(4, '0')}
                     </td>
                     {listColumns.map(col => (
-                      <td key={col.key} className="px-3 sm:px-4 py-3 sm:py-4 text-sm text-gray-800">
+                      <td key={col.key} className="px-3 py-2 text-xs text-gray-800">
                         {col.render ? col.render(item[col.key], item) : item[col.key]}
                       </td>
                     ))}
-                    <td className="px-3 sm:px-4 py-3 sm:py-4 text-center">
-                      <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(item.status)}`}>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadge(item.status)}`}>
                         {item.status || 'N/A'}
                       </span>
                     </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4 text-right">
-                      <div className="flex items-center justify-end gap-1 sm:gap-2">
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleView(item)}
-                          className="p-1.5 sm:p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                          className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors"
                           title="View"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
                         </button>
                         <button
                           onClick={() => handleEdit(item)}
-                          className="p-1.5 sm:p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors"
                           title="Edit"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
                         <button
                           onClick={() => handleDelete(item[idField])}
-                          className="p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
                           title="Delete"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
@@ -215,14 +215,14 @@ export default function CrudPage({
             </table>
           </div>
           {items.length === 0 && (
-            <div className="text-center py-12 px-4">
-              <svg className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center py-8 px-4">
+              <svg className="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p className="text-gray-500 text-sm sm:text-base">No records found</p>
+              <p className="text-gray-500 text-xs">No records found</p>
               <button
                 onClick={handleCreate}
-                className="mt-4 text-teal-600 hover:text-teal-700 font-medium text-sm sm:text-base"
+                className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs"
               >
                 Create your first entry
               </button>

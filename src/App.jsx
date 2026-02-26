@@ -8,6 +8,7 @@ import Staff from './pages/hr/Staff';
 import Contracts from './pages/hr/Contracts';
 import Attendance from './pages/hr/Attendance';
 import LeaveRequest from './pages/hr/LeaveRequest';
+import Jobs from './pages/hr/Jobs';
 import JobApplication from './pages/hr/JobApplication';
 import AddVendor from './pages/hr/AddVendor';
 import PurchaseRequest from './pages/hr/PurchaseRequest';
@@ -21,6 +22,7 @@ import StaffForm from './pages/hr/StaffForm';
 import ContractsForm from './pages/hr/ContractsForm';
 import AttendanceForm from './pages/hr/AttendanceForm';
 import LeaveRequestForm from './pages/hr/LeaveRequestForm';
+import JobsForm from './pages/hr/JobsForm';
 import JobApplicationForm from './pages/hr/JobApplicationForm';
 import AddVendorForm from './pages/hr/AddVendorForm';
 import PurchaseRequestForm from './pages/hr/PurchaseRequestForm';
@@ -33,6 +35,7 @@ import StaffShow from './pages/hr/StaffShow';
 import ContractsShow from './pages/hr/ContractsShow';
 import AttendanceShow from './pages/hr/AttendanceShow';
 import LeaveRequestShow from './pages/hr/LeaveRequestShow';
+import JobsShow from './pages/hr/JobsShow';
 import JobApplicationShow from './pages/hr/JobApplicationShow';
 import AddVendorShow from './pages/hr/AddVendorShow';
 import PurchaseRequestShow from './pages/hr/PurchaseRequestShow';
@@ -103,6 +106,12 @@ function App() {
           <Route path="hr/leave-request/create" element={<LeaveRequestForm />} />
           <Route path="hr/leave-request/edit/:id" element={<LeaveRequestForm />} />
           <Route path="hr/leave-request/show/:id" element={<LeaveRequestShow />} />
+
+          {/* HR Routes - Jobs */}
+          <Route path="hr/jobs" element={<Jobs />} />
+          <Route path="hr/jobs/create" element={<JobsForm />} />
+          <Route path="hr/jobs/edit/:id" element={<JobsForm />} />
+          <Route path="hr/jobs/show/:id" element={<JobsShow />} />
 
           {/* HR Routes - Job Application */}
           <Route path="hr/job-application" element={<JobApplication />} />

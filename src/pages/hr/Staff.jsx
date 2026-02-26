@@ -43,16 +43,7 @@ const getStatusBadge = (status) => {
   return styles[status] || 'bg-gray-100 text-gray-700';
 };
 
-const getRoleBadge = (role) => {
-  const styles = {
-    super_admin: 'bg-red-100 text-red-700',
-    hr_manager: 'bg-purple-100 text-purple-700',
-    supervisor: 'bg-blue-100 text-blue-700',
-    observer: 'bg-teal-100 text-teal-700',
-    staff: 'bg-gray-100 text-gray-700',
-  };
-  return styles[role] || 'bg-gray-100 text-gray-700';
-};
+
 
 export default function Staff() {
   const navigate = useNavigate();
@@ -145,7 +136,7 @@ export default function Staff() {
 
     setSaving(true);
     try {
-      await put(`/hr/staff/update/${selectedStaff.id}`, {
+      await put(`/hr/staff/update-status/${selectedStaff.id}`, {
         status: statusUpdate.status
       });
       
@@ -189,9 +180,8 @@ export default function Staff() {
                 <tr>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Employee ID</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Name</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Email</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Department</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Role</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Created By</th>
                   <th className="px-3 py-2 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
                   <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -201,13 +191,8 @@ export default function Staff() {
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-xs font-medium text-teal-600">{item.employee_id}</td>
                     <td className="px-3 py-2 text-xs text-gray-800">{item.full_name}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{item.email}</td>
                     <td className="px-3 py-2 text-xs text-gray-800 capitalize">{item.department || '-'}</td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getRoleBadge(item.role)}`}>
-                        {item.role?.replace('_', ' ')}
-                      </span>
-                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{item.creator?.full_name || 'Unknown'}</td>
                     <td className="px-3 py-2 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadge(item.status)}`}>
                         {item.status?.replace('_', ' ')}

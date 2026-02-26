@@ -90,12 +90,7 @@ export default function Staff() {
       const queryString = queryParams.toString();
       const apiUrl = queryString ? `/hr/staff/list?${queryString}` : '/hr/staff/list';
       
-      console.log('Fetching staff with URL:', apiUrl);
-      console.log('Filters:', filters);
-      console.log('Debounced search:', debouncedSearch);
-      
       const response = await get(apiUrl);
-      console.log('Staff API response:', response.data);
       // Handle paginated response (response.data.data) 
       const staffData = response.data?.data || [];
       setItems(Array.isArray(staffData) ? staffData : []);

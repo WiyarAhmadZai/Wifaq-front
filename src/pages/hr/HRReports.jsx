@@ -147,17 +147,13 @@ const ModuleCard = ({ title, subtitle, icon: Icon, children, actionText, actionL
 export default function HRReports() {
   const [stats, setStats] = useState({
     totalStaff: 0,
-    attendance: 0,
-    pendingLeave: 0,
-    openVacancies: 0,
-    attendanceData: [],
-    leaveData: [],
-    jobData: [],
-    vendorData: [],
-    purchaseData: [],
-    taskData: [],
-    plannerData: [],
-    visitorData: [],
+    activeStaff: 0,
+    onLeaveStaff: 0,
+    activeContracts: 0,
+    draftContracts: 0,
+    expiringSoon: 0,
+    staffData: [],
+    contractsData: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -168,69 +164,51 @@ export default function HRReports() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [
-        attendanceRes,
-        leaveRes,
-        jobRes,
-        vendorRes,
-        purchaseRes,
-        taskRes,
-        plannerRes,
-        visitorRes,
-      ] = await Promise.all([
-        get('/hr/attendances'),
-        get('/hr/leave-requests'),
-        get('/hr/job-applications'),
-        get('/hr/vendors'),
-        get('/hr/purchase-requests'),
-        get('/hr/staff-tasks'),
-        get('/hr/planners'),
-        get('/hr/visitor-logs'),
+      const [staffRes, contractsRes] = await Promise.all([
+        get('/hr/staff/list'),
+        get('/hr/contracts/list'),
       ]);
 
-      const attendanceData = attendanceRes.data?.data || attendanceRes.data || [];
-      const leaveData = leaveRes.data?.data || leaveRes.data || [];
-      const jobData = jobRes.data?.data || jobRes.data || [];
-      const vendorData = vendorRes.data?.data || vendorRes.data || [];
-      const purchaseData = purchaseRes.data?.data || purchaseRes.data || [];
-      const taskData = taskRes.data?.data || taskRes.data || [];
-      const plannerData = plannerRes.data?.data || plannerRes.data || [];
-      const visitorData = visitorRes.data?.data || visitorRes.data || [];
+      const staffData = staffRes.data?.data || staffRes.data || [];
+      const contractsData = contractsRes.data?.data || contractsRes.data || [];
 
-      const presentToday = attendanceData.filter(a => a.status === 'present' || a.status === 'Present').length;
-      const attendanceRate = attendanceData.length > 0 ? Math.round((presentToday / attendanceData.length) * 100) : 0;
-      const pendingLeaveCount = leaveData.filter(l => l.status === 'pending' || l.status === 'Pending').length;
-      const openJobs = jobData.filter(j => j.status === 'new' || j.status === 'in_progress' || j.status === 'New' || j.status === 'In Progress').length;
+      // Calculate stats from staff data
+      const totalStaff = Array.isArray(staffData) ? staffData.length : 0;
+      const activeStaff = staffData.filter(s => s.status === 'active').length;
+      const onLeaveStaff = staffData.filter(s => s.status === 'on_leave').length;
+      
+      // Calculate stats from contracts data
+      const activeContracts = contractsData.filter(c => c.status === 'active').length;
+      const draftContracts = contractsData.filter(c => c.status === 'draft').length;
+      const expiringSoon = contractsData.filter(c => {
+        if (!c.end_date) return false;
+        const endDate = new Date(c.end_date);
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        return endDate <= thirtyDaysFromNow && endDate >= new Date();
+      }).length;
 
       setStats({
-        totalStaff: attendanceData.length || 0,
-        attendance: attendanceRate,
-        pendingLeave: pendingLeaveCount,
-        openVacancies: openJobs,
-        attendanceData,
-        leaveData,
-        jobData,
-        vendorData,
-        purchaseData,
-        taskData,
-        plannerData,
-        visitorData,
+        totalStaff,
+        activeStaff,
+        onLeaveStaff,
+        activeContracts,
+        draftContracts,
+        expiringSoon,
+        staffData: Array.isArray(staffData) ? staffData : [],
+        contractsData: Array.isArray(contractsData) ? contractsData : [],
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setStats({
         totalStaff: 0,
-        attendance: 0,
-        pendingLeave: 0,
-        openVacancies: 0,
-        attendanceData: [],
-        leaveData: [],
-        jobData: [],
-        vendorData: [],
-        purchaseData: [],
-        taskData: [],
-        plannerData: [],
-        visitorData: [],
+        activeStaff: 0,
+        onLeaveStaff: 0,
+        activeContracts: 0,
+        draftContracts: 0,
+        expiringSoon: 0,
+        staffData: [],
+        contractsData: [],
       });
     } finally {
       setLoading(false);
@@ -245,21 +223,19 @@ export default function HRReports() {
     );
   }
 
-  const approvedLeave = stats.leaveData?.filter(l => l.status === 'approved' || l.status === 'Approved').length || 0;
-  const pendingLeaveCount = stats.leaveData?.filter(l => l.status === 'pending' || l.status === 'Pending').length || 0;
-  const rejectedLeave = stats.leaveData?.filter(l => l.status === 'rejected' || l.status === 'Rejected').length || 0;
-  const totalLeave = approvedLeave + pendingLeaveCount + rejectedLeave || 1;
-  const leaveApprovalRate = totalLeave > 0 ? Math.round((approvedLeave / totalLeave) * 100) : 0;
+  // Calculate staff stats
+  const activeStaffCount = stats.activeStaff || 0;
+  const onLeaveCount = stats.onLeaveStaff || 0;
+  const inactiveStaff = (stats.totalStaff || 0) - activeStaffCount - onLeaveCount;
+  const totalStaff = stats.totalStaff || 1;
+  const activeRate = totalStaff > 0 ? Math.round((activeStaffCount / totalStaff) * 100) : 0;
 
-  const completedTasks = stats.taskData?.filter(t => t.status === 'completed' || t.status === 'Completed').length || 0;
-  const inProgressTasks = stats.taskData?.filter(t => t.status === 'in_progress' || t.status === 'In Progress').length || 0;
-  const totalTasks = stats.taskData?.length || 1;
-  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-  const applications = stats.jobData?.length || 0;
-  const shortlisted = stats.jobData?.filter(j => j.status === 'shortlisted' || j.status === 'Shortlisted').length || 0;
-  const interviewing = stats.jobData?.filter(j => j.status === 'interviewing' || j.status === 'Interviewing').length || 0;
-  const hired = stats.jobData?.filter(j => j.status === 'hired' || j.status === 'Hired').length || 0;
+  // Calculate contract stats
+  const activeContracts = stats.activeContracts || 0;
+  const draftContracts = stats.draftContracts || 0;
+  const expiringSoon = stats.expiringSoon || 0;
+  const totalContracts = (stats.contractsData?.length || 0) || 1;
+  const contractActivationRate = totalContracts > 0 ? Math.round((activeContracts / totalContracts) * 100) : 0;
 
   return (
     <div className="p-6">
@@ -275,31 +251,31 @@ export default function HRReports() {
           icon={Icons.Users}
           title="Total Staff"
           value={stats.totalStaff}
-          trend="+2.4%"
+          trend="Active"
           trendUp={true}
           color="bg-teal-100 text-teal-600"
         />
         <StatCard
           icon={Icons.CheckCircle}
-          title="Attendance"
-          value={`${stats.attendance}%`}
-          trend="+1.2%"
+          title="Active Staff"
+          value={activeStaffCount}
+          trend={`${activeRate}%`}
           trendUp={true}
           color="bg-emerald-100 text-emerald-600"
         />
         <StatCard
           icon={Icons.Calendar}
-          title="Pending Leave"
-          value={stats.pendingLeave}
-          trend="-5%"
+          title="On Leave"
+          value={onLeaveCount}
+          trend="Current"
           trendUp={false}
           color="bg-amber-100 text-amber-600"
         />
         <StatCard
           icon={Icons.Briefcase}
-          title="Open Vacancies"
-          value={stats.openVacancies}
-          trend="Stable"
+          title="Active Contracts"
+          value={activeContracts}
+          trend={`${contractActivationRate}%`}
           trendUp={true}
           color="bg-rose-100 text-rose-600"
         />
@@ -307,147 +283,124 @@ export default function HRReports() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-        {/* Weekly Attendance */}
+        {/* Staff Overview Chart */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-gray-800">Weekly Attendance</h3>
-            <select className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white">
-              <option>This Week</option>
-              <option>Last Week</option>
-            </select>
+            <h3 className="text-base font-semibold text-gray-800">Staff Overview</h3>
+            <span className="text-xs text-gray-500">Current Status</span>
           </div>
           <div className="h-40 flex items-end justify-between gap-3">
-            {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((day, i) => {
-              const height = [60, 75, 85, 70, 90, 40, 30][i];
+            {[
+              { label: 'Total', value: stats.totalStaff, color: 'bg-teal-600' },
+              { label: 'Active', value: activeStaffCount, color: 'bg-emerald-500' },
+              { label: 'On Leave', value: onLeaveCount, color: 'bg-amber-500' },
+              { label: 'Inactive', value: inactiveStaff, color: 'bg-gray-400' },
+            ].map((item) => {
+              const maxValue = Math.max(stats.totalStaff || 1, 1);
+              const height = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
               return (
-                <div key={day} className="flex-1 flex flex-col items-center gap-2">
-                  <div className="w-full bg-teal-100 rounded-t-lg transition-all duration-500 hover:bg-teal-200" style={{ height: `${height}%` }}></div>
-                  <span className="text-xs text-gray-500 font-medium">{day}</span>
+                <div key={item.label} className="flex-1 flex flex-col items-center gap-2">
+                  <div className={`w-full ${item.color} rounded-t-lg transition-all duration-500`} style={{ height: `${Math.max(height, 5)}%` }}></div>
+                  <span className="text-xs text-gray-500 font-medium">{item.label}</span>
+                  <span className="text-xs font-bold text-gray-700">{item.value}</span>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Recruitment Pipeline */}
+        {/* Staff Status Overview */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h3 className="text-base font-semibold text-gray-800 mb-4">Recruitment Pipeline</h3>
-          <ProgressBar label="Applications" value={applications} total={applications || 1} color="bg-teal-700" />
-          <ProgressBar label="Shortlisted" value={shortlisted} total={applications || 1} color="bg-teal-600" />
-          <ProgressBar label="Interviewing" value={interviewing} total={applications || 1} color="bg-teal-500" />
-          <ProgressBar label="Hired" value={hired} total={applications || 1} color="bg-amber-500" />
+          <h3 className="text-base font-semibold text-gray-800 mb-4">Staff Status Overview</h3>
+          <ProgressBar label="Active Staff" value={activeStaffCount} total={totalStaff} color="bg-teal-700" />
+          <ProgressBar label="On Leave" value={onLeaveCount} total={totalStaff} color="bg-amber-500" />
+          <ProgressBar label="Inactive" value={inactiveStaff} total={totalStaff} color="bg-gray-400" />
+          <ProgressBar label="Total Staff" value={stats.totalStaff} total={stats.totalStaff || 1} color="bg-teal-500" />
         </div>
       </div>
 
       {/* Module Quick View */}
       <h3 className="text-base font-semibold text-gray-800 mb-4">Module Quick View</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Leave Requests */}
+        {/* Staff Overview */}
         <ModuleCard
-          title="Leave Requests"
-          subtitle={`${pendingLeaveCount} Pending today`}
-          icon={Icons.FileText}
-          actionText="View Report"
-          actionLink="/hr/leave-request"
+          title="Staff Overview"
+          subtitle={`${activeStaffCount} Active, ${onLeaveCount} On Leave`}
+          icon={Icons.Users}
+          actionText="View Staff"
+          actionLink="/hr/staff"
         >
           <div className="flex items-center gap-4">
-            <CircularProgress percentage={leaveApprovalRate} size={60} />
+            <CircularProgress percentage={activeRate} size={60} />
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <span className="text-xs text-gray-600">Approved ({approvedLeave})</span>
+                <span className="text-xs text-gray-600">Active ({activeStaffCount})</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                <span className="text-xs text-gray-600">Pending ({pendingLeaveCount})</span>
+                <span className="text-xs text-gray-600">On Leave ({onLeaveCount})</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                <span className="text-xs text-gray-600">Rejected ({rejectedLeave})</span>
+                <span className="text-xs text-gray-600">Inactive ({inactiveStaff})</span>
               </div>
             </div>
           </div>
         </ModuleCard>
 
-        {/* Staff Tasks */}
+        {/* Contracts Overview */}
         <ModuleCard
-          title="Staff Tasks"
-          subtitle="Weekly Progress"
+          title="Contracts Overview"
+          subtitle={`${expiringSoon} Expiring Soon`}
+          icon={Icons.FileText}
+          actionText="View Contracts"
+          actionLink="/hr/contracts"
+        >
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-gray-600 font-medium">ACTIVE CONTRACTS</span>
+                <span className="text-gray-800 font-semibold">{activeContracts}</span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-teal-600 rounded-full transition-all duration-500" style={{ width: `${contractActivationRate}%` }}></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-gray-600 font-medium">DRAFT CONTRACTS</span>
+                <span className="text-gray-800 font-semibold">{draftContracts}</span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${(draftContracts / totalContracts) * 100}%` }}></div>
+              </div>
+            </div>
+          </div>
+        </ModuleCard>
+
+        {/* Recent Staff */}
+        <ModuleCard
+          title="Recent Staff"
+          subtitle="Latest additions"
           icon={Icons.CheckSquare}
-          actionText="Manage Tasks"
-          actionLink="/hr/staff-task"
+          actionText="Manage Staff"
+          actionLink="/hr/staff"
         >
           <div className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-gray-600 font-medium">COMPLETED TASKS</span>
-                <span className="text-gray-800 font-semibold">{completedTasks}</span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-teal-600 rounded-full transition-all duration-500" style={{ width: `${taskCompletionRate}%` }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-gray-600 font-medium">IN PROGRESS</span>
-                <span className="text-gray-800 font-semibold">{inProgressTasks}</span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${(inProgressTasks / totalTasks) * 100}%` }}></div>
-              </div>
-            </div>
-          </div>
-        </ModuleCard>
-
-        {/* Vendors & Orders */}
-        <ModuleCard
-          title="Vendors & Orders"
-          subtitle="Recent Activity"
-          icon={Icons.CreditCard}
-          actionText="Vendor Log"
-          actionLink="/hr/add-vendor"
-        >
-          <div className="space-y-3">
-            {stats.vendorData?.slice(0, 2).map((vendor, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${i === 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                  {i === 0 ? (
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  ) : (
-                    <span className="text-sm font-bold">$</span>
-                  )}
+            {stats.staffData?.slice(0, 3).map((staff, i) => (
+              <div key={staff.id} className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 flex-shrink-0 text-xs font-bold">
+                  {staff.full_name?.charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{vendor.company_name || vendor.name}</p>
-                  <p className="text-xs text-gray-500">{i === 0 ? 'Invoice Paid' : 'Pending Approval'}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">{staff.full_name}</p>
+                  <p className="text-xs text-gray-500">{staff.designation || staff.department || 'Staff'}</p>
                 </div>
               </div>
             ))}
-            {(!stats.vendorData || stats.vendorData.length === 0) && (
-              <>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">Paper Supplies Ltd</p>
-                    <p className="text-xs text-gray-500">Invoice Paid - $1,200</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
-                    <span className="text-sm font-bold">$</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">Tech World IT</p>
-                    <p className="text-xs text-gray-500">Pending Approval - $4,500</p>
-                  </div>
-                </div>
-              </>
+            {(!stats.staffData || stats.staffData.length === 0) && (
+              <p className="text-xs text-gray-500">No staff members yet</p>
             )}
           </div>
         </ModuleCard>

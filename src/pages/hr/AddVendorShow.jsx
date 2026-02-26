@@ -50,6 +50,14 @@ export default function AddVendorShow() {
   const getRatingDisplay = (rating) => {
     if (!rating) return <span className="text-gray-400 text-sm">N/A</span>;
     
+    const ratingLabels = {
+      1: 'Poor',
+      2: 'Fair',
+      3: 'Good',
+      4: 'Very Good',
+      5: 'Excellent'
+    };
+    
     const colorClasses = {
       1: 'bg-red-100 text-red-700',
       2: 'bg-orange-100 text-orange-700', 
@@ -60,7 +68,7 @@ export default function AddVendorShow() {
     
     return (
       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colorClasses[rating] || 'bg-gray-100 text-gray-700'}`}>
-        {rating}/5
+        {ratingLabels[rating]}
       </span>
     );
   };

@@ -49,6 +49,13 @@ export default function Staff() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [filters, setFilters] = useState({
+    status: '',
+    department: '',
+    employment_type: '',
+    search: ''
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState({
@@ -59,14 +66,38 @@ export default function Staff() {
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [filters.status, filters.department, filters.employment_type, debouncedSearch]);
+
+  // Debounce search functionality
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const response = await get('/hr/staff/list');
-      // Handle both paginated (response.data.data) and non-paginated (response.data) responses
-      const staffData = response.data?.data || response.data || [];
+      // Build query parameters from filters
+      const queryParams = new URLSearchParams();
+      if (filters.status) queryParams.append('status', filters.status);
+      if (filters.department) queryParams.append('department', filters.department);
+      if (filters.employment_type) queryParams.append('employment_type', filters.employment_type);
+      if (debouncedSearch) queryParams.append('search', debouncedSearch);
+
+      const queryString = queryParams.toString();
+      const apiUrl = queryString ? `/hr/staff/list?${queryString}` : '/hr/staff/list';
+      
+      console.log('Fetching staff with URL:', apiUrl);
+      console.log('Filters:', filters);
+      console.log('Debounced search:', debouncedSearch);
+      
+      const response = await get(apiUrl);
+      console.log('Staff API response:', response.data);
+      // Handle paginated response (response.data.data) 
+      const staffData = response.data?.data || [];
       setItems(Array.isArray(staffData) ? staffData : []);
     } catch (error) {
       console.error('Fetch error:', error);
@@ -158,13 +189,84 @@ export default function Staff() {
           <h2 className="text-base font-bold text-gray-800">Staff Management</h2>
           <p className="text-xs text-gray-500 mt-0.5">Manage staff records</p>
         </div>
-        <button
-          onClick={handleCreate}
-          className="w-full sm:w-auto px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1.5 font-medium text-xs"
-        >
-          <Icons.Plus />
-          Add Staff
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setFilters({status: '', department: '', employment_type: '', search: ''});
+            }}
+            className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-xs font-medium"
+          >
+            Clear Filters
+          </button>
+          <button
+            onClick={handleCreate}
+            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs"
+          >
+            <Icons.Plus />
+            Add Staff
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4 p-4 bg-gray-50 rounded-lg">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({...filters, status: e.target.value})}
+            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="on_leave">On Leave</option>
+            <option value="suspended">Suspended</option>
+            <option value="terminated">Terminated</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
+          <select
+            value={filters.department}
+            onChange={(e) => setFilters({...filters, department: e.target.value})}
+            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+          >
+            <option value="">All Departments</option>
+            <option value="hr">Human Resources</option>
+            <option value="finance">Finance</option>
+            <option value="academic">Academic</option>
+            <option value="admin">Administration</option>
+            <option value="it">IT</option>
+            <option value="operations">Operations</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+          <select
+            value={filters.employment_type}
+            onChange={(e) => setFilters({...filters, employment_type: e.target.value})}
+            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+          >
+            <option value="">All Types</option>
+            <option value="WS">WS</option>
+            <option value="WLS">WLS</option>
+            <option value="WLS-CT">WLS-CT</option>
+          </select>
+        </div>
+        
+        <div className="md:col-span-2">
+          <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
+          <input
+            type="text"
+            value={filters.search}
+            onChange={(e) => setFilters({...filters, search: e.target.value})}
+            placeholder="Search by name, ID, or department..."
+            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+          />
+        </div>
       </div>
 
       {loading ? (

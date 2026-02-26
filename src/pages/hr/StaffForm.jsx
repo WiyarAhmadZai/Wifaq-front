@@ -15,25 +15,17 @@ export default function StaffForm() {
     email: '',
     phone: '',
     password: '',
-    gender: '',
-    date_of_birth: '',
-    national_id: '',
-    nationality: '',
-    address: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
     role: '',
     department: '',
     designation: '',
-    hire_date: '',
-    employment_type: '',
-    base_salary: '',
-    bank_account: '',
-    bank_name: '',
-    qualifications: '',
-    skills: '',
-    supervisor_id: '',
+    employment_type: 'WS',
     status: 'active',
+    base_salary: '',
+    required_time: '',
+    track_attendance: false,
+    total_classes: '',
+    rate_per_class: '',
+    supervisor_id: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -46,13 +38,6 @@ export default function StaffForm() {
     }
   }, [id]);
 
-  const formatDateForInput = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    return date.toISOString().split('T')[0];
-  };
-
   const fetchStaff = async () => {
     setLoading(true);
     try {
@@ -64,25 +49,17 @@ export default function StaffForm() {
         email: data.email || '',
         phone: data.phone || '',
         password: '',
-        gender: data.gender || '',
-        date_of_birth: formatDateForInput(data.date_of_birth),
-        national_id: data.national_id || '',
-        nationality: data.nationality || '',
-        address: data.address || '',
-        emergency_contact_name: data.emergency_contact_name || '',
-        emergency_contact_phone: data.emergency_contact_phone || '',
         role: data.role || '',
         department: data.department || '',
         designation: data.designation || '',
-        hire_date: formatDateForInput(data.hire_date),
-        employment_type: data.employment_type || '',
+        employment_type: data.employment_type || 'WS',
+        status: data.status || 'active',
         base_salary: data.base_salary || '',
-        bank_account: data.bank_account || '',
-        bank_name: data.bank_name || '',
-        qualifications: data.qualifications || '',
-        skills: data.skills || '',
+        required_time: data.required_time || '',
+        track_attendance: data.track_attendance || false,
+        total_classes: data.total_classes || '',
+        rate_per_class: data.rate_per_class || '',
         supervisor_id: data.supervisor_id || '',
-    status: data.status || 'active',
       });
     } catch (error) {
       Swal.fire('Error', 'Failed to load staff data', 'error');
@@ -93,8 +70,11 @@ export default function StaffForm() {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }));
@@ -119,7 +99,6 @@ export default function StaffForm() {
 
     try {
       const dataToSend = { ...formData };
-      console.log('Data being sent:', dataToSend); // Debug logging
       
       if (!dataToSend.password && isEdit) {
         delete dataToSend.password;
@@ -131,22 +110,18 @@ export default function StaffForm() {
         navigate('/hr/staff');
       } else {
         const response = await post('/hr/staff/store', dataToSend);
-        console.log('Response:', response); // Debug logging
         Swal.fire('Success', 'Staff created successfully', 'success');
         navigate('/hr/staff');
       }
     } catch (error) {
-      console.error('Error response:', error.response); // Debug logging
       if (error.response?.status === 422 && error.response?.data?.errors) {
         // Validation errors
         const validationErrors = error.response.data.errors;
-        console.log('Validation errors:', validationErrors); // Debug logging
         setErrors(validationErrors);
         scrollToFirstError(validationErrors);
       } else {
         // Other errors
         const message = error.response?.data?.message || 'Failed to save staff';
-        console.error('Other error:', message); // Debug logging
         Swal.fire('Error', message, 'error');
       }
     } finally {
@@ -155,6 +130,12 @@ export default function StaffForm() {
   };
 
   const getFieldError = (fieldName) => errors[fieldName]?.[0];
+
+  const getFieldClass = (fieldName) => {
+    const baseClass = "w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs";
+    const errorClass = getFieldError(fieldName) ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500';
+    return `${baseClass} ${errorClass}`;
+  };
 
   if (loading) {
     return (
@@ -182,142 +163,258 @@ export default function StaffForm() {
       </div>
 
       <form ref={formRef} onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5" autoComplete="off">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Employee ID *</label>
-            <input type="text" name="employee_id" value={formData.employee_id} onChange={handleChange} required autoComplete="off" data-lpignore="true" className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('employee_id') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('employee_id') && <p className="text-red-500 text-xs mt-1">{getFieldError('employee_id')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Full Name *</label>
-            <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} required autoComplete="off" data-lpignore="true" className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('full_name') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('full_name') && <p className="text-red-500 text-xs mt-1">{getFieldError('full_name')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
-            <input type="email" name="email" value={formData.email} onChange={handleChange} required autoComplete="off" data-lpignore="true" className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('email') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('email') && <p className="text-red-500 text-xs mt-1">{getFieldError('email')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} autoComplete="off" className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('phone') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('phone') && <p className="text-red-500 text-xs mt-1">{getFieldError('phone')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Password {isEdit ? '(leave blank to keep current)' : '*'}</label>
-            <input type="password" name="password" value={formData.password} onChange={handleChange} required={!isEdit} autoComplete="new-password" className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('password') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('password') && <p className="text-red-500 text-xs mt-1">{getFieldError('password')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Gender <span className="text-gray-400 font-normal">(optional)</span></label>
-            <select name="gender" value={formData.gender} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('gender') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}>
-              <option value="">Select Gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-            {getFieldError('gender') && <p className="text-red-500 text-xs mt-1">{getFieldError('gender')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Date of Birth <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('date_of_birth') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('date_of_birth') && <p className="text-red-500 text-xs mt-1">{getFieldError('date_of_birth')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">National ID <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="text" name="national_id" value={formData.national_id} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('national_id') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('national_id') && <p className="text-red-500 text-xs mt-1">{getFieldError('national_id')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Role *</label>
-            <select name="role" value={formData.role} onChange={handleChange} required className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('role') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}>
-              <option value="">Select Role</option>
-              <option value="staff">Staff</option>
-              <option value="observer">Observer</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="hr_manager">HR Manager</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
-            {getFieldError('role') && <p className="text-red-500 text-xs mt-1">{getFieldError('role')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Department <span className="text-gray-400 font-normal">(optional)</span></label>
-            <select name="department" value={formData.department} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('department') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}>
-              <option value="">Select Department</option>
-              <option value="hr">Human Resources</option>
-              <option value="finance">Finance</option>
-              <option value="academic">Academic</option>
-              <option value="admin">Administration</option>
-              <option value="it">IT</option>
-              <option value="operations">Operations</option>
-            </select>
-            {getFieldError('department') && <p className="text-red-500 text-xs mt-1">{getFieldError('department')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Designation <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="text" name="designation" value={formData.designation} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('designation') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('designation') && <p className="text-red-500 text-xs mt-1">{getFieldError('designation')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Hire Date *</label>
-            <input type="date" name="hire_date" value={formData.hire_date} onChange={handleChange} required className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('hire_date') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('hire_date') && <p className="text-red-500 text-xs mt-1">{getFieldError('hire_date')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Employment Type *</label>
-            <select name="employment_type" value={formData.employment_type} onChange={handleChange} required className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('employment_type') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}>
-              <option value="">Select Type</option>
-              <option value="full_time">Full Time</option>
-              <option value="part_time">Part Time</option>
-              <option value="contract">Contract</option>
-              <option value="probation">Probation</option>
-            </select>
-            {getFieldError('employment_type') && <p className="text-red-500 text-xs mt-1">{getFieldError('employment_type')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Status *</label>
-            <select name="status" value={formData.status} onChange={handleChange} required className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('status') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="on_leave">On Leave</option>
-              <option value="suspended">Suspended</option>
-              <option value="terminated">Terminated</option>
-            </select>
-            {getFieldError('status') && <p className="text-red-500 text-xs mt-1">{getFieldError('status')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Base Salary <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="number" name="base_salary" value={formData.base_salary} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('base_salary') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('base_salary') && <p className="text-red-500 text-xs mt-1">{getFieldError('base_salary')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Bank Account <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="text" name="bank_account" value={formData.bank_account} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('bank_account') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('bank_account') && <p className="text-red-500 text-xs mt-1">{getFieldError('bank_account')}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="text" name="bank_name" value={formData.bank_name} onChange={handleChange} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('bank_name') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`} />
-            {getFieldError('bank_name') && <p className="text-red-500 text-xs mt-1">{getFieldError('bank_name')}</p>}
+        {/* Basic Information */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Basic Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Employee ID *</label>
+              <input 
+                type="text" 
+                name="employee_id" 
+                value={formData.employee_id} 
+                onChange={handleChange} 
+                readOnly={isEdit}
+                className={`${getFieldClass('employee_id')} ${isEdit ? 'bg-gray-100 cursor-not-allowed' : ''}`} 
+              />
+              {getFieldError('employee_id') && <p className="text-red-500 text-xs mt-1">{getFieldError('employee_id')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Full Name *</label>
+              <input 
+                type="text" 
+                name="full_name" 
+                value={formData.full_name} 
+                onChange={handleChange} 
+                required 
+                autoComplete="off" 
+                data-lpignore="true" 
+                className={getFieldClass('full_name')} 
+              />
+              {getFieldError('full_name') && <p className="text-red-500 text-xs mt-1">{getFieldError('full_name')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
+              <input 
+                type="email" 
+                name="email" 
+                value={formData.email} 
+                onChange={handleChange} 
+                required 
+                autoComplete="off" 
+                data-lpignore="true" 
+                className={getFieldClass('email')} 
+              />
+              {getFieldError('email') && <p className="text-red-500 text-xs mt-1">{getFieldError('email')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input 
+                type="tel" 
+                name="phone" 
+                value={formData.phone} 
+                onChange={handleChange} 
+                autoComplete="off" 
+                className={getFieldClass('phone')} 
+              />
+              {getFieldError('phone') && <p className="text-red-500 text-xs mt-1">{getFieldError('phone')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Password {isEdit ? '(leave blank to keep current)' : '*'}</label>
+              <input 
+                type="password" 
+                name="password" 
+                value={formData.password} 
+                onChange={handleChange} 
+                required={!isEdit} 
+                autoComplete="new-password" 
+                className={getFieldClass('password')} 
+              />
+              {getFieldError('password') && <p className="text-red-500 text-xs mt-1">{getFieldError('password')}</p>}
+            </div>
           </div>
         </div>
 
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Address <span className="text-gray-400 font-normal">(optional)</span></label>
-          <textarea name="address" value={formData.address} onChange={handleChange} rows={2} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('address') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}></textarea>
-          {getFieldError('address') && <p className="text-red-500 text-xs mt-1">{getFieldError('address')}</p>}
+        {/* Employment Information */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Employment Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Role *</label>
+              <select 
+                name="role" 
+                value={formData.role} 
+                onChange={handleChange} 
+                required 
+                className={getFieldClass('role')}
+              >
+                <option value="">Select Role</option>
+                <option value="staff">Staff</option>
+                <option value="observer">Observer</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="hr_manager">HR Manager</option>
+                <option value="super_admin">Super Admin</option>
+              </select>
+              {getFieldError('role') && <p className="text-red-500 text-xs mt-1">{getFieldError('role')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Department <span className="text-gray-400 font-normal">(optional)</span></label>
+              <select 
+                name="department" 
+                value={formData.department} 
+                onChange={handleChange} 
+                className={getFieldClass('department')}
+              >
+                <option value="">Select Department</option>
+                <option value="hr">Human Resources</option>
+                <option value="finance">Finance</option>
+                <option value="academic">Academic</option>
+                <option value="admin">Administration</option>
+                <option value="it">IT</option>
+                <option value="operations">Operations</option>
+              </select>
+              {getFieldError('department') && <p className="text-red-500 text-xs mt-1">{getFieldError('department')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Designation <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input 
+                type="text" 
+                name="designation" 
+                value={formData.designation} 
+                onChange={handleChange} 
+                className={getFieldClass('designation')} 
+              />
+              {getFieldError('designation') && <p className="text-red-500 text-xs mt-1">{getFieldError('designation')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Employment Type *</label>
+              <select 
+                name="employment_type" 
+                value={formData.employment_type} 
+                onChange={handleChange} 
+                required 
+                className={getFieldClass('employment_type')}
+              >
+                <option value="WS">WS (Work Staff)</option>
+                <option value="WLS">WLS (Work & Learn Staff)</option>
+                <option value="WLS-CT">WLS-CT (Work & Learn Staff - Class Teacher)</option>
+              </select>
+              {getFieldError('employment_type') && <p className="text-red-500 text-xs mt-1">{getFieldError('employment_type')}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Status *</label>
+              <select 
+                name="status" 
+                value={formData.status} 
+                onChange={handleChange} 
+                required 
+                className={getFieldClass('status')}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="on_leave">On Leave</option>
+                <option value="suspended">Suspended</option>
+                <option value="terminated">Terminated</option>
+              </select>
+              {getFieldError('status') && <p className="text-red-500 text-xs mt-1">{getFieldError('status')}</p>}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Qualifications <span className="text-gray-400 font-normal">(optional)</span></label>
-          <textarea name="qualifications" value={formData.qualifications} onChange={handleChange} rows={2} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('qualifications') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}></textarea>
-          {getFieldError('qualifications') && <p className="text-red-500 text-xs mt-1">{getFieldError('qualifications')}</p>}
-        </div>
+        {/* Dynamic Fields Based on Employment Type */}
+        {(formData.employment_type === 'WS' || formData.employment_type === 'WLS') && (
+          <div className="mb-6 bg-blue-50 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-blue-800 mb-3">WS/WLS Specific Fields</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Base Salary (AFN)</label>
+                <input 
+                  type="number" 
+                  name="base_salary" 
+                  value={formData.base_salary} 
+                  onChange={handleChange} 
+                  className={getFieldClass('base_salary')} 
+                />
+                {getFieldError('base_salary') && <p className="text-red-500 text-xs mt-1">{getFieldError('base_salary')}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Required Time</label>
+                <input 
+                  type="time" 
+                  name="required_time" 
+                  value={formData.required_time} 
+                  onChange={handleChange} 
+                  className={getFieldClass('required_time')} 
+                />
+                {getFieldError('required_time') && <p className="text-red-500 text-xs mt-1">{getFieldError('required_time')}</p>}
+              </div>
+              <div className="md:col-span-2">
+                <div className="flex items-center">
+                  <input 
+                    type="checkbox" 
+                    name="track_attendance" 
+                    checked={formData.track_attendance} 
+                    onChange={handleChange} 
+                    className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded" 
+                  />
+                  <label className="ml-2 block text-xs text-gray-700">Track Attendance?</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Skills <span className="text-gray-400 font-normal">(optional)</span></label>
-          <textarea name="skills" value={formData.skills} onChange={handleChange} rows={2} className={`w-full px-3 py-2 border rounded-lg focus:ring-2 text-xs ${getFieldError('skills') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'}`}></textarea>
-          {getFieldError('skills') && <p className="text-red-500 text-xs mt-1">{getFieldError('skills')}</p>}
+        {formData.employment_type === 'WLS-CT' && (
+          <div className="mb-6 bg-green-50 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-green-800 mb-3">WLS-CT Specific Fields</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Total Classes</label>
+                <input 
+                  type="number" 
+                  name="total_classes" 
+                  value={formData.total_classes} 
+                  onChange={handleChange} 
+                  className={getFieldClass('total_classes')} 
+                />
+                {getFieldError('total_classes') && <p className="text-red-500 text-xs mt-1">{getFieldError('total_classes')}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Rate/Class (AFN)</label>
+                <input 
+                  type="number" 
+                  name="rate_per_class" 
+                  value={formData.rate_per_class} 
+                  onChange={handleChange} 
+                  step="0.01" 
+                  className={getFieldClass('rate_per_class')} 
+                />
+                {getFieldError('rate_per_class') && <p className="text-red-500 text-xs mt-1">{getFieldError('rate_per_class')}</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Additional Information */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Additional Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Supervisor <span className="text-gray-400 font-normal">(optional)</span></label>
+              <select 
+                name="supervisor_id" 
+                value={formData.supervisor_id} 
+                onChange={handleChange} 
+                className={getFieldClass('supervisor_id')}
+              >
+                <option value="">Select Supervisor</option>
+                <option value="1">System Administrator</option>
+                <option value="2">HR Manager</option>
+                <option value="3">Supervisor</option>
+              </select>
+              {getFieldError('supervisor_id') && <p className="text-red-500 text-xs mt-1">{getFieldError('supervisor_id')}</p>}
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 mt-6">

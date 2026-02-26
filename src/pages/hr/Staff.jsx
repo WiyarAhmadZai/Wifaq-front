@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const Icons = {
@@ -23,6 +23,11 @@ const Icons = {
   Trash: () => (
     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  ),
+  EditStatus: () => (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
     </svg>
   ),
 };
@@ -53,6 +58,13 @@ export default function Staff() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [statusUpdate, setStatusUpdate] = useState({
+    status: '',
+    notes: ''
+  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchItems();
@@ -62,7 +74,6 @@ export default function Staff() {
     setLoading(true);
     try {
       const response = await get('/hr/staff/list');
-      console.log('Staff API response:', response.data);
       // Handle both paginated (response.data.data) and non-paginated (response.data) responses
       const staffData = response.data?.data || response.data || [];
       setItems(Array.isArray(staffData) ? staffData : []);
@@ -105,6 +116,47 @@ export default function Staff() {
       } catch (error) {
         Swal.fire('Error!', 'Failed to delete staff.', 'error');
       }
+    }
+  };
+
+  const handleOpenStatusModal = (staff) => {
+    setSelectedStaff(staff);
+    setStatusUpdate({
+      status: staff.status,
+      notes: ''
+    });
+    setShowStatusModal(true);
+  };
+
+  const handleCloseStatusModal = () => {
+    setShowStatusModal(false);
+    setSelectedStaff(null);
+    setStatusUpdate({
+      status: '',
+      notes: ''
+    });
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!statusUpdate.status) {
+      Swal.fire('Error', 'Please select a status', 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await put(`/hr/staff/update/${selectedStaff.id}`, {
+        status: statusUpdate.status
+      });
+      
+      Swal.fire('Success', 'Staff status updated successfully', 'success');
+      handleCloseStatusModal();
+      fetchItems(); // Refresh the list
+    } catch (error) {
+      console.error('Update error:', error);
+      Swal.fire('Error', 'Failed to update staff status', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -169,6 +221,9 @@ export default function Staff() {
                         <button onClick={() => handleEdit(item)} className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors" title="Edit">
                           <Icons.Edit />
                         </button>
+                        <button onClick={() => handleOpenStatusModal(item)} className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Update Status">
+                          <Icons.EditStatus />
+                        </button>
                         <button onClick={() => handleDelete(item.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
                           <Icons.Trash />
                         </button>
@@ -190,6 +245,67 @@ export default function Staff() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Status Update Modal */}
+      {showStatusModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="px-4 py-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Update Staff Status</h3>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Status</label>
+                <div className={`px-3 py-2 rounded-lg ${getStatusBadge(selectedStaff?.status)} text-sm`}>
+                  {selectedStaff?.status?.replace('_', ' ')}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Status</label>
+                <select
+                  value={statusUpdate.status}
+                  onChange={(e) => setStatusUpdate({...statusUpdate, status: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                >
+                  <option value="">Select Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="on_leave">On Leave</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="terminated">Terminated</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member</label>
+                <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm">
+                  {selectedStaff?.full_name} ({selectedStaff?.employee_id})
+                </div>
+              </div>
+            </div>
+            
+            <div className="px-4 py-3 bg-gray-50 flex justify-end gap-2 rounded-b-lg">
+              <button
+                type="button"
+                onClick={handleCloseStatusModal}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleStatusUpdate}
+                disabled={saving}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? 'Updating...' : 'Update Status'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

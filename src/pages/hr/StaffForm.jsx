@@ -10,22 +10,14 @@ export default function StaffForm() {
   const formRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    employee_id: '',
     full_name: '',
-    email: '',
-    phone: '',
-    password: '',
-    role: '',
     department: '',
-    designation: '',
     employment_type: 'WS',
-    status: 'active',
     base_salary: '',
     required_time: '',
     track_attendance: false,
     total_classes: '',
     rate_per_class: '',
-    supervisor_id: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -44,22 +36,14 @@ export default function StaffForm() {
       const response = await get(`/hr/staff/show/${id}`);
       const data = response.data;
       setFormData({
-        employee_id: data.employee_id || '',
         full_name: data.full_name || '',
-        email: data.email || '',
-        phone: data.phone || '',
-        password: '',
-        role: data.role || '',
         department: data.department || '',
-        designation: data.designation || '',
         employment_type: data.employment_type || 'WS',
-        status: data.status || 'active',
         base_salary: data.base_salary || '',
         required_time: data.required_time || '',
         track_attendance: data.track_attendance || false,
         total_classes: data.total_classes || '',
         rate_per_class: data.rate_per_class || '',
-        supervisor_id: data.supervisor_id || '',
       });
     } catch (error) {
       Swal.fire('Error', 'Failed to load staff data', 'error');
@@ -99,10 +83,6 @@ export default function StaffForm() {
 
     try {
       const dataToSend = { ...formData };
-      
-      if (!dataToSend.password && isEdit) {
-        delete dataToSend.password;
-      }
 
       if (isEdit) {
         await put(`/hr/staff/update/${id}`, dataToSend);
@@ -167,19 +147,7 @@ export default function StaffForm() {
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-800 mb-3">Basic Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Employee ID *</label>
-              <input 
-                type="text" 
-                name="employee_id" 
-                value={formData.employee_id} 
-                onChange={handleChange} 
-                readOnly={isEdit}
-                className={`${getFieldClass('employee_id')} ${isEdit ? 'bg-gray-100 cursor-not-allowed' : ''}`} 
-              />
-              {getFieldError('employee_id') && <p className="text-red-500 text-xs mt-1">{getFieldError('employee_id')}</p>}
-            </div>
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">Full Name *</label>
               <input 
                 type="text" 
@@ -193,45 +161,6 @@ export default function StaffForm() {
               />
               {getFieldError('full_name') && <p className="text-red-500 text-xs mt-1">{getFieldError('full_name')}</p>}
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
-              <input 
-                type="email" 
-                name="email" 
-                value={formData.email} 
-                onChange={handleChange} 
-                required 
-                autoComplete="off" 
-                data-lpignore="true" 
-                className={getFieldClass('email')} 
-              />
-              {getFieldError('email') && <p className="text-red-500 text-xs mt-1">{getFieldError('email')}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input 
-                type="tel" 
-                name="phone" 
-                value={formData.phone} 
-                onChange={handleChange} 
-                autoComplete="off" 
-                className={getFieldClass('phone')} 
-              />
-              {getFieldError('phone') && <p className="text-red-500 text-xs mt-1">{getFieldError('phone')}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Password {isEdit ? '(leave blank to keep current)' : '*'}</label>
-              <input 
-                type="password" 
-                name="password" 
-                value={formData.password} 
-                onChange={handleChange} 
-                required={!isEdit} 
-                autoComplete="new-password" 
-                className={getFieldClass('password')} 
-              />
-              {getFieldError('password') && <p className="text-red-500 text-xs mt-1">{getFieldError('password')}</p>}
-            </div>
           </div>
         </div>
 
@@ -239,24 +168,6 @@ export default function StaffForm() {
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-800 mb-3">Employment Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Role *</label>
-              <select 
-                name="role" 
-                value={formData.role} 
-                onChange={handleChange} 
-                required 
-                className={getFieldClass('role')}
-              >
-                <option value="">Select Role</option>
-                <option value="staff">Staff</option>
-                <option value="observer">Observer</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="hr_manager">HR Manager</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
-              {getFieldError('role') && <p className="text-red-500 text-xs mt-1">{getFieldError('role')}</p>}
-            </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Department <span className="text-gray-400 font-normal">(optional)</span></label>
               <select 
@@ -276,17 +187,6 @@ export default function StaffForm() {
               {getFieldError('department') && <p className="text-red-500 text-xs mt-1">{getFieldError('department')}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Designation <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input 
-                type="text" 
-                name="designation" 
-                value={formData.designation} 
-                onChange={handleChange} 
-                className={getFieldClass('designation')} 
-              />
-              {getFieldError('designation') && <p className="text-red-500 text-xs mt-1">{getFieldError('designation')}</p>}
-            </div>
-            <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Employment Type *</label>
               <select 
                 name="employment_type" 
@@ -295,28 +195,11 @@ export default function StaffForm() {
                 required 
                 className={getFieldClass('employment_type')}
               >
-                <option value="WS">WS (Work Staff)</option>
-                <option value="WLS">WLS (Work & Learn Staff)</option>
-                <option value="WLS-CT">WLS-CT (Work & Learn Staff - Class Teacher)</option>
+                <option value="WS">WS</option>
+                <option value="WLS">WLS</option>
+                <option value="WLS-CT">WLS-CT</option>
               </select>
               {getFieldError('employment_type') && <p className="text-red-500 text-xs mt-1">{getFieldError('employment_type')}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Status *</label>
-              <select 
-                name="status" 
-                value={formData.status} 
-                onChange={handleChange} 
-                required 
-                className={getFieldClass('status')}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="on_leave">On Leave</option>
-                <option value="suspended">Suspended</option>
-                <option value="terminated">Terminated</option>
-              </select>
-              {getFieldError('status') && <p className="text-red-500 text-xs mt-1">{getFieldError('status')}</p>}
             </div>
           </div>
         </div>
@@ -395,27 +278,7 @@ export default function StaffForm() {
           </div>
         )}
 
-        {/* Additional Information */}
-        <div className="mb-6">
-          <h3 className="text-sm font-semibold text-gray-800 mb-3">Additional Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Supervisor <span className="text-gray-400 font-normal">(optional)</span></label>
-              <select 
-                name="supervisor_id" 
-                value={formData.supervisor_id} 
-                onChange={handleChange} 
-                className={getFieldClass('supervisor_id')}
-              >
-                <option value="">Select Supervisor</option>
-                <option value="1">System Administrator</option>
-                <option value="2">HR Manager</option>
-                <option value="3">Supervisor</option>
-              </select>
-              {getFieldError('supervisor_id') && <p className="text-red-500 text-xs mt-1">{getFieldError('supervisor_id')}</p>}
-            </div>
-          </div>
-        </div>
+        {/* Additional Information - Removed since no extra fields needed */}
 
         <div className="flex justify-end gap-3 mt-6">
           <button

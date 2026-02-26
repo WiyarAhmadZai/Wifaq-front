@@ -160,6 +160,8 @@ export default function Layout() {
   const isActive = (path) => location.pathname === path;
 
   const hrSubMenus = [
+    { label: 'Staff', path: '/hr/staff' },
+    { label: 'Contracts', path: '/hr/contracts' },
     { label: 'Attendance', path: '/hr/attendance' },
     { label: 'Leave Request', path: '/hr/leave-request' },
     { label: 'Job Application', path: '/hr/job-application' },

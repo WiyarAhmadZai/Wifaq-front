@@ -11,7 +11,6 @@ export default function ContractsForm() {
 
   const [formData, setFormData] = useState({
     staff_id: '',
-    contract_number: '',
     contract_type: 'fixed_term',
     start_date: '',
     end_date: '',
@@ -86,7 +85,6 @@ export default function ContractsForm() {
       const data = response.data;
       setFormData({
         staff_id: data.staff_id || '',
-        contract_number: data.contract_number || '',
         contract_type: data.contract_type || '',
         start_date: formatDateForInput(data.start_date),
         end_date: formatDateForInput(data.end_date),
@@ -217,10 +215,6 @@ export default function ContractsForm() {
               </div>
             )}
             <input type="hidden" name="staff_id" value={formData.staff_id} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Contract Number *</label>
-            <input type="text" name="contract_number" value={formData.contract_number} onChange={handleChange} required autoComplete="off" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Contract Type *</label>

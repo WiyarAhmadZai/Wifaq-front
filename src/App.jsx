@@ -4,6 +4,8 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 
 // HR Pages - List
+import Staff from './pages/hr/Staff';
+import Contracts from './pages/hr/Contracts';
 import Attendance from './pages/hr/Attendance';
 import LeaveRequest from './pages/hr/LeaveRequest';
 import JobApplication from './pages/hr/JobApplication';
@@ -15,6 +17,8 @@ import VisitorLog from './pages/hr/VisitorLog';
 import HRReports from './pages/hr/HRReports';
 
 // HR Pages - Form (Create/Edit)
+import StaffForm from './pages/hr/StaffForm';
+import ContractsForm from './pages/hr/ContractsForm';
 import AttendanceForm from './pages/hr/AttendanceForm';
 import LeaveRequestForm from './pages/hr/LeaveRequestForm';
 import JobApplicationForm from './pages/hr/JobApplicationForm';
@@ -25,6 +29,8 @@ import PlannerForm from './pages/hr/PlannerForm';
 import VisitorLogForm from './pages/hr/VisitorLogForm';
 
 // HR Pages - Show
+import StaffShow from './pages/hr/StaffShow';
+import ContractsShow from './pages/hr/ContractsShow';
 import AttendanceShow from './pages/hr/AttendanceShow';
 import LeaveRequestShow from './pages/hr/LeaveRequestShow';
 import JobApplicationShow from './pages/hr/JobApplicationShow';
@@ -73,6 +79,18 @@ function App() {
           <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
           <Route path="settings" element={<Placeholder title="Settings" />} />
           <Route path="support" element={<Placeholder title="Support" />} />
+
+          {/* HR Routes - Staff */}
+          <Route path="hr/staff" element={<Staff />} />
+          <Route path="hr/staff/create" element={<StaffForm />} />
+          <Route path="hr/staff/edit/:id" element={<StaffForm />} />
+          <Route path="hr/staff/show/:id" element={<StaffShow />} />
+
+          {/* HR Routes - Contracts */}
+          <Route path="hr/contracts" element={<Contracts />} />
+          <Route path="hr/contracts/create" element={<ContractsForm />} />
+          <Route path="hr/contracts/edit/:id" element={<ContractsForm />} />
+          <Route path="hr/contracts/show/:id" element={<ContractsShow />} />
 
           {/* HR Routes - Attendance */}
           <Route path="hr/attendance" element={<Attendance />} />

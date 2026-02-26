@@ -20,6 +20,7 @@ export default function ContractsForm() {
     benefits: {},
     job_description: '',
     terms_conditions: '',
+    status: 'draft' // Add default status
   });
 
   const [staffList, setStaffList] = useState([]);
@@ -128,16 +129,24 @@ export default function ContractsForm() {
     setSaving(true);
 
     try {
+      // Prepare data - handle empty end_date
+      const submitData = { ...formData };
+      if (!submitData.end_date) {
+        delete submitData.end_date;
+      }
+      
       if (isEdit) {
-        await put(`/hr/contracts/update/${id}`, formData);
+        await put(`/hr/contracts/update/${id}`, submitData);
         Swal.fire('Success', 'Contract updated successfully', 'success');
       } else {
-        await post('/hr/contracts/store', formData);
+        await post('/hr/contracts/store', submitData);
         Swal.fire('Success', 'Contract created successfully', 'success');
       }
       navigate('/hr/contracts');
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to save contract';
+      const message = error.response?.data?.errors 
+        ? Object.values(error.response.data.errors).flat().join(', ')
+        : error.response?.data?.message || 'Failed to save contract';
       Swal.fire('Error', message, 'error');
     } finally {
       setSaving(false);
@@ -231,10 +240,12 @@ export default function ContractsForm() {
             <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
             <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">End Date <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="date" name="end_date" value={formData.end_date} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
-          </div>
+          {formData.contract_type !== 'permanent' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">End Date <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="date" name="end_date" value={formData.end_date} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
+            </div>
+          )}
           {formData.contract_type === 'probation' && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Probation Period (Days) <span className="text-gray-400 font-normal">(optional)</span></label>

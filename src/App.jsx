@@ -1,62 +1,71 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import Layout from "./components/Layout";
+import Dashboard from "./pages/Dashboard";
+import Login from "./pages/Login";
 
 // HR Pages - List
-import Staff from './pages/hr/Staff';
-import Contracts from './pages/hr/Contracts';
-import Attendance from './pages/hr/Attendance';
-import LeaveRequest from './pages/hr/LeaveRequest';
-import Jobs from './pages/hr/Jobs';
-import JobApplication from './pages/hr/JobApplication';
-import AddVendor from './pages/hr/AddVendor';
-import PurchaseRequest from './pages/hr/PurchaseRequest';
-import StaffTask from './pages/hr/StaffTask';
-import Planner from './pages/hr/Planner';
-import VisitorLog from './pages/hr/VisitorLog';
-import HRReports from './pages/hr/HRReports';
+import Staff from "./pages/hr/Staff";
+import Contracts from "./pages/hr/Contracts";
+import Attendance from "./pages/hr/Attendance";
+import QuickAttendance from "./pages/hr/QuickAttendance";
+import AttendanceReport from "./pages/hr/AttendanceReport";
+import LeaveRequest from "./pages/hr/LeaveRequest";
+import Jobs from "./pages/hr/Jobs";
+import JobApplication from "./pages/hr/JobApplication";
+import AddVendor from "./pages/hr/AddVendor";
+import PurchaseRequest from "./pages/hr/PurchaseRequest";
+import StaffTask from "./pages/hr/StaffTask";
+import Planner from "./pages/hr/Planner";
+import VisitorLog from "./pages/hr/VisitorLog";
+import HRReports from "./pages/hr/HRReports";
 
 // HR Pages - Form (Create/Edit)
-import StaffForm from './pages/hr/StaffForm';
-import ContractsForm from './pages/hr/ContractsForm';
-import AttendanceForm from './pages/hr/AttendanceForm';
-import LeaveRequestForm from './pages/hr/LeaveRequestForm';
-import JobsForm from './pages/hr/JobsForm';
-import JobApplicationForm from './pages/hr/JobApplicationForm';
-import AddVendorForm from './pages/hr/AddVendorForm';
-import PurchaseRequestForm from './pages/hr/PurchaseRequestForm';
-import StaffTaskForm from './pages/hr/StaffTaskForm';
-import PlannerForm from './pages/hr/PlannerForm';
-import VisitorLogForm from './pages/hr/VisitorLogForm';
+import StaffForm from "./pages/hr/StaffForm";
+import ContractsForm from "./pages/hr/ContractsForm";
+import AttendanceForm from "./pages/hr/AttendanceForm";
+import LeaveRequestForm from "./pages/hr/LeaveRequestForm";
+import JobsForm from "./pages/hr/JobsForm";
+import JobApplicationForm from "./pages/hr/JobApplicationForm";
+import AddVendorForm from "./pages/hr/AddVendorForm";
+import PurchaseRequestForm from "./pages/hr/PurchaseRequestForm";
+import StaffTaskForm from "./pages/hr/StaffTaskForm";
+import PlannerForm from "./pages/hr/PlannerForm";
+import VisitorLogForm from "./pages/hr/VisitorLogForm";
 
 // HR Pages - Show
-import StaffShow from './pages/hr/StaffShow';
-import ContractsShow from './pages/hr/ContractsShow';
-import AttendanceShow from './pages/hr/AttendanceShow';
-import LeaveRequestShow from './pages/hr/LeaveRequestShow';
-import JobsShow from './pages/hr/JobsShow';
-import JobApplicationShow from './pages/hr/JobApplicationShow';
-import AddVendorShow from './pages/hr/AddVendorShow';
-import PurchaseRequestShow from './pages/hr/PurchaseRequestShow';
-import StaffTaskShow from './pages/hr/StaffTaskShow';
-import PlannerShow from './pages/hr/PlannerShow';
-import VisitorLogShow from './pages/hr/VisitorLogShow';
+import StaffShow from "./pages/hr/StaffShow";
+import ContractsShow from "./pages/hr/ContractsShow";
+import AttendanceShow from "./pages/hr/AttendanceShow";
+import LeaveRequestShow from "./pages/hr/LeaveRequestShow";
+import JobsShow from "./pages/hr/JobsShow";
+import JobApplicationShow from "./pages/hr/JobApplicationShow";
+import AddVendorShow from "./pages/hr/AddVendorShow";
+import PurchaseRequestShow from "./pages/hr/PurchaseRequestShow";
+import StaffTaskShow from "./pages/hr/StaffTaskShow";
+import PlannerShow from "./pages/hr/PlannerShow";
+import VisitorLogShow from "./pages/hr/VisitorLogShow";
 
 const Placeholder = ({ title }) => (
   <div className="p-4 sm:p-6">
-    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">{title}</h2>
+    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
+      {title}
+    </h2>
     <p className="text-gray-600">This page is under development.</p>
   </div>
 );
 
 function ProtectedRoute({ children }) {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   return token ? children : <Navigate to="/login" replace />;
 }
 
 function PublicRoute({ children }) {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   return !token ? children : <Navigate to="/" replace />;
 }
 
@@ -64,22 +73,37 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        } />
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
 
-        <Route path="/" element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<Dashboard />} />
-          <Route path="departments" element={<Placeholder title="Departments" />} />
+          <Route
+            path="departments"
+            element={<Placeholder title="Departments" />}
+          />
           <Route path="payroll" element={<Placeholder title="Payroll" />} />
-          <Route path="leave-requests" element={<Placeholder title="Leave Requests" />} />
-          <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
+          <Route
+            path="leave-requests"
+            element={<Placeholder title="Leave Requests" />}
+          />
+          <Route
+            path="number-puzzle"
+            element={<Placeholder title="Number Puzzle" />}
+          />
           <Route path="settings" element={<Placeholder title="Settings" />} />
           <Route path="support" element={<Placeholder title="Support" />} />
 
@@ -97,15 +121,26 @@ function App() {
 
           {/* HR Routes - Attendance */}
           <Route path="hr/attendance" element={<Attendance />} />
+          <Route path="hr/attendance/quick" element={<QuickAttendance />} />
+          <Route path="hr/attendance/report" element={<AttendanceReport />} />
           <Route path="hr/attendance/create" element={<AttendanceForm />} />
           <Route path="hr/attendance/edit/:id" element={<AttendanceForm />} />
           <Route path="hr/attendance/show/:id" element={<AttendanceShow />} />
 
           {/* HR Routes - Leave Request */}
           <Route path="hr/leave-request" element={<LeaveRequest />} />
-          <Route path="hr/leave-request/create" element={<LeaveRequestForm />} />
-          <Route path="hr/leave-request/edit/:id" element={<LeaveRequestForm />} />
-          <Route path="hr/leave-request/show/:id" element={<LeaveRequestShow />} />
+          <Route
+            path="hr/leave-request/create"
+            element={<LeaveRequestForm />}
+          />
+          <Route
+            path="hr/leave-request/edit/:id"
+            element={<LeaveRequestForm />}
+          />
+          <Route
+            path="hr/leave-request/show/:id"
+            element={<LeaveRequestShow />}
+          />
 
           {/* HR Routes - Jobs */}
           <Route path="hr/jobs" element={<Jobs />} />
@@ -115,9 +150,18 @@ function App() {
 
           {/* HR Routes - Job Application */}
           <Route path="hr/job-application" element={<JobApplication />} />
-          <Route path="hr/job-application/create" element={<JobApplicationForm />} />
-          <Route path="hr/job-application/edit/:id" element={<JobApplicationForm />} />
-          <Route path="hr/job-application/show/:id" element={<JobApplicationShow />} />
+          <Route
+            path="hr/job-application/create"
+            element={<JobApplicationForm />}
+          />
+          <Route
+            path="hr/job-application/edit/:id"
+            element={<JobApplicationForm />}
+          />
+          <Route
+            path="hr/job-application/show/:id"
+            element={<JobApplicationShow />}
+          />
 
           {/* HR Routes - Add Vendor */}
           <Route path="hr/add-vendor" element={<AddVendor />} />
@@ -127,9 +171,18 @@ function App() {
 
           {/* HR Routes - Purchase Request */}
           <Route path="hr/purchase-request" element={<PurchaseRequest />} />
-          <Route path="hr/purchase-request/create" element={<PurchaseRequestForm />} />
-          <Route path="hr/purchase-request/edit/:id" element={<PurchaseRequestForm />} />
-          <Route path="hr/purchase-request/show/:id" element={<PurchaseRequestShow />} />
+          <Route
+            path="hr/purchase-request/create"
+            element={<PurchaseRequestForm />}
+          />
+          <Route
+            path="hr/purchase-request/edit/:id"
+            element={<PurchaseRequestForm />}
+          />
+          <Route
+            path="hr/purchase-request/show/:id"
+            element={<PurchaseRequestShow />}
+          />
 
           {/* HR Routes - Staff Task */}
           <Route path="hr/staff-task" element={<StaffTask />} />
@@ -157,4 +210,4 @@ function App() {
   );
 }
 
-export default App
+export default App;

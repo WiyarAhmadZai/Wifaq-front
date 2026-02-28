@@ -2,7 +2,6 @@ import CrudPage from "../../components/CrudPage";
 
 export const attendanceFields = [
   { name: "date", label: "Date", type: "date", required: true },
-  { name: "day", label: "Day", type: "text", required: true },
   { name: "employee_id", label: "Employee", type: "text", required: true },
   {
     name: "status",

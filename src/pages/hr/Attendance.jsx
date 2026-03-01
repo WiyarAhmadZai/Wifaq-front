@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function Attendance() {
   const navigate = useNavigate();
+  const today = new Date().toISOString().split("T")[0];
 
   const extraButtons = (
     <>
@@ -50,7 +51,7 @@ export default function Attendance() {
   return (
     <CrudPage
       title="Staff Attendance"
-      apiEndpoint="/hr/attendances"
+      apiEndpoint={`/hr/attendances?date=${today}`}
       listColumns={[
         { key: "date", label: "Date" },
         { key: "employee_id", label: "Employee" },

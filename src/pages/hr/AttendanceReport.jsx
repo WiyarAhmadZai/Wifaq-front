@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 
 export default function AttendanceReport() {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);

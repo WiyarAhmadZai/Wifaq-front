@@ -119,7 +119,7 @@ export default function QuickAttendance() {
   const selectedEmployee = employees.find((e) => e.id === parseInt(employeeId));
 
   return (
-    <div className="px-4 py-6 mx-auto">
+    <div className="px-4 py-6 mx-auto ">
       {/* Back Button */}
       <div className="mb-4">
         <button

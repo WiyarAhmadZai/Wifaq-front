@@ -62,6 +62,35 @@ export default function QuickAttendance() {
     }
   };
 
+  const handleCheckOut = async (row) => {
+    const key = `checkout-${row.employee.id}`;
+    setActionLoading(key);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      if (selectedDate !== today) {
+        Swal.fire(
+          "Info",
+          "Quick check-out is only for today. Use the attendance form for past days.",
+          "info",
+        );
+      } else {
+        await post("/hr/attendances/check-out", {
+          employee_id: row.employee.id,
+        });
+        Swal.fire("Success", "Check-out recorded. Time Out set by system.", "success");
+      }
+      await fetchDailySheet();
+    } catch (error) {
+      const msg =
+        error.response?.data?.error ||
+        error.response?.data?.errors?.employee_id?.[0] ||
+        "Failed to record check-out";
+      Swal.fire("Error", msg, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleMarkAbsent = async (row) => {
     const key = `absent-${row.employee.id}`;
     setActionLoading(key);
@@ -114,9 +143,15 @@ export default function QuickAttendance() {
     );
   };
 
+  const today = new Date().toISOString().slice(0, 10);
   const isPending = (status) => status === "pending";
   const isPresentLike = (status) =>
     status === "present" || status === "late" || status === "half_day";
+  const canCheckOut = (row) =>
+    selectedDate === today &&
+    isPresentLike(row.status) &&
+    row.arrived &&
+    !row.check_out;
 
   return (
     <div className="px-4 py-6 mx-auto">
@@ -254,11 +289,11 @@ export default function QuickAttendance() {
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex justify-center gap-1">
+                      <div className="flex justify-center items-center gap-1 flex-wrap">
                         <button
                           onClick={() => handleMarkPresent(row)}
                           disabled={actionLoading != null}
-                          title="Mark Present"
+                          title="Mark Present (Time In by system)"
                           className={`p-1 rounded transition-colors ${
                             isPresentLike(row.status)
                               ? "bg-green-500 text-white hover:bg-green-600"
@@ -279,6 +314,34 @@ export default function QuickAttendance() {
                                 strokeLinejoin="round"
                                 strokeWidth={2}
                                 d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleCheckOut(row)}
+                          disabled={actionLoading != null || !canCheckOut(row)}
+                          title="Time Out (recorded by system)"
+                          className={`p-1 rounded transition-colors ${
+                            canCheckOut(row)
+                              ? "bg-orange-500 text-white hover:bg-orange-600"
+                              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                          }`}
+                        >
+                          {actionLoading === `checkout-${row.employee.id}` ? (
+                            <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                          ) : (
+                            <svg
+                              className="w-3.5 h-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                               />
                             </svg>
                           )}

@@ -322,9 +322,9 @@ export default function QuickAttendance() {
                     </td>
                     <td className="px-3 py-2">
                       {isRowLocked(row) ? (
-                        <span className="text-xs text-slate-500 italic">
+                        <p className="text-xs text-center text-slate-500 italic">
                           Completed
-                        </span>
+                        </p>
                       ) : (
                         <div className="flex justify-center items-center gap-1 flex-wrap">
                           <button

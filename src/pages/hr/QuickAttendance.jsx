@@ -1,130 +1,168 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post } from "../../api/axios";
+import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
 export default function QuickAttendance() {
   const navigate = useNavigate();
-  const [employeeId, setEmployeeId] = useState("");
-  const [employees, setEmployees] = useState([]);
-  const [todayStatus, setTodayStatus] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  });
+  const [dailySheet, setDailySheet] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [actionLoading, setActionLoading] = useState(null); // employee_id or "row-id" when updating
 
-  // Update current time every second
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    fetchDailySheet();
+  }, [selectedDate]);
 
-  // Fetch employees list
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
-  // Fetch today's status when employee changes
-  useEffect(() => {
-    if (employeeId) {
-      fetchTodayStatus();
-    }
-  }, [employeeId]);
-
-  const fetchEmployees = async () => {
-    try {
-      const response = await get("/hr/staff/list?per_page=1000");
-      const staffData = response.data?.data || response.data || [];
-      setEmployees(Array.isArray(staffData) ? staffData : []);
-    } catch (error) {
-      console.error("Failed to load employees", error);
-    }
-  };
-
-  const fetchTodayStatus = async () => {
+  const fetchDailySheet = async () => {
+    setLoading(true);
     try {
       const response = await get(
-        `/hr/attendances/today-status?employee_id=${employeeId}`,
+        `/hr/attendances/daily-sheet?date=${selectedDate}`,
       );
-      setTodayStatus(response.data);
+      setDailySheet(response.data);
     } catch (error) {
-      console.error("Failed to load today's status", error);
-    }
-  };
-
-  const handleCheckIn = async () => {
-    if (!employeeId) {
-      Swal.fire("Error", "Please select an employee", "error");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await post("/hr/attendances/check-in", {
-        employee_id: employeeId,
-      });
-      Swal.fire("Success", response.data.message, "success");
-      fetchTodayStatus();
-    } catch (error) {
-      const message = error.response?.data?.error || "Failed to check in";
-      Swal.fire("Error", message, "error");
+      console.error("Failed to load daily sheet", error);
+      Swal.fire("Error", "Failed to load attendance sheet", "error");
+      setDailySheet(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCheckOut = async () => {
-    if (!employeeId) {
-      Swal.fire("Error", "Please select an employee", "error");
-      return;
-    }
-
-    setLoading(true);
+  const handleMarkPresent = async (row) => {
+    const key = `present-${row.employee.id}`;
+    setActionLoading(key);
     try {
-      const response = await post("/hr/attendances/check-out", {
-        employee_id: employeeId,
-      });
-      Swal.fire(
-        "Success",
-        `Check-out successful! Working hours: ${response.data.working_hours}h`,
-        "success",
-      );
-      fetchTodayStatus();
+      const payload = {
+        date: selectedDate,
+        employee_id: row.employee.id,
+        status: "present",
+        arrived: row.arrived || "09:00",
+        check_out: row.check_out || "18:00",
+      };
+      if (row.attendance_id) {
+        await put(`/hr/attendances/${row.attendance_id}`, payload);
+      } else {
+        await post("/hr/attendances", payload);
+      }
+      await fetchDailySheet();
     } catch (error) {
-      const message = error.response?.data?.error || "Failed to check out";
-      Swal.fire("Error", message, "error");
+      const msg =
+        error.response?.data?.error ||
+        error.response?.data?.errors?.date?.[0] ||
+        "Failed to mark present";
+      Swal.fire("Error", msg, "error");
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   };
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
-    });
+  const handleMarkAbsent = async (row) => {
+    const key = `absent-${row.employee.id}`;
+    setActionLoading(key);
+    try {
+      const payload = {
+        date: selectedDate,
+        employee_id: row.employee.id,
+        status: "absent",
+        arrived: null,
+        check_out: null,
+      };
+      if (row.attendance_id) {
+        await put(`/hr/attendances/${row.attendance_id}`, payload);
+      } else {
+        await post("/hr/attendances", {
+          date: selectedDate,
+          employee_id: row.employee.id,
+          status: "absent",
+        });
+      }
+      await fetchDailySheet();
+    } catch (error) {
+      const msg =
+        error.response?.data?.error ||
+        error.response?.data?.errors?.date?.[0] ||
+        "Failed to mark absent";
+      Swal.fire("Error", msg, "error");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+  const handleTimeChange = async (row, field, value) => {
+    if (
+      row.status !== "present" &&
+      row.status !== "late" &&
+      row.status !== "half_day"
+    )
+      return;
+    const key = `time-${row.employee.id}-${field}`;
+    setActionLoading(key);
+    try {
+      const arrived = field === "arrived" ? value : row.arrived;
+      const check_out = field === "check_out" ? value : row.check_out;
+      await put(`/hr/attendances/${row.attendance_id}`, {
+        date: selectedDate,
+        employee_id: row.employee.id,
+        status: row.status,
+        arrived: arrived || null,
+        check_out: check_out || null,
+      });
+      await fetchDailySheet();
+    } catch (error) {
+      Swal.fire("Error", "Failed to update time", "error");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const selectedEmployee = employees.find((e) => e.id === parseInt(employeeId));
+  const getRowBg = (status) => {
+    if (status === "present" || status === "late" || status === "half_day")
+      return "bg-green-50/50 dark:bg-green-900/10";
+    if (status === "absent" || status === "leave")
+      return "bg-red-50/50 dark:bg-red-900/10";
+    return "";
+  };
+
+  const getStatusBadge = (status) => {
+    const map = {
+      present:
+        "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+      absent: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+      late: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+      half_day:
+        "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+      leave:
+        "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+      pending:
+        "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    };
+    const label = status
+      ? status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      : "Pending";
+    return (
+      <span
+        className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${map[status] || map.pending}`}
+      >
+        {label}
+      </span>
+    );
+  };
+
+  const isPending = (status) => status === "pending";
+  const isPresentLike = (status) =>
+    status === "present" || status === "late" || status === "half_day";
 
   return (
-    <div className="px-4 py-6 mx-auto ">
-      {/* Back Button */}
+    <div className="px-4 py-6 mx-auto max-w-6xl">
       <div className="mb-4">
         <button
           onClick={() => navigate("/hr/attendance")}
-          className="flex items-center gap-2 text-gray-600 hover:text-teal-600 transition-colors font-medium text-sm"
+          className="flex items-center gap-2 text-slate-600 hover:text-teal-600 transition-colors font-medium text-sm"
         >
           <svg
             className="w-4 h-4"
@@ -143,168 +181,206 @@ export default function QuickAttendance() {
         </button>
       </div>
 
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Quick Attendance</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          One-click check-in and check-out
-        </p>
-      </div>
-
-      {/* Current Date & Time */}
-      <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-xl shadow-lg p-6 mb-6 text-white">
-        <div className="text-center">
-          <div className="text-4xl font-bold mb-2">
-            {formatTime(currentTime)}
-          </div>
-          <div className="text-teal-100">{formatDate(currentTime)}</div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-black">Quick Attendance</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Mark present/absent for the day. No record ={" "}
+            <strong>Pending</strong> (not absent).
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Date
+          </label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+          />
         </div>
       </div>
 
-      {/* Employee Selection */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Select Employee *
-        </label>
-        <select
-          value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
-          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-        >
-          <option value="">-- Select Employee --</option>
-          {employees.map((employee) => (
-            <option key={employee.id} value={employee.id}>
-              {employee.full_name} ({employee.employee_id || "No ID"})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Today's Status */}
-      {todayStatus && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            Today's Status
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div
-              className={`p-4 rounded-lg ${todayStatus.has_check_in ? "bg-emerald-50 border border-emerald-200" : "bg-gray-50 border border-gray-200"}`}
-            >
-              <div className="text-sm text-gray-500 mb-1">Check-In</div>
-              <div
-                className={`text-lg font-semibold ${todayStatus.has_check_in ? "text-emerald-600" : "text-gray-400"}`}
-              >
-                {todayStatus.has_check_in
-                  ? todayStatus.attendance?.arrived
-                  : "Not checked in"}
-              </div>
-            </div>
-            <div
-              className={`p-4 rounded-lg ${todayStatus.has_check_out ? "bg-emerald-50 border border-emerald-200" : "bg-gray-50 border border-gray-200"}`}
-            >
-              <div className="text-sm text-gray-500 mb-1">Check-Out</div>
-              <div
-                className={`text-lg font-semibold ${todayStatus.has_check_out ? "text-emerald-600" : "text-gray-400"}`}
-              >
-                {todayStatus.has_check_out
-                  ? todayStatus.attendance?.check_out
-                  : "Not checked out"}
-              </div>
-            </div>
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-teal-600 border-t-transparent" />
+        </div>
+      ) : !dailySheet?.rows?.length ? (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-500">
+          No staff found. Add staff first.
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 w-16">
+                    #
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 min-w-[200px]">
+                    Employee Name
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Department
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Time In
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Time Out
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 text-center">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailySheet.rows.map((row) => (
+                  <tr
+                    key={row.employee.id}
+                    className={`border-b border-slate-100 dark:border-slate-700/50 transition-colors ${getRowBg(row.status)} hover:bg-slate-50/50 dark:hover:bg-slate-800/30`}
+                  >
+                    <td className="px-6 py-5 text-sm font-medium text-slate-500 dark:text-slate-400">
+                      {String(row.index).padStart(2, "0")}
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="size-8 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-600 dark:text-teal-400 font-bold text-xs">
+                          {row.employee.initials}
+                        </div>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {row.employee.full_name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 text-sm text-slate-600 dark:text-slate-400">
+                      {row.employee.department || "—"}
+                    </td>
+                    <td className="px-6 py-5">{getStatusBadge(row.status)}</td>
+                    <td className="px-6 py-5">
+                      <input
+                        type="time"
+                        value={row.arrived || ""}
+                        onBlur={(e) => {
+                          if (
+                            row.attendance_id &&
+                            isPresentLike(row.status) &&
+                            e.target.value
+                          )
+                            handleTimeChange(row, "arrived", e.target.value);
+                        }}
+                        disabled={
+                          !row.attendance_id || !isPresentLike(row.status)
+                        }
+                        className={`w-28 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+                          row.attendance_id && isPresentLike(row.status)
+                            ? "bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600"
+                            : "bg-slate-100 dark:bg-slate-800/50 border border-transparent text-slate-400 cursor-not-allowed"
+                        }`}
+                      />
+                    </td>
+                    <td className="px-6 py-5">
+                      <input
+                        type="time"
+                        value={row.check_out || ""}
+                        onBlur={(e) => {
+                          if (
+                            row.attendance_id &&
+                            isPresentLike(row.status) &&
+                            e.target.value
+                          )
+                            handleTimeChange(row, "check_out", e.target.value);
+                        }}
+                        disabled={
+                          !row.attendance_id || !isPresentLike(row.status)
+                        }
+                        className={`w-28 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+                          row.attendance_id && isPresentLike(row.status)
+                            ? "bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600"
+                            : "bg-slate-100 dark:bg-slate-800/50 border border-transparent text-slate-400 cursor-not-allowed"
+                        }`}
+                      />
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => handleMarkPresent(row)}
+                          disabled={actionLoading != null}
+                          title="Mark Present"
+                          className={`size-8 rounded-lg flex items-center justify-center shadow-sm transition-colors ${
+                            isPresentLike(row.status)
+                              ? "bg-green-500 text-white hover:bg-green-600"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-green-500 hover:text-white"
+                          }`}
+                        >
+                          {actionLoading === `present-${row.employee.id}` ? (
+                            <span className="animate-spin size-4 border-2 border-white border-t-transparent rounded-full" />
+                          ) : (
+                            <svg
+                              className="size-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleMarkAbsent(row)}
+                          disabled={actionLoading != null}
+                          title="Mark Absent"
+                          className={`size-8 rounded-lg flex items-center justify-center shadow-sm transition-colors ${
+                            row.status === "absent" || row.status === "leave"
+                              ? "bg-red-500 text-white hover:bg-red-600"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-red-500 hover:text-white"
+                          }`}
+                        >
+                          {actionLoading === `absent-${row.employee.id}` ? (
+                            <span className="animate-spin size-4 border-2 border-white border-t-transparent rounded-full" />
+                          ) : (
+                            <svg
+                              className="size-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          {todayStatus.attendance?.working_hours && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="text-sm text-blue-600 mb-1">
-                Working Hours Today
-              </div>
-              <div className="text-2xl font-bold text-blue-700">
-                {todayStatus.attendance.working_hours} hours
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-4">
-        <button
-          onClick={handleCheckIn}
-          disabled={loading || !employeeId || todayStatus?.has_check_in}
-          className={`p-4 rounded-xl font-semibold text-white transition-all ${
-            todayStatus?.has_check_in
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-emerald-500 hover:bg-emerald-600 shadow-lg hover:shadow-xl"
-          }`}
-        >
-          <div className="flex flex-col items-center">
-            <svg
-              className="w-8 h-8 mb-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-              />
-            </svg>
-            <span>Check In</span>
-            {todayStatus?.has_check_in && (
-              <span className="text-xs font-normal mt-1">
-                Already checked in
-              </span>
-            )}
-          </div>
-        </button>
-
-        <button
-          onClick={handleCheckOut}
-          disabled={
-            loading ||
-            !employeeId ||
-            !todayStatus?.has_check_in ||
-            todayStatus?.has_check_out
-          }
-          className={`p-4 rounded-xl font-semibold text-white transition-all ${
-            !todayStatus?.has_check_in || todayStatus?.has_check_out
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-orange-500 hover:bg-orange-600 shadow-lg hover:shadow-xl"
-          }`}
-        >
-          <div className="flex flex-col items-center">
-            <svg
-              className="w-8 h-8 mb-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              />
-            </svg>
-            <span>Check Out</span>
-            {todayStatus?.has_check_out && (
-              <span className="text-xs font-normal mt-1">
-                Already checked out
-              </span>
-            )}
-            {!todayStatus?.has_check_in && !todayStatus?.has_check_out && (
-              <span className="text-xs font-normal mt-1">Check in first</span>
-            )}
-          </div>
-        </button>
-      </div>
-
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
-            <span className="text-gray-700">Processing...</span>
+      {actionLoading && actionLoading.startsWith("time-") && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 flex items-center gap-2 shadow-lg">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-teal-600 border-t-transparent" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">
+              Updating...
+            </span>
           </div>
         </div>
       )}

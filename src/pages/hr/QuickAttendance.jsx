@@ -57,6 +57,7 @@ export default function QuickAttendance() {
         error.response?.data?.errors?.employee_id?.[0] ||
         "Failed to mark present";
       Swal.fire("Error", msg, "error");
+      if (error.response?.status === 403) fetchDailySheet();
     } finally {
       setActionLoading(null);
     }
@@ -77,7 +78,11 @@ export default function QuickAttendance() {
         await post("/hr/attendances/check-out", {
           employee_id: row.employee.id,
         });
-        Swal.fire("Success", "Check-out recorded. Time Out set by system.", "success");
+        Swal.fire(
+          "Success",
+          "Check-out recorded. Time Out set by system.",
+          "success",
+        );
       }
       await fetchDailySheet();
     } catch (error) {
@@ -86,6 +91,7 @@ export default function QuickAttendance() {
         error.response?.data?.errors?.employee_id?.[0] ||
         "Failed to record check-out";
       Swal.fire("Error", msg, "error");
+      if (error.response?.status === 403) fetchDailySheet();
     } finally {
       setActionLoading(null);
     }
@@ -118,6 +124,7 @@ export default function QuickAttendance() {
         error.response?.data?.errors?.date?.[0] ||
         "Failed to mark absent";
       Swal.fire("Error", msg, "error");
+      if (error.response?.status === 403) fetchDailySheet();
     } finally {
       setActionLoading(null);
     }
@@ -152,6 +159,9 @@ export default function QuickAttendance() {
     isPresentLike(row.status) &&
     row.arrived &&
     !row.check_out;
+  const quickLimitReached = dailySheet?.quick_limit_reached === true;
+  // Once this staff has both Time In and Time Out, no more changes allowed for that staff
+  const isRowLocked = (row) => !!(row.arrived && row.check_out);
 
   return (
     <div className="px-4 py-6 mx-auto">
@@ -197,6 +207,28 @@ export default function QuickAttendance() {
           />
         </div>
       </div>
+
+      {quickLimitReached && (
+        <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center gap-2">
+          <svg
+            className="w-5 h-5 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <span>
+            You have already completed one check-in and check-out for this date.
+            You do not have permission to make further changes on this page.
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-8">
@@ -289,92 +321,106 @@ export default function QuickAttendance() {
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex justify-center items-center gap-1 flex-wrap">
-                        <button
-                          onClick={() => handleMarkPresent(row)}
-                          disabled={actionLoading != null}
-                          title="Mark Present (Time In by system)"
-                          className={`p-1 rounded transition-colors ${
-                            isPresentLike(row.status)
-                              ? "bg-green-500 text-white hover:bg-green-600"
-                              : "bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white"
-                          }`}
-                        >
-                          {actionLoading === `present-${row.employee.id}` ? (
-                            <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
-                          ) : (
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleCheckOut(row)}
-                          disabled={actionLoading != null || !canCheckOut(row)}
-                          title="Time Out (recorded by system)"
-                          className={`p-1 rounded transition-colors ${
-                            canCheckOut(row)
-                              ? "bg-orange-500 text-white hover:bg-orange-600"
-                              : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                          }`}
-                        >
-                          {actionLoading === `checkout-${row.employee.id}` ? (
-                            <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
-                          ) : (
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleMarkAbsent(row)}
-                          disabled={actionLoading != null}
-                          title="Mark Absent"
-                          className={`p-1 rounded transition-colors ${
-                            row.status === "absent" || row.status === "leave"
-                              ? "bg-red-500 text-white hover:bg-red-600"
-                              : "bg-gray-100 text-gray-500 hover:bg-red-500 hover:text-white"
-                          }`}
-                        >
-                          {actionLoading === `absent-${row.employee.id}` ? (
-                            <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
-                          ) : (
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
+                      {isRowLocked(row) ? (
+                        <span className="text-xs text-slate-500 italic">
+                          Completed
+                        </span>
+                      ) : (
+                        <div className="flex justify-center items-center gap-1 flex-wrap">
+                          <button
+                            onClick={() => handleMarkPresent(row)}
+                            disabled={
+                              actionLoading != null || quickLimitReached
+                            }
+                            title="Mark Present (Time In by system)"
+                            className={`p-1 rounded transition-colors ${
+                              isPresentLike(row.status)
+                                ? "bg-green-500 text-white hover:bg-green-600"
+                                : "bg-gray-100 text-gray-500 hover:bg-green-500 hover:text-white"
+                            }`}
+                          >
+                            {actionLoading === `present-${row.employee.id}` ? (
+                              <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                            ) : (
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleCheckOut(row)}
+                            disabled={
+                              actionLoading != null ||
+                              !canCheckOut(row) ||
+                              quickLimitReached
+                            }
+                            title="Time Out (recorded by system)"
+                            className={`p-1 rounded transition-colors ${
+                              canCheckOut(row)
+                                ? "bg-orange-500 text-white hover:bg-orange-600"
+                                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            }`}
+                          >
+                            {actionLoading === `checkout-${row.employee.id}` ? (
+                              <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                            ) : (
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleMarkAbsent(row)}
+                            disabled={
+                              actionLoading != null || quickLimitReached
+                            }
+                            title="Mark Absent"
+                            className={`p-1 rounded transition-colors ${
+                              row.status === "absent" || row.status === "leave"
+                                ? "bg-red-500 text-white hover:bg-red-600"
+                                : "bg-gray-100 text-gray-500 hover:bg-red-500 hover:text-white"
+                            }`}
+                          >
+                            {actionLoading === `absent-${row.employee.id}` ? (
+                              <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                            ) : (
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -383,7 +429,6 @@ export default function QuickAttendance() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

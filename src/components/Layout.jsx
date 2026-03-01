@@ -141,20 +141,24 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState(null);
+  const [openMenu, setOpenMenu] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userToggled, setUserToggled] = useState(false);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useState(() => {
     if (!userToggled && location.pathname.startsWith('/hr')) {
-      setOpenMenu('hr');
+      setOpenMenu(['hr']);
     }
   }, [location.pathname]);
 
   const toggleMenu = (menu) => {
     setUserToggled(true);
-    setOpenMenu(openMenu === menu ? null : menu);
+    if (openMenu.includes(menu)) {
+      setOpenMenu(openMenu.filter((item) => item !== menu));
+    } else {
+      setOpenMenu([...openMenu, menu]);
+    }
   };
 
   const isActive = (path) => location.pathname === path;
@@ -252,18 +256,120 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.HR}
             label="HR Management"
-            isOpen={openMenu === 'hr'}
+            isOpen={openMenu.includes('hr')}
             onClick={() => toggleMenu('hr')}
           >
-            {hrSubMenus.map((item) => (
-              <SubMenuItem
-                key={item.path}
-                label={item.label}
-                to={item.path}
-                active={isActive(item.path)}
-                onClick={closeSidebar}
-              />
-            ))}
+            {hrSubMenus.map((item) => {
+              if (item.isParent && item.submenu) {
+                return (
+                  <div key={item.path}>
+                    <button
+                      onClick={() => toggleMenu(item.path)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-xs ${
+                        openMenu.includes(item.path)
+                          ? 'bg-teal-700 text-white'
+                          : 'text-teal-200 hover:bg-teal-800 hover:text-white'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      <div className={`transition-transform ${openMenu.includes(item.path) ? 'rotate-180' : ''}`}>
+                        <Icons.ChevronDown />
+                      </div>
+                    </button>
+                    {openMenu.includes(item.path) && (
+                      <div className="mt-1 space-y-0.5">
+                        {item.submenu.map((subItem) => (
+                          <SubMenuItem
+                            key={subItem.path}
+                            label={subItem.label}
+                            to={subItem.path}
+                            active={isActive(subItem.path)}
+                            onClick={closeSidebar}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <SubMenuItem
+                  key={item.path}
+                  label={item.label}
+                  to={item.path}
+                  active={isActive(item.path)}
+                  onClick={closeSidebar}
+                />
+              );
+            })}
+          </ParentMenu>
+
+          <MenuSection title="Student Registration" />
+          <ParentMenu
+            icon={Icons.HR}
+            label="Student Registration"
+            isOpen={openMenu.includes('student-reg')}
+            onClick={() => toggleMenu('student-reg')}
+          >
+            <SubMenuItem
+              label="Entry phase 1"
+              to="/student-registration/entry-phase-1"
+              active={isActive('/student-registration/entry-phase-1')}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Entry phase 2"
+              to="/student-registration/entry-phase-2"
+              active={isActive('/student-registration/entry-phase-2')}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Finance"
+              to="/student-registration/finance"
+              active={isActive('/student-registration/finance')}
+              onClick={closeSidebar}
+            />
+            <div key="headship">
+              <button
+                onClick={() => toggleMenu('headship')}
+                className={`flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
+                  openMenu.includes('headship')
+                    ? 'bg-teal-700 text-white'
+                    : 'text-teal-200 hover:bg-teal-800 hover:text-white'
+                }`}
+              >
+                <span>Headship</span>
+                <div className={`transition-transform ${openMenu.includes('headship') ? 'rotate-180' : ''}`}>
+                  <Icons.ChevronDown />
+                </div>
+              </button>
+              {openMenu.includes('headship') && (
+                <div className="mt-1 space-y-0.5">
+                  <Link
+                    to="/student-registration/headship/tawafooq-nama"
+                    onClick={closeSidebar}
+                    className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
+                      isActive('/student-registration/headship/tawafooq-nama')
+                        ? 'bg-teal-700 text-white'
+                        : 'text-teal-200 hover:bg-teal-800 hover:text-white'
+                    }`}
+                  >
+                    <span>Tawafooq Nama</span>
+                  </Link>
+                  <Link
+                    to="/student-registration/headship/see-parcha"
+                    onClick={closeSidebar}
+                    className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
+                      isActive('/student-registration/headship/see-parcha')
+                        ? 'bg-teal-700 text-white'
+                        : 'text-teal-200 hover:bg-teal-800 hover:text-white'
+                    }`}
+                  >
+                    <span>See Parcha</span>
+                  </Link>
+                </div>
+              )}
+            </div>
           </ParentMenu>
 
           <MenuSection title="Operations" />

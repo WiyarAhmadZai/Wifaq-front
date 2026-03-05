@@ -35,6 +35,8 @@ import TransportRoutes from "./pages/studentMangement/Routes";
 import RouteForm from "./pages/studentMangement/RouteForm";
 import Vehicles from "./pages/studentMangement/Vehicles";
 import VehicleForm from "./pages/studentMangement/VehicleForm";
+import Students from "./pages/studentMangement/Students";
+import StudentForm from "./pages/studentMangement/StudentForm";
 
 // HR Pages - Form (Create/Edit)
 import StaffForm from "./pages/hr/StaffForm";
@@ -222,6 +224,20 @@ function App() {
           <Route path="hr/reports" element={<HRReports />} />
 
           {/* Student Management Routes */}
+          <Route path="student-management/students" element={<Students />} />
+          <Route
+            path="student-management/students/create"
+            element={<StudentForm />}
+          />
+          <Route
+            path="student-management/students/edit/:id"
+            element={<StudentForm />}
+          />
+          <Route
+            path="student-management/students/show/:id"
+            element={<StudentForm />}
+          />
+
           <Route path="student-management/parents" element={<Parents />} />
           <Route
             path="student-management/parents/create"

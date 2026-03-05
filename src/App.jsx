@@ -40,6 +40,10 @@ import StudentForm from "./pages/studentMangement/StudentForm";
 import StudentEnrollments from "./pages/studentMangement/StudentEnrollments";
 import StudentEnrollmentForm from "./pages/studentMangement/StudentEnrollmentForm";
 
+// Finance Pages
+import FeePayments from "./pages/finance/FeePayments";
+import FeePaymentForm from "./pages/finance/FeePaymentForm";
+
 // HR Pages - Form (Create/Edit)
 import StaffForm from "./pages/hr/StaffForm";
 import ContractsForm from "./pages/hr/ContractsForm";
@@ -330,6 +334,21 @@ function App() {
           <Route
             path="transportation/vehicles/show/:id"
             element={<VehicleForm />}
+          />
+
+          {/* Finance Routes - Fee Payments */}
+          <Route path="finance/fee-payments" element={<FeePayments />} />
+          <Route
+            path="finance/fee-payments/create"
+            element={<FeePaymentForm />}
+          />
+          <Route
+            path="finance/fee-payments/edit/:id"
+            element={<FeePaymentForm />}
+          />
+          <Route
+            path="finance/fee-payments/show/:id"
+            element={<FeePaymentForm />}
           />
         </Route>
       </Routes>

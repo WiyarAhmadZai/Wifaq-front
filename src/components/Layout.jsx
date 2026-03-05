@@ -351,6 +351,10 @@ export default function Layout() {
     { label: "Vehicles", path: "/transportation/vehicles" },
   ];
 
+  const financeMenus = [
+    { label: "Fee Payments", path: "/finance/fee-payments" },
+  ];
+
   const closeSidebar = () => setSidebarOpen(false);
 
   const handleLogout = () => {
@@ -542,6 +546,24 @@ export default function Layout() {
             onClick={() => toggleMenu("transportation")}
           >
             {transportationMenus.map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+
+          <MenuSection title="Finance" />
+          <ParentMenu
+            icon={Icons.Payroll}
+            label="Finance"
+            isOpen={openMenu.includes("finance")}
+            onClick={() => toggleMenu("finance")}
+          >
+            {financeMenus.map((item) => (
               <SubMenuItem
                 key={item.path}
                 label={item.label}

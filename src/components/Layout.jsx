@@ -335,6 +335,7 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents" },
+    { label: "Students", path: "/student-management/students" },
   ];
 
   const academic = [

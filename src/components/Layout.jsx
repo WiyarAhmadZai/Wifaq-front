@@ -302,8 +302,8 @@ export default function Layout() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
   useState(() => {
-    if (!userToggled && location.pathname.startsWith('/hr')) {
-      setOpenMenu(['hr']);
+    if (!userToggled && location.pathname.startsWith("/hr")) {
+      setOpenMenu(["hr"]);
     }
   }, [location.pathname]);
 
@@ -432,8 +432,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.HR}
             label="HR Management"
-            isOpen={openMenu.includes('hr')}
-            onClick={() => toggleMenu('hr')}
+            isOpen={openMenu.includes("hr")}
+            onClick={() => toggleMenu("hr")}
           >
             {hrSubMenus.map((item) => {
               if (item.isParent && item.submenu) {
@@ -443,12 +443,14 @@ export default function Layout() {
                       onClick={() => toggleMenu(item.path)}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-xs ${
                         openMenu.includes(item.path)
-                          ? 'bg-teal-700 text-white'
-                          : 'text-teal-200 hover:bg-teal-800 hover:text-white'
+                          ? "bg-teal-700 text-white"
+                          : "text-teal-200 hover:bg-teal-800 hover:text-white"
                       }`}
                     >
                       <span>{item.label}</span>
-                      <div className={`transition-transform ${openMenu.includes(item.path) ? 'rotate-180' : ''}`}>
+                      <div
+                        className={`transition-transform ${openMenu.includes(item.path) ? "rotate-180" : ""}`}
+                      >
                         <Icons.ChevronDown />
                       </div>
                     </button>
@@ -481,73 +483,6 @@ export default function Layout() {
           </ParentMenu>
 
           <MenuSection title="Student Registration" />
-          <ParentMenu
-            icon={Icons.HR}
-            label="Student Registration"
-            isOpen={openMenu.includes('student-reg')}
-            onClick={() => toggleMenu('student-reg')}
-          >
-            <SubMenuItem
-              label="Entry phase 1"
-              to="/student-registration/entry-phase-1"
-              active={isActive('/student-registration/entry-phase-1')}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Entry phase 2"
-              to="/student-registration/entry-phase-2"
-              active={isActive('/student-registration/entry-phase-2')}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Finance"
-              to="/student-registration/finance"
-              active={isActive('/student-registration/finance')}
-              onClick={closeSidebar}
-            />
-            <div key="headship">
-              <button
-                onClick={() => toggleMenu('headship')}
-                className={`flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
-                  openMenu.includes('headship')
-                    ? 'bg-teal-700 text-white'
-                    : 'text-teal-200 hover:bg-teal-800 hover:text-white'
-                }`}
-              >
-                <span>Headship</span>
-                <div className={`transition-transform ${openMenu.includes('headship') ? 'rotate-180' : ''}`}>
-                  <Icons.ChevronDown />
-                </div>
-              </button>
-              {openMenu.includes('headship') && (
-                <div className="mt-1 space-y-0.5">
-                  <Link
-                    to="/student-registration/headship/tawafooq-nama"
-                    onClick={closeSidebar}
-                    className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
-                      isActive('/student-registration/headship/tawafooq-nama')
-                        ? 'bg-teal-700 text-white'
-                        : 'text-teal-200 hover:bg-teal-800 hover:text-white'
-                    }`}
-                  >
-                    <span>Tawafooq Nama</span>
-                  </Link>
-                  <Link
-                    to="/student-registration/headship/see-parcha"
-                    onClick={closeSidebar}
-                    className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
-                      isActive('/student-registration/headship/see-parcha')
-                        ? 'bg-teal-700 text-white'
-                        : 'text-teal-200 hover:bg-teal-800 hover:text-white'
-                    }`}
-                  >
-                    <span>See Parcha</span>
-                  </Link>
-                </div>
-              )}
-            </div>
-          </ParentMenu>
-
           <ParentMenu
             icon={Icons.HR}
             label="Students Management"

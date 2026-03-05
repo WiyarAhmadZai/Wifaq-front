@@ -333,7 +333,9 @@ export default function Layout() {
     { label: "HR Reports", path: "/hr/reports" },
   ];
 
-  const studentsMenus = [];
+  const studentsMenus = [
+    { label: "Parents", path: "/student-management/parents" },
+  ];
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -486,7 +488,7 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.HR}
             label="Students Management"
-            isOpen={openMenu === "students"}
+            isOpen={openMenu.includes("students")}
             onClick={() => toggleMenu("students")}
           >
             {studentsMenus.map((item) => (

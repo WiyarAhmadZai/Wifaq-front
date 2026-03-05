@@ -70,6 +70,20 @@ import StaffTaskShow from "./pages/hr/StaffTaskShow";
 import PlannerShow from "./pages/hr/PlannerShow";
 import VisitorLogShow from "./pages/hr/VisitorLogShow";
 
+// Teacher Management Pages
+import AnnualPlans from "./pages/teacher-management/AnnualPlans";
+import LessonPlans from "./pages/teacher-management/LessonPlans";
+import Teachers from "./pages/teacher-management/teacher/Teachers";
+import TeachersForm from "./pages/teacher-management/teacher/TeachersForm";
+
+// Class Management Pages
+import ClassesForm from "./pages/class-management/ClassesForm";
+import Classes from "./pages/class-management/Classes";
+import SubjectsForm from "./pages/class-management/SubjectsForm";
+import Subjects from "./pages/class-management/Subjects";
+import ExamsForm from "./pages/class-management/ExamsForm";
+import Exams from "./pages/class-management/Exams";
+
 // Student Registration Pages
 
 const Placeholder = ({ title }) => (
@@ -130,6 +144,46 @@ function App() {
           <Route path="support" element={<Placeholder title="Support" />} />
 
           {/* Student Registration Routes */}
+
+          {/* Teacher Management Routes */}
+          <Route path="teacher-management/annual-plans" element={<AnnualPlans />} />
+          <Route path="teacher-management/annual-plans/create" element={<Placeholder title="Create Annual Plan" />} />
+          <Route path="teacher-management/annual-plans/edit/:id" element={<Placeholder title="Edit Annual Plan" />} />
+          <Route path="teacher-management/annual-plans/show/:id" element={<Placeholder title="View Annual Plan" />} />
+
+          <Route path="teacher-management/lesson-plans" element={<LessonPlans />} />
+          <Route path="teacher-management/lesson-plans/create" element={<Placeholder title="Create Lesson Plan" />} />
+          <Route path="teacher-management/lesson-plans/edit/:id" element={<Placeholder title="Edit Lesson Plan" />} />
+          <Route path="teacher-management/lesson-plans/show/:id" element={<Placeholder title="View Lesson Plan" />} />
+
+          <Route path="teacher-management/teachers" element={<Teachers />} />
+          <Route path="teacher-management/teachers/create" element={<TeachersForm />} />
+          <Route path="teacher-management/teachers/edit/:id" element={<TeachersForm />} />
+          <Route path="teacher-management/teachers/show/:id" element={<Placeholder title="View Teacher" />} />
+
+          {/* Class Management Routes - Redirect to Teacher Management */}
+          <Route path="class-management/teachers" element={<Navigate to="/teacher-management/teachers" replace />} />
+          <Route path="class-management/teachers/create" element={<TeachersForm />} />
+          <Route path="class-management/teachers/edit/:id" element={<TeachersForm />} />
+          <Route path="class-management/teachers/show/:id" element={<Placeholder title="View Teacher" />} />
+
+          {/* Class Management Routes - Classes */}
+          <Route path="class-management/classes" element={<Classes />} />
+          <Route path="class-management/classes/create" element={<ClassesForm />} />
+          <Route path="class-management/classes/edit/:id" element={<ClassesForm />} />
+          <Route path="class-management/classes/show/:id" element={<Placeholder title="View Class" />} />
+
+          {/* Class Management Routes - Subjects */}
+          <Route path="class-management/subjects" element={<Subjects />} />
+          <Route path="class-management/subjects/create" element={<SubjectsForm />} />
+          <Route path="class-management/subjects/edit/:id" element={<SubjectsForm />} />
+          <Route path="class-management/subjects/show/:id" element={<Placeholder title="View Subject" />} />
+
+          {/* Class Management Routes - Exams */}
+          <Route path="class-management/exams" element={<Exams />} />
+          <Route path="class-management/exams/create" element={<ExamsForm />} />
+          <Route path="class-management/exams/edit/:id" element={<ExamsForm />} />
+          <Route path="class-management/exams/show/:id" element={<Placeholder title="View Exam" />} />
 
           {/* HR Routes - Staff */}
           <Route path="hr/staff" element={<Staff />} />

@@ -1,1 +1,158 @@
 @import "tailwindcss";
+
+/* Global Font Size Adjustments - Make fonts smaller throughout the application */
+html {
+  font-size: 14px; /* Base font size reduced from default 16px */
+}
+
+body {
+  font-size: 0.875rem; /* 14px - smaller than default */
+  line-height: 1.4;
+}
+
+/* Smaller text sizes for common elements */
+h1 {
+  font-size: 1.5rem; /* 24px instead of default 2rem (32px) */
+  line-height: 1.3;
+}
+
+h2 {
+  font-size: 1.25rem; /* 20px instead of default 1.5rem (24px) */
+  line-height: 1.3;
+}
+
+h3 {
+  font-size: 1.125rem; /* 18px instead of default 1.25rem (20px) */
+  line-height: 1.3;
+}
+
+h4 {
+  font-size: 1rem; /* 16px instead of default 1.125rem (18px) */
+  line-height: 1.3;
+}
+
+h5 {
+  font-size: 0.875rem; /* 14px instead of default 1rem (16px) */
+  line-height: 1.3;
+}
+
+h6 {
+  font-size: 0.75rem; /* 12px instead of default 0.875rem (14px) */
+  line-height: 1.3;
+}
+
+/* Smaller text for paragraphs and spans */
+p {
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.4;
+}
+
+span {
+  font-size: inherit;
+}
+
+/* Smaller form inputs */
+input, textarea, select {
+  font-size: 0.8125rem; /* 13px */
+}
+
+/* Smaller buttons */
+button {
+  font-size: 0.8125rem; /* 13px */
+}
+
+/* Smaller table text */
+table {
+  font-size: 0.8125rem; /* 13px */
+}
+
+th, td {
+  font-size: 0.8125rem; /* 13px */
+  padding: 0.5rem 0.75rem; /* Reduced padding */
+}
+
+/* Smaller labels */
+label {
+  font-size: 0.8125rem; /* 13px */
+}
+
+/* Smaller sidebar text */
+.sidebar-text {
+  font-size: 0.75rem; /* 12px */
+}
+
+/* Override Tailwind's default text sizes */
+.text-xs {
+  font-size: 0.6875rem; /* 11px instead of 0.75rem (12px) */
+}
+
+.text-sm {
+  font-size: 0.75rem; /* 12px instead of 0.875rem (14px) */
+}
+
+.text-base {
+  font-size: 0.8125rem; /* 13px instead of 1rem (16px) */
+}
+
+.text-lg {
+  font-size: 0.875rem; /* 14px instead of 1.125rem (18px) */
+}
+
+.text-xl {
+  font-size: 1rem; /* 16px instead of 1.25rem (20px) */
+}
+
+.text-2xl {
+  font-size: 1.25rem; /* 20px instead of 1.5rem (24px) */
+}
+
+.text-3xl {
+  font-size: 1.5rem; /* 24px instead of 1.875rem (30px) */
+}
+
+/* Smaller navigation and header elements */
+nav {
+  font-size: 0.8125rem; /* 13px */
+}
+
+header {
+  font-size: 0.8125rem; /* 13px */
+}
+
+/* Smaller card content */
+.card {
+  font-size: 0.8125rem; /* 13px */
+}
+
+/* Smaller alert and notification text */
+.alert, .notification {
+  font-size: 0.75rem; /* 12px */
+}
+
+/* Smaller badge text */
+.badge {
+  font-size: 0.6875rem; /* 11px */
+}
+
+/* Responsive font sizes */
+@media (max-width: 768px) {
+  html {
+    font-size: 13px;
+  }
+  
+  body {
+    font-size: 0.75rem; /* 12px on mobile */
+  }
+  
+  h1 {
+    font-size: 1.25rem; /* 20px on mobile */
+  }
+  
+  h2 {
+    font-size: 1.125rem; /* 18px on mobile */
+  }
+  
+  h3 {
+    font-size: 1rem; /* 16px on mobile */
+  }
+}

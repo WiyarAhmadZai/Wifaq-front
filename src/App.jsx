@@ -37,6 +37,8 @@ import Vehicles from "./pages/studentMangement/Vehicles";
 import VehicleForm from "./pages/studentMangement/VehicleForm";
 import Students from "./pages/studentMangement/Students";
 import StudentForm from "./pages/studentMangement/StudentForm";
+import StudentEnrollments from "./pages/studentMangement/StudentEnrollments";
+import StudentEnrollmentForm from "./pages/studentMangement/StudentEnrollmentForm";
 
 // HR Pages - Form (Create/Edit)
 import StaffForm from "./pages/hr/StaffForm";
@@ -236,6 +238,24 @@ function App() {
           <Route
             path="student-management/students/show/:id"
             element={<StudentForm />}
+          />
+
+          {/* Student Enrollments */}
+          <Route
+            path="student-management/student-enrollments"
+            element={<StudentEnrollments />}
+          />
+          <Route
+            path="student-management/student-enrollments/create"
+            element={<StudentEnrollmentForm />}
+          />
+          <Route
+            path="student-management/student-enrollments/edit/:id"
+            element={<StudentEnrollmentForm />}
+          />
+          <Route
+            path="student-management/student-enrollments/show/:id"
+            element={<StudentEnrollmentForm />}
           />
 
           <Route path="student-management/parents" element={<Parents />} />

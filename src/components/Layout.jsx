@@ -335,6 +335,13 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents" },
+    { label: "Academic Terms", path: "/student-management/academic-terms" },
+    { label: "Classes", path: "/student-management/classes" },
+  ];
+
+  const transportationMenus = [
+    { label: "Routes", path: "/transportation/routes" },
+    { label: "Vehicles", path: "/transportation/vehicles" },
   ];
 
   const closeSidebar = () => setSidebarOpen(false);
@@ -492,6 +499,24 @@ export default function Layout() {
             onClick={() => toggleMenu("students")}
           >
             {studentsMenus.map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+
+          <MenuSection title="Transportation" />
+          <ParentMenu
+            icon={Icons.Departments}
+            label="Transportations"
+            isOpen={openMenu.includes("transportation")}
+            onClick={() => toggleMenu("transportation")}
+          >
+            {transportationMenus.map((item) => (
               <SubMenuItem
                 key={item.path}
                 label={item.label}

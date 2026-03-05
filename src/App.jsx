@@ -27,6 +27,14 @@ import HRReports from "./pages/hr/HRReports";
 // Student Management Pages
 import Parents from "./pages/studentMangement/Parents";
 import ParentForm from "./pages/studentMangement/ParentForm";
+import AcademicTerms from "./pages/studentMangement/AcademicTerms";
+import AcademicTermForm from "./pages/studentMangement/AcademicTermForm";
+import Classes from "./pages/studentMangement/Classes";
+import ClassForm from "./pages/studentMangement/ClassForm";
+import TransportRoutes from "./pages/studentMangement/Routes";
+import RouteForm from "./pages/studentMangement/RouteForm";
+import Vehicles from "./pages/studentMangement/Vehicles";
+import VehicleForm from "./pages/studentMangement/VehicleForm";
 
 // HR Pages - Form (Create/Edit)
 import StaffForm from "./pages/hr/StaffForm";
@@ -226,6 +234,66 @@ function App() {
           <Route
             path="student-management/parents/show/:id"
             element={<ParentForm />}
+          />
+
+          {/* Academic Terms */}
+          <Route
+            path="student-management/academic-terms"
+            element={<AcademicTerms />}
+          />
+          <Route
+            path="student-management/academic-terms/create"
+            element={<AcademicTermForm />}
+          />
+          <Route
+            path="student-management/academic-terms/edit/:id"
+            element={<AcademicTermForm />}
+          />
+          <Route
+            path="student-management/academic-terms/show/:id"
+            element={<AcademicTermForm />}
+          />
+
+          {/* Classes */}
+          <Route path="student-management/classes" element={<Classes />} />
+          <Route
+            path="student-management/classes/create"
+            element={<ClassForm />}
+          />
+          <Route
+            path="student-management/classes/edit/:id"
+            element={<ClassForm />}
+          />
+          <Route
+            path="student-management/classes/show/:id"
+            element={<ClassForm />}
+          />
+
+          {/* Transportation Routes */}
+          <Route path="transportation/routes" element={<TransportRoutes />} />
+          <Route path="transportation/routes/create" element={<RouteForm />} />
+          <Route
+            path="transportation/routes/edit/:id"
+            element={<RouteForm />}
+          />
+          <Route
+            path="transportation/routes/show/:id"
+            element={<RouteForm />}
+          />
+
+          {/* Transportation Vehicles */}
+          <Route path="transportation/vehicles" element={<Vehicles />} />
+          <Route
+            path="transportation/vehicles/create"
+            element={<VehicleForm />}
+          />
+          <Route
+            path="transportation/vehicles/edit/:id"
+            element={<VehicleForm />}
+          />
+          <Route
+            path="transportation/vehicles/show/:id"
+            element={<VehicleForm />}
           />
         </Route>
       </Routes>

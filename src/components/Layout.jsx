@@ -335,10 +335,12 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents" },
+  ];
+
+  const academic = [
     { label: "Academic Terms", path: "/student-management/academic-terms" },
     { label: "Classes", path: "/student-management/classes" },
   ];
-
   const transportationMenus = [
     { label: "Routes", path: "/transportation/routes" },
     { label: "Vehicles", path: "/transportation/vehicles" },
@@ -489,6 +491,24 @@ export default function Layout() {
                 />
               );
             })}
+          </ParentMenu>
+
+          <MenuSection title="Academic" />
+          <ParentMenu
+            icon={Icons.HR}
+            label="Academic"
+            isOpen={openMenu.includes("academic")}
+            onClick={() => toggleMenu("academic")}
+          >
+            {academic.map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
           </ParentMenu>
 
           <MenuSection title="Student Registration" />

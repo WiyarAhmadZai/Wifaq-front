@@ -448,7 +448,6 @@ export default function Layout() {
             onClick={closeSidebar}
           />
 
-          <MenuSection title="Human Resource" />
           <ParentMenu
             icon={Icons.HR}
             label="HR Management"

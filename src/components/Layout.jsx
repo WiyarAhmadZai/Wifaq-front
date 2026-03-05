@@ -335,7 +335,11 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents" },
-    { label: "Students", path: "/student-management/students" },
+    { label: "Students Registration", path: "/student-management/students" },
+    {
+      label: "Students Enrollments",
+      path: "/student-management/student-enrollments",
+    },
   ];
 
   const academic = [

@@ -50,6 +50,13 @@ import StaffTaskShow from "./pages/hr/StaffTaskShow";
 import PlannerShow from "./pages/hr/PlannerShow";
 import VisitorLogShow from "./pages/hr/VisitorLogShow";
 
+// Student Registration Pages
+import EntryPhase1 from "./pages/student-registration/EntryPhase1";
+import EntryPhase2 from "./pages/student-registration/EntryPhase2";
+import Finance from "./pages/student-registration/Finance";
+import TawafooqNama from "./pages/student-registration/headship/TawafooqNama";
+import SeeParcha from "./pages/student-registration/headship/SeeParcha";
+
 const Placeholder = ({ title }) => (
   <div className="p-4 sm:p-6">
     <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
@@ -106,6 +113,32 @@ function App() {
           />
           <Route path="settings" element={<Placeholder title="Settings" />} />
           <Route path="support" element={<Placeholder title="Support" />} />
+
+          {/* Student Registration Routes */}
+          <Route path="student-registration/entry-phase-1" element={<EntryPhase1 />} />
+          <Route path="student-registration/entry-phase-1/create" element={<Placeholder title="Create Entry Phase 1" />} />
+          <Route path="student-registration/entry-phase-1/edit/:id" element={<Placeholder title="Edit Entry Phase 1" />} />
+          <Route path="student-registration/entry-phase-1/show/:id" element={<Placeholder title="View Entry Phase 1" />} />
+
+          <Route path="student-registration/entry-phase-2" element={<EntryPhase2 />} />
+          <Route path="student-registration/entry-phase-2/create" element={<Placeholder title="Create Entry Phase 2" />} />
+          <Route path="student-registration/entry-phase-2/edit/:id" element={<Placeholder title="Edit Entry Phase 2" />} />
+          <Route path="student-registration/entry-phase-2/show/:id" element={<Placeholder title="View Entry Phase 2" />} />
+
+          <Route path="student-registration/finance" element={<Finance />} />
+          <Route path="student-registration/finance/create" element={<Placeholder title="Create Finance" />} />
+          <Route path="student-registration/finance/edit/:id" element={<Placeholder title="Edit Finance" />} />
+          <Route path="student-registration/finance/show/:id" element={<Placeholder title="View Finance" />} />
+
+          <Route path="student-registration/headship/tawafooq-nama" element={<TawafooqNama />} />
+          <Route path="student-registration/headship/tawafooq-nama/create" element={<Placeholder title="Create Tawafooq Nama" />} />
+          <Route path="student-registration/headship/tawafooq-nama/edit/:id" element={<Placeholder title="Edit Tawafooq Nama" />} />
+          <Route path="student-registration/headship/tawafooq-nama/show/:id" element={<Placeholder title="View Tawafooq Nama" />} />
+
+          <Route path="student-registration/headship/see-parcha" element={<SeeParcha />} />
+          <Route path="student-registration/headship/see-parcha/create" element={<Placeholder title="Create See Parcha" />} />
+          <Route path="student-registration/headship/see-parcha/edit/:id" element={<Placeholder title="Edit See Parcha" />} />
+          <Route path="student-registration/headship/see-parcha/show/:id" element={<Placeholder title="View See Parcha" />} />
 
           {/* HR Routes - Staff */}
           <Route path="hr/staff" element={<Staff />} />

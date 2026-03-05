@@ -24,6 +24,26 @@ import Planner from "./pages/hr/Planner";
 import VisitorLog from "./pages/hr/VisitorLog";
 import HRReports from "./pages/hr/HRReports";
 
+// Student Management Pages
+import Parents from "./pages/studentMangement/Parents";
+import ParentForm from "./pages/studentMangement/ParentForm";
+import AcademicTerms from "./pages/studentMangement/AcademicTerms";
+import AcademicTermForm from "./pages/studentMangement/AcademicTermForm";
+import Classes from "./pages/studentMangement/Classes";
+import ClassForm from "./pages/studentMangement/ClassForm";
+import TransportRoutes from "./pages/studentMangement/Routes";
+import RouteForm from "./pages/studentMangement/RouteForm";
+import Vehicles from "./pages/studentMangement/Vehicles";
+import VehicleForm from "./pages/studentMangement/VehicleForm";
+import Students from "./pages/studentMangement/Students";
+import StudentForm from "./pages/studentMangement/StudentForm";
+import StudentEnrollments from "./pages/studentMangement/StudentEnrollments";
+import StudentEnrollmentForm from "./pages/studentMangement/StudentEnrollmentForm";
+
+// Finance Pages
+import FeePayments from "./pages/finance/FeePayments";
+import FeePaymentForm from "./pages/finance/FeePaymentForm";
+
 // HR Pages - Form (Create/Edit)
 import StaffForm from "./pages/hr/StaffForm";
 import ContractsForm from "./pages/hr/ContractsForm";
@@ -65,11 +85,6 @@ import ExamsForm from "./pages/class-management/ExamsForm";
 import Exams from "./pages/class-management/Exams";
 
 // Student Registration Pages
-import EntryPhase1 from "./pages/student-registration/EntryPhase1";
-import EntryPhase2 from "./pages/student-registration/EntryPhase2";
-import Finance from "./pages/student-registration/Finance";
-import TawafooqNama from "./pages/student-registration/headship/TawafooqNama";
-import SeeParcha from "./pages/student-registration/headship/SeeParcha";
 
 const Placeholder = ({ title }) => (
   <div className="p-4 sm:p-6">
@@ -129,30 +144,6 @@ function App() {
           <Route path="support" element={<Placeholder title="Support" />} />
 
           {/* Student Registration Routes */}
-          <Route path="student-registration/entry-phase-1" element={<EntryPhase1 />} />
-          <Route path="student-registration/entry-phase-1/create" element={<Placeholder title="Create Entry Phase 1" />} />
-          <Route path="student-registration/entry-phase-1/edit/:id" element={<Placeholder title="Edit Entry Phase 1" />} />
-          <Route path="student-registration/entry-phase-1/show/:id" element={<Placeholder title="View Entry Phase 1" />} />
-
-          <Route path="student-registration/entry-phase-2" element={<EntryPhase2 />} />
-          <Route path="student-registration/entry-phase-2/create" element={<Placeholder title="Create Entry Phase 2" />} />
-          <Route path="student-registration/entry-phase-2/edit/:id" element={<Placeholder title="Edit Entry Phase 2" />} />
-          <Route path="student-registration/entry-phase-2/show/:id" element={<Placeholder title="View Entry Phase 2" />} />
-
-          <Route path="student-registration/finance" element={<Finance />} />
-          <Route path="student-registration/finance/create" element={<Placeholder title="Create Finance" />} />
-          <Route path="student-registration/finance/edit/:id" element={<Placeholder title="Edit Finance" />} />
-          <Route path="student-registration/finance/show/:id" element={<Placeholder title="View Finance" />} />
-
-          <Route path="student-registration/headship/tawafooq-nama" element={<TawafooqNama />} />
-          <Route path="student-registration/headship/tawafooq-nama/create" element={<Placeholder title="Create Tawafooq Nama" />} />
-          <Route path="student-registration/headship/tawafooq-nama/edit/:id" element={<Placeholder title="Edit Tawafooq Nama" />} />
-          <Route path="student-registration/headship/tawafooq-nama/show/:id" element={<Placeholder title="View Tawafooq Nama" />} />
-
-          <Route path="student-registration/headship/see-parcha" element={<SeeParcha />} />
-          <Route path="student-registration/headship/see-parcha/create" element={<Placeholder title="Create See Parcha" />} />
-          <Route path="student-registration/headship/see-parcha/edit/:id" element={<Placeholder title="Edit See Parcha" />} />
-          <Route path="student-registration/headship/see-parcha/show/:id" element={<Placeholder title="View See Parcha" />} />
 
           {/* Teacher Management Routes */}
           <Route path="teacher-management/annual-plans" element={<AnnualPlans />} />
@@ -291,6 +282,128 @@ function App() {
 
           {/* HR Routes - Reports */}
           <Route path="hr/reports" element={<HRReports />} />
+
+          {/* Student Management Routes */}
+          <Route path="student-management/students" element={<Students />} />
+          <Route
+            path="student-management/students/create"
+            element={<StudentForm />}
+          />
+          <Route
+            path="student-management/students/edit/:id"
+            element={<StudentForm />}
+          />
+          <Route
+            path="student-management/students/show/:id"
+            element={<StudentForm />}
+          />
+
+          {/* Student Enrollments */}
+          <Route
+            path="student-management/student-enrollments"
+            element={<StudentEnrollments />}
+          />
+          <Route
+            path="student-management/student-enrollments/create"
+            element={<StudentEnrollmentForm />}
+          />
+          <Route
+            path="student-management/student-enrollments/edit/:id"
+            element={<StudentEnrollmentForm />}
+          />
+          <Route
+            path="student-management/student-enrollments/show/:id"
+            element={<StudentEnrollmentForm />}
+          />
+
+          <Route path="student-management/parents" element={<Parents />} />
+          <Route
+            path="student-management/parents/create"
+            element={<ParentForm />}
+          />
+          <Route
+            path="student-management/parents/edit/:id"
+            element={<ParentForm />}
+          />
+          <Route
+            path="student-management/parents/show/:id"
+            element={<ParentForm />}
+          />
+
+          {/* Academic Terms */}
+          <Route
+            path="student-management/academic-terms"
+            element={<AcademicTerms />}
+          />
+          <Route
+            path="student-management/academic-terms/create"
+            element={<AcademicTermForm />}
+          />
+          <Route
+            path="student-management/academic-terms/edit/:id"
+            element={<AcademicTermForm />}
+          />
+          <Route
+            path="student-management/academic-terms/show/:id"
+            element={<AcademicTermForm />}
+          />
+
+          {/* Classes */}
+          <Route path="student-management/classes" element={<Classes />} />
+          <Route
+            path="student-management/classes/create"
+            element={<ClassForm />}
+          />
+          <Route
+            path="student-management/classes/edit/:id"
+            element={<ClassForm />}
+          />
+          <Route
+            path="student-management/classes/show/:id"
+            element={<ClassForm />}
+          />
+
+          {/* Transportation Routes */}
+          <Route path="transportation/routes" element={<TransportRoutes />} />
+          <Route path="transportation/routes/create" element={<RouteForm />} />
+          <Route
+            path="transportation/routes/edit/:id"
+            element={<RouteForm />}
+          />
+          <Route
+            path="transportation/routes/show/:id"
+            element={<RouteForm />}
+          />
+
+          {/* Transportation Vehicles */}
+          <Route path="transportation/vehicles" element={<Vehicles />} />
+          <Route
+            path="transportation/vehicles/create"
+            element={<VehicleForm />}
+          />
+          <Route
+            path="transportation/vehicles/edit/:id"
+            element={<VehicleForm />}
+          />
+          <Route
+            path="transportation/vehicles/show/:id"
+            element={<VehicleForm />}
+          />
+
+          {/* Finance Routes - Fee Payments */}
+          <Route path="finance/fee-payments" element={<FeePayments />} />
+          <Route
+            path="finance/fee-payments/create"
+            element={<FeePaymentForm />}
+          />
+          <Route
+            path="finance/fee-payments/edit/:id"
+            element={<FeePaymentForm />}
+          />
+          <Route
+            path="finance/fee-payments/show/:id"
+            element={<FeePaymentForm />}
+          />
         </Route>
       </Routes>
     </Router>

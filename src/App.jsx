@@ -29,7 +29,7 @@ import Parents from "./pages/studentMangement/Parents";
 import ParentForm from "./pages/studentMangement/ParentForm";
 import AcademicTerms from "./pages/studentMangement/AcademicTerms";
 import AcademicTermForm from "./pages/studentMangement/AcademicTermForm";
-import Classes from "./pages/studentMangement/Classes";
+import StudentClasses from "./pages/studentMangement/Classes";
 import ClassForm from "./pages/studentMangement/ClassForm";
 import TransportRoutes from "./pages/studentMangement/Routes";
 import RouteForm from "./pages/studentMangement/RouteForm";
@@ -349,7 +349,7 @@ function App() {
           />
 
           {/* Classes */}
-          <Route path="student-management/classes" element={<Classes />} />
+          <Route path="student-management/classes" element={<StudentClasses />} />
           <Route
             path="student-management/classes/create"
             element={<ClassForm />}

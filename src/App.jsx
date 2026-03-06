@@ -83,6 +83,9 @@ import SubjectsForm from "./pages/class-management/SubjectsForm";
 import Subjects from "./pages/class-management/Subjects";
 import ExamsForm from "./pages/class-management/ExamsForm";
 import Exams from "./pages/class-management/Exams";
+import Schedule from "./pages/class-management/Schedule";
+import ScheduleForm from "./pages/class-management/ScheduleForm";
+import ScheduleShow from "./pages/class-management/ScheduleShow";
 
 // Student Registration Pages
 
@@ -184,6 +187,12 @@ function App() {
           <Route path="class-management/exams/create" element={<ExamsForm />} />
           <Route path="class-management/exams/edit/:id" element={<ExamsForm />} />
           <Route path="class-management/exams/show/:id" element={<Placeholder title="View Exam" />} />
+
+          {/* Class Management Routes - Schedule */}
+          <Route path="class-management/schedule" element={<Schedule />} />
+          <Route path="class-management/schedule/create" element={<ScheduleForm />} />
+          <Route path="class-management/schedule/edit/:id" element={<ScheduleForm />} />
+          <Route path="class-management/schedule/show/:id" element={<ScheduleShow />} />
 
           {/* HR Routes - Staff */}
           <Route path="hr/staff" element={<Staff />} />

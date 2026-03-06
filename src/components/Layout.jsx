@@ -528,6 +528,12 @@ export default function Layout() {
               active={isActive("/class-management/exams")}
               onClick={closeSidebar}
             />
+            <SubMenuItem
+              label="Schedule"
+              to="/class-management/schedule"
+              active={isActive("/class-management/schedule")}
+              onClick={closeSidebar}
+            />
           </ParentMenu>
 
           <ParentMenu

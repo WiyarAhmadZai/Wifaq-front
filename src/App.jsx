@@ -76,6 +76,11 @@ import LessonPlans from "./pages/teacher-management/LessonPlans";
 import Teachers from "./pages/teacher-management/teacher/Teachers";
 import TeachersForm from "./pages/teacher-management/teacher/TeachersForm";
 
+// Branches Pages
+import Branches from "./pages/branches/Branches";
+import BranchForm from "./pages/branches/BranchForm";
+import BranchShow from "./pages/branches/BranchShow";
+
 // Class Management Pages
 import ClassesForm from "./pages/class-management/ClassesForm";
 import Classes from "./pages/class-management/Classes";
@@ -169,6 +174,12 @@ function App() {
           <Route path="class-management/teachers/create" element={<TeachersForm />} />
           <Route path="class-management/teachers/edit/:id" element={<TeachersForm />} />
           <Route path="class-management/teachers/show/:id" element={<Placeholder title="View Teacher" />} />
+
+          {/* Branches Routes */}
+          <Route path="branches" element={<Branches />} />
+          <Route path="branches/create" element={<BranchForm />} />
+          <Route path="branches/edit/:id" element={<BranchForm />} />
+          <Route path="branches/show/:id" element={<BranchShow />} />
 
           {/* Class Management Routes - Classes */}
           <Route path="class-management/classes" element={<Classes />} />

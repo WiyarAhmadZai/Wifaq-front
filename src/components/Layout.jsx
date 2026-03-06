@@ -470,13 +470,20 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
-          <SidebarItem
+
+          <ParentMenu
             icon={Icons.Departments}
-            label="Departments"
-            to="/departments"
-            active={isActive("/departments")}
-            onClick={closeSidebar}
-          />
+            label="Branches"
+            isOpen={openMenu.includes("branches")}
+            onClick={() => toggleMenu("branches")}
+          >
+            <SubMenuItem
+              label="Branches"
+              to="/branches"
+              active={isActive("/branches")}
+              onClick={closeSidebar}
+            />
+          </ParentMenu>
 
           <ParentMenu
             icon={Icons.Teacher}
@@ -541,100 +548,16 @@ export default function Layout() {
             label="HR Management"
             isOpen={openMenu.includes("hr")}
             onClick={() => toggleMenu("hr")}
-            icon={Icons.Teacher}
-            label="Teacher Management"
-            isOpen={openMenu.includes('teacher-management')}
-            onClick={() => toggleMenu('teacher-management')}
           >
-            {hrSubMenus.map((item) => {
-              if (item.isParent && item.submenu) {
-                return (
-                  <div key={item.path}>
-                    <button
-                      onClick={() => toggleMenu(item.path)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-xs ${
-                        openMenu.includes(item.path)
-                          ? "bg-teal-700 text-white"
-                          : "text-teal-200 hover:bg-teal-800 hover:text-white"
-                      }`}
-                    >
-                      <span>{item.label}</span>
-                      <div
-                        className={`transition-transform ${openMenu.includes(item.path) ? "rotate-180" : ""}`}
-                      >
-                        <Icons.ChevronDown />
-                      </div>
-                    </button>
-                    {openMenu.includes(item.path) && (
-                      <div className="mt-1 space-y-0.5">
-                        {item.submenu.map((subItem) => (
-                          <SubMenuItem
-                            key={subItem.path}
-                            label={subItem.label}
-                            to={subItem.path}
-                            active={isActive(subItem.path)}
-                            onClick={closeSidebar}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-              return (
-                <SubMenuItem
-                  key={item.path}
-                  label={item.label}
-                  to={item.path}
-                  active={isActive(item.path)}
-                  onClick={closeSidebar}
-                />
-              );
-            })}
-            <SubMenuItem
-              label="Annual Plans"
-              to="/teacher-management/annual-plans"
-              active={isActive('/teacher-management/annual-plans')}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Lesson Plans"
-              to="/teacher-management/lesson-plans"
-              active={isActive('/teacher-management/lesson-plans')}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Teachers"
-              to="/teacher-management/teachers"
-              active={isActive('/teacher-management/teachers')}
-              onClick={closeSidebar}
-            />
-          </ParentMenu>
-
-          <ParentMenu
-            icon={Icons.ClassManagement}
-            label="Class Management"
-            isOpen={openMenu.includes('class-management')}
-            onClick={() => toggleMenu('class-management')}
-          >
-            <SubMenuItem
-              label="Classes"
-              to="/class-management/classes"
-              active={isActive('/class-management/classes')}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Subjects"
-              to="/class-management/subjects"
-              active={isActive('/class-management/subjects')}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Exams"
-              to="/class-management/exams"
-              active={isActive('/class-management/exams')}
-              onClick={closeSidebar}
-            />
+            {hrSubMenus.map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
           </ParentMenu>
 
           <MenuSection title="Academic" />
@@ -655,6 +578,7 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
+          <MenuSection title="Student Registration" />
           <ParentMenu
             icon={Icons.HR}
             label="Students Management"
@@ -706,57 +630,6 @@ export default function Layout() {
                 onClick={closeSidebar}
               />
             ))}
-          </ParentMenu>
-
-          <ParentMenu
-            icon={Icons.HR}
-            label="HR Management"
-            isOpen={openMenu.includes('hr')}
-            onClick={() => toggleMenu('hr')}
-          >
-            {hrSubMenus.map((item) => {
-              if (item.isParent && item.submenu) {
-                return (
-                  <div key={item.path}>
-                    <button
-                      onClick={() => toggleMenu(item.path)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-xs ${
-                        openMenu.includes(item.path)
-                          ? 'bg-teal-700 text-white'
-                          : 'text-teal-200 hover:bg-teal-800 hover:text-white'
-                      }`}
-                    >
-                      <span>{item.label}</span>
-                      <div className={`transition-transform ${openMenu.includes(item.path) ? 'rotate-180' : ''}`}>
-                        <Icons.ChevronDown />
-                      </div>
-                    </button>
-                    {openMenu.includes(item.path) && (
-                      <div className="mt-1 space-y-0.5">
-                        {item.submenu.map((subItem) => (
-                          <SubMenuItem
-                            key={subItem.path}
-                            label={subItem.label}
-                            to={subItem.path}
-                            active={isActive(subItem.path)}
-                            onClick={closeSidebar}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-              return (
-                <SubMenuItem
-                  key={item.path}
-                  label={item.label}
-                  to={item.path}
-                  active={isActive(item.path)}
-                  onClick={closeSidebar}
-                />
-              );
-            })}
           </ParentMenu>
 
           <MenuSection title="Operations" />

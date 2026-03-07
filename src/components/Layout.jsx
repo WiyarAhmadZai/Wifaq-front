@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -301,12 +301,12 @@ const SubMenuItem = ({ label, to, active, onClick }) => (
   </Link>
 );
 
-const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
+const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children, active }) => (
   <div>
     <button
       onClick={onClick}
       className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-sm ${
-        isOpen
+        isOpen || active
           ? "bg-teal-700 text-white"
           : "text-teal-100 hover:bg-teal-800 hover:text-white"
       }`}
@@ -326,27 +326,9 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState([]);
+  const [openMenu, setOpenMenu] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userToggled, setUserToggled] = useState(false);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-
-  useState(() => {
-    if (!userToggled && location.pathname.startsWith("/hr")) {
-      setOpenMenu(["hr"]);
-    }
-  }, [location.pathname]);
-
-  const toggleMenu = (menu) => {
-    setUserToggled(true);
-    if (openMenu.includes(menu)) {
-      setOpenMenu(openMenu.filter((item) => item !== menu));
-    } else {
-      setOpenMenu([...openMenu, menu]);
-    }
-  };
-
-  const isActive = (path) => location.pathname === path;
 
   const hrSubMenus = [
     { label: "Staff", path: "/hr/staff" },
@@ -384,6 +366,42 @@ export default function Layout() {
   const financeMenus = [
     { label: "Fee Payments", path: "/finance/fee-payments" },
   ];
+
+  // Map each parent menu key to its sub-menu paths
+  const menuPathMap = useMemo(() => ({
+    branches: ["/branches"],
+    "teacher-management": ["/teacher-management"],
+    "class-management": ["/class-management"],
+    hr: hrSubMenus.map((item) => item.path),
+    academic: academic.map((item) => item.path),
+    students: studentsMenus.map((item) => item.path),
+    transportation: transportationMenus.map((item) => item.path),
+    finance: financeMenus.map((item) => item.path),
+  }), []);
+
+  // Find which parent menu the current path belongs to
+  const getActiveMenu = useCallback((pathname) => {
+    for (const [menuKey, paths] of Object.entries(menuPathMap)) {
+      if (paths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+        return menuKey;
+      }
+    }
+    return null;
+  }, [menuPathMap]);
+
+  // Auto-open the correct parent menu when the route changes
+  useEffect(() => {
+    const activeMenu = getActiveMenu(location.pathname);
+    setOpenMenu(activeMenu);
+  }, [location.pathname, getActiveMenu]);
+
+  // Only one parent menu open at a time; clicking the open one closes it
+  const toggleMenu = (menu) => {
+    setOpenMenu((prev) => (prev === menu ? null : menu));
+  };
+
+  const isActive = (path) => location.pathname === path;
+  const isParentActive = (menuKey) => getActiveMenu(location.pathname) === menuKey;
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -474,7 +492,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.Departments}
             label="Branches"
-            isOpen={openMenu.includes("branches")}
+            isOpen={openMenu === "branches"}
+            active={isParentActive("branches")}
             onClick={() => toggleMenu("branches")}
           >
             <SubMenuItem
@@ -488,7 +507,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.Teacher}
             label="Teacher"
-            isOpen={openMenu.includes("teacher-management")}
+            isOpen={openMenu === "teacher-management"}
+            active={isParentActive("teacher-management")}
             onClick={() => toggleMenu("teacher-management")}
           >
             <SubMenuItem
@@ -514,7 +534,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.ClassManagement}
             label="Class Management"
-            isOpen={openMenu.includes("class-management")}
+            isOpen={openMenu === "class-management"}
+            active={isParentActive("class-management")}
             onClick={() => toggleMenu("class-management")}
           >
             <SubMenuItem
@@ -546,7 +567,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.HR}
             label="HR Management"
-            isOpen={openMenu.includes("hr")}
+            isOpen={openMenu === "hr"}
+            active={isParentActive("hr")}
             onClick={() => toggleMenu("hr")}
           >
             {hrSubMenus.map((item) => (
@@ -564,7 +586,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.HR}
             label="Academic"
-            isOpen={openMenu.includes("academic")}
+            isOpen={openMenu === "academic"}
+            active={isParentActive("academic")}
             onClick={() => toggleMenu("academic")}
           >
             {academic.map((item) => (
@@ -582,7 +605,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.HR}
             label="Students"
-            isOpen={openMenu.includes("students")}
+            isOpen={openMenu === "students"}
+            active={isParentActive("students")}
             onClick={() => toggleMenu("students")}
           >
             {studentsMenus.map((item) => (
@@ -600,7 +624,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.Departments}
             label="Transportations"
-            isOpen={openMenu.includes("transportation")}
+            isOpen={openMenu === "transportation"}
+            active={isParentActive("transportation")}
             onClick={() => toggleMenu("transportation")}
           >
             {transportationMenus.map((item) => (
@@ -618,7 +643,8 @@ export default function Layout() {
           <ParentMenu
             icon={Icons.Payroll}
             label="Finance"
-            isOpen={openMenu.includes("finance")}
+            isOpen={openMenu === "finance"}
+            active={isParentActive("finance")}
             onClick={() => toggleMenu("finance")}
           >
             {financeMenus.map((item) => (

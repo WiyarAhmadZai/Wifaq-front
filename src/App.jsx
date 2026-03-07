@@ -30,6 +30,7 @@ import ParentForm from "./pages/studentMangement/ParentForm";
 import ParentShow from "./pages/studentMangement/ParentShow";
 import AcademicTerms from "./pages/studentMangement/AcademicTerms";
 import AcademicTermForm from "./pages/studentMangement/AcademicTermForm";
+import AcademicTermShow from "./pages/studentMangement/AcademicTermShow";
 import StudentClasses from "./pages/studentMangement/Classes";
 import ClassForm from "./pages/studentMangement/ClassForm";
 import TransportRoutes from "./pages/studentMangement/Routes";
@@ -444,7 +445,7 @@ function App() {
           />
           <Route
             path="student-management/academic-terms/show/:id"
-            element={<AcademicTermForm />}
+            element={<AcademicTermShow />}
           />
 
           {/* Classes */}

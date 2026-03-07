@@ -3,15 +3,20 @@ import CrudPage from "../../components/CrudPage";
 export default function Parents() {
   return (
     <CrudPage
-      title="Parents Management"
-      apiEndpoint="/student-management/parents"
+      title="Families Management"
+      apiEndpoint="/student-management/families/list"
       listColumns={[
+        { key: "family_id", label: "Family ID" },
         { key: "father_name", label: "Father's Name" },
         { key: "mother_name", label: "Mother's Name" },
         { key: "father_phone", label: "Father's Phone" },
         { key: "mother_phone", label: "Mother's Phone" },
         { key: "address", label: "Address" },
-        { key: "monthly_income", label: "Monthly Income" },
+        {
+          key: "monthly_income_usd",
+          label: "Monthly Income (USD)",
+          render: (val) => (val ? `$${parseFloat(val).toLocaleString()}` : "—"),
+        },
       ]}
       createRoute="/student-management/parents/create"
       editRoute="/student-management/parents/edit"

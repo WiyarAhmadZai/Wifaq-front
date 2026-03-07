@@ -400,7 +400,7 @@ export default function Layout() {
     setOpenMenu((prev) => (prev === menu ? null : menu));
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + "/");
   const isParentActive = (menuKey) => getActiveMenu(location.pathname) === menuKey;
 
   const closeSidebar = () => setSidebarOpen(false);

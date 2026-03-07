@@ -30,7 +30,13 @@ export default function RouteForm() {
     setLoading(true);
     try {
       const response = await get(`/transportation/routes/show/${id}`);
-      setFormData(response.data);
+      const routeData = response.data?.data || response.data;
+      setFormData({
+        route_name: routeData.route_name || "",
+        fee: routeData.fee || "",
+        description: routeData.description || "",
+        is_active: routeData.is_active ?? true,
+      });
     } catch (error) {
       Swal.fire("Error", "Failed to load route data", "error");
       navigate("/transportation/routes");
@@ -68,7 +74,11 @@ export default function RouteForm() {
       if (error.response?.status === 422 && error.response?.data?.errors) {
         setErrors(error.response.data.errors);
       } else {
-        Swal.fire("Error", error.response?.data?.message || "Failed to save route", "error");
+        Swal.fire(
+          "Error",
+          error.response?.data?.message || "Failed to save route",
+          "error",
+        );
       }
     } finally {
       setSaving(false);
@@ -87,34 +97,113 @@ export default function RouteForm() {
   return (
     <div className="px-4 py-4 mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/transportation/routes")} className="p-2 text-gray-500 hover:text-teal-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+        <button
+          onClick={() => navigate("/transportation/routes")}
+          className="p-2 text-gray-500 hover:text-teal-600"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
+          </svg>
         </button>
-        <h2 className="text-lg font-bold text-gray-800">{isEdit ? "Edit Route" : "Add Route"}</h2>
+        <h2 className="text-lg font-bold text-gray-800">
+          {isEdit ? "Edit Route" : "Add Route"}
+        </h2>
       </div>
 
-      <form ref={formRef} onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Route Name *</label>
-          <input type="text" name="route_name" value={formData.route_name} onChange={handleChange} required className={getFieldClass("route_name")} placeholder="e.g. Area A to School" />
-          {getFieldError("route_name") && <p className="text-red-500 text-[10px] mt-1">{getFieldError("route_name")}</p>}
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Route Name *
+          </label>
+          <input
+            type="text"
+            name="route_name"
+            value={formData.route_name}
+            onChange={handleChange}
+            required
+            className={getFieldClass("route_name")}
+            placeholder="e.g. Area A to School"
+          />
+          {getFieldError("route_name") && (
+            <p className="text-red-500 text-[10px] mt-1">
+              {getFieldError("route_name")}
+            </p>
+          )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Monthly Fee (AFN) *</label>
-          <input type="number" name="fee" value={formData.fee} onChange={handleChange} required className={getFieldClass("fee")} placeholder="e.g. 1000" />
-          {getFieldError("fee") && <p className="text-red-500 text-[10px] mt-1">{getFieldError("fee")}</p>}
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Monthly Fee (AFN) *
+          </label>
+          <input
+            type="number"
+            name="fee"
+            value={formData.fee}
+            onChange={handleChange}
+            required
+            className={getFieldClass("fee")}
+            placeholder="e.g. 1000"
+          />
+          {getFieldError("fee") && (
+            <p className="text-red-500 text-[10px] mt-1">
+              {getFieldError("fee")}
+            </p>
+          )}
         </div>
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-          <textarea name="description" value={formData.description} onChange={handleChange} className={getFieldClass("description")} rows="3" />
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Description
+          </label>
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            className={getFieldClass("description")}
+            rows="3"
+          />
         </div>
         <div className="md:col-span-2 flex items-center gap-2">
-          <input type="checkbox" name="is_active" id="is_active" checked={formData.is_active} onChange={handleChange} className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500" />
-          <label htmlFor="is_active" className="text-xs font-medium text-gray-700">Is Active</label>
+          <input
+            type="checkbox"
+            name="is_active"
+            id="is_active"
+            checked={formData.is_active}
+            onChange={handleChange}
+            className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+          />
+          <label
+            htmlFor="is_active"
+            className="text-xs font-medium text-gray-700"
+          >
+            Is Active
+          </label>
         </div>
         <div className="md:col-span-2 flex justify-end gap-3 mt-4">
-          <button type="button" onClick={() => navigate("/transportation/routes")} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium">Cancel</button>
-          <button type="submit" disabled={saving} className="px-4 py-2 bg-teal-600 text-white rounded-lg text-xs font-medium disabled:opacity-50">
+          <button
+            type="button"
+            onClick={() => navigate("/transportation/routes")}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 bg-teal-600 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+          >
             {saving ? "Saving..." : isEdit ? "Update" : "Create"}
           </button>
         </div>

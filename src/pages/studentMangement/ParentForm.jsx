@@ -39,8 +39,11 @@ export default function ParentForm() {
     setLoading(true);
     try {
       const response = await get(`/student-management/families/show/${id}`);
-      setFormData(response.data);
+      // API returns { success: true, data: familyObject }
+      const familyData = response.data?.data || response.data;
+      setFormData(familyData);
     } catch (error) {
+      console.error("Error fetching family:", error);
       Swal.fire("Error", "Failed to load family data", "error");
       navigate("/student-management/parents");
     } finally {
@@ -65,14 +68,21 @@ export default function ParentForm() {
     setErrors({});
 
     try {
+      let familyId = id;
       if (isEdit) {
         await put(`/student-management/families/update/${id}`, formData);
         Swal.fire("Success", "Family updated successfully", "success");
       } else {
-        await post("/student-management/families/store", formData);
+        const response = await post(
+          "/student-management/families/store",
+          formData,
+        );
         Swal.fire("Success", "Family created successfully", "success");
+        // Get the new family ID from response
+        familyId = response.data?.data?.id || response.data?.id;
       }
-      navigate("/student-management/parents");
+      // Redirect to show page
+      navigate(`/student-management/parents/show/${familyId}`);
     } catch (error) {
       if (error.response?.status === 422 && error.response?.data?.errors) {
         setErrors(error.response.data.errors);

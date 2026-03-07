@@ -5,6 +5,15 @@ export default function Parents() {
     <CrudPage
       title="Families Management"
       apiEndpoint="/student-management/families/list"
+      searchable={true}
+      searchFields={[
+        "family_id",
+        "father_name",
+        "mother_name",
+        "father_phone",
+        "mother_phone",
+        "address",
+      ]}
       listColumns={[
         { key: "family_id", label: "Family ID" },
         { key: "father_name", label: "Father's Name" },

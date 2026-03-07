@@ -1,19 +1,42 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import Swal from "sweetalert2";
 
 const Icons = {
   ArrowLeft: () => (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    <svg
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M10 19l-7-7m0 0l7-7m-7 7h18"
+      />
     </svg>
   ),
   Save: () => (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    <svg
+      className="w-4 h-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M5 13l4 4L19 7"
+      />
     </svg>
   ),
 };
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 export default function BranchForm() {
   const navigate = useNavigate();
@@ -21,45 +44,138 @@ export default function BranchForm() {
   const isEdit = !!id;
 
   const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    city: '',
-    address: '',
-    phone: '',
-    email: '',
-    manager: '',
-    establishedYear: '',
-    capacity: '',
-    notes: '',
-    status: 'active',
+    name: "",
+    code: "",
+    phone: "",
+    manager: "",
+    status: true,
+    established_year: "",
+    address: "",
   });
 
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isEdit) {
+      fetchBranch();
+    }
+  }, [id, isEdit]);
+
+  const fetchBranch = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_BASE_URL}/branches/show/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setFormData({
+            name: result.data.name || "",
+            code: result.data.code || "",
+            phone: result.data.phone || "",
+            manager: result.data.manager || "",
+            status: result.data.status === 1 ? true : false,
+            established_year: result.data.established_year || "",
+            address: result.data.address || "",
+          });
+        }
+      } else {
+        Swal.fire("Error", "Failed to fetch branch data", "error");
+        navigate("/branches");
+      }
+    } catch (error) {
+      console.error("Error fetching branch:", error);
+      Swal.fire("Error", "Failed to fetch branch data", "error");
+      navigate("/branches");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
-      Swal.fire('Success', `Branch ${isEdit ? 'updated' : 'created'} successfully`, 'success');
-      navigate('/branches');
+
+    try {
+      const token = localStorage.getItem("token");
+      const url = isEdit
+        ? `${API_BASE_URL}/branches/update/${id}`
+        : `${API_BASE_URL}/branches/store`;
+
+      const method = isEdit ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.fire(
+          "Success",
+          `Branch ${isEdit ? "updated" : "created"} successfully`,
+          "success",
+        );
+        navigate("/branches");
+      } else {
+        const errorMessage = result.message || "Failed to save branch";
+        Swal.fire("Error", errorMessage, "error");
+      }
+    } catch (error) {
+      console.error("Error saving branch:", error);
+      Swal.fire("Error", "Failed to save branch", "error");
+    } finally {
       setSubmitting(false);
-    }, 500);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="px-4 py-4">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+          <span className="ml-2 text-gray-600">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-4">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/branches')} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+        <button
+          onClick={() => navigate("/branches")}
+          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+        >
           <Icons.ArrowLeft />
         </button>
         <div>
-          <h2 className="text-xl font-bold text-gray-800">{isEdit ? 'Edit Branch' : 'Add New Branch'}</h2>
-          <p className="text-sm text-gray-500">{isEdit ? 'Update branch details' : 'Create a new school branch'}</p>
+          <h2 className="text-xl font-bold text-gray-800">
+            {isEdit ? "Edit Branch" : "Add New Branch"}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {isEdit ? "Update branch details" : "Create a new school branch"}
+          </p>
         </div>
       </div>
 
@@ -67,84 +183,130 @@ export default function BranchForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Branch Name <span className="text-red-500">*</span></label>
-              <input type="text" name="name" value={formData.name} onChange={handleInputChange}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Branch Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="e.g., Main Branch" required />
+                placeholder="e.g., Main Branch"
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Branch Code <span className="text-red-500">*</span></label>
-              <input type="text" name="code" value={formData.code} onChange={handleInputChange}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Branch Code <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="code"
+                value={formData.code}
+                onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="e.g., BR-001" required />
+                placeholder="e.g., BR-001"
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">City <span className="text-red-500">*</span></label>
-              <input type="text" name="city" value={formData.city} onChange={handleInputChange}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Phone
+              </label>
+              <input
+                type="text"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="e.g., Kabul" required />
+                placeholder="+93 700 000 000"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-              <input type="text" name="phone" value={formData.phone} onChange={handleInputChange}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Branch Manager
+              </label>
+              <input
+                type="text"
+                name="manager"
+                value={formData.manager}
+                onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="+93 700 000 000" />
+                placeholder="Manager name"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input type="email" name="email" value={formData.email} onChange={handleInputChange}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Established Year
+              </label>
+              <input
+                type="number"
+                name="established_year"
+                value={formData.established_year}
+                onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="branch@school.com" />
+                placeholder="e.g., 2010"
+                min="1900"
+                max={new Date().getFullYear()}
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Branch Manager</label>
-              <input type="text" name="manager" value={formData.manager} onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="Manager name" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Established Year</label>
-              <input type="number" name="establishedYear" value={formData.establishedYear} onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="e.g., 2010" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Student Capacity</label>
-              <input type="number" name="capacity" value={formData.capacity} onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="Maximum students" />
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <div className="flex items-center mt-3">
+                <input
+                  type="checkbox"
+                  name="status"
+                  checked={formData.status}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+                />
+                <label
+                  htmlFor="status"
+                  className="ml-2 block text-sm text-gray-900"
+                >
+                  Active
+                </label>
+              </div>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-              <input type="text" name="address" value={formData.address} onChange={handleInputChange}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Address
+              </label>
+              <textarea
+                name="address"
+                value={formData.address}
+                onChange={handleInputChange}
+                rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="Full address" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select name="status" value={formData.status} onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-              <input type="text" name="notes" value={formData.notes} onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="Optional notes" />
+                placeholder="Full address"
+              />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t">
-            <button type="button" onClick={() => navigate('/branches')}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium">
+            <button
+              type="button"
+              onClick={() => navigate("/branches")}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={submitting}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+            >
               <Icons.Save />
-              {submitting ? (isEdit ? 'Updating...' : 'Creating...') : (isEdit ? 'Update Branch' : 'Create Branch')}
+              {submitting
+                ? isEdit
+                  ? "Updating..."
+                  : "Creating..."
+                : isEdit
+                  ? "Update Branch"
+                  : "Create Branch"}
             </button>
           </div>
         </form>

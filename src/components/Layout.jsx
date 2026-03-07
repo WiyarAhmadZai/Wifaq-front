@@ -487,7 +487,7 @@ export default function Layout() {
 
           <ParentMenu
             icon={Icons.Teacher}
-            label="Teacher Management"
+            label="Teacher"
             isOpen={openMenu.includes("teacher-management")}
             onClick={() => toggleMenu("teacher-management")}
           >
@@ -560,7 +560,7 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
-          <MenuSection title="Academic" />
+         
           <ParentMenu
             icon={Icons.HR}
             label="Academic"
@@ -578,10 +578,10 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
-          <MenuSection title="Student Registration" />
+          
           <ParentMenu
             icon={Icons.HR}
-            label="Students Management"
+            label="Students"
             isOpen={openMenu.includes("students")}
             onClick={() => toggleMenu("students")}
           >
@@ -596,7 +596,7 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
-          <MenuSection title="Transportation" />
+          <MenuSection title="transportation " />
           <ParentMenu
             icon={Icons.Departments}
             label="Transportations"

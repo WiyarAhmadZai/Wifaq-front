@@ -79,9 +79,7 @@ export default function AcademicTermShow() {
   const fetchTerm = async () => {
     setLoading(true);
     try {
-      const response = await get(
-        `/student-management/academic-terms/show/${id}`,
-      );
+      const response = await get(`/academic-terms/show/${id}`);
       const termData = response.data?.data || response.data;
       setTerm(termData);
     } catch (error) {

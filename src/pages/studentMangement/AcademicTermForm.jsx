@@ -29,7 +29,7 @@ export default function AcademicTermForm() {
   const fetchTerm = async () => {
     setLoading(true);
     try {
-      const response = await get(`/student-management/academic-terms/show/${id}`);
+      const response = await get(`/academic-terms/show/${id}`);
       setFormData(response.data);
     } catch (error) {
       Swal.fire("Error", "Failed to load academic term", "error");
@@ -57,10 +57,10 @@ export default function AcademicTermForm() {
 
     try {
       if (isEdit) {
-        await put(`/student-management/academic-terms/update/${id}`, formData);
+        await put(`/academic-terms/update/${id}`, formData);
         Swal.fire("Success", "Academic term updated successfully", "success");
       } else {
-        await post("/student-management/academic-terms/store", formData);
+        await post("/academic-terms/store", formData);
         Swal.fire("Success", "Academic term created successfully", "success");
       }
       navigate("/student-management/academic-terms");

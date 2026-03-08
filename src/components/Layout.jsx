@@ -340,9 +340,11 @@ export default function Layout() {
   const toggleMenu = (menu) => {
     setUserToggled(true);
     if (openMenu.includes(menu)) {
+      // If clicking on already open menu, close it
       setOpenMenu(openMenu.filter((item) => item !== menu));
     } else {
-      setOpenMenu([...openMenu, menu]);
+      // If opening a new menu, close all others and open only this one
+      setOpenMenu([menu]);
     }
   };
 

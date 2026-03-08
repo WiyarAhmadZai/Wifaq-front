@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../api/axios";
+import { get, del, put } from "../api/axios";
 import Swal from "sweetalert2";
 
 export default function CrudPage({
@@ -14,12 +14,18 @@ export default function CrudPage({
   extraHeaderButtons = null,
   searchable = false,
   searchFields = [],
+  statusEndpoint = null,
+  statusOptions = [],
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [newStatus, setNewStatus] = useState("");
+  const [savingStatus, setSavingStatus] = useState(false);
 
   useEffect(() => {
     fetchItems();
@@ -152,8 +158,40 @@ export default function CrudPage({
       in_progress: "bg-blue-100 text-blue-700",
       active: "bg-emerald-100 text-emerald-700",
       inactive: "bg-gray-100 text-gray-700",
+      "on-leave": "bg-amber-100 text-amber-700",
+      on_leave: "bg-amber-100 text-amber-700",
     };
     return styles[status?.toLowerCase()] || "bg-gray-100 text-gray-700";
+  };
+
+  const handleOpenStatusModal = (item) => {
+    setSelectedItem(item);
+    setNewStatus(item.status || "");
+    setShowStatusModal(true);
+  };
+
+  const handleCloseStatusModal = () => {
+    setShowStatusModal(false);
+    setSelectedItem(null);
+    setNewStatus("");
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!newStatus) {
+      Swal.fire("Error", "Please select a status", "error");
+      return;
+    }
+    setSavingStatus(true);
+    try {
+      await put(`${statusEndpoint}/${selectedItem[idField]}`, { status: newStatus });
+      Swal.fire("Success", "Status updated successfully", "success");
+      handleCloseStatusModal();
+      fetchItems();
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to update status", "error");
+    } finally {
+      setSavingStatus(false);
+    }
   };
 
   return (
@@ -304,6 +342,27 @@ export default function CrudPage({
                             />
                           </svg>
                         </button>
+                        {statusEndpoint && statusOptions.length > 0 && (
+                          <button
+                            onClick={() => handleOpenStatusModal(item)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Update Status"
+                          >
+                            <svg
+                              className="w-3.5 h-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDelete(item[idField])}
                           className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -369,6 +428,55 @@ export default function CrudPage({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Status Update Modal */}
+      {showStatusModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="px-4 py-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Update Status</h3>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Status</label>
+                <div className={`px-3 py-2 rounded-lg ${getStatusBadge(selectedItem?.status)} text-sm capitalize`}>
+                  {selectedItem?.status?.replace(/[-_]/g, " ")}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Status</label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                >
+                  <option value="">Select Status</option>
+                  {statusOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="px-4 py-3 bg-gray-50 flex justify-end gap-2 rounded-b-lg">
+              <button
+                type="button"
+                onClick={handleCloseStatusModal}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleStatusUpdate}
+                disabled={savingStatus}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                {savingStatus ? "Updating..." : "Update Status"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

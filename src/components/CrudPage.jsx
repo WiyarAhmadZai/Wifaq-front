@@ -12,10 +12,14 @@ export default function CrudPage({
   showRoute,
   idField = "id",
   extraHeaderButtons = null,
+  searchable = false,
+  searchFields = [],
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
+  const [filteredItems, setFilteredItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetchItems();
@@ -28,6 +32,7 @@ export default function CrudPage({
       // Handle both paginated (response.data.data) and non-paginated (response.data) responses
       const data = response.data?.data || response.data || [];
       setItems(Array.isArray(data) ? data : []);
+      setFilteredItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Fetch error:", error);
 
@@ -72,6 +77,7 @@ export default function CrudPage({
         confirmButtonColor: "#0d9488",
       });
       setItems([]);
+      setFilteredItems([]);
     } finally {
       setLoading(false);
     }
@@ -111,6 +117,31 @@ export default function CrudPage({
     }
   };
 
+  const handleSearch = (e) => {
+    const query = e.target.value.toLowerCase();
+    setSearchQuery(query);
+
+    if (!query) {
+      setFilteredItems(items);
+      return;
+    }
+
+    const fieldsToSearch =
+      searchFields.length > 0
+        ? searchFields
+        : listColumns.map((col) => col.key);
+
+    const filtered = items.filter((item) => {
+      return fieldsToSearch.some((field) => {
+        const value = item[field];
+        if (value === null || value === undefined) return false;
+        return String(value).toLowerCase().includes(query);
+      });
+    });
+
+    setFilteredItems(filtered);
+  };
+
   const getStatusBadge = (status) => {
     const styles = {
       approved: "bg-emerald-100 text-emerald-700",
@@ -119,8 +150,10 @@ export default function CrudPage({
       new: "bg-blue-100 text-blue-700",
       completed: "bg-emerald-100 text-emerald-700",
       in_progress: "bg-blue-100 text-blue-700",
+      active: "bg-emerald-100 text-emerald-700",
+      inactive: "bg-gray-100 text-gray-700",
     };
-    return styles[status] || "bg-gray-100 text-gray-700";
+    return styles[status?.toLowerCase()] || "bg-gray-100 text-gray-700";
   };
 
   return (
@@ -132,7 +165,33 @@ export default function CrudPage({
             Manage {title.toLowerCase()} records
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          {searchable && (
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={handleSearch}
+                placeholder="Search..."
+                className="w-full sm:w-64 pl-10 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+          )}
           {extraHeaderButtons}
           <button
             onClick={handleCreate}
@@ -178,16 +237,13 @@ export default function CrudPage({
                       {col.label}
                     </th>
                   ))}
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Status
-                  </th>
                   <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {items.map((item, index) => (
+                {filteredItems.map((item, index) => (
                   <tr key={item[idField]} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-xs font-medium text-teal-600">
                       #{String(index + 1).padStart(4, "0")}
@@ -202,13 +258,6 @@ export default function CrudPage({
                           : item[col.key]}
                       </td>
                     ))}
-                    <td className="px-3 py-2 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadge(item.status)}`}
-                      >
-                        {item.status || "N/A"}
-                      </span>
-                    </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
@@ -281,7 +330,7 @@ export default function CrudPage({
               </tbody>
             </table>
           </div>
-          {items.length === 0 && (
+          {filteredItems.length === 0 && (
             <div className="text-center py-8 px-4">
               <svg
                 className="w-10 h-10 mx-auto text-gray-300 mb-3"
@@ -296,13 +345,28 @@ export default function CrudPage({
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <p className="text-gray-500 text-xs">No records found</p>
-              <button
-                onClick={handleCreate}
-                className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs"
-              >
-                Create your first entry
-              </button>
+              <p className="text-gray-500 text-xs">
+                {searchQuery ? "No matching records found" : "No records found"}
+              </p>
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setFilteredItems(items);
+                  }}
+                  className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                >
+                  Clear search
+                </button>
+              )}
+              {!searchQuery && (
+                <button
+                  onClick={handleCreate}
+                  className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                >
+                  Create your first entry
+                </button>
+              )}
             </div>
           )}
         </div>

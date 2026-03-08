@@ -27,8 +27,10 @@ import HRReports from "./pages/hr/HRReports";
 // Student Management Pages
 import Parents from "./pages/studentMangement/Parents";
 import ParentForm from "./pages/studentMangement/ParentForm";
+import ParentShow from "./pages/studentMangement/ParentShow";
 import AcademicTerms from "./pages/studentMangement/AcademicTerms";
 import AcademicTermForm from "./pages/studentMangement/AcademicTermForm";
+import AcademicTermShow from "./pages/studentMangement/AcademicTermShow";
 import StudentClasses from "./pages/studentMangement/Classes";
 import ClassForm from "./pages/studentMangement/ClassForm";
 import TransportRoutes from "./pages/studentMangement/Routes";
@@ -154,26 +156,71 @@ function App() {
           {/* Student Registration Routes */}
 
           {/* Teacher Management Routes */}
-          <Route path="teacher-management/annual-plans" element={<AnnualPlans />} />
-          <Route path="teacher-management/annual-plans/create" element={<Placeholder title="Create Annual Plan" />} />
-          <Route path="teacher-management/annual-plans/edit/:id" element={<Placeholder title="Edit Annual Plan" />} />
-          <Route path="teacher-management/annual-plans/show/:id" element={<Placeholder title="View Annual Plan" />} />
+          <Route
+            path="teacher-management/annual-plans"
+            element={<AnnualPlans />}
+          />
+          <Route
+            path="teacher-management/annual-plans/create"
+            element={<Placeholder title="Create Annual Plan" />}
+          />
+          <Route
+            path="teacher-management/annual-plans/edit/:id"
+            element={<Placeholder title="Edit Annual Plan" />}
+          />
+          <Route
+            path="teacher-management/annual-plans/show/:id"
+            element={<Placeholder title="View Annual Plan" />}
+          />
 
-          <Route path="teacher-management/lesson-plans" element={<LessonPlans />} />
-          <Route path="teacher-management/lesson-plans/create" element={<Placeholder title="Create Lesson Plan" />} />
-          <Route path="teacher-management/lesson-plans/edit/:id" element={<Placeholder title="Edit Lesson Plan" />} />
-          <Route path="teacher-management/lesson-plans/show/:id" element={<Placeholder title="View Lesson Plan" />} />
+          <Route
+            path="teacher-management/lesson-plans"
+            element={<LessonPlans />}
+          />
+          <Route
+            path="teacher-management/lesson-plans/create"
+            element={<Placeholder title="Create Lesson Plan" />}
+          />
+          <Route
+            path="teacher-management/lesson-plans/edit/:id"
+            element={<Placeholder title="Edit Lesson Plan" />}
+          />
+          <Route
+            path="teacher-management/lesson-plans/show/:id"
+            element={<Placeholder title="View Lesson Plan" />}
+          />
 
           <Route path="teacher-management/teachers" element={<Teachers />} />
-          <Route path="teacher-management/teachers/create" element={<TeachersForm />} />
-          <Route path="teacher-management/teachers/edit/:id" element={<TeachersForm />} />
-          <Route path="teacher-management/teachers/show/:id" element={<Placeholder title="View Teacher" />} />
+          <Route
+            path="teacher-management/teachers/create"
+            element={<TeachersForm />}
+          />
+          <Route
+            path="teacher-management/teachers/edit/:id"
+            element={<TeachersForm />}
+          />
+          <Route
+            path="teacher-management/teachers/show/:id"
+            element={<Placeholder title="View Teacher" />}
+          />
 
           {/* Class Management Routes - Redirect to Teacher Management */}
-          <Route path="class-management/teachers" element={<Navigate to="/teacher-management/teachers" replace />} />
-          <Route path="class-management/teachers/create" element={<TeachersForm />} />
-          <Route path="class-management/teachers/edit/:id" element={<TeachersForm />} />
-          <Route path="class-management/teachers/show/:id" element={<Placeholder title="View Teacher" />} />
+          <Route
+            path="class-management/teachers"
+            element={<Navigate to="/teacher-management/teachers" replace />}
+          />
+          <Route
+            path="class-management/teachers/create"
+            element={<TeachersForm />}
+          />
+          <Route
+            path="class-management/teachers/edit/:id"
+            element={<TeachersForm />}
+          />
+          <Route
+            path="class-management/teachers/show/:id"
+            element={<Placeholder title="View Teacher" />}
+          />
 
           {/* Branches Routes */}
           <Route path="branches" element={<Branches />} />
@@ -183,27 +230,60 @@ function App() {
 
           {/* Class Management Routes - Classes */}
           <Route path="class-management/classes" element={<Classes />} />
-          <Route path="class-management/classes/create" element={<ClassesForm />} />
-          <Route path="class-management/classes/edit/:id" element={<ClassesForm />} />
-          <Route path="class-management/classes/show/:id" element={<Placeholder title="View Class" />} />
+          <Route
+            path="class-management/classes/create"
+            element={<ClassesForm />}
+          />
+          <Route
+            path="class-management/classes/edit/:id"
+            element={<ClassesForm />}
+          />
+          <Route
+            path="class-management/classes/show/:id"
+            element={<Placeholder title="View Class" />}
+          />
 
           {/* Class Management Routes - Subjects */}
           <Route path="class-management/subjects" element={<Subjects />} />
-          <Route path="class-management/subjects/create" element={<SubjectsForm />} />
-          <Route path="class-management/subjects/edit/:id" element={<SubjectsForm />} />
-          <Route path="class-management/subjects/show/:id" element={<Placeholder title="View Subject" />} />
+          <Route
+            path="class-management/subjects/create"
+            element={<SubjectsForm />}
+          />
+          <Route
+            path="class-management/subjects/edit/:id"
+            element={<SubjectsForm />}
+          />
+          <Route
+            path="class-management/subjects/show/:id"
+            element={<Placeholder title="View Subject" />}
+          />
 
           {/* Class Management Routes - Exams */}
           <Route path="class-management/exams" element={<Exams />} />
           <Route path="class-management/exams/create" element={<ExamsForm />} />
-          <Route path="class-management/exams/edit/:id" element={<ExamsForm />} />
-          <Route path="class-management/exams/show/:id" element={<Placeholder title="View Exam" />} />
+          <Route
+            path="class-management/exams/edit/:id"
+            element={<ExamsForm />}
+          />
+          <Route
+            path="class-management/exams/show/:id"
+            element={<Placeholder title="View Exam" />}
+          />
 
           {/* Class Management Routes - Schedule */}
           <Route path="class-management/schedule" element={<Schedule />} />
-          <Route path="class-management/schedule/create" element={<ScheduleForm />} />
-          <Route path="class-management/schedule/edit/:id" element={<ScheduleForm />} />
-          <Route path="class-management/schedule/show/:id" element={<ScheduleShow />} />
+          <Route
+            path="class-management/schedule/create"
+            element={<ScheduleForm />}
+          />
+          <Route
+            path="class-management/schedule/edit/:id"
+            element={<ScheduleForm />}
+          />
+          <Route
+            path="class-management/schedule/show/:id"
+            element={<ScheduleShow />}
+          />
 
           {/* HR Routes - Staff */}
           <Route path="hr/staff" element={<Staff />} />
@@ -347,7 +427,7 @@ function App() {
           />
           <Route
             path="student-management/parents/show/:id"
-            element={<ParentForm />}
+            element={<ParentShow />}
           />
 
           {/* Academic Terms */}
@@ -365,11 +445,14 @@ function App() {
           />
           <Route
             path="student-management/academic-terms/show/:id"
-            element={<AcademicTermForm />}
+            element={<AcademicTermShow />}
           />
 
           {/* Classes */}
-          <Route path="student-management/classes" element={<StudentClasses />} />
+          <Route
+            path="student-management/classes"
+            element={<StudentClasses />}
+          />
           <Route
             path="student-management/classes/create"
             element={<ClassForm />}

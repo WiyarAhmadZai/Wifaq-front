@@ -374,7 +374,7 @@ export default function Layout() {
 
   const academic = [
     { label: "Academic Terms", path: "/student-management/academic-terms" },
-    { label: "Classes", path: "/student-management/classes" },
+    { label: "Grades", path: "/student-management/grades" },
   ];
   const transportationMenus = [
     { label: "Routes", path: "/transportation/routes" },
@@ -560,7 +560,6 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
-         
           <ParentMenu
             icon={Icons.HR}
             label="Academic"
@@ -578,7 +577,6 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
-          
           <ParentMenu
             icon={Icons.HR}
             label="Students"

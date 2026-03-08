@@ -29,10 +29,11 @@ import Parents from "./pages/studentMangement/Parents";
 import ParentForm from "./pages/studentMangement/ParentForm";
 import ParentShow from "./pages/studentMangement/ParentShow";
 import AcademicTerms from "./pages/studentMangement/AcademicTerms";
+import Grades from "./pages/studentMangement/Grades";
+import GradeForm from "./pages/studentMangement/GradeForm";
+import GradeShow from "./pages/studentMangement/GradeShow";
 import AcademicTermForm from "./pages/studentMangement/AcademicTermForm";
 import AcademicTermShow from "./pages/studentMangement/AcademicTermShow";
-import StudentClasses from "./pages/studentMangement/Classes";
-import ClassForm from "./pages/studentMangement/ClassForm";
 import TransportRoutes from "./pages/studentMangement/Routes";
 import RouteForm from "./pages/studentMangement/RouteForm";
 import Vehicles from "./pages/studentMangement/Vehicles";
@@ -430,6 +431,21 @@ function App() {
             element={<ParentShow />}
           />
 
+          {/* Grades */}
+          <Route path="student-management/grades" element={<Grades />} />
+          <Route
+            path="student-management/grades/create"
+            element={<GradeForm />}
+          />
+          <Route
+            path="student-management/grades/edit/:id"
+            element={<GradeForm />}
+          />
+          <Route
+            path="student-management/grades/show/:id"
+            element={<GradeShow />}
+          />
+
           {/* Academic Terms */}
           <Route
             path="student-management/academic-terms"
@@ -446,24 +462,6 @@ function App() {
           <Route
             path="student-management/academic-terms/show/:id"
             element={<AcademicTermShow />}
-          />
-
-          {/* Classes */}
-          <Route
-            path="student-management/classes"
-            element={<StudentClasses />}
-          />
-          <Route
-            path="student-management/classes/create"
-            element={<ClassForm />}
-          />
-          <Route
-            path="student-management/classes/edit/:id"
-            element={<ClassForm />}
-          />
-          <Route
-            path="student-management/classes/show/:id"
-            element={<ClassForm />}
           />
 
           {/* Transportation Routes */}

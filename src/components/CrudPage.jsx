@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 export default function CrudPage({
   title,
   apiEndpoint,
+  deleteEndpoint = null,
   listColumns,
   createRoute,
   editRoute,
@@ -108,7 +109,7 @@ export default function CrudPage({
 
     if (result.isConfirmed) {
       try {
-        await del(`${apiEndpoint}/${id}`);
+        await del(`${deleteEndpoint ?? apiEndpoint}/${id}`);
         Swal.fire("Deleted!", "Record has been deleted.", "success");
         fetchItems();
       } catch (error) {

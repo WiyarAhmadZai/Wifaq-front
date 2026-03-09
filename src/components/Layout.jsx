@@ -367,9 +367,12 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents" },
-    { label: "Students Registration", path: "/student-management/students" },
     {
-      label: "Students Enrollments",
+      label: "Phase 1 - Students Registration",
+      path: "/student-management/students",
+    },
+    {
+      label: "Phase 2 - Students",
       path: "/student-management/student-enrollments",
     },
   ];

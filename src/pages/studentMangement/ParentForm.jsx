@@ -136,7 +136,7 @@ export default function ParentForm() {
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4"
+        className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 grid grid-cols-2 md:grid-cols-3 gap-4"
       >
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:restart": "npm cache clean --force && rm -rf node_modules .vite && npm install && npm run dev",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

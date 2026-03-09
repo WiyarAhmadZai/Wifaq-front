@@ -78,6 +78,7 @@ import AnnualPlans from "./pages/teacher-management/AnnualPlans";
 import LessonPlans from "./pages/teacher-management/LessonPlans";
 import Teachers from "./pages/teacher-management/teacher/Teachers";
 import TeachersForm from "./pages/teacher-management/teacher/TeachersForm";
+import TeachersShow from "./pages/teacher-management/teacher/TeachersShow";
 
 // Branches Pages
 import Branches from "./pages/branches/Branches";
@@ -202,7 +203,7 @@ function App() {
           />
           <Route
             path="teacher-management/teachers/show/:id"
-            element={<Placeholder title="View Teacher" />}
+            element={<TeachersShow />}
           />
 
           {/* Class Management Routes - Redirect to Teacher Management */}
@@ -220,7 +221,7 @@ function App() {
           />
           <Route
             path="class-management/teachers/show/:id"
-            element={<Placeholder title="View Teacher" />}
+            element={<TeachersShow />}
           />
 
           {/* Branches Routes */}

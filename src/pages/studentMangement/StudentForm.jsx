@@ -68,7 +68,6 @@ export default function StudentForm() {
     discount_percent: "",
     discount_amount: 0,
     is_4th_child_free: false,
-    employee_duration_applied: "",
     foundation_help_requested: false,
     foundation_help_amount: "",
     final_fee: "",
@@ -195,7 +194,6 @@ export default function StudentForm() {
         discount_percent: data.discount_percent || "",
         discount_amount: data.discount_amount || 0,
         is_4th_child_free: data.is_4th_child_free || false,
-        employee_duration_applied: data.employee_duration_applied || "",
         foundation_help_requested: data.foundation_help_requested || false,
         foundation_help_amount: data.foundation_help_amount || "",
         final_fee: data.final_fee || "",
@@ -269,8 +267,6 @@ export default function StudentForm() {
           "class_id",
           "academic_term_id",
           "enrollment_type",
-          "special_status",
-          "employee_duration_id",
           "enrollment_date",
         ];
         if (errorFields.some((f) => step1Fields.includes(f))) setCurrentStep(1);
@@ -515,58 +511,6 @@ export default function StudentForm() {
                   </p>
                 )}
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Special Status
-                </label>
-                <div className="flex gap-2">
-                  {specialStatusOptions.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          special_status: opt.value,
-                        }));
-                      }}
-                      className={`flex-1 px-2 py-2 rounded-lg text-[11px] font-semibold border transition-all ${
-                        formData.special_status === opt.value
-                          ? `${opt.color} ring-2 ring-offset-1 ring-teal-400`
-                          : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {formData.special_status === "employee" && (
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                    Employee (Parent) *
-                  </label>
-                  <select
-                    name="employee_duration_id"
-                    value={formData.employee_duration_id}
-                    onChange={handleChange}
-                    required
-                    className={inputClass("employee_duration_id")}
-                  >
-                    <option value="">Select Employee</option>
-                    {employmentDurations.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.full_name}
-                      </option>
-                    ))}
-                  </select>
-                  {getFieldError("employee_duration_id") && (
-                    <p className="text-red-500 text-[10px] mt-1">
-                      {getFieldError("employee_duration_id")}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -751,6 +695,62 @@ export default function StudentForm() {
               </div>
             </div>
             <div className="p-5 space-y-5">
+              {/* Special Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-100">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Special Status
+                  </label>
+                  <div className="flex gap-2">
+                    {specialStatusOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            special_status: opt.value,
+                          }))
+                        }
+                        className={`flex-1 px-2 py-2 rounded-lg text-[11px] font-semibold border transition-all ${
+                          formData.special_status === opt.value
+                            ? `${opt.color} ring-2 ring-offset-1 ring-teal-400`
+                            : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {formData.special_status === "employee" && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                      Employee (Parent) *
+                    </label>
+                    <select
+                      name="employee_duration_id"
+                      value={formData.employee_duration_id}
+                      onChange={handleChange}
+                      required
+                      className={inputClass("employee_duration_id")}
+                    >
+                      <option value="">Select Employee</option>
+                      {employmentDurations.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.full_name}
+                        </option>
+                      ))}
+                    </select>
+                    {getFieldError("employee_duration_id") && (
+                      <p className="text-red-500 text-[10px] mt-1">
+                        {getFieldError("employee_duration_id")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Toggles row */}
               <div className="flex flex-wrap gap-x-8 gap-y-3 pb-4 border-b border-gray-100">
                 <Toggle
@@ -785,24 +785,6 @@ export default function StudentForm() {
                     {discountOptions.map((d) => (
                       <option key={d} value={d}>
                         {d}%
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                    Employee Duration Applied
-                  </label>
-                  <select
-                    name="employee_duration_applied"
-                    value={formData.employee_duration_applied}
-                    onChange={handleChange}
-                    className={inputClass("employee_duration_applied")}
-                  >
-                    <option value="">None</option>
-                    {employmentDurations.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.full_name}
                       </option>
                     ))}
                   </select>

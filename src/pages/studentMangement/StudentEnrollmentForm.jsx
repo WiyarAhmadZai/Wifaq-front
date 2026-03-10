@@ -379,9 +379,9 @@ export default function StudentEnrollmentForm() {
         {currentStep === 1 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
-              gradient="from-amber-50 to-orange-50"
-              iconBg="bg-amber-100"
-              iconColor="text-amber-600"
+              gradient="from-teal-50 to-cyan-50"
+              iconBg="bg-teal-100"
+              iconColor="text-teal-600"
               icon={steps[0].icon}
               title="Education History"
               subtitle="Previous school and academic background"
@@ -509,9 +509,9 @@ export default function StudentEnrollmentForm() {
         {currentStep === 2 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
-              gradient="from-rose-50 to-pink-50"
-              iconBg="bg-rose-100"
-              iconColor="text-rose-600"
+              gradient="from-teal-50 to-cyan-50"
+              iconBg="bg-teal-100"
+              iconColor="text-teal-600"
               icon={steps[1].icon}
               title="Health & References"
               subtitle="Referral information and health details"
@@ -594,7 +594,7 @@ export default function StudentEnrollmentForm() {
 
               {/* Health */}
               <div className="pt-4 border-t border-gray-100">
-                <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
@@ -602,9 +602,9 @@ export default function StudentEnrollmentForm() {
                 </p>
 
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-rose-50 rounded-xl border border-rose-100">
+                  <div className="flex items-center justify-between p-3 bg-teal-50 rounded-xl border border-teal-100">
                     <div>
-                      <p className="text-xs font-semibold text-rose-800">
+                      <p className="text-xs font-semibold text-teal-800">
                         Does he/she have any special health conditions?
                       </p>
                     </div>
@@ -618,7 +618,7 @@ export default function StudentEnrollmentForm() {
                           onChange={() =>
                             setFormData((prev) => ({ ...prev, has_special_health_condition: true }))
                           }
-                          className="accent-rose-500"
+                          className="accent-teal-500"
                         />
                         <span className="text-xs text-gray-700">Yes</span>
                       </label>
@@ -631,16 +631,16 @@ export default function StudentEnrollmentForm() {
                           onChange={() =>
                             setFormData((prev) => ({ ...prev, has_special_health_condition: false }))
                           }
-                          className="accent-rose-500"
+                          className="accent-teal-500"
                         />
                         <span className="text-xs text-gray-700">No</span>
                       </label>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-rose-50 rounded-xl border border-rose-100">
+                  <div className="flex items-center justify-between p-3 bg-teal-50 rounded-xl border border-teal-100">
                     <div>
-                      <p className="text-xs font-semibold text-rose-800">Special needs?</p>
+                      <p className="text-xs font-semibold text-teal-800">Special needs?</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <label className="flex items-center gap-1.5 cursor-pointer">
@@ -652,7 +652,7 @@ export default function StudentEnrollmentForm() {
                           onChange={() =>
                             setFormData((prev) => ({ ...prev, has_special_needs: true }))
                           }
-                          className="accent-rose-500"
+                          className="accent-teal-500"
                         />
                         <span className="text-xs text-gray-700">Yes</span>
                       </label>
@@ -665,7 +665,7 @@ export default function StudentEnrollmentForm() {
                           onChange={() =>
                             setFormData((prev) => ({ ...prev, has_special_needs: false }))
                           }
-                          className="accent-rose-500"
+                          className="accent-teal-500"
                         />
                         <span className="text-xs text-gray-700">No</span>
                       </label>
@@ -700,9 +700,9 @@ export default function StudentEnrollmentForm() {
         {currentStep === 3 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
-              gradient="from-sky-50 to-blue-50"
-              iconBg="bg-sky-100"
-              iconColor="text-sky-600"
+              gradient="from-teal-50 to-cyan-50"
+              iconBg="bg-teal-100"
+              iconColor="text-teal-600"
               icon={steps[2].icon}
               title="Transport"
               subtitle="Bus route and pickup/drop-off details"
@@ -766,28 +766,28 @@ export default function StudentEnrollmentForm() {
                 </div>
               </div>
 
-              <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
-                <p className="text-[10px] font-bold text-sky-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <div className="bg-teal-50 rounded-xl p-4 border border-teal-100">
+                <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                   </svg>
                   Transport Summary
                 </p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white rounded-lg p-3 border border-sky-100">
-                    <p className="text-[9px] text-sky-600 font-bold uppercase">Route</p>
+                  <div className="bg-white rounded-lg p-3 border border-teal-100">
+                    <p className="text-[9px] text-teal-600 font-bold uppercase">Route</p>
                     <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_route || "—"}</p>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-sky-100">
-                    <p className="text-[9px] text-sky-600 font-bold uppercase">Pickup Time</p>
+                  <div className="bg-white rounded-lg p-3 border border-teal-100">
+                    <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Time</p>
                     <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_time || "—"}</p>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-sky-100">
-                    <p className="text-[9px] text-sky-600 font-bold uppercase">Pickup Stop</p>
+                  <div className="bg-white rounded-lg p-3 border border-teal-100">
+                    <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Stop</p>
                     <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_point || "—"}</p>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-sky-100">
-                    <p className="text-[9px] text-sky-600 font-bold uppercase">Drop-off</p>
+                  <div className="bg-white rounded-lg p-3 border border-teal-100">
+                    <p className="text-[9px] text-teal-600 font-bold uppercase">Drop-off</p>
                     <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_dropoff_point || "—"}</p>
                   </div>
                 </div>
@@ -800,18 +800,18 @@ export default function StudentEnrollmentForm() {
         {currentStep === 4 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
-              gradient="from-green-50 to-lime-50"
-              iconBg="bg-green-100"
-              iconColor="text-green-600"
+              gradient="from-teal-50 to-cyan-50"
+              iconBg="bg-teal-100"
+              iconColor="text-teal-600"
               icon={steps[3].icon}
               title="Uniform"
               subtitle="Uniform measurements and requirements"
             />
             <div className="p-5 space-y-5">
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border border-green-100">
+              <div className="flex items-center justify-between p-4 bg-teal-50 rounded-xl border border-teal-100">
                 <div>
-                  <p className="text-xs font-bold text-green-800">Need a Uniform?</p>
-                  <p className="text-[10px] text-green-600 mt-0.5">Enable if the student needs a school uniform</p>
+                  <p className="text-xs font-bold text-teal-800">Need a Uniform?</p>
+                  <p className="text-[10px] text-teal-600 mt-0.5">Enable if the student needs a school uniform</p>
                 </div>
                 <Toggle
                   name="need_uniform"
@@ -953,9 +953,9 @@ export default function StudentEnrollmentForm() {
         {currentStep === 5 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
-              gradient="from-violet-50 to-purple-50"
-              iconBg="bg-violet-100"
-              iconColor="text-violet-600"
+              gradient="from-teal-50 to-cyan-50"
+              iconBg="bg-teal-100"
+              iconColor="text-teal-600"
               icon={steps[4].icon}
               title="Documents"
               subtitle="Upload required enrollment documents"
@@ -1000,10 +1000,10 @@ export default function StudentEnrollmentForm() {
               </div>
 
               {/* Progress */}
-              <div className="bg-violet-50 rounded-xl p-3 border border-violet-100">
+              <div className="bg-teal-50 rounded-xl p-3 border border-teal-100">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-semibold text-violet-700">Documents Uploaded</p>
-                  <p className="text-[10px] font-bold text-violet-800">
+                  <p className="text-[10px] font-semibold text-teal-700">Documents Uploaded</p>
+                  <p className="text-[10px] font-bold text-teal-800">
                     {Object.values(files).filter((f) => f !== null && [
                       "doc_student_tazkira",
                       "doc_father_tazkira",
@@ -1022,9 +1022,9 @@ export default function StudentEnrollmentForm() {
                     ].filter(Boolean).length} / 5
                   </p>
                 </div>
-                <div className="h-1.5 bg-violet-100 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-teal-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-violet-500 rounded-full transition-all"
+                    className="h-full bg-teal-500 rounded-full transition-all"
                     style={{
                       width: `${
                         ([
@@ -1040,7 +1040,7 @@ export default function StudentEnrollmentForm() {
                     }}
                   />
                 </div>
-                <p className="text-[10px] text-violet-600 mt-1.5">
+                <p className="text-[10px] text-teal-600 mt-1.5">
                   {[
                     files.doc_student_tazkira,
                     files.doc_father_tazkira,
@@ -1088,7 +1088,7 @@ export default function StudentEnrollmentForm() {
                   {[
                     { value: "not_sent", label: "Not Sent", color: "border-gray-200 bg-gray-50 text-gray-600", selected: "ring-2 ring-gray-400 border-gray-400 bg-gray-50" },
                     { value: "sent", label: "Sent", color: "border-blue-200 bg-blue-50 text-blue-700", selected: "ring-2 ring-blue-400 border-blue-400 bg-blue-50" },
-                    { value: "completed", label: "Completed", color: "border-green-200 bg-green-50 text-green-700", selected: "ring-2 ring-green-400 border-green-400 bg-green-50" },
+                    { value: "completed", label: "Completed", color: "border-teal-200 bg-teal-50 text-teal-700", selected: "ring-2 ring-teal-400 border-teal-400 bg-teal-50" },
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -1110,7 +1110,7 @@ export default function StudentEnrollmentForm() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
                     onClick={() => Swal.fire("WhatsApp", "WhatsApp sending feature coming soon.", "info")}
                   >
                     <span>📱</span>
@@ -1171,9 +1171,9 @@ export default function StudentEnrollmentForm() {
         {currentStep === 7 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
-              gradient="from-indigo-50 to-blue-50"
-              iconBg="bg-indigo-100"
-              iconColor="text-indigo-600"
+              gradient="from-teal-50 to-cyan-50"
+              iconBg="bg-teal-100"
+              iconColor="text-teal-600"
               icon={steps[6].icon}
               title="Transfer System (Government)"
               subtitle="Official government transfer documents and case status"
@@ -1181,7 +1181,7 @@ export default function StudentEnrollmentForm() {
             <div className="p-5 space-y-5">
               {/* Document uploads */}
               <div>
-                <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-3">
+                <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3">
                   Transfer Documents
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1229,7 +1229,7 @@ export default function StudentEnrollmentForm() {
                   {[
                     { value: "pending", label: "Pending", color: "border-amber-200 bg-amber-50 text-amber-700", selected: "ring-2 ring-amber-400 border-amber-400 bg-amber-50" },
                     { value: "in_progress", label: "In Progress", color: "border-blue-200 bg-blue-50 text-blue-700", selected: "ring-2 ring-blue-400 border-blue-400 bg-blue-50" },
-                    { value: "completed", label: "Completed", color: "border-green-200 bg-green-50 text-green-700", selected: "ring-2 ring-green-400 border-green-400 bg-green-50" },
+                    { value: "completed", label: "Completed", color: "border-teal-200 bg-teal-50 text-teal-700", selected: "ring-2 ring-teal-400 border-teal-400 bg-teal-50" },
                   ].map((opt) => (
                     <button
                       key={opt.value}

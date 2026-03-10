@@ -158,7 +158,11 @@ export default function StudentEnrollmentForm() {
     questionnaire_status: "not_sent",
     parental_consent: false,
     // Step 7: Transfer System
-    transfer_agreement_notes: "",
+    transfer_agreement: false,
+    transfer_first_parcha: false,
+    transfer_sawabiq: false,
+    transfer_assurance_request: false,
+    transfer_itminaniya: false,
     transfer_case_status: "pending",
     transfer_additional_notes: "",
   });
@@ -170,12 +174,6 @@ export default function StudentEnrollmentForm() {
     doc_birth_certificate: null,
     doc_previous_school_documents: null,
     doc_student_photo: null,
-    // Step 7: Transfer System docs
-    transfer_agreement: null,
-    transfer_first_parcha: null,
-    transfer_sawabiq: null,
-    transfer_assurance_request: null,
-    transfer_itminaniya: null,
   });
 
   const [errors, setErrors] = useState({});
@@ -246,6 +244,32 @@ export default function StudentEnrollmentForm() {
     if (fileList && fileList[0]) {
       setFiles((prev) => ({ ...prev, [name]: fileList[0] }));
     }
+  };
+
+  const transferSteps = [
+    { key: "transfer_agreement", label: "Agreement / Muwafaqa Namadhe" },
+    { key: "transfer_first_parcha", label: "First Parcha" },
+    { key: "transfer_sawabiq", label: "Records / Sawabiq (2nd Parcha + Karte Sawani)" },
+    { key: "transfer_assurance_request", label: "Assurance Request" },
+    { key: "transfer_itminaniya", label: "Itminaniya" },
+  ];
+
+  const handleTransferCheck = (index) => {
+    const keys = transferSteps.map((s) => s.key);
+    const currentVal = formData[keys[index]];
+    setFormData((prev) => {
+      const updated = { ...prev };
+      if (!currentVal) {
+        // Checking: just check this one
+        updated[keys[index]] = true;
+      } else {
+        // Unchecking: uncheck this and all after it
+        for (let i = index; i < keys.length; i++) {
+          updated[keys[i]] = false;
+        }
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -1176,45 +1200,94 @@ export default function StudentEnrollmentForm() {
               iconColor="text-teal-600"
               icon={steps[6].icon}
               title="Transfer System (Government)"
-              subtitle="Official government transfer documents and case status"
+              subtitle="Complete each step in order to proceed to the next"
             />
             <div className="p-5 space-y-5">
-              {/* Document uploads */}
+              {/* Sequential Checkboxes */}
               <div>
                 <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3">
-                  Transfer Documents
+                  Transfer Documents — Complete in Order
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FileInput
-                    label="Agreement / Muwafaqa Namadhe"
-                    name="transfer_agreement"
-                    onChange={handleFileChange}
-                    file={files.transfer_agreement}
-                  />
-                  <FileInput
-                    label="First Parcha"
-                    name="transfer_first_parcha"
-                    onChange={handleFileChange}
-                    file={files.transfer_first_parcha}
-                  />
-                  <FileInput
-                    label="Records / Sawabiq (2nd Parcha + Karte Sawani)"
-                    name="transfer_sawabiq"
-                    onChange={handleFileChange}
-                    file={files.transfer_sawabiq}
-                  />
-                  <FileInput
-                    label="Assurance Request"
-                    name="transfer_assurance_request"
-                    onChange={handleFileChange}
-                    file={files.transfer_assurance_request}
-                  />
-                  <div className="sm:col-span-2">
-                    <FileInput
-                      label="Itminaniya"
-                      name="transfer_itminaniya"
-                      onChange={handleFileChange}
-                      file={files.transfer_itminaniya}
+                <div className="space-y-2">
+                  {transferSteps.map((item, index) => {
+                    const isChecked = formData[item.key];
+                    const prevChecked = index === 0 || formData[transferSteps[index - 1].key];
+                    const isDisabled = !prevChecked;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => handleTransferCheck(index)}
+                        className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${
+                          isChecked
+                            ? "border-teal-400 bg-teal-50"
+                            : isDisabled
+                            ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
+                            : "border-gray-200 bg-white hover:border-teal-300 hover:bg-teal-50 cursor-pointer"
+                        }`}
+                      >
+                        {/* Step number / check icon */}
+                        <div
+                          className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center border-2 transition-all ${
+                            isChecked
+                              ? "bg-teal-500 border-teal-500"
+                              : isDisabled
+                              ? "bg-gray-100 border-gray-200"
+                              : "bg-white border-gray-300"
+                          }`}
+                        >
+                          {isChecked ? (
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <span className={`text-[10px] font-bold ${isDisabled ? "text-gray-300" : "text-gray-400"}`}>
+                              {index + 1}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Label */}
+                        <span
+                          className={`text-xs font-semibold flex-1 ${
+                            isChecked ? "text-teal-800" : isDisabled ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+
+                        {/* Status badge */}
+                        {isChecked ? (
+                          <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">
+                            Done
+                          </span>
+                        ) : isDisabled ? (
+                          <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">Pending</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Progress */}
+                <div className="mt-4 bg-teal-50 rounded-xl p-3 border border-teal-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-semibold text-teal-700">Progress</p>
+                    <p className="text-[10px] font-bold text-teal-800">
+                      {transferSteps.filter((s) => formData[s.key]).length} / {transferSteps.length}
+                    </p>
+                  </div>
+                  <div className="h-1.5 bg-teal-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-teal-500 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${(transferSteps.filter((s) => formData[s.key]).length / transferSteps.length) * 100}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -1227,9 +1300,9 @@ export default function StudentEnrollmentForm() {
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { value: "pending", label: "Pending", color: "border-amber-200 bg-amber-50 text-amber-700", selected: "ring-2 ring-amber-400 border-amber-400 bg-amber-50" },
-                    { value: "in_progress", label: "In Progress", color: "border-blue-200 bg-blue-50 text-blue-700", selected: "ring-2 ring-blue-400 border-blue-400 bg-blue-50" },
-                    { value: "completed", label: "Completed", color: "border-teal-200 bg-teal-50 text-teal-700", selected: "ring-2 ring-teal-400 border-teal-400 bg-teal-50" },
+                    { value: "pending", label: "Pending" },
+                    { value: "in_progress", label: "In Progress" },
+                    { value: "completed", label: "Completed" },
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -1237,8 +1310,8 @@ export default function StudentEnrollmentForm() {
                       onClick={() => setFormData((prev) => ({ ...prev, transfer_case_status: opt.value }))}
                       className={`p-3 rounded-xl border-2 text-left transition-all font-semibold text-xs ${
                         formData.transfer_case_status === opt.value
-                          ? opt.selected
-                          : "border-gray-200 bg-white hover:border-gray-300 text-gray-600"
+                          ? "ring-2 ring-teal-400 border-teal-400 bg-teal-50 text-teal-700"
+                          : "border-gray-200 bg-white hover:border-teal-200 text-gray-600"
                       }`}
                     >
                       {opt.label}

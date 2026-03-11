@@ -12,6 +12,7 @@ export default function Parents() {
         "mother_name",
         "father_phone",
         "mother_phone",
+        "email",
         "address",
       ]}
       listColumns={[
@@ -20,6 +21,7 @@ export default function Parents() {
         { key: "mother_name", label: "Mother's Name" },
         { key: "father_phone", label: "Father's Phone" },
         { key: "mother_phone", label: "Mother's Phone" },
+        {key: "email", label: "Email" },
         { key: "address", label: "Address" },
         {
           key: "monthly_income_usd",

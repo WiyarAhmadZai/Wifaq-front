@@ -34,6 +34,29 @@ const INCOME_CATEGORIES = [
   },
 ];
 
+const EDUCATION_LEVELS = [
+  { value: "", label: "Select Education Level" },
+  { value: "No Formal Education", label: "No Formal Education" },
+  { value: "Primary School", label: "Primary School" },
+  { value: "Secondary School", label: "Secondary School" },
+  { value: "High School", label: "High School" },
+  { value: "Diploma", label: "Diploma" },
+  { value: "Bachelor's Degree", label: "Bachelor's Degree" },
+  { value: "Master's Degree", label: "Master's Degree" },
+  { value: "Doctorate/PhD", label: "Doctorate/PhD" },
+  { value: "Other", label: "Other" },
+];
+
+// Auto-determine income category based on monthly income
+const getIncomeCategory = (income) => {
+  const num = parseFloat(income);
+  if (!num || num <= 0) return "";
+  if (num < 200) return "D";
+  if (num < 500) return "C";
+  if (num <= 1000) return "B";
+  return "A";
+};
+
 function SectionHeader({ icon, title, subtitle, gradient, iconBg, iconColor }) {
   return (
     <div className={`px-5 py-4 ${gradient} border-b`}>
@@ -131,7 +154,14 @@ export default function ParentForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const updates = { [name]: value };
+      // Auto-calculate income category when monthly income changes
+      if (name === "monthly_income_usd") {
+        updates.income_category = getIncomeCategory(value);
+      }
+      return { ...prev, ...updates };
+    });
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
   };
 
@@ -293,14 +323,18 @@ export default function ParentForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Education Level
               </label>
-              <input
-                type="text"
+              <select
                 name="father_education_level"
                 value={formData.father_education_level}
                 onChange={handleChange}
-                placeholder="e.g. Bachelor's"
                 className={inputClass("father_education_level")}
-              />
+              >
+                {EDUCATION_LEVELS.map((level) => (
+                  <option key={level.value} value={level.value}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
@@ -381,14 +415,18 @@ export default function ParentForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Education Level
               </label>
-              <input
-                type="text"
+              <select
                 name="mother_education_level"
                 value={formData.mother_education_level}
                 onChange={handleChange}
-                placeholder="e.g. High School"
                 className={inputClass("mother_education_level")}
-              />
+              >
+                {EDUCATION_LEVELS.map((level) => (
+                  <option key={level.value} value={level.value}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
@@ -496,39 +534,35 @@ export default function ParentForm() {
               </div>
             </div>
 
-            {/* Income Category Cards */}
+            {/* Income Category Cards - Auto-calculated */}
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-2">
                 Income Category{" "}
-                <span className="text-gray-400 font-normal">
-                  (Official Policy)
+                <span className="text-teal-600 font-medium">
+                  (Auto-calculated from Monthly Income)
                 </span>
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {INCOME_CATEGORIES.map((cat) => (
-                  <button
+                  <div
                     key={cat.value}
-                    type="button"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        income_category:
-                          prev.income_category === cat.value ? "" : cat.value,
-                      }))
-                    }
                     className={`relative flex flex-col items-start p-3 rounded-xl border-2 transition-all text-left ${
                       formData.income_category === cat.value
-                        ? `${cat.color} shadow-sm`
-                        : "bg-white border-gray-100 hover:border-gray-200 text-gray-400"
+                        ? `${cat.color} border-current shadow-sm`
+                        : "bg-gray-50 border-gray-200 opacity-60 grayscale"
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <div
-                        className={`w-2 h-2 rounded-full ${formData.income_category === cat.value ? cat.dot : "bg-gray-200"}`}
+                        className={`w-2 h-2 rounded-full ${formData.income_category === cat.value ? cat.dot : "bg-gray-300"}`}
                       ></div>
-                      <span className="text-xs font-bold">{cat.label}</span>
+                      <span className={`text-xs font-bold ${formData.income_category === cat.value ? "" : "text-gray-500"}`}>
+                        {cat.label}
+                      </span>
                     </div>
-                    <span className="text-[10px] opacity-75">{cat.range}</span>
+                    <span className={`text-[10px] ${formData.income_category === cat.value ? "opacity-75" : "text-gray-400"}`}>
+                      {cat.range}
+                    </span>
                     {formData.income_category === cat.value && (
                       <div className="absolute top-2 right-2">
                         <svg
@@ -544,7 +578,7 @@ export default function ParentForm() {
                         </svg>
                       </div>
                     )}
-                  </button>
+                  </div>
                 ))}
               </div>
               {err("income_category") && (
@@ -562,7 +596,7 @@ export default function ParentForm() {
             icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z"
             title="Address"
             subtitle="Family residential address"
-            gradient="bg-gradient-to-r from-teal-50 to-amber-50 border-teal-100"
+            gradient="bg-gradient-to-r from-teal-50 to-teal-50 border-teal-100"
             iconBg="bg-teal-100"
             iconColor="text-teal-600"
           />

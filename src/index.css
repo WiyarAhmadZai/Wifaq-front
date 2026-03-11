@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* Global Font Size — compact for admin panels */
+/* Global Font Size — balanced for admin panels */
 html {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 body {

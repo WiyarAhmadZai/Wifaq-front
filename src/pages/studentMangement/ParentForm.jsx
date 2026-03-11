@@ -77,6 +77,7 @@ export default function ParentForm() {
     father_education_level: "",
     father_occupation: "",
     father_phone: "",
+    email: "",
     mother_name: "",
     mother_education_level: "",
     mother_phone: "",
@@ -109,6 +110,7 @@ export default function ParentForm() {
         father_education_level: d.father_education_level || "",
         father_occupation: d.father_occupation || "",
         father_phone: d.father_phone || "",
+        email: d.email || "",
         mother_name: d.mother_name || "",
         mother_education_level: d.mother_education_level || "",
         mother_phone: d.mother_phone || "",
@@ -326,6 +328,22 @@ export default function ParentForm() {
                 className={inputClass("father_phone")}
               />
             </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="e.g. family@example.com"
+                className={inputClass("email")}
+              />
+              {err("email") && (
+                <p className="text-red-500 text-[10px] mt-1">{err("email")}</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -335,7 +353,7 @@ export default function ParentForm() {
             icon="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
             title="Mother's Information"
             subtitle="Contact, education and language"
-            gradient="bg-gradient-to-r from-teal-50 to-pink-50 border-teal-100"
+            gradient="bg-gradient-to-r from-teal-50 to-teal-50 border-teal-100"
             iconBg="bg-teal-100"
             iconColor="text-teal-600"
           />

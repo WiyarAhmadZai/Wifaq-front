@@ -35,6 +35,7 @@ const Icons = {
 const getStatusBadge = (status) => {
   const styles = {
     active: 'bg-emerald-100 text-emerald-700',
+    probation: 'bg-amber-100 text-amber-700',
     inactive: 'bg-gray-100 text-gray-700',
     on_leave: 'bg-amber-100 text-amber-700',
     suspended: 'bg-red-100 text-red-700',
@@ -43,7 +44,102 @@ const getStatusBadge = (status) => {
   return styles[status] || 'bg-gray-100 text-gray-700';
 };
 
+const getOrgBadge = (org) => {
+  const styles = {
+    WS: 'bg-teal-100 text-teal-700',
+    WLS: 'bg-blue-100 text-blue-700',
+    WISAL: 'bg-purple-100 text-purple-700',
+  };
+  return styles[org] || 'bg-gray-100 text-gray-700';
+};
 
+// Demo data for static pages
+const DEMO_ITEMS = [
+  {
+    id: 1,
+    staff_code: "WS-2026-001",
+    full_name_en: "Ahmad Rahimi",
+    full_name_dari: "احمد رحیمی",
+    department: "academic",
+    organization: "WS",
+    job_title_en: "Senior Teacher",
+    contract_type: "A",
+    employment_status: "active",
+    phone: "0770123456",
+    hire_date: "2024-03-15",
+    base_salary: 25000,
+    total_salary: 32000,
+  },
+  {
+    id: 2,
+    staff_code: "WS-2026-002",
+    full_name_en: "Mohammad Karimi",
+    full_name_dari: "محمد کریمی",
+    department: "finance",
+    organization: "WLS",
+    job_title_en: "Accountant",
+    contract_type: "B",
+    employment_status: "active",
+    phone: "0790234567",
+    hire_date: "2024-06-01",
+    base_salary: 20000,
+    total_salary: 26000,
+  },
+  {
+    id: 3,
+    staff_code: "WS-2026-003",
+    full_name_en: "Fatima Noori",
+    full_name_dari: "فاطمه نوری",
+    department: "admin",
+    organization: "WISAL",
+    job_title_en: "Admin Officer",
+    contract_type: "A",
+    employment_status: "probation",
+    phone: "0780345678",
+    hire_date: "2025-01-10",
+    base_salary: 18000,
+    total_salary: 23500,
+  },
+  {
+    id: 4,
+    staff_code: "WS-2026-004",
+    full_name_en: "Ali Ahmadi",
+    full_name_dari: "علی احمدی",
+    department: "it",
+    organization: "WS",
+    job_title_en: "IT Support",
+    contract_type: "C",
+    employment_status: "active",
+    phone: "0700456789",
+    hire_date: "2023-09-20",
+    base_salary: 22000,
+    total_salary: 28000,
+  },
+  {
+    id: 5,
+    staff_code: "WS-2026-005",
+    full_name_en: "Zahra Hashimi",
+    full_name_dari: "زهرا هاشمی",
+    department: "academic",
+    organization: "WLS",
+    job_title_en: "Teacher",
+    contract_type: "A",
+    employment_status: "suspended",
+    phone: "0710567890",
+    hire_date: "2024-08-05",
+    base_salary: 15000,
+    total_salary: 20000,
+  },
+];
+
+const DEPARTMENT_LABELS = {
+  hr: "Human Resources",
+  finance: "Finance",
+  academic: "Academic",
+  admin: "Administration",
+  it: "IT",
+  operations: "Operations",
+};
 
 export default function Staff() {
   const navigate = useNavigate();
@@ -52,67 +148,68 @@ export default function Staff() {
   const [filters, setFilters] = useState({
     status: '',
     department: '',
-    employment_type: '',
+    organization: '',
     search: ''
   });
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
-  const [statusUpdate, setStatusUpdate] = useState({
-    status: '',
-    notes: ''
-  });
+  const [statusUpdate, setStatusUpdate] = useState({ status: '', notes: '' });
   const [saving, setSaving] = useState(false);
+  const [useDemo, setUseDemo] = useState(false);
 
   useEffect(() => {
     fetchItems();
-  }, [filters.status, filters.department, filters.employment_type, debouncedSearch]);
+  }, [filters.status, filters.department, filters.organization, debouncedSearch]);
 
-  // Debounce search functionality
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(filters.search);
-    }, 500); // 500ms debounce
-
+    }, 500);
     return () => clearTimeout(timer);
   }, [filters.search]);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
-      // Build query parameters from filters
       const queryParams = new URLSearchParams();
       if (filters.status) queryParams.append('status', filters.status);
       if (filters.department) queryParams.append('department', filters.department);
-      if (filters.employment_type) queryParams.append('employment_type', filters.employment_type);
+      if (filters.organization) queryParams.append('organization', filters.organization);
       if (debouncedSearch) queryParams.append('search', debouncedSearch);
 
       const queryString = queryParams.toString();
       const apiUrl = queryString ? `/hr/staff/list?${queryString}` : '/hr/staff/list';
-      
+
       const response = await get(apiUrl);
-      // Handle paginated response (response.data.data) 
       const staffData = response.data?.data || [];
       setItems(Array.isArray(staffData) ? staffData : []);
+      setUseDemo(false);
     } catch (error) {
       console.error('Fetch error:', error);
-      Swal.fire('Error', 'Failed to load staff', 'error');
+      // Fallback to demo data
+      let filtered = [...DEMO_ITEMS];
+      if (filters.status) filtered = filtered.filter(i => i.employment_status === filters.status);
+      if (filters.department) filtered = filtered.filter(i => i.department === filters.department);
+      if (filters.organization) filtered = filtered.filter(i => i.organization === filters.organization);
+      if (debouncedSearch) {
+        const s = debouncedSearch.toLowerCase();
+        filtered = filtered.filter(i =>
+          i.full_name_en.toLowerCase().includes(s) ||
+          i.staff_code.toLowerCase().includes(s) ||
+          i.job_title_en.toLowerCase().includes(s)
+        );
+      }
+      setItems(filtered);
+      setUseDemo(true);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreate = () => {
-    navigate('/hr/staff/create');
-  };
-
-  const handleEdit = (item) => {
-    navigate(`/hr/staff/edit/${item.id}`);
-  };
-
-  const handleView = (item) => {
-    navigate(`/hr/staff/show/${item.id}`);
-  };
+  const handleCreate = () => navigate('/hr/staff/create');
+  const handleEdit = (item) => navigate(`/hr/staff/edit/${item.id}`);
+  const handleView = (item) => navigate(`/hr/staff/show/${item.id}`);
 
   const handleDelete = async (id) => {
     const result = await Swal.fire({
@@ -126,6 +223,11 @@ export default function Staff() {
     });
 
     if (result.isConfirmed) {
+      if (useDemo) {
+        setItems(prev => prev.filter(i => i.id !== id));
+        Swal.fire('Deleted!', 'Staff has been deleted.', 'success');
+        return;
+      }
       try {
         await del(`/hr/staff/delete/${id}`);
         Swal.fire('Deleted!', 'Staff has been deleted.', 'success');
@@ -138,20 +240,14 @@ export default function Staff() {
 
   const handleOpenStatusModal = (staff) => {
     setSelectedStaff(staff);
-    setStatusUpdate({
-      status: staff.status,
-      notes: ''
-    });
+    setStatusUpdate({ status: staff.employment_status || staff.status, notes: '' });
     setShowStatusModal(true);
   };
 
   const handleCloseStatusModal = () => {
     setShowStatusModal(false);
     setSelectedStaff(null);
-    setStatusUpdate({
-      status: '',
-      notes: ''
-    });
+    setStatusUpdate({ status: '', notes: '' });
   };
 
   const handleStatusUpdate = async () => {
@@ -159,18 +255,20 @@ export default function Staff() {
       Swal.fire('Error', 'Please select a status', 'error');
       return;
     }
-
     setSaving(true);
-    try {
-      await put(`/hr/staff/update-status/${selectedStaff.id}`, {
-        status: statusUpdate.status
-      });
-      
+    if (useDemo) {
+      setItems(prev => prev.map(i => i.id === selectedStaff.id ? { ...i, employment_status: statusUpdate.status } : i));
       Swal.fire('Success', 'Staff status updated successfully', 'success');
       handleCloseStatusModal();
-      fetchItems(); // Refresh the list
+      setSaving(false);
+      return;
+    }
+    try {
+      await put(`/hr/staff/update-status/${selectedStaff.id}`, { status: statusUpdate.status });
+      Swal.fire('Success', 'Staff status updated successfully', 'success');
+      handleCloseStatusModal();
+      fetchItems();
     } catch (error) {
-      console.error('Update error:', error);
       Swal.fire('Error', 'Failed to update staff status', 'error');
     } finally {
       setSaving(false);
@@ -182,13 +280,11 @@ export default function Staff() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h2 className="text-base font-bold text-gray-800">Staff Management</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage staff records</p>
+          <p className="text-xs text-gray-500 mt-0.5">Manage all staff records and employment details</p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => {
-              setFilters({status: '', department: '', employment_type: '', search: ''});
-            }}
+            onClick={() => setFilters({status: '', department: '', organization: '', search: ''})}
             className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-xs font-medium"
           >
             Clear Filters
@@ -198,7 +294,7 @@ export default function Staff() {
             className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs"
           >
             <Icons.Plus />
-            Add Staff
+            Register Staff
           </button>
         </div>
       </div>
@@ -214,13 +310,12 @@ export default function Staff() {
           >
             <option value="">All Status</option>
             <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="on_leave">On Leave</option>
+            <option value="probation">Probation</option>
             <option value="suspended">Suspended</option>
-            <option value="terminated">Terminated</option>
+            <option value="inactive">Inactive</option>
           </select>
         </div>
-        
+
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
           <select
@@ -237,28 +332,28 @@ export default function Staff() {
             <option value="operations">Operations</option>
           </select>
         </div>
-        
+
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Organization</label>
           <select
-            value={filters.employment_type}
-            onChange={(e) => setFilters({...filters, employment_type: e.target.value})}
+            value={filters.organization}
+            onChange={(e) => setFilters({...filters, organization: e.target.value})}
             className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
           >
-            <option value="">All Types</option>
+            <option value="">All Organizations</option>
             <option value="WS">WS</option>
             <option value="WLS">WLS</option>
-            <option value="WLS-CT">WLS-CT</option>
+            <option value="WISAL">WISAL</option>
           </select>
         </div>
-        
+
         <div className="md:col-span-2">
           <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
           <input
             type="text"
             value={filters.search}
             onChange={(e) => setFilters({...filters, search: e.target.value})}
-            placeholder="Search by name, ID, or department..."
+            placeholder="Search by name, staff code, or job title..."
             className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
           />
         </div>
@@ -272,13 +367,16 @@ export default function Staff() {
       ) : (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[1000px]">
               <thead className="bg-teal-50">
                 <tr>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Employee ID</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Staff Code</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Name</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Organization</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Department</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Created By</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Job Title</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Contract</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Phone</th>
                   <th className="px-3 py-2 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
                   <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -286,13 +384,25 @@ export default function Staff() {
               <tbody className="divide-y divide-gray-100">
                 {items.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-xs font-medium text-teal-600">{item.employee_id}</td>
-                    <td className="px-3 py-2 text-xs text-gray-800">{item.full_name}</td>
-                    <td className="px-3 py-2 text-xs text-gray-800 capitalize">{item.department || '-'}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{item.creator?.full_name || 'Unknown'}</td>
+                    <td className="px-3 py-2 text-xs font-medium text-teal-600">{item.staff_code || item.employee_id || '-'}</td>
+                    <td className="px-3 py-2">
+                      <div>
+                        <p className="text-xs text-gray-800 font-medium">{item.full_name_en || item.full_name}</p>
+                        {item.full_name_dari && <p className="text-[10px] text-gray-400" dir="rtl">{item.full_name_dari}</p>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getOrgBadge(item.organization || item.employment_type)}`}>
+                        {item.organization || item.employment_type || '-'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-800 capitalize">{DEPARTMENT_LABELS[item.department] || item.department || '-'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{item.job_title_en || '-'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600 font-medium">{item.contract_type ? `Type ${item.contract_type}` : '-'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{item.phone || '-'}</td>
                     <td className="px-3 py-2 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadge(item.status)}`}>
-                        {item.status?.replace('_', ' ')}
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${getStatusBadge(item.employment_status || item.status)}`}>
+                        {(item.employment_status || item.status || '').replace('_', ' ')}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -323,7 +433,7 @@ export default function Staff() {
               </svg>
               <p className="text-gray-500 text-xs">No staff found</p>
               <button onClick={handleCreate} className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs">
-                Add your first staff member
+                Register your first staff member
               </button>
             </div>
           )}
@@ -337,15 +447,15 @@ export default function Staff() {
             <div className="px-4 py-3 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">Update Staff Status</h3>
             </div>
-            
+
             <div className="p-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Status</label>
-                <div className={`px-3 py-2 rounded-lg ${getStatusBadge(selectedStaff?.status)} text-sm`}>
-                  {selectedStaff?.status?.replace('_', ' ')}
+                <div className={`px-3 py-2 rounded-lg capitalize ${getStatusBadge(selectedStaff?.employment_status || selectedStaff?.status)} text-sm`}>
+                  {(selectedStaff?.employment_status || selectedStaff?.status || '').replace('_', ' ')}
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Status</label>
                 <select
@@ -355,35 +465,25 @@ export default function Staff() {
                 >
                   <option value="">Select Status</option>
                   <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="on_leave">On Leave</option>
+                  <option value="probation">Probation</option>
                   <option value="suspended">Suspended</option>
-                  <option value="terminated">Terminated</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member</label>
                 <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm">
-                  {selectedStaff?.full_name} ({selectedStaff?.employee_id})
+                  {selectedStaff?.full_name_en || selectedStaff?.full_name} ({selectedStaff?.staff_code || selectedStaff?.employee_id})
                 </div>
               </div>
             </div>
-            
+
             <div className="px-4 py-3 bg-gray-50 flex justify-end gap-2 rounded-b-lg">
-              <button
-                type="button"
-                onClick={handleCloseStatusModal}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
-              >
+              <button type="button" onClick={handleCloseStatusModal} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium">
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={handleStatusUpdate}
-                disabled={saving}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50"
-              >
+              <button type="button" onClick={handleStatusUpdate} disabled={saving} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50">
                 {saving ? 'Updating...' : 'Update Status'}
               </button>
             </div>

@@ -53,6 +53,7 @@ export default function StaffForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [showAllowances, setShowAllowances] = useState(false);
 
   const totalSalary = (parseFloat(formData.base_salary) || 0) + (parseFloat(formData.housing_allowance) || 0) + (parseFloat(formData.transport_allowance) || 0) + (parseFloat(formData.family_allowance) || 0);
 
@@ -333,43 +334,55 @@ export default function StaffForm() {
               <InputField label="Base Salary (AFN)" name="base_salary" type="number" value={formData.base_salary} onChange={handleChange} required placeholder="0" error={err("base_salary")} ic={ic} />
             </div>
 
+            {/* Allowances Toggle */}
             <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Allowances</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <InputField label="Housing Allowance (AFN)" name="housing_allowance" type="number" value={formData.housing_allowance} onChange={handleChange} placeholder="0" ic={ic} />
-                <InputField label="Transport Allowance (AFN)" name="transport_allowance" type="number" value={formData.transport_allowance} onChange={handleChange} placeholder="0" ic={ic} />
-                <InputField label="Family Allowance (AFN)" name="family_allowance" type="number" value={formData.family_allowance} onChange={handleChange} placeholder="0" ic={ic} />
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Allowances</p>
+                <button type="button" onClick={() => setShowAllowances(!showAllowances)}
+                  className={`relative w-10 h-5.5 rounded-full transition-all duration-300 ${showAllowances ? "bg-teal-500" : "bg-gray-300"}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform duration-300 ${showAllowances ? "translate-x-[18px]" : "translate-x-0"}`} />
+                </button>
               </div>
-            </div>
 
-            {/* Salary Breakdown */}
-            <div className="mt-4 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl p-5 border border-teal-100">
-              <h4 className="text-xs font-bold text-teal-800 mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                Salary Breakdown
-              </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div className="bg-white rounded-lg p-3 border border-teal-100">
-                  <p className="text-[9px] font-bold text-teal-600 uppercase tracking-wider">Base Salary</p>
-                  <p className="text-sm font-bold text-gray-800 mt-1">{(parseFloat(formData.base_salary) || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-100">
-                  <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">Housing</p>
-                  <p className="text-sm font-bold text-blue-600 mt-1">+{(parseFloat(formData.housing_allowance) || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-purple-100">
-                  <p className="text-[9px] font-bold text-purple-500 uppercase tracking-wider">Transport</p>
-                  <p className="text-sm font-bold text-purple-600 mt-1">+{(parseFloat(formData.transport_allowance) || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border border-amber-100">
-                  <p className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Family</p>
-                  <p className="text-sm font-bold text-amber-600 mt-1">+{(parseFloat(formData.family_allowance) || 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-teal-600 rounded-lg p-3">
-                  <p className="text-[9px] font-bold text-teal-100 uppercase tracking-wider">Total Package</p>
-                  <p className="text-sm font-bold text-white mt-1">{totalSalary.toLocaleString()} AFN</p>
-                </div>
-              </div>
+              {showAllowances && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <InputField label="Housing Allowance (AFN)" name="housing_allowance" type="number" value={formData.housing_allowance} onChange={handleChange} placeholder="0" ic={ic} />
+                    <InputField label="Transport Allowance (AFN)" name="transport_allowance" type="number" value={formData.transport_allowance} onChange={handleChange} placeholder="0" ic={ic} />
+                    <InputField label="Family Allowance (AFN)" name="family_allowance" type="number" value={formData.family_allowance} onChange={handleChange} placeholder="0" ic={ic} />
+                  </div>
+
+                  {/* Salary Breakdown */}
+                  <div className="mt-4 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl p-5 border border-teal-100">
+                    <h4 className="text-xs font-bold text-teal-800 mb-4 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                      Salary Breakdown
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className="bg-white rounded-lg p-3 border border-teal-100">
+                        <p className="text-[9px] font-bold text-teal-600 uppercase tracking-wider">Base Salary</p>
+                        <p className="text-sm font-bold text-gray-800 mt-1">{(parseFloat(formData.base_salary) || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-blue-100">
+                        <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">Housing</p>
+                        <p className="text-sm font-bold text-blue-600 mt-1">+{(parseFloat(formData.housing_allowance) || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-purple-100">
+                        <p className="text-[9px] font-bold text-purple-500 uppercase tracking-wider">Transport</p>
+                        <p className="text-sm font-bold text-purple-600 mt-1">+{(parseFloat(formData.transport_allowance) || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-amber-100">
+                        <p className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Family</p>
+                        <p className="text-sm font-bold text-amber-600 mt-1">+{(parseFloat(formData.family_allowance) || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="bg-teal-600 rounded-lg p-3">
+                        <p className="text-[9px] font-bold text-teal-100 uppercase tracking-wider">Total Package</p>
+                        <p className="text-sm font-bold text-white mt-1">{totalSalary.toLocaleString()} AFN</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </StepCard>
         )}

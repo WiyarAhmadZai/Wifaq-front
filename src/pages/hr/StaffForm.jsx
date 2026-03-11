@@ -175,7 +175,7 @@ export default function StaffForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <InputField label="Full Name (English)" name="full_name_en" value={formData.full_name_en} onChange={handleChange} required placeholder="Enter full name" error={err("full_name_en")} ic={ic} />
               <InputField label="Full Name (Dari)" name="full_name_dari" value={formData.full_name_dari} onChange={handleChange} required placeholder="نام کامل به دری" dir="rtl" error={err("full_name_dari")} ic={ic} />
               <InputField label="Father's Name" name="father_name" value={formData.father_name} onChange={handleChange} required placeholder="Enter father's name" error={err("father_name")} ic={ic} />
@@ -195,13 +195,11 @@ export default function StaffForm() {
         {/* Step 2: Contact Info */}
         {currentStep === 2 && (
           <StepCard step={steps[1]} gradient="from-teal-50 to-indigo-50" subtitle="Phone, email, and emergency contacts">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <InputField label="Phone Number" name="phone" type="tel" value={formData.phone} onChange={handleChange} required placeholder="07X XXX XXXX" error={err("phone")} ic={ic} />
               <InputField label="WhatsApp Number" name="whatsapp" type="tel" value={formData.whatsapp} onChange={handleChange} placeholder="07X XXX XXXX" ic={ic} />
-              <div className="sm:col-span-2">
-                <InputField label="Email Address" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="example@wifaqschool.com" ic={ic} />
-              </div>
-              <div className="sm:col-span-2">
+              <InputField label="Email Address" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="example@wifaqschool.com" ic={ic} />
+              <div className="sm:col-span-2 lg:col-span-3">
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Home Address *</label>
                 <textarea name="home_address" value={formData.home_address} onChange={handleChange} required rows={2} placeholder="Full home address..." className={`${ic("home_address")} resize-none`} />
                 {err("home_address") && <p className="text-red-500 text-[10px] mt-1">{err("home_address")}</p>}
@@ -213,7 +211,7 @@ export default function StaffForm() {
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
                 Emergency Contact
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <InputField label="Contact Name" name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange} required placeholder="Contact person name" error={err("emergency_contact_name")} ic={ic} />
                 <InputField label="Contact Phone" name="emergency_contact_phone" type="tel" value={formData.emergency_contact_phone} onChange={handleChange} required placeholder="07X XXX XXXX" error={err("emergency_contact_phone")} ic={ic} />
               </div>
@@ -236,7 +234,7 @@ export default function StaffForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <InputField label="Hire Date" name="hire_date" type="date" value={formData.hire_date} onChange={handleChange} required error={err("hire_date")} ic={ic} />
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Department *</label>
@@ -256,7 +254,7 @@ export default function StaffForm() {
               ]} />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
               <InputField label="Job Title (English)" name="job_title_en" value={formData.job_title_en} onChange={handleChange} required placeholder="e.g. Senior Teacher" error={err("job_title_en")} ic={ic} />
               <InputField label="Job Title (Dari)" name="job_title_dari" value={formData.job_title_dari} onChange={handleChange} placeholder="عنوان وظیفه به دری" dir="rtl" ic={ic} />
             </div>
@@ -281,12 +279,12 @@ export default function StaffForm() {
             </div>
 
             {formData.employment_status === "probation" && (
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <InputField label="Probation End Date" name="probation_end_date" type="date" value={formData.probation_end_date} onChange={handleChange} ic={ic} />
               </div>
             )}
 
-            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Direct Supervisor</label>
                 <select name="direct_supervisor_id" value={formData.direct_supervisor_id} onChange={handleChange} className={ic("direct_supervisor_id")}>
@@ -301,7 +299,7 @@ export default function StaffForm() {
         {/* Step 4: Salary */}
         {currentStep === 4 && (
           <StepCard step={steps[3]} gradient="from-teal-50 to-pink-50" subtitle="Initial salary and allowance setup">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Rank Level *</label>
                 <select name="rank_level" value={formData.rank_level} onChange={handleChange} required className={ic("rank_level")}>
@@ -356,7 +354,7 @@ export default function StaffForm() {
         {/* Step 5: Documents */}
         {currentStep === 5 && (
           <StepCard step={steps[4]} gradient="from-teal-50 to-violet-50" subtitle="Upload required documents and certificates">
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {[
                 { name: "cv_upload", label: "CV Upload", required: true, accept: ".pdf,.doc,.docx", desc: "PDF, DOC - Max 5MB" },
                 { name: "tazkira_scan", label: "Tazkira / National ID Scan", required: true, accept: ".pdf,.jpg,.jpeg,.png", desc: "PDF, JPG, PNG - Max 5MB" },

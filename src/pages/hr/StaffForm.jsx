@@ -89,21 +89,6 @@ export default function StaffForm() {
   const err = (f) => errors[f]?.[0];
   const ic = (f) => `w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:outline-none text-xs transition-all ${err(f) ? "border-red-300 focus:ring-red-300 bg-red-50" : "border-gray-200 focus:ring-teal-400 hover:border-gray-300 bg-white"}`;
 
-  const OptionButtons = ({ options, name, value }) => (
-    <div className="flex gap-2">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => setFormData((prev) => ({ ...prev, [name]: opt.value }))}
-          className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
-            value === opt.value ? `${opt.color} ring-2 ring-offset-1 ring-teal-400` : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-          }`}
-        >{opt.label}</button>
-      ))}
-    </div>
-  );
-
   if (loading) return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -222,75 +207,113 @@ export default function StaffForm() {
         {/* Step 3: Employment Info */}
         {currentStep === 3 && (
           <StepCard step={steps[2]} gradient="from-teal-50 to-cyan-50" subtitle="Job details, contract, and organization">
-            {/* Staff Code */}
-            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-4 mb-4 flex items-center justify-between border border-teal-100">
-              <div>
-                <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider">Staff Code (Auto Generated)</p>
-                <p className="text-lg font-bold text-teal-800 mt-0.5">{formData.staff_code}</p>
-                <p className="text-[10px] text-teal-500 mt-0.5">Format: WS-2026-001</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* LEFT COLUMN — Main Fields */}
+              <div className="lg:col-span-2 space-y-4">
+                {/* Staff Code Banner */}
+                <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl px-4 py-3 flex items-center gap-3 border border-teal-100">
+                  <div className="w-9 h-9 bg-teal-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4.5 h-4.5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-teal-500 uppercase tracking-wider">Staff Code (Auto)</p>
+                    <p className="text-sm font-bold text-teal-800">{formData.staff_code}</p>
+                  </div>
+                </div>
+
+                {/* Row: Hire Date + Department + Supervisor */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <InputField label="Hire Date" name="hire_date" type="date" value={formData.hire_date} onChange={handleChange} required error={err("hire_date")} ic={ic} />
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Department *</label>
+                    <select name="department" value={formData.department} onChange={handleChange} required className={ic("department")}>
+                      {DEPARTMENTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                    </select>
+                    {err("department") && <p className="text-red-500 text-[10px] mt-1">{err("department")}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Direct Supervisor</label>
+                    <select name="direct_supervisor_id" value={formData.direct_supervisor_id} onChange={handleChange} className={ic("direct_supervisor_id")}>
+                      <option value="">Select Supervisor</option>
+                      {DEMO_STAFF.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row: Job Titles */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InputField label="Job Title (English)" name="job_title_en" value={formData.job_title_en} onChange={handleChange} required placeholder="e.g. Senior Teacher" error={err("job_title_en")} ic={ic} />
+                  <InputField label="Job Title (Dari)" name="job_title_dari" value={formData.job_title_dari} onChange={handleChange} placeholder="عنوان وظیفه به دری" dir="rtl" ic={ic} />
+                </div>
+
+                {formData.employment_status === "probation" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InputField label="Probation End Date" name="probation_end_date" type="date" value={formData.probation_end_date} onChange={handleChange} ic={ic} />
+                  </div>
+                )}
               </div>
-              <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <InputField label="Hire Date" name="hire_date" type="date" value={formData.hire_date} onChange={handleChange} required error={err("hire_date")} ic={ic} />
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Department *</label>
-                <select name="department" value={formData.department} onChange={handleChange} required className={ic("department")}>
-                  {DEPARTMENTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
-                {err("department") && <p className="text-red-500 text-[10px] mt-1">{err("department")}</p>}
-              </div>
-            </div>
+              {/* RIGHT COLUMN — Selection Panels */}
+              <div className="space-y-4">
+                {/* Organization */}
+                <div className="bg-gray-50/80 rounded-xl p-4 border border-gray-100">
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-2.5">Organization *</label>
+                  <div className="space-y-2">
+                    {[
+                      { value: "WS", label: "Wifaq School", short: "WS", color: "bg-teal-50 text-teal-700 border-teal-300 ring-teal-400" },
+                      { value: "WLS", label: "Wifaq Language School", short: "WLS", color: "bg-blue-50 text-blue-700 border-blue-300 ring-blue-400" },
+                      { value: "WISAL", label: "WISAL", short: "WISAL", color: "bg-purple-50 text-purple-700 border-purple-300 ring-purple-400" },
+                    ].map((opt) => (
+                      <button key={opt.value} type="button" onClick={() => setFormData((prev) => ({ ...prev, organization: opt.value }))}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all text-left ${
+                          formData.organization === opt.value ? `${opt.color} ring-1 ring-offset-1` : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                        }`}>
+                        <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${formData.organization === opt.value ? "bg-white/60" : "bg-gray-100"}`}>
+                          {formData.organization === opt.value ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : ""}
+                        </span>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="mt-4">
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Organization / Entity *</label>
-              <OptionButtons name="organization" value={formData.organization} options={[
-                { value: "WS", label: "WS", color: "bg-teal-50 text-teal-700 border-teal-200" },
-                { value: "WLS", label: "WLS", color: "bg-blue-50 text-blue-700 border-blue-200" },
-                { value: "WISAL", label: "WISAL", color: "bg-purple-50 text-purple-700 border-purple-200" },
-              ]} />
-            </div>
+                {/* Contract Type */}
+                <div className="bg-gray-50/80 rounded-xl p-4 border border-gray-100">
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-2.5">Contract Type *</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: "A", label: "Type A", color: "bg-emerald-50 text-emerald-700 border-emerald-300" },
+                      { value: "B", label: "Type B", color: "bg-blue-50 text-blue-700 border-blue-300" },
+                      { value: "C", label: "Type C", color: "bg-amber-50 text-amber-700 border-amber-300" },
+                    ].map((opt) => (
+                      <button key={opt.value} type="button" onClick={() => setFormData((prev) => ({ ...prev, contract_type: opt.value }))}
+                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${
+                          formData.contract_type === opt.value ? opt.color : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                        }`}>{opt.label}</button>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-              <InputField label="Job Title (English)" name="job_title_en" value={formData.job_title_en} onChange={handleChange} required placeholder="e.g. Senior Teacher" error={err("job_title_en")} ic={ic} />
-              <InputField label="Job Title (Dari)" name="job_title_dari" value={formData.job_title_dari} onChange={handleChange} placeholder="عنوان وظیفه به دری" dir="rtl" ic={ic} />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Contract Type *</label>
-              <OptionButtons name="contract_type" value={formData.contract_type} options={[
-                { value: "A", label: "Type A", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-                { value: "B", label: "Type B", color: "bg-blue-50 text-blue-700 border-blue-200" },
-                { value: "C", label: "Type C", color: "bg-amber-50 text-amber-700 border-amber-200" },
-              ]} />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Employment Status *</label>
-              <OptionButtons name="employment_status" value={formData.employment_status} options={[
-                { value: "active", label: "Active", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-                { value: "probation", label: "Probation", color: "bg-amber-50 text-amber-700 border-amber-200" },
-                { value: "suspended", label: "Suspended", color: "bg-red-50 text-red-700 border-red-200" },
-                { value: "inactive", label: "Inactive", color: "bg-gray-100 text-gray-600 border-gray-200" },
-              ]} />
-            </div>
-
-            {formData.employment_status === "probation" && (
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <InputField label="Probation End Date" name="probation_end_date" type="date" value={formData.probation_end_date} onChange={handleChange} ic={ic} />
-              </div>
-            )}
-
-            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Direct Supervisor</label>
-                <select name="direct_supervisor_id" value={formData.direct_supervisor_id} onChange={handleChange} className={ic("direct_supervisor_id")}>
-                  <option value="">Select Supervisor</option>
-                  {DEMO_STAFF.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-                </select>
+                {/* Employment Status */}
+                <div className="bg-gray-50/80 rounded-xl p-4 border border-gray-100">
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-2.5">Status *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: "active", label: "Active", color: "bg-emerald-50 text-emerald-700 border-emerald-300", icon: "M5 13l4 4L19 7" },
+                      { value: "probation", label: "Probation", color: "bg-amber-50 text-amber-700 border-amber-300", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
+                      { value: "suspended", label: "Suspended", color: "bg-red-50 text-red-700 border-red-300", icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636" },
+                      { value: "inactive", label: "Inactive", color: "bg-gray-100 text-gray-600 border-gray-300", icon: "M20 12H4" },
+                    ].map((opt) => (
+                      <button key={opt.value} type="button" onClick={() => setFormData((prev) => ({ ...prev, employment_status: opt.value }))}
+                        className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] font-semibold border transition-all ${
+                          formData.employment_status === opt.value ? opt.color : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                        }`}>
+                        <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={opt.icon} /></svg>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </StepCard>

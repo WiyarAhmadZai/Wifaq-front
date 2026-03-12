@@ -88,6 +88,7 @@ import BranchShow from "./pages/branches/BranchShow";
 // Class Management Pages
 import ClassesForm from "./pages/class-management/ClassesForm";
 import Classes from "./pages/class-management/Classes";
+import ClassesShow from "./pages/class-management/ClassesShow";
 import SubjectsForm from "./pages/class-management/SubjectsForm";
 import Subjects from "./pages/class-management/Subjects";
 import ExamsForm from "./pages/class-management/ExamsForm";
@@ -245,7 +246,7 @@ function App() {
           />
           <Route
             path="class-management/classes/show/:id"
-            element={<Placeholder title="View Class" />}
+            element={<ClassesShow />}
           />
 
           {/* Class Management Routes - Subjects */}

@@ -71,7 +71,8 @@ function SearchMultiSelect({ options, selected, onChange, placeholder }) {
       <div className={`flex items-center border rounded-xl bg-white transition-all ${open ? "border-teal-500 ring-2 ring-teal-500" : "border-gray-200"}`}>
         <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
         <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)} placeholder={selected.length ? `${selected.length} selected` : placeholder}
+          onFocus={() => setOpen(true)} onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
+          placeholder={selected.length ? `${selected.length} selected` : placeholder}
           className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
         <svg className={`w-4 h-4 text-gray-400 mr-3 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
       </div>
@@ -230,8 +231,8 @@ export default function TeachersForm() {
     return true;
   };
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const submit = async () => {
+    if (step !== STEPS.length) return;
     setSaving(true);
     try {
       const payload = {
@@ -300,7 +301,7 @@ export default function TeachersForm() {
         </div>
       </div>
 
-      <form onSubmit={submit}>
+      <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
           {/* ── Step 1: Staff Link ──────────────────────────────────────────── */}
@@ -333,6 +334,7 @@ export default function TeachersForm() {
                         <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         <input value={staffQuery} onChange={e => searchStaff(e.target.value)}
                           onFocus={() => staffQuery && setShowStaffDrop(true)}
+                          onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
                           placeholder="Type name or staff code (e.g. WS-2026-001)..."
                           className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
                         {staffSearching && <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mr-3" />}
@@ -529,7 +531,7 @@ export default function TeachersForm() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                 </button>
               ) : (
-                <button type="submit" disabled={saving}
+                <button type="button" onClick={submit} disabled={saving}
                   className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                   {saving ? "Saving..." : isEdit ? "Update Teacher" : "Create Teacher"}

@@ -263,28 +263,25 @@ export default function ClassesForm() {
               {/* Grade */}
               <div>
                 <Label required>Grade Level</Label>
-                <div className="grid grid-cols-6 gap-2">
-                  {GRADES.map(g => (
-                    <button key={g} type="button" onClick={() => set('grade', g)}
-                      className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${form.grade === g ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-400'}`}>
-                      {g}
-                    </button>
-                  ))}
-                </div>
+                <SearchSelect
+                  options={GRADES}
+                  value={form.grade}
+                  onChange={(value) => set('grade', value || '')}
+                  placeholder="Search or select grade..."
+                />
                 {form.grade && <p className="text-[11px] text-teal-600 mt-1.5 font-medium">Grade {form.grade} selected</p>}
               </div>
 
               {/* Section */}
               <div>
                 <Label required>Section</Label>
-                <div className="flex gap-3">
-                  {['A', 'B', 'C', 'D'].map(s => (
-                    <button key={s} type="button" onClick={() => set('section', s)}
-                      className={`flex-1 py-3 rounded-xl text-sm font-black border-2 transition-all ${form.section === s ? 'bg-teal-600 text-white border-teal-600 shadow-sm scale-105' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-400'}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
+                <SearchSelect
+                  options={['A', 'B', 'C', 'D']}
+                  value={form.section}
+                  onChange={(value) => set('section', value || '')}
+                  placeholder="Search or select section..."
+                />
+                {form.section && <p className="text-[11px] text-teal-600 mt-1.5 font-medium">Section {form.section} selected</p>}
               </div>
 
               {/* Class Name */}

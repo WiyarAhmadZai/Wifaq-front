@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-/* Global Font Size — balanced for admin panels */
 html {
   font-size: 15px;
 }
@@ -33,7 +32,6 @@ th, td {
 nav    { font-size: 0.8125rem; }
 header { font-size: 0.8125rem; }
 
-/* Tailwind text-size overrides — smaller across the board */
 .text-xs   { font-size: 0.7rem;    }
 .text-sm   { font-size: 0.8125rem; }
 .text-base { font-size: 0.875rem;  }

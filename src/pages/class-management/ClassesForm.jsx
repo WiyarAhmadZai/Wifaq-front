@@ -114,12 +114,13 @@ function SearchMultiSelect({ options, selected, onChange, placeholder = 'Search 
             {filtered.length === 0 ? (
               <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
             ) : filtered.map(o => (
-              <label key={o} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${selected.includes(o) ? 'bg-teal-50' : 'hover:bg-gray-50'}`}>
+              <button key={o} type="button" onClick={() => toggle(o)}
+                className={`w-full text-left flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${selected.includes(o) ? 'bg-teal-50' : 'hover:bg-gray-50'}`}>
                 <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${selected.includes(o) ? 'bg-teal-600 border-teal-600' : 'border-gray-300'}`}>
                   {selected.includes(o) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                 </div>
                 <span className={`text-sm ${selected.includes(o) ? 'text-teal-800 font-medium' : 'text-gray-700'}`}>{o}</span>
-              </label>
+              </button>
             ))}
           </div>
         </div>
@@ -422,10 +423,6 @@ export default function ClassesForm() {
               <div>
                 <Label>Subjects Offered</Label>
                 <SearchMultiSelect options={SUBJECTS} selected={form.subjects} onChange={v => set('subjects', v)} placeholder="Search and select subjects..." />
-              </div>
-              <div>
-                <Label>Teachers Assigned</Label>
-                <SearchMultiSelect options={TEACHERS.map(t => t.name)} selected={form.teachers} onChange={v => set('teachers', v)} placeholder="Search and select teachers..." />
               </div>
 
               {/* Review summary */}

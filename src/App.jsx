@@ -94,8 +94,10 @@ import Classes from "./pages/class-management/Classes";
 import ClassesShow from "./pages/class-management/ClassesShow";
 import SubjectsForm from "./pages/class-management/SubjectsForm";
 import Subjects from "./pages/class-management/Subjects";
+import SubjectsShow from "./pages/class-management/SubjectsShow";
 import ExamsForm from "./pages/class-management/ExamsForm";
 import Exams from "./pages/class-management/Exams";
+import ExamsShow from "./pages/class-management/ExamsShow";
 import Schedule from "./pages/class-management/Schedule";
 import ScheduleForm from "./pages/class-management/ScheduleForm";
 import ScheduleShow from "./pages/class-management/ScheduleShow";
@@ -279,7 +281,7 @@ function App() {
           />
           <Route
             path="class-management/subjects/show/:id"
-            element={<Placeholder title="View Subject" />}
+            element={<SubjectsShow />}
           />
 
           {/* Class Management Routes - Exams */}
@@ -291,7 +293,7 @@ function App() {
           />
           <Route
             path="class-management/exams/show/:id"
-            element={<Placeholder title="View Exam" />}
+            element={<ExamsShow />}
           />
 
           {/* Class Management Routes - Schedule */}

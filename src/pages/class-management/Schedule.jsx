@@ -27,11 +27,10 @@ const Icons = {
 };
 
 const dummyData = [
-  { id: 1, className: 'Class 1 - A', subject: 'Mathematics', teacher: 'Mr. Ahmad', day: 'Monday', startTime: '08:00', endTime: '09:00', room: '101', status: 'active' },
-  { id: 2, className: 'Class 1 - A', subject: 'English', teacher: 'Ms. Fatima', day: 'Monday', startTime: '09:00', endTime: '10:00', room: '101', status: 'active' },
-  { id: 3, className: 'Class 2 - A', subject: 'Science', teacher: 'Mr. Hassan', day: 'Tuesday', startTime: '08:00', endTime: '09:00', room: '102', status: 'active' },
-  { id: 4, className: 'Class 3 - A', subject: 'Arabic', teacher: 'Mrs. Aisha', day: 'Wednesday', startTime: '10:00', endTime: '11:00', room: '103', status: 'active' },
-  { id: 5, className: 'Class 4 - B', subject: 'Islamic Studies', teacher: 'Mr. Usman', day: 'Thursday', startTime: '11:00', endTime: '12:00', room: '104', status: 'inactive' },
+  { id: 1, class: 'Class 1-A', subject: 'Mathematics', teacher: 'Mr. Ahmad Khan', room: 'Room 101', day: 'Monday', period: 'Period 1', startTime: '08:00', endTime: '09:00', status: 'active' },
+  { id: 2, class: 'Class 1-B', subject: 'English', teacher: 'Ms. Fatima Ali', room: 'Room 102', day: 'Monday', period: 'Period 2', startTime: '09:00', endTime: '10:00', status: 'active' },
+  { id: 3, class: 'Class 2-A', subject: 'Science', teacher: 'Mr. Hassan Raza', room: 'Room 201', day: 'Tuesday', period: 'Period 3', startTime: '10:00', endTime: '11:00', status: 'active' },
+  { id: 4, class: 'Class 3-A', subject: 'Urdu', teacher: 'Mrs. Sarah Ahmed', room: 'Room 103', day: 'Wednesday', period: 'Period 4', startTime: '11:00', endTime: '12:00', status: 'inactive' },
 ];
 
 const getStatusBadge = (status) => {
@@ -44,157 +43,189 @@ const getStatusBadge = (status) => {
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
+
 export default function Schedule() {
   const navigate = useNavigate();
-  const [items, setItems] = useState(dummyData);
+  const [items] = useState(dummyData);
   const [filters, setFilters] = useState({ day: '', status: '', search: '' });
 
-  const filtered = items.filter((item) => {
-    if (filters.day && item.day !== filters.day) return false;
-    if (filters.status && item.status !== filters.status) return false;
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      if (!item.className.toLowerCase().includes(q) && !item.subject.toLowerCase().includes(q) && !item.teacher.toLowerCase().includes(q)) return false;
-    }
-    return true;
+  const filteredItems = items.filter(item => {
+    const matchesDay = filters.day ? item.day === filters.day : true;
+    const matchesStatus = filters.status ? item.status === filters.status : true;
+    const matchesSearch = filters.search ? 
+      item.class.toLowerCase().includes(filters.search.toLowerCase()) ||
+      item.subject.toLowerCase().includes(filters.search.toLowerCase()) ||
+      item.teacher.toLowerCase().includes(filters.search.toLowerCase()) : true;
+    return matchesDay && matchesStatus && matchesSearch;
   });
 
-  const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: 'You will not be able to recover this record!',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#0d9488',
-      cancelButtonColor: '#ef4444',
-      confirmButtonText: 'Yes, delete it!',
-    });
+  const handleDelete = async (id) => { 
+    const result = await Swal.fire({ 
+      title: 'Are you sure?', 
+      text: 'You will not be able to recover this record!', 
+      icon: 'warning', 
+      showCancelButton: true, 
+      confirmButtonColor: '#0d9488', 
+      cancelButtonColor: '#ef4444', 
+      confirmButtonText: 'Yes, delete it!' 
+    }); 
     if (result.isConfirmed) {
-      setItems(items.filter((item) => item.id !== id));
       Swal.fire('Deleted!', 'Record has been deleted.', 'success');
     }
   };
 
   return (
-    <div className="px-4 py-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-base font-bold text-gray-800">Schedule</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage class schedules and timetables</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setFilters({ day: '', status: '', search: '' })}
-            className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-xs font-medium"
-          >
-            Clear Filters
-          </button>
-          <button
-            onClick={() => navigate('/class-management/schedule/create')}
-            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs"
-          >
-            <Icons.Plus />
-            Add New
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 p-4 bg-gray-50 rounded-lg">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Day</label>
-          <select
-            value={filters.day}
-            onChange={(e) => setFilters({ ...filters, day: e.target.value })}
-            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          >
-            <option value="">All Days</option>
-            {days.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          >
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
-          <input
-            type="text"
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            placeholder="Search by class, subject or teacher..."
-            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          />
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px]">
-            <thead className="bg-teal-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Class</th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Subject</th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Teacher</th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Day</th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Start Time</th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">End Time</th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Room</th>
-                <th className="px-3 py-2 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
-                <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-xs font-medium text-teal-600">{item.className}</td>
-                  <td className="px-3 py-2 text-xs text-gray-800">{item.subject}</td>
-                  <td className="px-3 py-2 text-xs text-gray-600">{item.teacher}</td>
-                  <td className="px-3 py-2 text-xs text-gray-800">{item.day}</td>
-                  <td className="px-3 py-2 text-xs text-gray-800">{item.startTime}</td>
-                  <td className="px-3 py-2 text-xs text-gray-800">{item.endTime}</td>
-                  <td className="px-3 py-2 text-xs text-gray-800">{item.room}</td>
-                  <td className="px-3 py-2 text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadge(item.status)}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => navigate(`/class-management/schedule/show/${item.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="View">
-                        <Icons.Eye />
-                      </button>
-                      <button onClick={() => navigate(`/class-management/schedule/edit/${item.id}`)} className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors" title="Edit">
-                        <Icons.Edit />
-                      </button>
-                      <button onClick={() => handleDelete(item.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
-                        <Icons.Trash />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
-          <div className="text-center py-8 px-4">
-            <svg className="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p className="text-gray-500 text-xs">No records found</p>
-            <button onClick={() => navigate('/class-management/schedule/create')} className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs">
-              Add your first record
-            </button>
+    <div className="min-h-screen bg-gray-50/60">
+      {/* Header */}
+      <div className="bg-teal-600 px-5 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-sm font-bold text-white">Class Schedules</h1>
+            <p className="text-xs text-teal-100 mt-0.5">Manage class timetables and schedules</p>
           </div>
-        )}
+          <button onClick={() => navigate('/class-management/schedule/create')} 
+            className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
+            <Icons.Plus />
+            Add New Schedule
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Day</label>
+              <select value={filters.day} onChange={(e) => setFilters({...filters, day: e.target.value})} className={inp}>
+                <option value="">All Days</option>
+                {days.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
+              <select value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})} className={inp}>
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Search</label>
+              <div className="relative">
+                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text" value={filters.search} onChange={(e) => setFilters({...filters, search: e.target.value})} 
+                  placeholder="Search by class, subject or teacher..." className={`${inp} pl-10`} />
+              </div>
+            </div>
+          </div>
+          {(filters.day || filters.status || filters.search) && (
+            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setFilters({day: '', status: '', search: ''})} 
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 transition-colors">
+                Clear Filters
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          {[
+            { label: 'Total Schedules', value: items.length, color: 'bg-blue-50 text-blue-700' },
+            { label: 'Monday', value: items.filter(i => i.day === 'Monday').length, color: 'bg-purple-50 text-purple-700' },
+            { label: 'Tuesday', value: items.filter(i => i.day === 'Tuesday').length, color: 'bg-indigo-50 text-indigo-700' },
+            { label: 'Active', value: items.filter(i => i.status === 'active').length, color: 'bg-emerald-50 text-emerald-700' },
+          ].map((stat, idx) => (
+            <div key={idx} className={`${stat.color} rounded-xl p-4 border border-current/10`}>
+              <p className="text-xs font-medium opacity-70">{stat.label}</p>
+              <p className="text-2xl font-bold mt-1">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-teal-50 border-b border-teal-100">
+                <tr>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Class</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Subject</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Teacher</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Day</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Period</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Time</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Room</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="px-4 py-12 text-center">
+                      <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm text-gray-500">No schedules found matching your criteria</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-xs font-semibold text-teal-600">{item.class}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs font-medium text-gray-700">{item.subject}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-gray-600">{item.teacher}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-gray-700">{item.day}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-600">{item.period}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-gray-600">{item.startTime} - {item.endTime}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-gray-700">{item.room}</p>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold ${getStatusBadge(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button onClick={() => navigate(`/class-management/schedule/show/${item.id}`)} 
+                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
+                            <Icons.Eye />
+                          </button>
+                          <button onClick={() => navigate(`/class-management/schedule/edit/${item.id}`)} 
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Edit">
+                            <Icons.Edit />
+                          </button>
+                          <button onClick={() => handleDelete(item.id)} 
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                            <Icons.Trash />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

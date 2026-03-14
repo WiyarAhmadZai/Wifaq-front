@@ -14,11 +14,10 @@ const ACADEMIC_YEARS = ['1402-1403','1403-1404','1404-1405','1405-1406'];
 const GRADES = Array.from({ length: 12 }, (_, i) => `${i + 1}`);
 
 const STEPS = [
-  { num: 1, label: 'Basic Info',     desc: 'Grade, section, name & year',    icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+  { num: 1, label: 'Basic Class Info', desc: 'Grade, section, name & year',    icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
   { num: 2, label: 'Location',       desc: 'Room, building & floor',          icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' },
   { num: 3, label: 'Administration', desc: 'Supervisor & assistant',           icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
   { num: 4, label: 'Capacity',       desc: 'Max students per class',           icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-  { num: 5, label: 'Academic',       desc: 'Subjects & teachers',              icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
 ];
 
 const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
@@ -186,7 +185,6 @@ export default function ClassesForm() {
     room_number: '', room_name: '', building: '', floor: '',
     supervisor_id: '', assistant_id: '',
     capacity: '',
-    subjects: [], teachers: [],
   });
 
   useEffect(() => {
@@ -200,7 +198,8 @@ export default function ClassesForm() {
 
   const canNext = () => {
     if (step === 1) return form.grade && form.section && form.class_name && form.academic_year;
-    if (step === 3) return !!form.supervisor_id;
+    if (step === 2) return form.room_number && form.building && form.floor;
+    if (step === 3) return form.supervisor_id && form.assistant_id;
     if (step === 4) return !!form.capacity;
     return true;
   };
@@ -367,7 +366,7 @@ export default function ClassesForm() {
                 />
               </div>
               <div>
-                <Label>Assistant Teacher <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span></Label>
+                <Label required>Assistant Teacher</Label>
                 <SearchSelect
                   options={TEACHERS.filter(t => t.id != form.supervisor_id)}
                   value={form.assistant_id}
@@ -410,20 +409,6 @@ export default function ClassesForm() {
                   ))}
                 </div>
               )}
-            </StepCard>
-          )}
-
-          {/* ── Step 5 ── */}
-          {step === 5 && (
-            <StepCard step={STEPS[4]}>
-              <div className="flex items-start gap-2.5 p-3.5 bg-teal-50 border border-teal-200 rounded-xl">
-                <svg className="w-4 h-4 text-teal-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-xs text-teal-700">دا یوازې د UI لپاره ښودل کېدای شي — For UI display only</p>
-              </div>
-              <div>
-                <Label>Subjects Offered</Label>
-                <SearchMultiSelect options={SUBJECTS} selected={form.subjects} onChange={v => set('subjects', v)} placeholder="Search and select subjects..." />
-              </div>
 
               {/* Review summary */}
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
@@ -433,6 +418,7 @@ export default function ClassesForm() {
                   { label: 'Academic Year', value: form.academic_year },
                   { label: 'Location',      value: [form.building, form.room_number && `Room ${form.room_number}`].filter(Boolean).join(', ') || '—' },
                   { label: 'Supervisor',    value: TEACHERS.find(t => t.id == form.supervisor_id)?.name || '—' },
+                  { label: 'Assistant',     value: TEACHERS.find(t => t.id == form.assistant_id)?.name || '—' },
                   { label: 'Capacity',      value: form.capacity ? `${form.capacity} students` : '—' },
                 ].map(r => (
                   <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">

@@ -54,16 +54,90 @@ const TEACHERS = [
 const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
 
 const initialScheduleData = {
-  'Saturday-Period 1': { id: 1, class: 'Class 1-A', subject: 'Mathematics', teacher: 'Mr. Ahmad Khan', room: 'Room 101' },
-  'Saturday-Period 2': { id: 2, class: 'Class 1-A', subject: 'English', teacher: 'Ms. Fatima Ali', room: 'Room 102' },
-  'Saturday-Period 3': { id: 3, class: 'Class 1-B', subject: 'Science', teacher: 'Mr. Hassan Raza', room: 'Room 201' },
-  'Sunday-Period 1': { id: 4, class: 'Class 2-A', subject: 'Urdu', teacher: 'Mrs. Sarah Ahmed', room: 'Room 103' },
-  'Sunday-Period 2': { id: 5, class: 'Class 3-A', subject: 'Mathematics', teacher: 'Mr. Ahmad Khan', room: 'Room 101' },
-  'Monday-Period 1': { id: 6, class: 'Class 1-A', subject: 'Physics', teacher: 'Dr. Khalid Mahmood', room: 'Lab 1' },
-  'Monday-Period 4': { id: 7, class: 'Class 2-B', subject: 'Chemistry', teacher: 'Ms. Ayesha Siddiqui', room: 'Lab 2' },
-  'Tuesday-Period 3': { id: 8, class: 'Class 3-B', subject: 'Biology', teacher: 'Mr. Usman Ghani', room: 'Lab 3' },
-  'Wednesday-Period 2': { id: 9, class: 'Class 1-C', subject: 'Computer Science', teacher: 'Eng. Bilal Ahmed', room: 'Computer Lab' },
-  'Thursday-Period 5': { id: 10, class: 'Class 2-A', subject: 'Islamic Studies', teacher: 'Molana Tariq Jameel', room: 'Room 104' },
+  // Class 1-A Schedule
+  'Saturday-Period 1': { id: 1, className: 'Class 1-A', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 101' },
+  'Saturday-Period 2': { id: 2, className: 'Class 1-A', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 102' },
+  'Saturday-Period 3': { id: 3, className: 'Class 1-A', subjectName: 'Science', teacherName: 'Mr. Hassan Raza', room: 'Room 201' },
+  'Saturday-Period 4': { id: 4, className: 'Class 1-A', subjectName: 'Urdu', teacherName: 'Mrs. Sarah Ahmed', room: 'Room 103' },
+  'Sunday-Period 1': { id: 5, className: 'Class 1-A', subjectName: 'Physics', teacherName: 'Dr. Khalid Mahmood', room: 'Lab 1' },
+  'Sunday-Period 3': { id: 6, className: 'Class 1-A', subjectName: 'Chemistry', teacherName: 'Ms. Ayesha Siddiqui', room: 'Lab 2' },
+  'Sunday-Period 5': { id: 7, className: 'Class 1-A', subjectName: 'Computer Science', teacherName: 'Eng. Bilal Ahmed', room: 'Computer Lab' },
+  'Monday-Period 2': { id: 8, className: 'Class 1-A', subjectName: 'Biology', teacherName: 'Mr. Usman Ghani', room: 'Lab 3' },
+  'Monday-Period 4': { id: 9, className: 'Class 1-A', subjectName: 'Islamic Studies', teacherName: 'Molana Tariq Jameel', room: 'Room 104' },
+  'Tuesday-Period 1': { id: 10, className: 'Class 1-A', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 101' },
+  'Tuesday-Period 3': { id: 11, className: 'Class 1-A', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 102' },
+  'Wednesday-Period 2': { id: 12, className: 'Class 1-A', subjectName: 'Science', teacherName: 'Mr. Hassan Raza', room: 'Room 201' },
+  'Wednesday-Period 4': { id: 13, className: 'Class 1-A', subjectName: 'Physical Education', teacherName: 'Coach Ahmed Ali', room: 'Sports Ground' },
+  'Thursday-Period 1': { id: 14, className: 'Class 1-A', subjectName: 'Art', teacherName: 'Ms. Nadia Khan', room: 'Art Room' },
+  
+  // Class 1-B Schedule
+  'Saturday-Period 1': { id: 15, className: 'Class 1-B', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Saturday-Period 2': { id: 16, className: 'Class 1-B', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 101' },
+  'Saturday-Period 3': { id: 17, className: 'Class 1-B', subjectName: 'Urdu', teacherName: 'Mrs. Sarah Ahmed', room: 'Room 103' },
+  'Sunday-Period 1': { id: 18, className: 'Class 1-B', subjectName: 'Science', teacherName: 'Mr. Hassan Raza', room: 'Room 201' },
+  'Sunday-Period 2': { id: 19, className: 'Class 1-B', subjectName: 'Islamic Studies', teacherName: 'Molana Tariq Jameel', room: 'Room 104' },
+  'Monday-Period 1': { id: 20, className: 'Class 1-B', subjectName: 'Physics', teacherName: 'Dr. Khalid Mahmood', room: 'Lab 1' },
+  'Monday-Period 3': { id: 21, className: 'Class 1-B', subjectName: 'Chemistry', teacherName: 'Ms. Ayesha Siddiqui', room: 'Lab 2' },
+  'Tuesday-Period 2': { id: 22, className: 'Class 1-B', subjectName: 'Biology', teacherName: 'Mr. Usman Ghani', room: 'Lab 3' },
+  'Tuesday-Period 4': { id: 23, className: 'Class 1-B', subjectName: 'Computer Science', teacherName: 'Eng. Bilal Ahmed', room: 'Computer Lab' },
+  'Wednesday-Period 1': { id: 24, className: 'Class 1-B', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 101' },
+  'Wednesday-Period 3': { id: 25, className: 'Class 1-B', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Thursday-Period 2': { id: 26, className: 'Class 1-B', subjectName: 'Physical Education', teacherName: 'Coach Ahmed Ali', room: 'Sports Ground' },
+  
+  // Class 2-A Schedule
+  'Saturday-Period 1': { id: 27, className: 'Class 2-A', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 106' },
+  'Saturday-Period 2': { id: 28, className: 'Class 2-A', subjectName: 'Physics', teacherName: 'Dr. Khalid Mahmood', room: 'Lab 1' },
+  'Saturday-Period 4': { id: 29, className: 'Class 2-A', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Sunday-Period 1': { id: 30, className: 'Class 2-A', subjectName: 'Chemistry', teacherName: 'Ms. Ayesha Siddiqui', room: 'Lab 2' },
+  'Sunday-Period 3': { id: 31, className: 'Class 2-A', subjectName: 'Urdu', teacherName: 'Mrs. Sarah Ahmed', room: 'Room 103' },
+  'Monday-Period 2': { id: 32, className: 'Class 2-A', subjectName: 'Biology', teacherName: 'Mr. Usman Ghani', room: 'Lab 3' },
+  'Monday-Period 4': { id: 33, className: 'Class 2-A', subjectName: 'Computer Science', teacherName: 'Eng. Bilal Ahmed', room: 'Computer Lab' },
+  'Tuesday-Period 1': { id: 34, className: 'Class 2-A', subjectName: 'Islamic Studies', teacherName: 'Molana Tariq Jameel', room: 'Room 104' },
+  'Tuesday-Period 3': { id: 35, className: 'Class 2-A', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 106' },
+  'Wednesday-Period 2': { id: 36, className: 'Class 2-A', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Wednesday-Period 4': { id: 37, className: 'Class 2-A', subjectName: 'Science', teacherName: 'Mr. Hassan Raza', room: 'Room 201' },
+  'Thursday-Period 1': { id: 38, className: 'Class 2-A', subjectName: 'Art', teacherName: 'Ms. Nadia Khan', room: 'Art Room' },
+  
+  // Class 2-B Schedule
+  'Saturday-Period 2': { id: 39, className: 'Class 2-B', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 106' },
+  'Saturday-Period 3': { id: 40, className: 'Class 2-B', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Sunday-Period 1': { id: 41, className: 'Class 2-B', subjectName: 'Physics', teacherName: 'Dr. Khalid Mahmood', room: 'Lab 1' },
+  'Sunday-Period 2': { id: 42, className: 'Class 2-B', subjectName: 'Chemistry', teacherName: 'Ms. Ayesha Siddiqui', room: 'Lab 2' },
+  'Monday-Period 1': { id: 43, className: 'Class 2-B', subjectName: 'Urdu', teacherName: 'Mrs. Sarah Ahmed', room: 'Room 103' },
+  'Monday-Period 3': { id: 44, className: 'Class 2-B', subjectName: 'Biology', teacherName: 'Mr. Usman Ghani', room: 'Lab 3' },
+  'Tuesday-Period 2': { id: 45, className: 'Class 2-B', subjectName: 'Computer Science', teacherName: 'Eng. Bilal Ahmed', room: 'Computer Lab' },
+  'Tuesday-Period 4': { id: 46, className: 'Class 2-B', subjectName: 'Islamic Studies', teacherName: 'Molana Tariq Jameel', room: 'Room 104' },
+  'Wednesday-Period 1': { id: 47, className: 'Class 2-B', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 106' },
+  'Wednesday-Period 3': { id: 48, className: 'Class 2-B', subjectName: 'Physical Education', teacherName: 'Coach Ahmed Ali', room: 'Sports Ground' },
+  'Thursday-Period 2': { id: 49, className: 'Class 2-B', subjectName: 'Science', teacherName: 'Mr. Hassan Raza', room: 'Room 201' },
+  
+  // Class 3-A Schedule
+  'Saturday-Period 1': { id: 50, className: 'Class 3-A', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 107' },
+  'Saturday-Period 2': { id: 51, className: 'Class 3-A', subjectName: 'Physics', teacherName: 'Dr. Khalid Mahmood', room: 'Lab 1' },
+  'Saturday-Period 4': { id: 52, className: 'Class 3-A', subjectName: 'Chemistry', teacherName: 'Ms. Ayesha Siddiqui', room: 'Lab 2' },
+  'Sunday-Period 1': { id: 53, className: 'Class 3-A', subjectName: 'Biology', teacherName: 'Mr. Usman Ghani', room: 'Lab 3' },
+  'Sunday-Period 3': { id: 54, className: 'Class 3-A', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Monday-Period 2': { id: 55, className: 'Class 3-A', subjectName: 'Computer Science', teacherName: 'Eng. Bilal Ahmed', room: 'Computer Lab' },
+  'Monday-Period 4': { id: 56, className: 'Class 3-A', subjectName: 'Urdu', teacherName: 'Mrs. Sarah Ahmed', room: 'Room 103' },
+  'Tuesday-Period 1': { id: 57, className: 'Class 3-A', subjectName: 'Islamic Studies', teacherName: 'Molana Tariq Jameel', room: 'Room 104' },
+  'Tuesday-Period 3': { id: 58, className: 'Class 3-A', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 107' },
+  'Wednesday-Period 2': { id: 59, className: 'Class 3-A', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Wednesday-Period 4': { id: 60, className: 'Class 3-A', subjectName: 'Science', teacherName: 'Mr. Hassan Raza', room: 'Room 201' },
+  'Thursday-Period 1': { id: 61, className: 'Class 3-A', subjectName: 'Art', teacherName: 'Ms. Nadia Khan', room: 'Art Room' },
+  
+  // Class 3-B Schedule
+  'Saturday-Period 1': { id: 62, className: 'Class 3-B', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Saturday-Period 2': { id: 63, className: 'Class 3-B', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 107' },
+  'Saturday-Period 3': { id: 64, className: 'Class 3-B', subjectName: 'Physics', teacherName: 'Dr. Khalid Mahmood', room: 'Lab 1' },
+  'Sunday-Period 1': { id: 65, className: 'Class 3-B', subjectName: 'Chemistry', teacherName: 'Ms. Ayesha Siddiqui', room: 'Lab 2' },
+  'Sunday-Period 2': { id: 66, className: 'Class 3-B', subjectName: 'Urdu', teacherName: 'Mrs. Sarah Ahmed', room: 'Room 103' },
+  'Monday-Period 1': { id: 67, className: 'Class 3-B', subjectName: 'Biology', teacherName: 'Mr. Usman Ghani', room: 'Lab 3' },
+  'Monday-Period 3': { id: 68, className: 'Class 3-B', subjectName: 'Computer Science', teacherName: 'Eng. Bilal Ahmed', room: 'Computer Lab' },
+  'Tuesday-Period 2': { id: 69, className: 'Class 3-B', subjectName: 'Islamic Studies', teacherName: 'Molana Tariq Jameel', room: 'Room 104' },
+  'Tuesday-Period 4': { id: 70, className: 'Class 3-B', subjectName: 'Mathematics', teacherName: 'Mr. Ahmad Khan', room: 'Room 107' },
+  'Wednesday-Period 1': { id: 71, className: 'Class 3-B', subjectName: 'English', teacherName: 'Ms. Fatima Ali', room: 'Room 105' },
+  'Wednesday-Period 3': { id: 72, className: 'Class 3-B', subjectName: 'Physical Education', teacherName: 'Coach Ahmed Ali', room: 'Sports Ground' },
+  'Thursday-Period 2': { id: 73, className: 'Class 3-B', subjectName: 'Science', teacherName: 'Mr. Hassan Raza', room: 'Room 201' },
 };
 
 const getStatusBadge = (status) => {
@@ -493,23 +567,6 @@ export default function Schedule() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Class *</label>
-                <select
-                  value={formData.class}
-                  onChange={(e) => setFormData({ ...formData, class: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                >
-                  <option value="">Select Class</option>
-                  <option value="Class 1-A">Class 1-A</option>
-                  <option value="Class 1-B">Class 1-B</option>
-                  <option value="Class 2-A">Class 2-A</option>
-                  <option value="Class 2-B">Class 2-B</option>
-                  <option value="Class 3-A">Class 3-A</option>
-                  <option value="Class 3-B">Class 3-B</option>
-                </select>
-              </div>
-
-              <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Subject *</label>
                 <select
                   value={formData.subject}
@@ -517,15 +574,9 @@ export default function Schedule() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                 >
                   <option value="">Select Subject</option>
-                  <option value="Mathematics">Mathematics</option>
-                  <option value="English">English</option>
-                  <option value="Science">Science</option>
-                  <option value="Urdu">Urdu</option>
-                  <option value="Physics">Physics</option>
-                  <option value="Chemistry">Chemistry</option>
-                  <option value="Biology">Biology</option>
-                  <option value="Computer Science">Computer Science</option>
-                  <option value="Islamic Studies">Islamic Studies</option>
+                  {SUBJECTS.map(subj => (
+                    <option key={subj.id} value={subj.name}>{subj.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -537,24 +588,10 @@ export default function Schedule() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                 >
                   <option value="">Select Teacher</option>
-                  <option value="Mr. Ahmad Khan">Mr. Ahmad Khan</option>
-                  <option value="Ms. Fatima Ali">Ms. Fatima Ali</option>
-                  <option value="Mr. Hassan Raza">Mr. Hassan Raza</option>
-                  <option value="Mrs. Sarah Ahmed">Mrs. Sarah Ahmed</option>
-                  <option value="Dr. Khalid Mahmood">Dr. Khalid Mahmood</option>
-                  <option value="Ms. Ayesha Siddiqui">Ms. Ayesha Siddiqui</option>
+                  {TEACHERS.map(teach => (
+                    <option key={teach.id} value={teach.name}>{teach.name}</option>
+                  ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Room</label>
-                <input
-                  type="text"
-                  value={formData.room}
-                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                  placeholder="e.g., Room 101"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                />
               </div>
             </div>
 

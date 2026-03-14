@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 const DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 const PERIODS = ['Period 1', 'Period 2', 'Period 3', 'Period 4', 'Period 5', 'Period 6', 'Period 7'];
 
+const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
+
 const CLASSES = [
   { id: '1', name: 'Class 1-A' },
   { id: '2', name: 'Class 1-B' },
@@ -49,18 +51,16 @@ const Icons = {
 
 export default function ScheduleForm() {
   const navigate = useNavigate();
+  const [selectedClass, setSelectedClass] = useState('');
   const [scheduleData, setScheduleData] = useState({});
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [draggedItem, setDraggedItem] = useState(null);
   const [formData, setFormData] = useState({
-    classId: '',
-    className: '',
     subjectId: '',
     subjectName: '',
     teacherId: '',
     teacherName: '',
-    room: '',
   });
 
   const handleInputChange = (e) => {
@@ -68,55 +68,57 @@ export default function ScheduleForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle cell click
+  // Handle cell click - only if class is selected
   const handleCellClick = useCallback((day, period) => {
+    if (!selectedClass) {
+      Swal.fire('Select Class First', 'Please select a class before adding subjects', 'warning');
+      return;
+    }
+    
     const key = `${day}-${period}`;
     const existing = scheduleData[key];
     setSelectedSlot({ day, period, key });
     if (existing) {
       setFormData({
-        classId: existing.classId,
-        className: existing.className,
         subjectId: existing.subjectId,
         subjectName: existing.subjectName,
         teacherId: existing.teacherId,
         teacherName: existing.teacherName,
-        room: existing.room || ''
       });
     } else {
       setFormData({
-        classId: '',
-        className: '',
         subjectId: '',
         subjectName: '',
         teacherId: '',
         teacherName: '',
-        room: ''
       });
     }
     setModalOpen(true);
-  }, [scheduleData]);
+  }, [scheduleData, selectedClass]);
 
   // Handle form submission
   const handleSave = () => {
     if (!selectedSlot) return;
     
-    if (!formData.subjectId || !formData.classId) {
-      Swal.fire('Error', 'Please fill in at least Subject and Class', 'error');
+    if (!formData.subjectId) {
+      Swal.fire('Error', 'Please select a subject', 'error');
       return;
     }
 
-    const classData = CLASSES.find(c => c.id === formData.classId);
+    const classData = CLASSES.find(c => c.id === selectedClass);
     const subjData = SUBJECTS.find(s => s.id === formData.subjectId);
     const teachData = TEACHERS.find(t => t.id === formData.teacherId);
 
     setScheduleData(prev => ({
       ...prev,
       [selectedSlot.key]: {
-        ...formData,
-        className: classData?.name || formData.className,
-        subjectName: subjData?.name || formData.subjectName,
-        teacherName: teachData?.name || formData.teacherName
+        classId: selectedClass,
+        className: classData?.name,
+        subjectId: formData.subjectId,
+        subjectName: subjData?.name,
+        teacherId: formData.teacherId,
+        teacherName: teachData?.name,
+        room: classData?.room || ''
       }
     }));
     
@@ -198,7 +200,7 @@ export default function ScheduleForm() {
         <div className="max-w-full mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold text-white">Create Class Schedule</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Click on any cell to add subject • Drag & drop to reschedule</p>
+            <p className="text-xs text-teal-100 mt-0.5">Select a class first, then click cells to add subjects</p>
           </div>
           <button onClick={() => navigate('/class-management/schedule')} 
             className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
@@ -210,7 +212,25 @@ export default function ScheduleForm() {
         </div>
       </div>
 
-      {/* Timetable Grid */}
+      {/* Class Selection */}
+      <div className="max-w-full mx-auto px-4 py-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Select Class *</label>
+          <select
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+            className={inp}
+          >
+            <option value="">Choose a class to start...</option>
+            {CLASSES.map(cls => (
+              <option key={cls.id} value={cls.id}>{cls.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Timetable Grid - Only show if class is selected */}
+      {selectedClass ? (
       <div className="max-w-full mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -289,6 +309,14 @@ export default function ScheduleForm() {
           </div>
         </div>
       </div>
+      ) : (
+        <div className="max-w-full mx-auto px-4 py-12 text-center">
+          <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <p className="text-gray-500 text-sm">Please select a class to view and edit the timetable</p>
+        </div>
+      )}
 
       {/* Modal */}
       {modalOpen && (
@@ -307,30 +335,13 @@ export default function ScheduleForm() {
             </div>
 
             <div className="space-y-3">
-              <div className="bg-teal-50 rounded-lg px-3 py-2 mb-4">
+              <div className="bg-gradient-to-r from-teal-50 to-blue-50 rounded-lg px-3 py-3 mb-4 border border-teal-100">
                 <p className="text-xs text-teal-800">
                   <span className="font-semibold">Day:</span> {selectedSlot?.day}
                 </p>
                 <p className="text-xs text-teal-800">
                   <span className="font-semibold">Period:</span> {selectedSlot?.period}
                 </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Class *</label>
-                <select
-                  value={formData.classId}
-                  onChange={(e) => {
-                    const cls = CLASSES.find(c => c.id === e.target.value);
-                    setFormData({ ...formData, classId: e.target.value, className: cls?.name || '' });
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                >
-                  <option value="">Select Class</option>
-                  {CLASSES.map(cls => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
-                  ))}
-                </select>
               </div>
 
               <div>
@@ -365,17 +376,6 @@ export default function ScheduleForm() {
                     <option key={teach.id} value={teach.id}>{teach.name}</option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Room</label>
-                <input
-                  type="text"
-                  value={formData.room}
-                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                  placeholder="e.g., Room 101, Lab 2"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                />
               </div>
             </div>
 

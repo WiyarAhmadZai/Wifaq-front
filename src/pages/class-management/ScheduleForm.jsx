@@ -1,52 +1,66 @@
-import { useState, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
-const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
+const DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+const PERIODS = ['Period 1', 'Period 2', 'Period 3', 'Period 4', 'Period 5', 'Period 6', 'Period 7'];
 
-const Label = ({ children, required }) => (
-  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-    {children}{required && <span className="text-red-400 ml-0.5">*</span>}
-  </label>
-);
-
-const days = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday'
+const CLASSES = [
+  { id: '1', name: 'Class 1-A' },
+  { id: '2', name: 'Class 1-B' },
+  { id: '3', name: 'Class 2-A' },
+  { id: '4', name: 'Class 2-B' },
+  { id: '5', name: 'Class 3-A' },
+  { id: '6', name: 'Class 3-B' },
 ];
 
-const periods = [
-  'Period 1',
-  'Period 2',
-  'Period 3',
-  'Period 4',
-  'Period 5',
-  'Period 6',
-  'Period 7',
-  'Period 8'
+const SUBJECTS = [
+  { id: '1', name: 'Mathematics' },
+  { id: '2', name: 'English' },
+  { id: '3', name: 'Science' },
+  { id: '4', name: 'Urdu' },
+  { id: '5', name: 'Physics' },
+  { id: '6', name: 'Chemistry' },
+  { id: '7', name: 'Biology' },
+  { id: '8', name: 'Computer Science' },
+  { id: '9', name: 'Islamic Studies' },
 ];
+
+const TEACHERS = [
+  { id: '1', name: 'Mr. Ahmad Khan' },
+  { id: '2', name: 'Ms. Fatima Ali' },
+  { id: '3', name: 'Mr. Hassan Raza' },
+  { id: '4', name: 'Mrs. Sarah Ahmed' },
+  { id: '5', name: 'Dr. Khalid Mahmood' },
+];
+
+const Icons = {
+  Plus: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  ),
+  X: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  ),
+};
 
 export default function ScheduleForm() {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const isEdit = !!id;
-  const [submitting, setSubmitting] = useState(false);
-
+  const [scheduleData, setScheduleData] = useState({});
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [draggedItem, setDraggedItem] = useState(null);
   const [formData, setFormData] = useState({
     classId: '',
+    className: '',
     subjectId: '',
+    subjectName: '',
     teacherId: '',
+    teacherName: '',
     room: '',
-    day: '',
-    period: '',
-    startTime: '',
-    endTime: '',
-    status: 'active'
   });
 
   const handleInputChange = (e) => {
@@ -54,189 +68,342 @@ export default function ScheduleForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const duration = useMemo(() => {
-    if (formData.startTime && formData.endTime) {
-      const start = new Date(`2000-01-01 ${formData.startTime}`);
-      const end = new Date(`2000-01-01 ${formData.endTime}`);
-      const diff = (end - start) / 60000; // minutes
-      return `${diff} minutes`;
-    }
-    return '—';
-  }, [formData.startTime, formData.endTime]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setTimeout(() => {
-      Swal.fire({
-        icon: 'success',
-        title: isEdit ? 'Schedule Updated!' : 'Schedule Created!',
-        text: `Class schedule has been saved successfully.`,
-        confirmButtonColor: '#0d9488',
-        timer: 2000,
-        showConfirmButton: false
+  // Handle cell click
+  const handleCellClick = useCallback((day, period) => {
+    const key = `${day}-${period}`;
+    const existing = scheduleData[key];
+    setSelectedSlot({ day, period, key });
+    if (existing) {
+      setFormData({
+        classId: existing.classId,
+        className: existing.className,
+        subjectId: existing.subjectId,
+        subjectName: existing.subjectName,
+        teacherId: existing.teacherId,
+        teacherName: existing.teacherName,
+        room: existing.room || ''
       });
-      navigate('/class-management/schedule');
-      setSubmitting(false);
-    }, 600);
+    } else {
+      setFormData({
+        classId: '',
+        className: '',
+        subjectId: '',
+        subjectName: '',
+        teacherId: '',
+        teacherName: '',
+        room: ''
+      });
+    }
+    setModalOpen(true);
+  }, [scheduleData]);
+
+  // Handle form submission
+  const handleSave = () => {
+    if (!selectedSlot) return;
+    
+    if (!formData.subjectId || !formData.classId) {
+      Swal.fire('Error', 'Please fill in at least Subject and Class', 'error');
+      return;
+    }
+
+    const classData = CLASSES.find(c => c.id === formData.classId);
+    const subjData = SUBJECTS.find(s => s.id === formData.subjectId);
+    const teachData = TEACHERS.find(t => t.id === formData.teacherId);
+
+    setScheduleData(prev => ({
+      ...prev,
+      [selectedSlot.key]: {
+        ...formData,
+        className: classData?.name || formData.className,
+        subjectName: subjData?.name || formData.subjectName,
+        teacherName: teachData?.name || formData.teacherName
+      }
+    }));
+    
+    setModalOpen(false);
+    Swal.fire('Success', 'Schedule updated successfully', 'success');
+  };
+
+  // Handle delete
+  const handleDelete = () => {
+    if (!selectedSlot) return;
+    
+    Swal.fire({
+      title: 'Remove from Schedule?',
+      text: 'This will remove the subject from this time slot',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, remove it'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setScheduleData(prev => {
+          const newData = { ...prev };
+          delete newData[selectedSlot.key];
+          return newData;
+        });
+        setModalOpen(false);
+        Swal.fire('Removed!', 'Subject removed from schedule', 'success');
+      }
+    });
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e, day, period) => {
+    const key = `${day}-${period}`;
+    setDraggedItem({ key, data: scheduleData[key] });
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, targetDay, targetPeriod) => {
+    e.preventDefault();
+    
+    if (!draggedItem) return;
+    
+    const targetKey = `${targetDay}-${targetPeriod}`;
+    
+    // Don't allow drop on same slot
+    if (targetKey === draggedItem.key) return;
+    
+    // Check if target is already occupied
+    if (scheduleData[targetKey]) {
+      Swal.fire('Conflict', 'This time slot is already occupied', 'error');
+      return;
+    }
+
+    // Move the item
+    setScheduleData(prev => {
+      const newData = { ...prev };
+      // Add to new location
+      newData[targetKey] = draggedItem.data;
+      // Remove from old location
+      delete newData[draggedItem.key];
+      return newData;
+    });
+    
+    setDraggedItem(null);
+    Swal.fire('Success', `Moved to ${targetDay} - ${targetPeriod}`, 'success');
   };
 
   return (
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-4xl mx-auto flex items-center gap-3">
-          <button onClick={() => navigate('/class-management/schedule')}
-            className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition-colors">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="max-w-full mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-sm font-bold text-white">Create Class Schedule</h1>
+            <p className="text-xs text-teal-100 mt-0.5">Click on any cell to add subject • Drag & drop to reschedule</p>
+          </div>
+          <button onClick={() => navigate('/class-management/schedule')} 
+            className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
+            Back to List
           </button>
-          <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? 'Edit Class Schedule' : 'New Class Schedule'}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Schedule class sessions</p>
+        </div>
+      </div>
+
+      {/* Timetable Grid */}
+      <div className="max-w-full mx-auto px-4 py-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-teal-50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-teal-800 uppercase tracking-wider border-r border-teal-100 min-w-[120px]">
+                    Day / Period
+                  </th>
+                  {PERIODS.map((period) => (
+                    <th key={period} className="px-2 py-3 text-center text-xs font-semibold text-teal-800 uppercase tracking-wider border-r border-teal-100 last:border-r-0 min-w-[200px]">
+                      {period}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {DAYS.map((day) => (
+                  <tr key={day} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-xs font-bold text-gray-700 bg-gray-50 border-r border-gray-200 sticky left-0">
+                      {day}
+                    </td>
+                    {PERIODS.map((period) => {
+                      const key = `${day}-${period}`;
+                      const slotData = scheduleData[key];
+                      
+                      return (
+                        <td
+                          key={key}
+                          onClick={() => handleCellClick(day, period)}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, day, period)}
+                          className={`border border-gray-200 p-2 cursor-pointer transition-all hover:bg-teal-50 hover:border-teal-300 ${
+                            !slotData ? 'bg-gray-50/50' : 'bg-gradient-to-br from-teal-50 to-blue-50'
+                          }`}
+                        >
+                          {slotData ? (
+                            <div
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, day, period)}
+                              className="bg-white rounded-lg p-2 shadow-sm border border-teal-200 cursor-move hover:shadow-md transition-shadow"
+                            >
+                              <p className="text-xs font-bold text-teal-700 truncate">{slotData.subjectName}</p>
+                              <p className="text-[10px] text-gray-600 truncate">{slotData.className}</p>
+                              <p className="text-[10px] text-gray-500 truncate">{slotData.teacherName}</p>
+                              <p className="text-[10px] text-gray-400 truncate mt-1">{slotData.room}</p>
+                            </div>
+                          ) : (
+                            <div className="h-full min-h-[60px] flex items-center justify-center text-gray-300">
+                              <Icons.Plus />
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="mt-4 flex flex-wrap gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gradient-to-br from-teal-50 to-blue-50 rounded border border-teal-200"></div>
+            <span className="text-gray-600">Scheduled Class</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gray-50/50 rounded border border-gray-200"></div>
+            <span className="text-gray-600">Empty Slot</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500">💡 Tip:</span>
+            <span className="text-gray-600">Click empty cell to add subject • Drag scheduled class to move it</span>
           </div>
         </div>
       </div>
 
-      {/* Form Content */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Class & Subject Card */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 bg-teal-50 border-b border-teal-100">
-              <h2 className="text-sm font-bold text-gray-800">Class Information</h2>
-              <p className="text-xs text-teal-600 mt-0.5">Select class, subject and teacher</p>
+      {/* Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-800">
+                {scheduleData[selectedSlot?.key] ? 'Edit Schedule' : 'Add New Schedule'}
+              </h3>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <Icons.X />
+              </button>
             </div>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+            <div className="space-y-3">
+              <div className="bg-teal-50 rounded-lg px-3 py-2 mb-4">
+                <p className="text-xs text-teal-800">
+                  <span className="font-semibold">Day:</span> {selectedSlot?.day}
+                </p>
+                <p className="text-xs text-teal-800">
+                  <span className="font-semibold">Period:</span> {selectedSlot?.period}
+                </p>
+              </div>
+
               <div>
-                <Label required>Class</Label>
-                <select name="classId" value={formData.classId} onChange={handleInputChange} className={inp} required>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Class *</label>
+                <select
+                  value={formData.classId}
+                  onChange={(e) => {
+                    const cls = CLASSES.find(c => c.id === e.target.value);
+                    setFormData({ ...formData, classId: e.target.value, className: cls?.name || '' });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                >
                   <option value="">Select Class</option>
-                  <option value="1">Class 1-A</option>
-                  <option value="2">Class 1-B</option>
-                  <option value="3">Class 2-A</option>
-                  <option value="4">Class 2-B</option>
-                  <option value="5">Class 3-A</option>
-                  <option value="6">Class 3-B</option>
+                  {CLASSES.map(cls => (
+                    <option key={cls.id} value={cls.id}>{cls.name}</option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <Label required>Subject</Label>
-                <select name="subjectId" value={formData.subjectId} onChange={handleInputChange} className={inp} required>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Subject *</label>
+                <select
+                  value={formData.subjectId}
+                  onChange={(e) => {
+                    const subj = SUBJECTS.find(s => s.id === e.target.value);
+                    setFormData({ ...formData, subjectId: e.target.value, subjectName: subj?.name || '' });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                >
                   <option value="">Select Subject</option>
-                  <option value="1">Mathematics</option>
-                  <option value="2">English</option>
-                  <option value="3">Urdu</option>
-                  <option value="4">Science</option>
-                  <option value="5">Islamiat</option>
+                  {SUBJECTS.map(subj => (
+                    <option key={subj.id} value={subj.id}>{subj.name}</option>
+                  ))}
                 </select>
               </div>
 
-              <div className="sm:col-span-2">
-                <Label required>Teacher</Label>
-                <select name="teacherId" value={formData.teacherId} onChange={handleInputChange} className={inp} required>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Teacher</label>
+                <select
+                  value={formData.teacherId}
+                  onChange={(e) => {
+                    const teach = TEACHERS.find(t => t.id === e.target.value);
+                    setFormData({ ...formData, teacherId: e.target.value, teacherName: teach?.name || '' });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                >
                   <option value="">Select Teacher</option>
-                  <option value="1">Mr. Ahmad Khan</option>
-                  <option value="2">Ms. Fatima Ali</option>
-                  <option value="3">Mr. Hassan Raza</option>
-                  <option value="4">Mrs. Sarah Ahmed</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Schedule Details Card */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 bg-blue-50 border-b border-blue-100">
-              <h2 className="text-sm font-bold text-gray-800">Schedule Details</h2>
-              <p className="text-xs text-blue-600 mt-0.5">Day, period and room assignment</p>
-            </div>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div>
-                <Label required>Day</Label>
-                <select name="day" value={formData.day} onChange={handleInputChange} className={inp} required>
-                  <option value="">Select Day</option>
-                  {days.map((d) => <option key={d} value={d}>{d}</option>)}
+                  {TEACHERS.map(teach => (
+                    <option key={teach.id} value={teach.id}>{teach.name}</option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <Label required>Period</Label>
-                <select name="period" value={formData.period} onChange={handleInputChange} className={inp} required>
-                  <option value="">Select Period</option>
-                  {periods.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <Label required>Room</Label>
-                <input type="text" name="room" value={formData.room} onChange={handleInputChange} 
-                  className={inp} placeholder="e.g., Room 101" required />
-              </div>
-
-              <div>
-                <Label>Status</Label>
-                <select name="status" value={formData.status} onChange={handleInputChange} className={inp}>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Room</label>
+                <input
+                  type="text"
+                  value={formData.room}
+                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                  placeholder="e.g., Room 101, Lab 2"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                />
               </div>
             </div>
-          </div>
 
-          {/* Time Card */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 bg-purple-50 border-b border-purple-100">
-              <h2 className="text-sm font-bold text-gray-800">Time Schedule</h2>
-              <p className="text-xs text-purple-600 mt-0.5">Start and end time for the session</p>
-            </div>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div>
-                <Label required>Start Time</Label>
-                <input type="time" name="startTime" value={formData.startTime} onChange={handleInputChange} 
-                  className={inp} required />
-              </div>
-
-              <div>
-                <Label required>End Time</Label>
-                <input type="time" name="endTime" value={formData.endTime} onChange={handleInputChange} 
-                  className={inp} required />
-              </div>
-
-              <div className="sm:col-span-2">
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <p className="text-xs text-gray-600">
-                    <span className="font-semibold">Duration:</span>{' '}
-                    <span className="font-bold text-teal-600">{duration}</span>
-                  </p>
-                </div>
-              </div>
+            <div className="flex gap-3 mt-6">
+              {scheduleData[selectedSlot?.key] && (
+                <button
+                  onClick={handleDelete}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
+                >
+                  Remove
+                </button>
+              )}
+              <button
+                onClick={() => setModalOpen(false)}
+                className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium text-sm"
+              >
+                {scheduleData[selectedSlot?.key] ? 'Update' : 'Add'}
+              </button>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-4">
-            <button type="button"
-              onClick={() => navigate('/class-management/schedule')}
-              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Cancel
-            </button>
-
-            <button type="submit" disabled={submitting}
-              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50 shadow-sm">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              {submitting ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Update Schedule' : 'Create Schedule')}
-            </button>
-          </div>
-        </form>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -18,10 +18,11 @@ const ALL_LEVELS   = ["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6
 const ALL_CLASSES  = ["Class 6A","Class 6B","Class 7A","Class 7B","Class 8A","Class 8B","Class 9A","Class 9B","Class 10A","Class 10B"];
 
 const STEPS = [
-  { num: 1, label: "Staff Link",    desc: "Link to existing staff record", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-  { num: 2, label: "Professional",  desc: "Qualifications & experience",   icon: "M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" },
-  { num: 3, label: "Capability",    desc: "Subjects & levels able to teach",icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
-  { num: 4, label: "Assignment",    desc: "Classes, subjects & schedule",   icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+  { num: 1, label: "Staff Selection", desc: "Select staff member", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+  { num: 2, label: "Professional Info", desc: "Qualification & experience", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+  { num: 3, label: "Teaching Capability", desc: "Subjects & grade levels", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
+  { num: 4, label: "Teaching Load", desc: "Capacity & preferences", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+  { num: 5, label: "Academic Role", desc: "Supervisor & assistant roles", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
 ];
 
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
@@ -105,6 +106,62 @@ function SearchMultiSelect({ options, selected, onChange, placeholder }) {
   );
 }
 
+// ── Searchable single select ─────────────────────────────────────────────────
+function SearchSelect({ options, value, onChange, placeholder = 'Search or select...', getLabel = o => o, getValue = o => o }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const filtered = options.filter(o => getLabel(o).toLowerCase().includes(query.toLowerCase()));
+  const selected = options.find(o => getValue(o) == value);
+
+  return (
+    <div ref={ref} className="relative">
+      <div className={`flex items-center border rounded-xl bg-white transition-all ${open ? 'border-teal-500 ring-2 ring-teal-500' : 'border-gray-200'}`}>
+        <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input value={open ? query : (selected ? getLabel(selected) : '')}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { setOpen(true); setQuery(''); }}
+          onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
+          placeholder={selected ? getLabel(selected) : placeholder}
+          className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
+        {selected && !open && (
+          <button type="button" onClick={() => { onChange(''); setQuery(''); }}
+            className="mr-2 w-4 h-4 text-gray-400 hover:text-gray-600 flex-shrink-0">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        )}
+        <svg className={`w-4 h-4 text-gray-400 mr-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+      {open && (
+        <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
+            ) : filtered.map(o => (
+              <button key={getValue(o)} type="button"
+                onClick={() => { onChange(getValue(o)); setOpen(false); setQuery(''); }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${getValue(o) == value ? 'bg-teal-600 text-white' : 'hover:bg-teal-50 text-gray-700'}`}>
+                {getLabel(o)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function TeachersForm() {
   const navigate = useNavigate();
@@ -122,15 +179,28 @@ export default function TeachersForm() {
   const staffRef = useRef(null);
 
   const [form, setForm] = useState({
-    // Staff link
-    staff_id: "", staff_code: "", staff_name: "", staff_title: "",
-    // Professional
-    qualification: "", field_of_study: "", teaching_certification: "",
-    years_experience: "", previous_institutions: [""],
-    // Capability
-    subjects_can_teach: [], levels_can_teach: [],
-    // Assignment
-    classes_assigned: [], subjects_assigned: [], weekly_hours: "", free_periods: "",
+    // Staff Foreign Key Data
+    staffId: "",
+    
+    // Professional Information
+    qualification: "",
+    fieldOfStudy: "",
+    teachingCertification: "",
+    yearsOfExperience: "",
+    previousInstitutions: "",
+    
+    // Teaching Capability
+    subjectsAbleToTeach: [],
+    levelsAbleToTeach: [],
+    
+    // Teaching Load
+    weeklyTeachingCapacity: "",
+    preferredSubjects: [],
+    
+    // Academic Role
+    canBeClassSupervisor: "",
+    canBeAssistantTeacher: "",
+    
     // Meta
     status: "active",
   });
@@ -226,8 +296,11 @@ export default function TeachersForm() {
   const removeInst = (idx) => set("previous_institutions", form.previous_institutions.filter((_, i) => i !== idx));
 
   const canNext = () => {
-    if (step === 1) return !!form.staff_id;
-    if (step === 2) return form.qualification && form.years_experience;
+    if (step === 1) return !!form.staffId;
+    if (step === 2) return form.qualification && form.yearsOfExperience;
+    if (step === 3) return form.subjectsAbleToTeach.length > 0 && form.levelsAbleToTeach.length > 0;
+    if (step === 4) return form.weeklyTeachingCapacity;
+    if (step === 5) return form.canBeClassSupervisor && form.canBeAssistantTeacher;
     return true;
   };
 
@@ -265,7 +338,7 @@ export default function TeachersForm() {
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
+        <div className="max-w-4xl mx-auto flex items-center gap-3">
           <button onClick={() => navigate("/teacher-management/teachers")}
             className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
@@ -279,7 +352,7 @@ export default function TeachersForm() {
 
       {/* Step pills */}
       <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-1 overflow-x-auto">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-1 overflow-x-auto">
           {STEPS.map((s, i) => {
             const done = step > s.num;
             const active = step === s.num;
@@ -301,208 +374,201 @@ export default function TeachersForm() {
         </div>
       </div>
 
+      {/* Form body */}
       <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
-        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
 
-          {/* ── Step 1: Staff Link ──────────────────────────────────────────── */}
-          {step === 1 && (
-            <StepCard step={cur}>
+        {/* ── Step 1 ── */}
+        {step === 1 && (
+          <StepCard step={STEPS[0]}>
+            <div>
+              <Label required>Select Staff Member</Label>
+              <SearchSelect
+                options={DEMO_STAFF}
+                value={form.staffId}
+                onChange={v => set('staffId', v)}
+                placeholder="Search and select staff member..."
+                getLabel={s => `${s.name} (${s.staff_code})`}
+                getValue={s => s.id}
+              />
+            </div>
+
+            {form.staffId && (
+              <div className="p-4 bg-teal-50 rounded-xl border border-teal-100">
+                <p className="text-sm font-semibold text-teal-800">
+                  {DEMO_STAFF.find(s => s.id == form.staffId)?.name}
+                </p>
+                <p className="text-xs text-teal-600 mt-1">
+                  {DEMO_STAFF.find(s => s.id == form.staffId)?.staff_code} • {DEMO_STAFF.find(s => s.id == form.staffId)?.job_title}
+                </p>
+              </div>
+            )}
+          </StepCard>
+        )}
+
+        {/* ── Step 2 ── */}
+        {step === 2 && (
+          <StepCard step={STEPS[1]}>
+            <div>
+              <Label required>Qualification</Label>
+              <input type="text" name="qualification" value={form.qualification} onChange={handle} 
+                className={inp} placeholder="e.g. Master's in Education" required />
+            </div>
+
+            <div>
+              <Label required>Field of Study</Label>
+              <input type="text" name="fieldOfStudy" value={form.fieldOfStudy} onChange={handle} 
+                className={inp} placeholder="e.g. Education, Mathematics, Science" required />
+            </div>
+
+            <div>
+              <Label>Teaching Certification</Label>
+              <input type="text" name="teachingCertification" value={form.teachingCertification} onChange={handle} 
+                className={inp} placeholder="e.g. Teaching License Number" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label required>Search Staff by Name or Staff Code</Label>
-                <div ref={staffRef} className="relative">
-                  {form.staff_id ? (
-                    // Locked state
-                    <div className="flex items-center gap-3 p-3.5 bg-teal-50 border-2 border-teal-400 rounded-xl">
-                      <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        {form.staff_name.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-gray-800">{form.staff_name}</p>
-                        <p className="text-xs text-teal-600">{form.staff_code} · {form.staff_title}</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="px-2 py-0.5 bg-teal-600 text-white text-[10px] font-semibold rounded-full">Linked</span>
-                        <button type="button" onClick={clearStaff} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    // Search input
-                    <>
-                      <div className={`flex items-center border rounded-xl bg-white transition-all ${showStaffDrop ? "border-teal-500 ring-2 ring-teal-500" : "border-gray-200"}`}>
-                        <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        <input value={staffQuery} onChange={e => searchStaff(e.target.value)}
-                          onFocus={() => staffQuery && setShowStaffDrop(true)}
-                          onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
-                          placeholder="Type name or staff code (e.g. WS-2026-001)..."
-                          className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
-                        {staffSearching && <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mr-3" />}
-                      </div>
-                      {showStaffDrop && staffResults.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                          {staffResults.map(s => (
-                            <button key={s.id} type="button" onClick={() => selectStaff(s)}
-                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-50 transition-colors text-left">
-                              <div className="w-8 h-8 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                {s.name.charAt(0)}
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-800">{s.name}</p>
-                                <p className="text-[11px] text-gray-400">{s.staff_code} · {s.job_title}</p>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {showStaffDrop && staffQuery && staffResults.length === 0 && !staffSearching && (
-                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-center">
-                          <p className="text-sm text-gray-400">No staff found matching "{staffQuery}"</p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-                {!form.staff_id && (
-                  <p className="text-[11px] text-gray-400 mt-2">
-                    Start typing to search from existing HR staff records. Teacher ID will be auto-generated after linking.
-                  </p>
-                )}
+                <Label required>Years of Experience</Label>
+                <input type="number" name="yearsOfExperience" value={form.yearsOfExperience} onChange={handle} 
+                  className={inp} placeholder="e.g. 5" min="0" required />
               </div>
-
-              {/* Status */}
-              <div>
-                <Label>Employment Status</Label>
-                <div className="flex gap-3">
-                  {[
-                    { v: "active",   l: "Active" },
-                    { v: "on-leave", l: "On Leave" },
-                    { v: "inactive", l: "Inactive" },
-                  ].map(o => (
-                    <button key={o.v} type="button" onClick={() => set("status", o.v)}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${form.status === o.v ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}>
-                      {o.l}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </StepCard>
-          )}
-
-          {/* ── Step 2: Professional ────────────────────────────────────────── */}
-          {step === 2 && (
-            <StepCard step={cur}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label required>Qualification</Label>
-                  <select name="qualification" value={form.qualification} onChange={handle} className={inp} required>
-                    <option value="">Select Qualification</option>
-                    <option value="Bachelor">Bachelor's Degree</option>
-                    <option value="Master">Master's Degree</option>
-                    <option value="PhD">PhD / Doctorate</option>
-                    <option value="Diploma">Diploma</option>
-                    <option value="Certificate">Certificate</option>
-                  </select>
-                </div>
-                <div>
-                  <Label>Field of Study</Label>
-                  <input type="text" name="field_of_study" value={form.field_of_study} onChange={handle}
-                    className={inp} placeholder="e.g. Mathematics Education" />
-                </div>
-                <div>
-                  <Label>Teaching Certification</Label>
-                  <input type="text" name="teaching_certification" value={form.teaching_certification} onChange={handle}
-                    className={inp} placeholder="e.g. B.Ed, CELTA" />
-                </div>
-                <div>
-                  <Label required>Years of Experience</Label>
-                  <input type="number" name="years_experience" value={form.years_experience} onChange={handle}
-                    className={inp} placeholder="e.g. 5" min={0} max={50} required />
-                </div>
-              </div>
-
-              {/* Previous Institutions */}
               <div>
                 <Label>Previous Institutions</Label>
-                <div className="space-y-2">
-                  {form.previous_institutions.map((inst, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input type="text" value={inst} onChange={e => setPrevInst(idx, e.target.value)}
-                        className={inp} placeholder={`Institution ${idx + 1}`} />
-                      {form.previous_institutions.length > 1 && (
-                        <button type="button" onClick={() => removeInst(idx)}
-                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" onClick={addInst}
-                    className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-teal-600 hover:bg-teal-50 border border-teal-200 rounded-xl transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    Add Institution
+                <input type="text" name="previousInstitutions" value={form.previousInstitutions} onChange={handle} 
+                  className={inp} placeholder="e.g. Kabul Public School" />
+              </div>
+            </div>
+          </StepCard>
+        )}
+
+        {/* ── Step 3 ── */}
+        {step === 3 && (
+          <StepCard step={STEPS[2]}>
+            <div>
+              <Label required>Subjects Able to Teach</Label>
+              <SearchMultiSelect 
+                options={ALL_SUBJECTS} 
+                selected={form.subjectsAbleToTeach} 
+                onChange={v => set('subjectsAbleToTeach', v)} 
+                placeholder="Search and select subjects..." 
+              />
+            </div>
+
+            <div>
+              <Label required>Levels Able to Teach</Label>
+              <div className="space-y-2">
+                {ALL_LEVELS.slice(0, 6).map(grade => (
+                  <label key={grade} className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={form.levelsAbleToTeach.includes(grade)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          set('levelsAbleToTeach', [...form.levelsAbleToTeach, grade]);
+                        } else {
+                          set('levelsAbleToTeach', form.levelsAbleToTeach.filter(g => g !== grade));
+                        }
+                      }}
+                      className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{grade}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </StepCard>
+        )}
+
+        {/* ── Step 4 ── */}
+        {step === 4 && (
+          <StepCard step={STEPS[3]}>
+            <div>
+              <Label required>Weekly Teaching Capacity (Hours)</Label>
+              <input type="number" name="weeklyTeachingCapacity" value={form.weeklyTeachingCapacity} onChange={handle} 
+                className={inp} placeholder="e.g. 30" min="1" max="40" required />
+              <div className="flex gap-2 mt-2.5">
+                {[20, 25, 30, 35, 40].map(hours => (
+                  <button key={hours} type="button" onClick={() => set('weeklyTeachingCapacity', hours)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${form.weeklyTeachingCapacity == hours ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-400'}`}>
+                    {hours}h
                   </button>
-                </div>
+                ))}
               </div>
+
+              <div>
+                <Label>Preferred Subjects (Optional)</Label>
+                <SearchMultiSelect 
+                  options={ALL_SUBJECTS} 
+                  selected={form.preferredSubjects} 
+                  onChange={v => set('preferredSubjects', v)} 
+                  placeholder="Search and select preferred subjects..." 
+                />
+              </div>
+            </div>
             </StepCard>
           )}
 
-          {/* ── Step 3: Capability ──────────────────────────────────────────── */}
-          {step === 3 && (
-            <StepCard step={cur}>
-              <div>
-                <Label>Subjects Able to Teach</Label>
-                <SearchMultiSelect options={ALL_SUBJECTS} selected={form.subjects_can_teach}
-                  onChange={v => set("subjects_can_teach", v)} placeholder="Search and select subjects..." />
-              </div>
-              <div>
-                <Label>Levels Able to Teach</Label>
-                <SearchMultiSelect options={ALL_LEVELS} selected={form.levels_can_teach}
-                  onChange={v => set("levels_can_teach", v)} placeholder="Search and select grade levels..." />
-              </div>
-            </StepCard>
-          )}
-
-          {/* ── Step 4: Assignment ──────────────────────────────────────────── */}
-          {step === 4 && (
-            <StepCard step={cur}>
-              <div>
-                <Label>Classes Assigned</Label>
-                <SearchMultiSelect options={ALL_CLASSES} selected={form.classes_assigned}
-                  onChange={v => set("classes_assigned", v)} placeholder="Search and select classes..." />
-              </div>
-              <div>
-                <Label>Subjects Assigned</Label>
-                <SearchMultiSelect options={ALL_SUBJECTS} selected={form.subjects_assigned}
-                  onChange={v => set("subjects_assigned", v)} placeholder="Search and select subjects..." />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Weekly Teaching Hours</Label>
-                  <input type="number" name="weekly_hours" value={form.weekly_hours} onChange={handle}
-                    className={inp} placeholder="e.g. 24" min={0} max={50} />
-                </div>
-                <div>
-                  <Label>Free Periods</Label>
-                  <input type="number" name="free_periods" value={form.free_periods} onChange={handle}
-                    className={inp} placeholder="e.g. 4" min={0} max={20} />
+          {/* ── Step 5 ── */}
+          {step === 5 && (
+            <StepCard step={STEPS[4]}>
+              <div className="space-y-5">
+                <Label required>Can Be Class Supervisor</Label>
+                <div className="flex gap-4">
+                  {['Yes', 'No'].map(option => (
+                    <label key={option} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="canBeClassSupervisor"
+                        value={option}
+                        checked={form.canBeClassSupervisor === option}
+                        onChange={handle}
+                        className="w-4 h-4 text-teal-600 border-gray-300 focus:ring-teal-500"
+                        required
+                      />
+                      <span className="text-sm font-medium text-gray-700">{option}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
-              {/* Summary */}
+              <div>
+                <Label required>Can Be Assistant Teacher</Label>
+                <div className="flex gap-4">
+                  {['Yes', 'No'].map(option => (
+                    <label key={option} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="canBeAssistantTeacher"
+                        value={option}
+                        checked={form.canBeAssistantTeacher === option}
+                        onChange={handle}
+                        className="w-4 h-4 text-teal-600 border-gray-300 focus:ring-teal-500"
+                        required
+                      />
+                      <span className="text-sm font-medium text-gray-700">{option}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Review summary */}
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
                 <p className="text-xs font-bold text-gray-700">Review Summary</p>
                 {[
-                  { label: "Staff",        value: form.staff_name || "—" },
-                  { label: "Staff Code",   value: form.staff_code || "—" },
-                  { label: "Qualification",value: form.qualification || "—" },
-                  { label: "Experience",   value: form.years_experience ? `${form.years_experience} years` : "—" },
-                  { label: "Can Teach",    value: form.subjects_can_teach.length ? form.subjects_can_teach.join(", ") : "—" },
-                  { label: "Classes",      value: form.classes_assigned.length ? `${form.classes_assigned.length} assigned` : "—" },
+                  { label: 'Staff Member', value: DEMO_STAFF.find(s => s.id == form.staffId)?.name || '—' },
+                  { label: 'Qualification', value: form.qualification || '—' },
+                  { label: 'Field of Study', value: form.fieldOfStudy || '—' },
+                  { label: 'Experience', value: form.yearsOfExperience ? `${form.yearsOfExperience} years` : '—' },
+                  { label: 'Subjects', value: form.subjectsAbleToTeach.length ? form.subjectsAbleToTeach.join(', ') : '—' },
+                  { label: 'Grade Levels', value: form.levelsAbleToTeach.length ? form.levelsAbleToTeach.join(', ') : '—' },
+                  { label: 'Weekly Capacity', value: form.weeklyTeachingCapacity ? `${form.weeklyTeachingCapacity} hours` : '—' },
+                  { label: 'Class Supervisor', value: form.canBeClassSupervisor || '—' },
+                  { label: 'Assistant Teacher', value: form.canBeAssistantTeacher || '—' },
                 ].map(r => (
-                  <div key={r.label} className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-100 last:border-0">
-                    <span className="text-xs text-gray-500 flex-shrink-0">{r.label}</span>
-                    <span className="text-xs font-semibold text-gray-800 text-right">{r.value}</span>
+                  <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+                    <span className="text-xs text-gray-500">{r.label}</span>
+                    <span className="text-xs font-semibold text-gray-800">{r.value}</span>
                   </div>
                 ))}
               </div>
@@ -540,7 +606,7 @@ export default function TeachersForm() {
             </div>
           </div>
         </div>
-      </form>
+        </form>
     </div>
   );
 }

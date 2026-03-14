@@ -51,6 +51,20 @@ const TEACHERS = [
   { id: '5', name: 'Dr. Khalid Mahmood' },
 ];
 
+const SUBJECTS = [
+  { id: '1', name: 'Mathematics' },
+  { id: '2', name: 'English' },
+  { id: '3', name: 'Science' },
+  { id: '4', name: 'Urdu' },
+  { id: '5', name: 'Physics' },
+  { id: '6', name: 'Chemistry' },
+  { id: '7', name: 'Biology' },
+  { id: '8', name: 'Computer Science' },
+  { id: '9', name: 'Islamic Studies' },
+  { id: '10', name: 'Art' },
+  { id: '11', name: 'Physical Education' },
+];
+
 const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
 
 const initialScheduleData = {
@@ -179,11 +193,6 @@ export default function Schedule() {
   const handleSave = () => {
     if (!selectedSlot) return;
     
-    if (!formData.subject || !formData.class) {
-      Swal.fire('Error', 'Please fill in at least Subject and Class', 'error');
-      return;
-    }
-
     setScheduleData(prev => ({
       ...prev,
       [selectedSlot.key]: {
@@ -252,6 +261,40 @@ export default function Schedule() {
   };
 
   const classesToShow = getClassesToShow();
+
+  // Filter schedules based on selected filters
+  const getFilteredSchedules = () => {
+    let schedules = [];
+    
+    Object.entries(scheduleData).forEach(([key, data]) => {
+      const [day, period] = key.split('-');
+      schedules.push({
+        key,
+        day,
+        period,
+        class: data.className,
+        subject: data.subjectName,
+        teacher: data.teacherName,
+        room: data.room
+      });
+    });
+    
+    // Filter by class if not 'all'
+    if (selectedClass !== 'all') {
+      schedules = schedules.filter(item => item.class === selectedClass);
+    }
+    
+    // Filter by teacher if not 'all'
+    if (selectedTeacher !== 'all') {
+      schedules = schedules.filter(item => item.teacher === selectedTeacher);
+    }
+    
+    return schedules;
+  };
+
+  const filteredSchedules = getFilteredSchedules();
+  const filterClass = selectedClass === 'all' ? null : selectedClass;
+  const filterTeacher = selectedTeacher === 'all' ? null : selectedTeacher;
 
   // Drag and Drop handlers
   const handleDragStart = (e, day, period) => {

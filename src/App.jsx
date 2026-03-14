@@ -79,6 +79,9 @@ import LessonPlans from "./pages/teacher-management/LessonPlans";
 import Teachers from "./pages/teacher-management/teacher/Teachers";
 import TeachersForm from "./pages/teacher-management/teacher/TeachersForm";
 import TeachersShow from "./pages/teacher-management/teacher/TeachersShow";
+import TeacherSubjects from "./pages/teacher-management/teacher-subjects/TeacherSubjects";
+import TeacherSubjectForm from "./pages/teacher-management/teacher-subjects/TeacherSubjectForm";
+import TeacherSubjectShow from "./pages/teacher-management/teacher-subjects/TeacherSubjectShow";
 
 // Branches Pages
 import Branches from "./pages/branches/Branches";
@@ -208,6 +211,21 @@ function App() {
           <Route
             path="teacher-management/teachers/show/:id"
             element={<TeachersShow />}
+          />
+
+          {/* Teacher Management Routes - Teacher-Subject Assignments */}
+          <Route path="teacher-management/teacher-subjects" element={<TeacherSubjects />} />
+          <Route
+            path="teacher-management/teacher-subjects/create"
+            element={<TeacherSubjectForm />}
+          />
+          <Route
+            path="teacher-management/teacher-subjects/edit/:id"
+            element={<TeacherSubjectForm />}
+          />
+          <Route
+            path="teacher-management/teacher-subjects/show/:id"
+            element={<TeacherSubjectShow />}
           />
 
           {/* Class Management Routes - Redirect to Teacher Management */}

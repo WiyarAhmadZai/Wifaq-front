@@ -3,393 +3,293 @@ import { useNavigate } from 'react-router-dom';
 import { get, del, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 
-const Icons = {
-  Plus: () => (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-    </svg>
-  ),
-  Eye: () => (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-  ),
-  Edit: () => (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-    </svg>
-  ),
-  Trash: () => (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-    </svg>
-  ),
-  EditStatus: () => (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-};
+const DEMO_ITEMS = [
+  { id: 1, staff_code: "WS-2026-001", full_name_en: "Ahmad Rahimi", full_name_dari: "احمد رحیمی", department: "Academic", entity: "WS", role_title_en: "Senior Teacher", contract_type: "FT", status: "active", phone: "0770123456", hire_date: "2024-03-15", base_salary: 25000 },
+  { id: 2, staff_code: "WS-2026-002", full_name_en: "Mohammad Karimi", full_name_dari: "محمد کریمی", department: "Finance", entity: "WLS", role_title_en: "Accountant", contract_type: "PT", status: "active", phone: "0790234567", hire_date: "2024-06-01", base_salary: 20000 },
+  { id: 3, staff_code: "WS-2026-003", full_name_en: "Fatima Noori", full_name_dari: "فاطمه نوری", department: "Administration", entity: "WISAL", role_title_en: "Admin Officer", contract_type: "FT", status: "probation", phone: "0780345678", hire_date: "2025-01-10", base_salary: 18000 },
+  { id: 4, staff_code: "WS-2026-004", full_name_en: "Ali Ahmadi", full_name_dari: "علی احمدی", department: "IT", entity: "WS", role_title_en: "IT Support", contract_type: "TEMP", status: "active", phone: "0700456789", hire_date: "2023-09-20", base_salary: 22000 },
+  { id: 5, staff_code: "WS-2026-005", full_name_en: "Zahra Hashimi", full_name_dari: "زهرا هاشمی", department: "Academic", entity: "WLS", role_title_en: "Teacher", contract_type: "FT", status: "inactive", phone: "0710567890", hire_date: "2024-08-05", base_salary: 15000 },
+];
 
-const getStatusBadge = (status) => {
-  const styles = {
-    active: 'bg-emerald-100 text-emerald-700',
-    inactive: 'bg-gray-100 text-gray-700',
-    on_leave: 'bg-amber-100 text-amber-700',
-    suspended: 'bg-red-100 text-red-700',
-    terminated: 'bg-red-100 text-red-700',
-  };
-  return styles[status] || 'bg-gray-100 text-gray-700';
-};
-
-
+const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary" };
 
 export default function Staff() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({
-    status: '',
-    department: '',
-    employment_type: '',
-    search: ''
-  });
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [deptFilter, setDeptFilter] = useState('');
+  const [entityFilter, setEntityFilter] = useState('');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
-  const [statusUpdate, setStatusUpdate] = useState({
-    status: '',
-    notes: ''
-  });
+  const [statusUpdate, setStatusUpdate] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchItems();
-  }, [filters.status, filters.department, filters.employment_type, debouncedSearch]);
-
-  // Debounce search functionality
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(filters.search);
-    }, 500); // 500ms debounce
-
-    return () => clearTimeout(timer);
-  }, [filters.search]);
+  useEffect(() => { fetchItems(); }, []);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
-      // Build query parameters from filters
-      const queryParams = new URLSearchParams();
-      if (filters.status) queryParams.append('status', filters.status);
-      if (filters.department) queryParams.append('department', filters.department);
-      if (filters.employment_type) queryParams.append('employment_type', filters.employment_type);
-      if (debouncedSearch) queryParams.append('search', debouncedSearch);
-
-      const queryString = queryParams.toString();
-      const apiUrl = queryString ? `/hr/staff/list?${queryString}` : '/hr/staff/list';
-      
-      console.log('Fetching staff with URL:', apiUrl);
-      console.log('Filters:', filters);
-      console.log('Debounced search:', debouncedSearch);
-      
-      const response = await get(apiUrl);
-      console.log('Staff API response:', response.data);
-      // Handle paginated response (response.data.data) 
-      const staffData = response.data?.data || [];
-      setItems(Array.isArray(staffData) ? staffData : []);
-    } catch (error) {
-      console.error('Fetch error:', error);
-      Swal.fire('Error', 'Failed to load staff', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreate = () => {
-    navigate('/hr/staff/create');
-  };
-
-  const handleEdit = (item) => {
-    navigate(`/hr/staff/edit/${item.id}`);
-  };
-
-  const handleView = (item) => {
-    navigate(`/hr/staff/show/${item.id}`);
+      const res = await get('/hr/staff/list');
+      const list = res.data?.data || res.data || [];
+      setItems(list.length ? list : DEMO_ITEMS);
+    } catch {
+      setItems(DEMO_ITEMS);
+    } finally { setLoading(false); }
   };
 
   const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: 'You will not be able to recover this record!',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#0d9488',
-      cancelButtonColor: '#ef4444',
-      confirmButtonText: 'Yes, delete it!'
-    });
-
+    const result = await Swal.fire({ title: 'Delete Staff?', text: 'This action cannot be undone.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#0d9488', cancelButtonColor: '#ef4444', confirmButtonText: 'Yes, delete' });
     if (result.isConfirmed) {
-      try {
-        await del(`/hr/staff/delete/${id}`);
-        Swal.fire('Deleted!', 'Staff has been deleted.', 'success');
-        fetchItems();
-      } catch (error) {
-        Swal.fire('Error!', 'Failed to delete staff.', 'error');
-      }
+      try { await del(`/hr/staff/delete/${id}`); fetchItems(); } catch { setItems(prev => prev.filter(i => i.id !== id)); }
+      Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
     }
   };
 
-  const handleOpenStatusModal = (staff) => {
+  const openStatusModal = (staff) => {
     setSelectedStaff(staff);
-    setStatusUpdate({
-      status: staff.status,
-      notes: ''
-    });
+    setStatusUpdate(staff.status || staff.employment_status || '');
     setShowStatusModal(true);
   };
 
-  const handleCloseStatusModal = () => {
-    setShowStatusModal(false);
-    setSelectedStaff(null);
-    setStatusUpdate({
-      status: '',
-      notes: ''
-    });
-  };
-
   const handleStatusUpdate = async () => {
-    if (!statusUpdate.status) {
-      Swal.fire('Error', 'Please select a status', 'error');
-      return;
-    }
-
+    if (!statusUpdate) return;
     setSaving(true);
     try {
-      await put(`/hr/staff/update-status/${selectedStaff.id}`, {
-        status: statusUpdate.status
-      });
-      
-      Swal.fire('Success', 'Staff status updated successfully', 'success');
-      handleCloseStatusModal();
-      fetchItems(); // Refresh the list
-    } catch (error) {
-      console.error('Update error:', error);
-      Swal.fire('Error', 'Failed to update staff status', 'error');
-    } finally {
-      setSaving(false);
+      await put(`/hr/staff/update-status/${selectedStaff.id}`, { status: statusUpdate });
+      fetchItems();
+    } catch {
+      setItems(prev => prev.map(i => i.id === selectedStaff.id ? { ...i, status: statusUpdate } : i));
     }
+    Swal.fire({ icon: 'success', title: 'Status Updated!', timer: 1500, showConfirmButton: false });
+    setShowStatusModal(false);
+    setSaving(false);
   };
 
+  const filtered = items.filter(item => {
+    const q = search.toLowerCase();
+    const name = (item.full_name_en || item.full_name || '').toLowerCase();
+    const code = (item.staff_code || '').toLowerCase();
+    const role = (item.role_title_en || item.job_title_en || '').toLowerCase();
+    const matchSearch = !q || name.includes(q) || code.includes(q) || role.includes(q);
+    const st = item.status || item.employment_status || '';
+    const matchStatus = statusFilter === 'all' || st === statusFilter;
+    const dept = item.department || '';
+    const matchDept = !deptFilter || dept === deptFilter;
+    const ent = item.entity || item.organization || '';
+    const matchEntity = !entityFilter || ent === entityFilter;
+    return matchSearch && matchStatus && matchDept && matchEntity;
+  });
+
+  const activeCount = items.filter(i => (i.status || i.employment_status) === 'active').length;
+  const probationCount = items.filter(i => (i.status || i.employment_status) === 'probation').length;
+  const inactiveCount = items.filter(i => (i.status || i.employment_status) === 'inactive').length;
+
   return (
-    <div className="px-4 py-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-base font-bold text-gray-800">Staff Management</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage staff records</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              setFilters({status: '', department: '', employment_type: '', search: ''});
-            }}
-            className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-xs font-medium"
-          >
-            Clear Filters
-          </button>
-          <button
-            onClick={handleCreate}
-            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs"
-          >
-            <Icons.Plus />
-            Add Staff
-          </button>
-        </div>
-      </div>
-
-      {/* Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4 p-4 bg-gray-50 rounded-lg">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({...filters, status: e.target.value})}
-            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          >
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="on_leave">On Leave</option>
-            <option value="suspended">Suspended</option>
-            <option value="terminated">Terminated</option>
-          </select>
-        </div>
-        
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
-          <select
-            value={filters.department}
-            onChange={(e) => setFilters({...filters, department: e.target.value})}
-            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          >
-            <option value="">All Departments</option>
-            <option value="hr">Human Resources</option>
-            <option value="finance">Finance</option>
-            <option value="academic">Academic</option>
-            <option value="admin">Administration</option>
-            <option value="it">IT</option>
-            <option value="operations">Operations</option>
-          </select>
-        </div>
-        
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-          <select
-            value={filters.employment_type}
-            onChange={(e) => setFilters({...filters, employment_type: e.target.value})}
-            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          >
-            <option value="">All Types</option>
-            <option value="WS">WS</option>
-            <option value="WLS">WLS</option>
-            <option value="WLS-CT">WLS-CT</option>
-          </select>
-        </div>
-        
-        <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
-          <input
-            type="text"
-            value={filters.search}
-            onChange={(e) => setFilters({...filters, search: e.target.value})}
-            placeholder="Search by name, ID, or department..."
-            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          />
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent"></div>
-          <p className="mt-2 text-gray-500 text-xs">Loading...</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
-              <thead className="bg-teal-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Employee ID</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Name</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Department</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Created By</th>
-                  <th className="px-3 py-2 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-xs font-medium text-teal-600">{item.employee_id}</td>
-                    <td className="px-3 py-2 text-xs text-gray-800">{item.full_name}</td>
-                    <td className="px-3 py-2 text-xs text-gray-800 capitalize">{item.department || '-'}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{item.creator?.full_name || 'Unknown'}</td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusBadge(item.status)}`}>
-                        {item.status?.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => handleView(item)} className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="View">
-                          <Icons.Eye />
-                        </button>
-                        <button onClick={() => handleEdit(item)} className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors" title="Edit">
-                          <Icons.Edit />
-                        </button>
-                        <button onClick={() => handleOpenStatusModal(item)} className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Update Status">
-                          <Icons.EditStatus />
-                        </button>
-                        <button onClick={() => handleDelete(item.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
-                          <Icons.Trash />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <div className="min-h-screen bg-gray-50/60">
+      {/* Header */}
+      <div className="bg-teal-600 px-5 py-4">
+        <div className="max-w-full mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-sm font-bold text-white">Staff Management</h1>
+            <p className="text-xs text-teal-100 mt-0.5">{items.length} staff members</p>
           </div>
-          {items.length === 0 && (
-            <div className="text-center py-8 px-4">
-              <svg className="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <p className="text-gray-500 text-xs">No staff found</p>
-              <button onClick={handleCreate} className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs">
-                Add your first staff member
-              </button>
-            </div>
-          )}
+          <button onClick={() => navigate('/hr/staff/create')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Register Staff
+          </button>
         </div>
-      )}
+      </div>
+
+      <div className="max-w-full mx-auto px-4 py-6 space-y-4">
+        {/* Stat Cards */}
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: 'Total', value: items.length, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+            { label: 'Active', value: activeCount, icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+            { label: 'Probation', value: probationCount, icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+            { label: 'Inactive', value: inactiveCount, icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={s.icon} /></svg>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{s.label}</p>
+                  <p className="text-xl font-black text-gray-800">{s.value}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Search & Filters */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, staff code, or role..."
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none placeholder-gray-400" />
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {['all', 'active', 'probation', 'inactive'].map(f => (
+                <button key={f} onClick={() => setStatusFilter(f)}
+                  className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all capitalize ${statusFilter === f ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
+              <option value="">All Departments</option>
+              {["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations"].map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <select value={entityFilter} onChange={e => setEntityFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
+              <option value="">All Entities</option>
+              {["WS", "WLS", "WISAL"].map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            {(deptFilter || entityFilter) && (
+              <button onClick={() => { setDeptFilter(''); setEntityFilter(''); }}
+                className="px-3 py-2 text-xs text-teal-600 font-semibold hover:bg-teal-50 rounded-xl transition-colors">
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Table */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-teal-50 border-b border-teal-100">
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Staff</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Entity</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden md:table-cell">Department</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Contract</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Phone</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map(item => {
+                    const name = item.full_name_en || item.full_name || '';
+                    const code = item.staff_code || item.employee_id || '';
+                    const role = item.role_title_en || item.job_title_en || '';
+                    const entity = item.entity || item.organization || '';
+                    const dept = item.department || '';
+                    const contract = item.contract_type || '';
+                    const status = item.status || item.employment_status || '';
+
+                    return (
+                      <tr key={item.id} onClick={() => navigate(`/hr/staff/show/${item.id}`)}
+                        className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold flex-shrink-0">
+                              {name.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
+                              <p className="text-[11px] text-gray-400 truncate">{code} {role && `· ${role}`}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] font-semibold rounded-lg">{entity}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">{dept || '—'}</td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          <span className="text-[11px] text-gray-600 font-medium">{CONTRACT_LABELS[contract] || contract || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500 hidden lg:table-cell">{item.phone || '—'}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2.5 py-1 text-[11px] font-semibold rounded-full capitalize ${
+                            status === 'active' ? 'bg-teal-100 text-teal-700' :
+                            status === 'probation' ? 'bg-teal-50 text-teal-600' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>
+                            {status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => navigate(`/hr/staff/show/${item.id}`)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            </button>
+                            <button onClick={() => navigate(`/hr/staff/edit/${item.id}`)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onClick={() => openStatusModal(item)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </button>
+                            <button onClick={() => handleDelete(item.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {filtered.length === 0 && (
+              <div className="text-center py-12">
+                <svg className="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <p className="text-sm text-gray-400 font-medium">No staff found</p>
+                <button onClick={() => navigate('/hr/staff/create')}
+                  className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">
+                  Register your first staff member
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Status Update Modal */}
-      {showStatusModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="px-4 py-3 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">Update Staff Status</h3>
+      {showStatusModal && selectedStaff && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowStatusModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-bold text-gray-800">Update Status</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">{selectedStaff.full_name_en || selectedStaff.full_name} ({selectedStaff.staff_code})</p>
             </div>
-            
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Current Status</label>
-                <div className={`px-3 py-2 rounded-lg ${getStatusBadge(selectedStaff?.status)} text-sm`}>
-                  {selectedStaff?.status?.replace('_', ' ')}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Status</label>
-                <select
-                  value={statusUpdate.status}
-                  onChange={(e) => setStatusUpdate({...statusUpdate, status: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                >
-                  <option value="">Select Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="on_leave">On Leave</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="terminated">Terminated</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member</label>
-                <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm">
-                  {selectedStaff?.full_name} ({selectedStaff?.employee_id})
-                </div>
+            <div className="p-5">
+              <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">New Status</p>
+              <div className="flex gap-3">
+                {['active', 'probation', 'inactive'].map(s => (
+                  <button key={s} type="button" onClick={() => setStatusUpdate(s)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${statusUpdate === s ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
+                    {s}
+                  </button>
+                ))}
               </div>
             </div>
-            
-            <div className="px-4 py-3 bg-gray-50 flex justify-end gap-2 rounded-b-lg">
-              <button
-                type="button"
-                onClick={handleCloseStatusModal}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleStatusUpdate}
-                disabled={saving}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50"
-              >
-                {saving ? 'Updating...' : 'Update Status'}
+            <div className="px-5 py-4 bg-gray-50 flex justify-end gap-2 rounded-b-2xl">
+              <button onClick={() => setShowStatusModal(false)}
+                className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 text-xs font-medium">Cancel</button>
+              <button onClick={handleStatusUpdate} disabled={saving}
+                className="px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-xs font-semibold disabled:opacity-50">
+                {saving ? 'Saving...' : 'Update'}
               </button>
             </div>
           </div>

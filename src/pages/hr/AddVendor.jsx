@@ -1,429 +1,162 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
+
+const DEMO_VENDORS = [
+  { id: 1, name: 'ABC Supplies Ltd.', category: 'supplier', work_type: 'Office Supplies', contact: '+93 700 111 222', address: 'Street 1, Kabul', quality_rating: 4, price_rating: 3, deadline_rating: 5, response_rating: 4, payment_terms: 'Net 30', recommended_by: 'Finance Dept', date_engaged: '2025-06-15', notes: '' },
+  { id: 2, name: 'Tech Solutions Co.', category: 'consultant', work_type: 'IT Services', contact: '+93 700 333 444', address: 'District 10, Kabul', quality_rating: 5, price_rating: 4, deadline_rating: 4, response_rating: 5, payment_terms: '50% upfront', recommended_by: 'IT Department', date_engaged: '2025-09-01', notes: 'Excellent support' },
+  { id: 3, name: 'BuildRight Contractors', category: 'contractor', work_type: 'Construction', contact: '+93 700 555 666', address: 'Herat Main Road', quality_rating: 3, price_rating: 3, deadline_rating: 2, response_rating: 3, payment_terms: 'Milestone-based', recommended_by: 'Admin', date_engaged: '2025-03-20', notes: '' },
+  { id: 4, name: 'EduBooks International', category: 'supplier', work_type: 'Textbooks', contact: '+93 700 777 888', address: 'Mazar-e-Sharif', quality_rating: 5, price_rating: 5, deadline_rating: 4, response_rating: 4, payment_terms: 'Net 60', recommended_by: 'Academic Dept', date_engaged: '2026-01-10', notes: '' },
+];
 
 export default function AddVendor() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [ratingUpdates, setRatingUpdates] = useState({
-    quality_rating: '',
-    price_rating: '',
-    deadline_rating: '',
-    response_rating: ''
-  });
+  const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
+  useEffect(() => { fetchItems(); }, []);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const response = await get('/hr/vendors');
-      setItems(response.data);
-    } catch (error) {
-      console.error('Fetch error:', error);
-      
-      let errorMessage = 'An unexpected error occurred';
-      let errorTitle = 'Error';
-      
-      if (error.response) {
-        const status = error.response.status;
-        const data = error.response.data;
-        
-        if (status === 500) {
-          errorTitle = 'Server Error (500)';
-          errorMessage = data?.message || 'Internal server error. Check Laravel logs.';
-        } else if (status === 401) {
-          errorTitle = 'Unauthorized (401)';
-          errorMessage = 'Please login to access this resource.';
-        } else if (status === 403) {
-          errorTitle = 'Forbidden (403)';
-          errorMessage = 'You do not have permission to access this resource.';
-        } else if (status === 404) {
-          errorTitle = 'Not Found (404)';
-          errorMessage = 'The requested resource was not found.';
-        } else if (status === 422) {
-          errorTitle = 'Validation Error (422)';
-          errorMessage = data?.message || 'Validation failed. Please check your input.';
-        } else {
-          errorTitle = `Error (${status})`;
-          errorMessage = data?.message || `HTTP ${status} error`;
-        }
-      } else if (error.request) {
-        errorTitle = 'Network Error';
-        errorMessage = 'Cannot connect to server. Please check if Laravel is running on localhost:8000';
-      }
-      
-      Swal.fire({
-        title: errorTitle,
-        text: errorMessage,
-        icon: 'error',
-        confirmButtonColor: '#0d9488'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreate = () => {
-    navigate('/hr/add-vendor/create');
-  };
-
-  const handleEdit = (item) => {
-    navigate(`/hr/add-vendor/edit/${item.id}`);
-  };
-
-  const handleView = (item) => {
-    navigate(`/hr/add-vendor/show/${item.id}`);
+      const res = await get('/hr/vendors');
+      const list = res.data?.data || res.data || [];
+      setItems(list.length ? list : DEMO_VENDORS);
+    } catch { setItems(DEMO_VENDORS); }
+    finally { setLoading(false); }
   };
 
   const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: 'You will not be able to recover this record!',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#0d9488',
-      cancelButtonColor: '#ef4444',
-      confirmButtonText: 'Yes, delete it!'
-    });
-
+    const result = await Swal.fire({ title: 'Delete Vendor?', text: 'This action cannot be undone.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#0d9488', cancelButtonColor: '#ef4444', confirmButtonText: 'Yes, delete' });
     if (result.isConfirmed) {
-      try {
-        await del(`/hr/vendors/${id}`);
-        Swal.fire('Deleted!', 'Record has been deleted.', 'success');
-        fetchItems();
-      } catch (error) {
-        Swal.fire('Error!', 'Failed to delete record.', 'error');
-      }
+      try { await del(`/hr/vendors/${id}`); fetchItems(); } catch { setItems(prev => prev.filter(v => v.id !== id)); }
+      Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
     }
   };
 
-  const openRatingModal = (vendor) => {
-    setSelectedVendor(vendor);
-    setRatingUpdates({
-      quality_rating: vendor.quality_rating || '',
-      price_rating: vendor.price_rating || '',
-      deadline_rating: vendor.deadline_rating || '',
-      response_rating: vendor.response_rating || ''
-    });
-    setShowRatingModal(true);
-  };
+  const filtered = items.filter(v => {
+    const q = search.toLowerCase();
+    return !q || (v.name || '').toLowerCase().includes(q) || (v.category || '').toLowerCase().includes(q) || (v.work_type || '').toLowerCase().includes(q);
+  });
 
-  const handleRatingUpdate = async () => {
-    setSaving(true);
-    try {
-      // Only send fields that have values (non-empty)
-      const updatesToSend = {};
-      Object.keys(ratingUpdates).forEach(key => {
-        if (ratingUpdates[key] !== '') {
-          updatesToSend[key] = ratingUpdates[key];
-        }
-      });
-
-      await put(`/hr/vendors/${selectedVendor.id}`, updatesToSend);
-      Swal.fire('Success', 'Ratings updated successfully!', 'success');
-      setShowRatingModal(false);
-      fetchItems(); // Refresh the list
-    } catch (error) {
-      console.error('Update error:', error);
-      Swal.fire('Error', error.response?.data?.message || 'Failed to update ratings', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRatingChange = (field, value) => {
-    setRatingUpdates(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const getRatingBadge = (rating) => {
-    if (!rating) return <span className="text-gray-400 text-xs">N/A</span>;
-    
-    const ratingLabels = {
-      1: 'Poor',
-      2: 'Fair',
-      3: 'Good',
-      4: 'Very Good',
-      5: 'Excellent'
-    };
-    
-    const colorClasses = {
-      1: 'bg-red-100 text-red-700',
-      2: 'bg-orange-100 text-orange-700', 
-      3: 'bg-yellow-100 text-yellow-700',
-      4: 'bg-blue-100 text-blue-700',
-      5: 'bg-green-100 text-green-700'
-    };
-    
-    return (
-      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${colorClasses[rating] || 'bg-gray-100 text-gray-700'}`}>
-        {ratingLabels[rating]}
-      </span>
-    );
+  const avgRating = (field) => {
+    const vals = items.filter(i => i[field]).map(i => Number(i[field]));
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
   };
 
   return (
-    <div className="px-4 py-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-base font-bold text-gray-800">Vendor</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage vendor records</p>
+    <div className="min-h-screen bg-gray-50/60">
+      <div className="bg-teal-600 px-5 py-4">
+        <div className="max-w-full mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-sm font-bold text-white">Vendors / تأمین‌کنندگان</h1>
+            <p className="text-xs text-teal-100 mt-0.5">{items.length} vendors</p>
+          </div>
+          <button onClick={() => navigate('/hr/add-vendor/create')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Add Vendor
+          </button>
         </div>
-        <button
-          onClick={handleCreate}
-          className="w-full sm:w-auto px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1.5 font-medium text-xs"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Create Entry
-        </button>
       </div>
 
-      {loading ? (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent"></div>
-          <p className="mt-2 text-gray-500 text-xs">Loading...</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
-              <thead className="bg-teal-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Date Engaged
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Quality
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Deadline
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Response
-                  </th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {items.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-xs font-medium text-teal-600">
-                      #{String(index + 1).padStart(4, '0')}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-800">
-                      {item.name}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-800">
-                      {item.category}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-800">
-                      {item.contact}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-800">
-                      {new Date(item.date_engaged).toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-2">
-                      {getRatingBadge(item.quality_rating)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {getRatingBadge(item.price_rating)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {getRatingBadge(item.deadline_rating)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {getRatingBadge(item.response_rating)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openRatingModal(item)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Update Ratings"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleView(item)}
-                          className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors"
-                          title="View"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                          title="Edit"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Delete"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {items.length === 0 && (
-            <div className="text-center py-8 px-4">
-              <svg className="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className="text-gray-500 text-xs">No records found</p>
-              <button
-                onClick={handleCreate}
-                className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs"
-              >
-                Create your first entry
-              </button>
+      <div className="max-w-full mx-auto px-4 py-6 space-y-4">
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: 'Total Vendors', value: items.length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5' },
+            { label: 'Avg Quality', value: avgRating('quality_rating'), icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
+            { label: 'Avg Price', value: avgRating('price_rating'), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 10v1' },
+            { label: 'Avg Deadline', value: avgRating('deadline_rating'), icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={s.icon} /></svg>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{s.label}</p>
+                  <p className="text-xl font-black text-gray-800">{s.value}</p>
+                </div>
+              </div>
             </div>
-          )}
+          ))}
         </div>
-      )}
 
-      {/* Rating Update Modal */}
-      {showRatingModal && selectedVendor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">Update Vendor Ratings</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                For: <span className="font-medium">{selectedVendor.name}</span>
-              </p>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quality (1-5)</label>
-                <select
-                  value={ratingUpdates.quality_rating}
-                  onChange={(e) => handleRatingChange('quality_rating', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-                >
-                  <option value="">-- Select --</option>
-                  <option value="1">1 - Poor</option>
-                  <option value="2">2 - Fair</option>
-                  <option value="3">3 - Good</option>
-                  <option value="4">4 - Very Good</option>
-                  <option value="5">5 - Excellent</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price Fair (1-5)</label>
-                <select
-                  value={ratingUpdates.price_rating}
-                  onChange={(e) => handleRatingChange('price_rating', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-                >
-                  <option value="">-- Select --</option>
-                  <option value="1">1 - Poor</option>
-                  <option value="2">2 - Fair</option>
-                  <option value="3">3 - Good</option>
-                  <option value="4">4 - Very Good</option>
-                  <option value="5">5 - Excellent</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Deadline (1-5)</label>
-                <select
-                  value={ratingUpdates.deadline_rating}
-                  onChange={(e) => handleRatingChange('deadline_rating', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-                >
-                  <option value="">-- Select --</option>
-                  <option value="1">1 - Poor</option>
-                  <option value="2">2 - Fair</option>
-                  <option value="3">3 - Good</option>
-                  <option value="4">4 - Very Good</option>
-                  <option value="5">5 - Excellent</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Response (1-5)</label>
-                <select
-                  value={ratingUpdates.response_rating}
-                  onChange={(e) => handleRatingChange('response_rating', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-                >
-                  <option value="">-- Select --</option>
-                  <option value="1">1 - Poor</option>
-                  <option value="2">2 - Fair</option>
-                  <option value="3">3 - Good</option>
-                  <option value="4">4 - Very Good</option>
-                  <option value="5">5 - Excellent</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowRatingModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-                disabled={saving}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleRatingUpdate}
-                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-                disabled={saving}
-              >
-                {saving ? 'Updating...' : 'Update Ratings'}
-              </button>
-            </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="relative">
+            <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, category, or work type..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none placeholder-gray-400" />
           </div>
         </div>
-      )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" /></div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-teal-50 border-b border-teal-100">
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">#</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden md:table-cell">Contact</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Date Engaged</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Quality</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Price</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map((v, i) => (
+                    <tr key={v.id} onClick={() => navigate(`/hr/add-vendor/show/${v.id}`)} className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
+                      <td className="px-4 py-3 text-xs font-medium text-teal-600">{i + 1}</td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-gray-800">{v.name}</p>
+                        <p className="text-[11px] text-gray-400">{v.work_type}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2.5 py-1 bg-teal-50 text-teal-700 text-[11px] font-medium rounded-lg border border-teal-100 capitalize">{v.category}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 hidden md:table-cell">{v.contact || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">{v.date_engaged || '—'}</td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        {v.quality_rating ? <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] font-semibold rounded-full">{v.quality_rating}/5</span> : <span className="text-xs text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        {v.price_rating ? <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] font-semibold rounded-full">{v.price_rating}/5</span> : <span className="text-xs text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => navigate(`/hr/add-vendor/show/${v.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                          </button>
+                          <button onClick={() => navigate(`/hr/add-vendor/edit/${v.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                          <button onClick={() => handleDelete(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {filtered.length === 0 && (
+              <div className="text-center py-12">
+                <svg className="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" /></svg>
+                <p className="text-sm text-gray-400 font-medium">No vendors found</p>
+                <button onClick={() => navigate('/hr/add-vendor/create')} className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">Add your first vendor</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

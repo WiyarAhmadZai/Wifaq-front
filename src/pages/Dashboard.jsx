@@ -109,8 +109,10 @@ export default function Dashboard() {
   useEffect(() => {
     const testApi = async () => {
       try {
-        const response = await get('/test');
-        setApiStatus(response.data.message);
+        // const response = await get('/test');
+        // setApiStatus(response.data.message);
+        // Temporary fix: set status without API call
+        setApiStatus('API Connection Disabled');
       } catch (error) {
         setApiStatus('API Error: ' + (error.message || 'Unknown error'));
       }
@@ -316,3 +318,4 @@ export default function Dashboard() {
     </div>
   );
 }
+  

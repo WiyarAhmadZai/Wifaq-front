@@ -387,12 +387,8 @@ export default function Layout() {
   ];
 
   const recruitmentMenus = [
-    { label: "Job Requisitions", path: "/recruitment/job-requisitions" },
     { label: "Job Postings", path: "/recruitment/job-postings" },
     { label: "Applications", path: "/recruitment/applications" },
-    { label: "Interviews", path: "/recruitment/interviews" },
-    { label: "Job Offers", path: "/recruitment/job-offers" },
-    { label: "Hiring Decisions", path: "/recruitment/hiring-decisions" },
     { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
   ];
 

@@ -400,6 +400,13 @@ export default function Layout() {
     { label: "Vehicles", path: "/transportation/vehicles" },
   ];
 
+  const recruitmentMenus = [
+    { label: "Job Requisitions", path: "/recruitment/job-requisitions" },
+    { label: "Job Postings", path: "/recruitment/job-postings" },
+    { label: "Applications", path: "/recruitment/applications" },
+    { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
+  ];
+
   const financeMenus = [
     { label: "Fee Payments", path: "/finance/fee-payments" },
   ];
@@ -569,6 +576,23 @@ export default function Layout() {
             onClick={() => toggleMenu("hr")}
           >
             {hrSubMenus.map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+
+          <ParentMenu
+            icon={Icons.Departments}
+            label="Recruitment"
+            isOpen={openMenu.includes("recruitment")}
+            onClick={() => toggleMenu("recruitment")}
+          >
+            {recruitmentMenus.map((item) => (
               <SubMenuItem
                 key={item.path}
                 label={item.label}

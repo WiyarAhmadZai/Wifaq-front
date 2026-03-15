@@ -115,6 +115,18 @@ import Schedule from "./pages/class-management/Schedule";
 import ScheduleForm from "./pages/class-management/ScheduleForm";
 import ScheduleShow from "./pages/class-management/ScheduleShow";
 
+// Recruitment Pages
+import JobRequisitions from "./pages/recruitment/JobRequisitions";
+import JobRequisitionForm from "./pages/recruitment/JobRequisitionForm";
+import JobRequisitionShow from "./pages/recruitment/JobRequisitionShow";
+import JobPostings from "./pages/recruitment/JobPostings";
+import JobPostingForm from "./pages/recruitment/JobPostingForm";
+import JobPostingShow from "./pages/recruitment/JobPostingShow";
+import Applications from "./pages/recruitment/Applications";
+import ApplicationForm from "./pages/recruitment/ApplicationForm";
+import ApplicationShow from "./pages/recruitment/ApplicationShow";
+import CandidatePool from "./pages/recruitment/CandidatePool";
+
 // Student Registration Pages
 
 const Placeholder = ({ title }) => (
@@ -558,6 +570,26 @@ function App() {
             path="finance/fee-payments/show/:id"
             element={<FeePaymentForm />}
           />
+          {/* Recruitment Routes - Job Requisitions */}
+          <Route path="recruitment/job-requisitions" element={<JobRequisitions />} />
+          <Route path="recruitment/job-requisitions/create" element={<JobRequisitionForm />} />
+          <Route path="recruitment/job-requisitions/edit/:id" element={<JobRequisitionForm />} />
+          <Route path="recruitment/job-requisitions/show/:id" element={<JobRequisitionShow />} />
+
+          {/* Recruitment Routes - Job Postings */}
+          <Route path="recruitment/job-postings" element={<JobPostings />} />
+          <Route path="recruitment/job-postings/create" element={<JobPostingForm />} />
+          <Route path="recruitment/job-postings/edit/:id" element={<JobPostingForm />} />
+          <Route path="recruitment/job-postings/show/:id" element={<JobPostingShow />} />
+
+          {/* Recruitment Routes - Applications (central hub for interviews, offers, decisions) */}
+          <Route path="recruitment/applications" element={<Applications />} />
+          <Route path="recruitment/applications/create" element={<ApplicationForm />} />
+          <Route path="recruitment/applications/edit/:id" element={<ApplicationForm />} />
+          <Route path="recruitment/applications/show/:id" element={<ApplicationShow />} />
+
+          {/* Recruitment Routes - Candidate Pool */}
+          <Route path="recruitment/candidate-pool" element={<CandidatePool />} />
         </Route>
       </Routes>
     </Router>

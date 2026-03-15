@@ -83,6 +83,9 @@ import TeacherSubjects from "./pages/teacher-management/teacher-subjects/Teacher
 import TeacherSubjectForm from "./pages/teacher-management/teacher-subjects/TeacherSubjectForm";
 import TeacherSubjectShow from "./pages/teacher-management/teacher-subjects/TeacherSubjectShow";
 
+// Profile Page
+import MyProfile from "./pages/MyProfile";
+
 // Branches Pages
 import Branches from "./pages/branches/Branches";
 import BranchForm from "./pages/branches/BranchForm";
@@ -310,6 +313,9 @@ function App() {
             path="class-management/schedule/show/:id"
             element={<ScheduleShow />}
           />
+
+          {/* Profile */}
+          <Route path="profile" element={<MyProfile />} />
 
           {/* HR Routes - Staff */}
           <Route path="hr/staff" element={<Staff />} />

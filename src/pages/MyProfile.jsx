@@ -44,7 +44,7 @@ export default function MyProfile() {
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
       <div className="bg-teal-600 px-5 py-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-full mx-auto">
           <div className="flex items-center gap-3 mb-5">
             <button onClick={() => navigate(-1)}
               className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
@@ -73,7 +73,7 @@ export default function MyProfile() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-full mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Left: Info sections */}
           <div className="lg:col-span-2 space-y-4">

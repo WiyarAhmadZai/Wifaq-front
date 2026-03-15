@@ -147,7 +147,7 @@ export default function AddVendorForm() {
   return (
     <div className="min-h-screen bg-gray-50/60">
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
+        <div className="max-w-full mx-auto flex items-center gap-3">
           <button onClick={() => navigate('/hr/add-vendor')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
@@ -160,7 +160,7 @@ export default function AddVendorForm() {
 
       {/* Step pills */}
       <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-1 overflow-x-auto">
+        <div className="max-w-full mx-auto px-4 py-3 flex items-center gap-1 overflow-x-auto">
           {STEPS.map((s, i) => {
             const done = step > s.num;
             const active = step === s.num;
@@ -183,7 +183,7 @@ export default function AddVendorForm() {
       </div>
 
       <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
-        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        <div className="max-w-full mx-auto px-4 py-6 space-y-4">
 
           {/* Step 1: Basic Info */}
           {step === 1 && (

@@ -20,7 +20,7 @@ export default function ProjectsShow() {
 
   const fetchData = async () => {
     try {
-      const res = await get(`/hr/projects/${id}`);
+      const res = await get(`/purchase/projects/${id}`);
       setData(res.data?.data || res.data);
     } catch {
       setData(DEMO[id] || DEMO[1]);
@@ -50,14 +50,14 @@ export default function ProjectsShow() {
       <div className="bg-teal-600 px-5 py-5">
         <div className="max-w-full mx-auto">
           <div className="flex items-center gap-3 mb-4">
-            <button onClick={() => navigate('/hr/projects')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+            <button onClick={() => navigate('/purchase/projects')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             </button>
             <div className="flex-1">
               <h1 className="text-sm font-bold text-white">Project Details</h1>
               <p className="text-xs text-teal-100 mt-0.5">Viewing project record</p>
             </div>
-            <button onClick={() => navigate(`/hr/projects/edit/${id}`)}
+            <button onClick={() => navigate(`/purchase/projects/edit/${id}`)}
               className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
               Edit

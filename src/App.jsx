@@ -117,7 +117,7 @@ import InterviewForm from "./pages/recruitment/InterviewForm";
 import InterviewShow from "./pages/recruitment/InterviewShow";
 import JobOffers from "./pages/recruitment/JobOffers";
 import JobOfferForm from "./pages/recruitment/JobOfferForm";
-import JobOfferShow from "./pages/recruitment/JobOfferShow";
+import JobOfferShow from "./pages/recruitment/JobOfferShow";    
 import HiringDecisions from "./pages/recruitment/HiringDecisions";
 import HiringDecisionForm from "./pages/recruitment/HiringDecisionForm";
 import CandidatePool from "./pages/recruitment/CandidatePool";

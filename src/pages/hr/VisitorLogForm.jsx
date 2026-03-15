@@ -131,7 +131,7 @@ export default function VisitorLogForm() {
   return (
     <div className="min-h-screen bg-gray-50/60">
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
+        <div className="max-w-full mx-auto flex items-center gap-3">
           <button onClick={() => navigate('/hr/visitor-log')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
@@ -143,7 +143,7 @@ export default function VisitorLogForm() {
       </div>
 
       <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
-        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        <div className="max-w-full mx-auto px-4 py-6 space-y-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
               <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">

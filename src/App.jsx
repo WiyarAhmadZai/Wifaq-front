@@ -86,6 +86,11 @@ import TeacherSubjectShow from "./pages/teacher-management/teacher-subjects/Teac
 // Profile Page
 import MyProfile from "./pages/MyProfile";
 
+// Salary Snapshot
+import SalarySnapshot from "./pages/hr/SalarySnapshot";
+import SalarySnapshotForm from "./pages/hr/SalarySnapshotForm";
+import SalarySnapshotShow from "./pages/hr/SalarySnapshotShow";
+
 // Branches Pages
 import Branches from "./pages/branches/Branches";
 import BranchForm from "./pages/branches/BranchForm";
@@ -316,6 +321,12 @@ function App() {
 
           {/* Profile */}
           <Route path="profile" element={<MyProfile />} />
+
+          {/* HR Routes - Salary Snapshot */}
+          <Route path="hr/salary-snapshot" element={<SalarySnapshot />} />
+          <Route path="hr/salary-snapshot/create" element={<SalarySnapshotForm />} />
+          <Route path="hr/salary-snapshot/edit/:id" element={<SalarySnapshotForm />} />
+          <Route path="hr/salary-snapshot/show/:id" element={<SalarySnapshotShow />} />
 
           {/* HR Routes - Staff */}
           <Route path="hr/staff" element={<Staff />} />

@@ -323,6 +323,18 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
   </div>
 );
 
+// ── Profile Button (navigates to /profile page) ─────────────────────────────
+function ProfileButton() {
+  const navigate = useNavigate();
+  return (
+    <button onClick={() => navigate('/profile')}
+      className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold hover:bg-teal-700 transition-colors"
+      title="My Profile">
+      A
+    </button>
+  );
+}
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -734,6 +746,7 @@ export default function Layout() {
                 <Icons.Bell />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
+              <ProfileButton />
             </div>
           </div>
         </header>

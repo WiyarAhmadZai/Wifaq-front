@@ -91,10 +91,10 @@ import SalarySnapshot from "./pages/hr/SalarySnapshot";
 import SalarySnapshotForm from "./pages/hr/SalarySnapshotForm";
 import SalarySnapshotShow from "./pages/hr/SalarySnapshotShow";
 
-// Projects
-import Projects from "./pages/hr/Projects";
-import ProjectsForm from "./pages/hr/ProjectsForm";
-import ProjectsShow from "./pages/hr/ProjectsShow";
+// HR Projects
+import HRProjects from "./pages/hr/Projects";
+import HRProjectsForm from "./pages/hr/ProjectsForm";
+import HRProjectsShow from "./pages/hr/ProjectsShow";
 
 // Branches Pages
 import Branches from "./pages/branches/Branches";
@@ -360,10 +360,10 @@ function App() {
           <Route path="profile" element={<MyProfile />} />
 
           {/* HR Routes - Projects */}
-          <Route path="hr/projects" element={<Projects />} />
-          <Route path="hr/projects/create" element={<ProjectsForm />} />
-          <Route path="hr/projects/edit/:id" element={<ProjectsForm />} />
-          <Route path="hr/projects/show/:id" element={<ProjectsShow />} />
+          <Route path="hr/projects" element={<HRProjects />} />
+          <Route path="hr/projects/create" element={<HRProjectsForm />} />
+          <Route path="hr/projects/edit/:id" element={<HRProjectsForm />} />
+          <Route path="hr/projects/show/:id" element={<HRProjectsShow />} />
 
           {/* HR Routes - Salary Snapshot */}
           <Route path="hr/salary-snapshot" element={<SalarySnapshot />} />

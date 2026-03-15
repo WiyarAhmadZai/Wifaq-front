@@ -102,6 +102,26 @@ import Schedule from "./pages/class-management/Schedule";
 import ScheduleForm from "./pages/class-management/ScheduleForm";
 import ScheduleShow from "./pages/class-management/ScheduleShow";
 
+// Recruitment Pages
+import JobRequisitions from "./pages/recruitment/JobRequisitions";
+import JobRequisitionForm from "./pages/recruitment/JobRequisitionForm";
+import JobRequisitionShow from "./pages/recruitment/JobRequisitionShow";
+import JobPostings from "./pages/recruitment/JobPostings";
+import JobPostingForm from "./pages/recruitment/JobPostingForm";
+import JobPostingShow from "./pages/recruitment/JobPostingShow";
+import Applications from "./pages/recruitment/Applications";
+import ApplicationForm from "./pages/recruitment/ApplicationForm";
+import ApplicationShow from "./pages/recruitment/ApplicationShow";
+import Interviews from "./pages/recruitment/Interviews";
+import InterviewForm from "./pages/recruitment/InterviewForm";
+import InterviewShow from "./pages/recruitment/InterviewShow";
+import JobOffers from "./pages/recruitment/JobOffers";
+import JobOfferForm from "./pages/recruitment/JobOfferForm";
+import JobOfferShow from "./pages/recruitment/JobOfferShow";
+import HiringDecisions from "./pages/recruitment/HiringDecisions";
+import HiringDecisionForm from "./pages/recruitment/HiringDecisionForm";
+import CandidatePool from "./pages/recruitment/CandidatePool";
+
 // Student Registration Pages
 
 const Placeholder = ({ title }) => (
@@ -530,6 +550,43 @@ function App() {
             path="finance/fee-payments/show/:id"
             element={<FeePaymentForm />}
           />
+          {/* Recruitment Routes - Job Requisitions */}
+          <Route path="recruitment/job-requisitions" element={<JobRequisitions />} />
+          <Route path="recruitment/job-requisitions/create" element={<JobRequisitionForm />} />
+          <Route path="recruitment/job-requisitions/edit/:id" element={<JobRequisitionForm />} />
+          <Route path="recruitment/job-requisitions/show/:id" element={<JobRequisitionShow />} />
+
+          {/* Recruitment Routes - Job Postings */}
+          <Route path="recruitment/job-postings" element={<JobPostings />} />
+          <Route path="recruitment/job-postings/create" element={<JobPostingForm />} />
+          <Route path="recruitment/job-postings/edit/:id" element={<JobPostingForm />} />
+          <Route path="recruitment/job-postings/show/:id" element={<JobPostingShow />} />
+
+          {/* Recruitment Routes - Applications */}
+          <Route path="recruitment/applications" element={<Applications />} />
+          <Route path="recruitment/applications/create" element={<ApplicationForm />} />
+          <Route path="recruitment/applications/edit/:id" element={<ApplicationForm />} />
+          <Route path="recruitment/applications/show/:id" element={<ApplicationShow />} />
+
+          {/* Recruitment Routes - Interviews */}
+          <Route path="recruitment/interviews" element={<Interviews />} />
+          <Route path="recruitment/interviews/create" element={<InterviewForm />} />
+          <Route path="recruitment/interviews/edit/:id" element={<InterviewForm />} />
+          <Route path="recruitment/interviews/show/:id" element={<InterviewShow />} />
+
+          {/* Recruitment Routes - Job Offers */}
+          <Route path="recruitment/job-offers" element={<JobOffers />} />
+          <Route path="recruitment/job-offers/create" element={<JobOfferForm />} />
+          <Route path="recruitment/job-offers/edit/:id" element={<JobOfferForm />} />
+          <Route path="recruitment/job-offers/show/:id" element={<JobOfferShow />} />
+
+          {/* Recruitment Routes - Hiring Decisions */}
+          <Route path="recruitment/hiring-decisions" element={<HiringDecisions />} />
+          <Route path="recruitment/hiring-decisions/create" element={<HiringDecisionForm />} />
+          <Route path="recruitment/hiring-decisions/edit/:id" element={<HiringDecisionForm />} />
+
+          {/* Recruitment Routes - Candidate Pool */}
+          <Route path="recruitment/candidate-pool" element={<CandidatePool />} />
         </Route>
       </Routes>
     </Router>

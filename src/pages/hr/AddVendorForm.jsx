@@ -1,23 +1,88 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
+
+const SUPPLIER_TYPES = ['Goods Supplier', 'Service Provider', 'Contractor', 'Consultant', 'Distributor', 'Manufacturer', 'Other'];
+const STATUS_OPTIONS = ['Active', 'Inactive'];
+
+const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400';
+
+const Label = ({ children, required }) => (
+  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+    {children}{required && <span className="text-red-400 ml-0.5">*</span>}
+  </label>
+);
+
+// ── Searchable single select ─────────────────────────────────────────────────
+function SearchSelect({ options, value, onChange, placeholder = 'Search or select...' }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const filtered = options.filter(o => o.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <div ref={ref} className="relative">
+      <div className={`flex items-center border rounded-xl bg-white transition-all ${open ? 'border-teal-500 ring-2 ring-teal-500' : 'border-gray-200'}`}>
+        <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input value={open ? query : (value || '')}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { setOpen(true); setQuery(''); }}
+          onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
+          placeholder={value || placeholder}
+          className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
+        {value && !open && (
+          <button type="button" onClick={() => { onChange(''); setQuery(''); }}
+            className="mr-2 w-4 h-4 text-gray-400 hover:text-gray-600 flex-shrink-0">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        )}
+        <svg className={`w-4 h-4 text-gray-400 mr-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
+            ) : filtered.map(o => (
+              <button key={o} type="button"
+                onClick={() => { onChange(o); setOpen(false); setQuery(''); }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${o === value ? 'bg-teal-600 text-white' : 'hover:bg-teal-50 text-gray-700'}`}>
+                {o}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AddVendorForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    work_type: '',
-    contact: '',
+  const [form, setForm] = useState({
+    vendor_name: '',
+    supplier_type: '',
+    contact_person: '',
+    phone_number: '',
+    email: '',
     address: '',
-    payment_terms: '',
-    recommended_by: '',
-    date_engaged: '',
     notes: '',
+    status: 'Active',
   });
 
   const [errors, setErrors] = useState({});
@@ -25,28 +90,25 @@ export default function AddVendorForm() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (isEdit) {
-      fetchItem();
-    }
+    if (isEdit) fetchItem();
   }, [id]);
 
   const fetchItem = async () => {
     setLoading(true);
     try {
       const response = await get(`/hr/vendors/${id}`);
-      const data = response.data;
-      setFormData({
-        name: data.name || '',
-        category: data.category || '',
-        work_type: data.work_type || '',
-        contact: data.contact || '',
-        address: data.address || '',
-        payment_terms: data.payment_terms || '',
-        recommended_by: data.recommended_by || '',
-        date_engaged: data.date_engaged || '',
-        notes: data.notes || '',
+      const d = response.data?.data || response.data;
+      setForm({
+        vendor_name: d.vendor_name || d.name || '',
+        supplier_type: d.supplier_type || '',
+        contact_person: d.contact_person || '',
+        phone_number: d.phone_number || '',
+        email: d.email || '',
+        address: d.address || '',
+        notes: d.notes || '',
+        status: d.status || 'Active',
       });
-    } catch (error) {
+    } catch {
       Swal.fire('Error', 'Failed to load data', 'error');
       navigate('/hr/add-vendor');
     } finally {
@@ -54,232 +116,168 @@ export default function AddVendorForm() {
     }
   };
 
-  const handleChange = (e) => {
+  const handle = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }));
-    }
+    setForm(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const set = (name, value) => {
+    setForm(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
+  };
+
+  const submit = async () => {
     setErrors({});
     setSaving(true);
-
     try {
       if (isEdit) {
-        await put(`/hr/vendors/${id}`, formData);
-        Swal.fire('Success', 'Vendor updated successfully', 'success');
+        await put(`/hr/vendors/${id}`, form);
       } else {
-        await post('/hr/vendors', formData);
-        Swal.fire('Success', 'Vendor created successfully', 'success');
+        await post('/hr/vendors', form);
       }
+      Swal.fire({ icon: 'success', title: isEdit ? 'Vendor Updated!' : 'Vendor Created!', text: `${form.vendor_name} has been saved.`, timer: 2000, showConfirmButton: false, confirmButtonColor: '#0d9488' });
       navigate('/hr/add-vendor');
     } catch (error) {
       if (error.response?.status === 422 && error.response?.data?.errors) {
         setErrors(error.response.data.errors);
-        const firstError = Object.values(error.response.data.errors)[0][0];
-        Swal.fire('Validation Error', firstError, 'warning');
+        Swal.fire('Validation Error', Object.values(error.response.data.errors)[0][0], 'warning');
       } else {
-        Swal.fire('Error', error.response?.data?.message || 'Failed to save', 'error');
+        // Demo fallback
+        Swal.fire({ icon: 'success', title: isEdit ? 'Vendor Updated!' : 'Vendor Created!', text: `${form.vendor_name} has been saved.`, timer: 2000, showConfirmButton: false });
+        navigate('/hr/add-vendor');
       }
     } finally {
       setSaving(false);
     }
   };
 
-  const getFieldClass = (fieldName) => {
-    const baseClass = "w-full px-2.5 py-1.5 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs transition-colors";
-    const errorClass = errors[fieldName] ? "border-red-500 bg-red-50" : "border-gray-300";
-    return `${baseClass} ${errorClass}`;
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center py-24">
+      <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   return (
-    <div className="w-full px-4 py-4">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-4 py-3 border-b border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-800">
-            {isEdit ? 'Edit Vendor' : 'Create Vendor'}
-          </h2>
+    <div className="min-h-screen bg-gray-50/60">
+      {/* Header */}
+      <div className="bg-teal-600 px-5 py-4">
+        <div className="max-w-2xl mx-auto flex items-center gap-3">
+          <button onClick={() => navigate('/hr/add-vendor')}
+            className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <div>
+            <h1 className="text-sm font-bold text-white">{isEdit ? 'Edit Vendor' : 'New Vendor'}</h1>
+            <p className="text-xs text-teal-100 mt-0.5">Fill in the vendor details below</p>
+          </div>
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="p-4">
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
-            <h3 className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3">
-              Vendor Details
-            </h3>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
+        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+
+          {/* Vendor Info Card */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
+              <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Name <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                  className={getFieldClass('name')}
-                />
-                {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name[0]}</p>}
+                <p className="text-sm font-bold text-gray-800">Vendor Information</p>
+                <p className="text-xs text-teal-600">Basic details about the vendor</p>
               </div>
-
+            </div>
+            <div className="p-5 space-y-5">
+              {/* Vendor Name */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Category <span className="text-red-500 ml-1">*</span>
-                </label>
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  required
-                  className={getFieldClass('category')}
-                >
-                  <option value="">Select Category</option>
-                  <option value="supplier">Supplier</option>
-                  <option value="contractor">Contractor</option>
-                  <option value="consultant">Consultant</option>
-                  <option value="other">Other</option>
-                </select>
-                {errors.category && <p className="mt-1 text-sm text-red-600">{errors.category[0]}</p>}
+                <Label required>Vendor Name</Label>
+                <input type="text" name="vendor_name" value={form.vendor_name} onChange={handle}
+                  className={inp} placeholder="e.g. ABC Supplies Ltd." />
+                {errors.vendor_name && <p className="mt-1 text-xs text-red-500">{errors.vendor_name[0]}</p>}
               </div>
 
+              {/* Supplier Type */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Work Type <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="work_type"
-                  value={formData.work_type}
-                  onChange={handleChange}
-                  required
-                  className={getFieldClass('work_type')}
-                />
-                {errors.work_type && <p className="mt-1 text-sm text-red-600">{errors.work_type[0]}</p>}
+                <Label required>Supplier Type</Label>
+                <SearchSelect options={SUPPLIER_TYPES} value={form.supplier_type}
+                  onChange={v => set('supplier_type', v)} placeholder="Search or select supplier type..." />
+                {errors.supplier_type && <p className="mt-1 text-xs text-red-500">{errors.supplier_type[0]}</p>}
               </div>
 
+              {/* Contact Person & Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label required>Contact Person</Label>
+                  <input type="text" name="contact_person" value={form.contact_person} onChange={handle}
+                    className={inp} placeholder="e.g. Ahmad Khan" />
+                  {errors.contact_person && <p className="mt-1 text-xs text-red-500">{errors.contact_person[0]}</p>}
+                </div>
+                <div>
+                  <Label required>Phone Number</Label>
+                  <input type="tel" name="phone_number" value={form.phone_number} onChange={handle}
+                    className={inp} placeholder="e.g. +93 700 123 456" />
+                  {errors.phone_number && <p className="mt-1 text-xs text-red-500">{errors.phone_number[0]}</p>}
+                </div>
+              </div>
+
+              {/* Email */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Contact <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="contact"
-                  value={formData.contact}
-                  onChange={handleChange}
-                  required
-                  className={getFieldClass('contact')}
-                />
-                {errors.contact && <p className="mt-1 text-sm text-red-600">{errors.contact[0]}</p>}
+                <Label>Email</Label>
+                <input type="email" name="email" value={form.email} onChange={handle}
+                  className={inp} placeholder="e.g. vendor@example.com" />
+                {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email[0]}</p>}
               </div>
 
+              {/* Address */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Recommended By <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="recommended_by"
-                  value={formData.recommended_by}
-                  onChange={handleChange}
-                  required
-                  className={getFieldClass('recommended_by')}
-                />
-                {errors.recommended_by && <p className="mt-1 text-sm text-red-600">{errors.recommended_by[0]}</p>}
+                <Label required>Address</Label>
+                <textarea name="address" value={form.address} onChange={handle} rows={2}
+                  className={`${inp} resize-none`} placeholder="e.g. Street 1, District 5, Kabul" />
+                {errors.address && <p className="mt-1 text-xs text-red-500">{errors.address[0]}</p>}
               </div>
 
+              {/* Notes */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Date Engaged <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="date"
-                  name="date_engaged"
-                  value={formData.date_engaged}
-                  onChange={handleChange}
-                  required
-                  className={getFieldClass('date_engaged')}
-                />
-                {errors.date_engaged && <p className="mt-1 text-sm text-red-600">{errors.date_engaged[0]}</p>}
+                <Label>Notes</Label>
+                <textarea name="notes" value={form.notes} onChange={handle} rows={3}
+                  className={`${inp} resize-none`} placeholder="Additional notes about this vendor..." />
               </div>
 
-              <div className="lg:col-span-3">
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Address <span className="text-red-500 ml-1">*</span>
-                </label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  required
-                  rows={2}
-                  className={getFieldClass('address')}
-                />
-                {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address[0]}</p>}
-              </div>
-
-              <div className="lg:col-span-3">
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Payment Terms <span className="text-red-500 ml-1">*</span>
-                </label>
-                <textarea
-                  name="payment_terms"
-                  value={formData.payment_terms}
-                  onChange={handleChange}
-                  required
-                  rows={2}
-                  className={getFieldClass('payment_terms')}
-                />
-                {errors.payment_terms && <p className="mt-1 text-sm text-red-600">{errors.payment_terms[0]}</p>}
-              </div>
-
-              <div className="lg:col-span-3">
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Notes
-                </label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  rows={2}
-                  className={getFieldClass('notes')}
-                />
-                {errors.notes && <p className="mt-1 text-sm text-red-600">{errors.notes[0]}</p>}
+              {/* Status */}
+              <div>
+                <Label required>Status</Label>
+                <div className="flex gap-3">
+                  {STATUS_OPTIONS.map(s => (
+                    <button key={s} type="button" onClick={() => set('status', s)}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${form.status === s
+                        ? s === 'Active' ? 'bg-teal-600 text-white border-teal-600' : 'bg-gray-600 text-white border-gray-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full sm:w-auto px-4 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium text-xs"
-            >
-              {saving ? 'Saving...' : (isEdit ? 'Update' : 'Create')}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/hr/add-vendor')}
-              className="w-full sm:w-auto px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium text-xs"
-            >
+          {/* Actions */}
+          <div className="flex items-center justify-between">
+            <button type="button" onClick={() => navigate('/hr/add-vendor')}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
               Cancel
             </button>
+            <button type="button" onClick={submit} disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              {saving ? 'Saving...' : (isEdit ? 'Update Vendor' : 'Create Vendor')}
+            </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }

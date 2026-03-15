@@ -47,7 +47,7 @@ export default function Projects() {
   return (
     <div className="min-h-screen bg-gray-50/60">
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-full mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold text-white">Projects</h1>
             <p className="text-xs text-teal-100 mt-0.5">{items.length} projects</p>
@@ -60,7 +60,7 @@ export default function Projects() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+      <div className="max-w-full mx-auto px-4 py-6 space-y-4">
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Total Projects', value: items.length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5' },

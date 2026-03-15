@@ -355,8 +355,6 @@ export default function Layout() {
     { label: "Contracts", path: "/hr/contracts" },
     { label: "Attendance", path: "/hr/attendance" },
     { label: "Leave Request", path: "/hr/leave-request" },
-    { label: "Jobs", path: "/hr/jobs" },
-    { label: "Job Application", path: "/hr/job-application" },
     { label: "Add Vendor", path: "/hr/add-vendor" },
     { label: "Purchase Request", path: "/hr/purchase-request" },
     { label: "Staff Task", path: "/hr/staff-task" },
@@ -387,10 +385,19 @@ export default function Layout() {
   ];
 
   const recruitmentMenus = [
-    { label: "Job Requisitions", path: "/recruitment/job-requisitions" },
+    { label: "Job Applications", path: "/recruitment/job-requisitions" },
     { label: "Job Postings", path: "/recruitment/job-postings" },
     { label: "Applications", path: "/recruitment/applications" },
     { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
+  ];
+
+  const purchaseMenus = [
+    { label: "Purchase Requests", path: "/purchase/purchase-requests" },
+    { label: "Suppliers", path: "/purchase/suppliers" },
+    { label: "Stock / Inventory", path: "/purchase/stock" },
+    { label: "Routine Items", path: "/purchase/routine-items" },
+    { label: "Repair Requests", path: "/purchase/repair-requests" },
+    { label: "Projects", path: "/purchase/projects" },
   ];
 
   const financeMenus = [
@@ -574,7 +581,7 @@ export default function Layout() {
 
           <ParentMenu
             icon={Icons.Departments}
-            label="Recruitment"
+            label="Job Applications"
             isOpen={openMenu.includes("recruitment")}
             onClick={() => toggleMenu("recruitment")}
           >
@@ -631,6 +638,24 @@ export default function Layout() {
             onClick={() => toggleMenu("transportation")}
           >
             {transportationMenus.map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+
+          <MenuSection title="Procurement" />
+          <ParentMenu
+            icon={Icons.Payroll}
+            label="Purchase"
+            isOpen={openMenu.includes("purchase")}
+            onClick={() => toggleMenu("purchase")}
+          >
+            {purchaseMenus.map((item) => (
               <SubMenuItem
                 key={item.path}
                 label={item.label}

@@ -90,7 +90,7 @@ export default function Staff() {
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-full mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold text-white">Staff Management</h1>
             <p className="text-xs text-teal-100 mt-0.5">{items.length} staff members</p>
@@ -103,7 +103,7 @@ export default function Staff() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+      <div className="max-w-full mx-auto px-4 py-6 space-y-4">
         {/* Stat Cards */}
         <div className="grid grid-cols-4 gap-3">
           {[

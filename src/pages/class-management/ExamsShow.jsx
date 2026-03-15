@@ -36,7 +36,7 @@ export default function ExamsShow() {
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-full mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate('/class-management/exams')} 
               className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition-colors">
@@ -60,7 +60,7 @@ export default function ExamsShow() {
       </div>
 
       {/* Content */}
-      <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="max-w-full mx-auto px-4 py-6">
         {/* Quick Info Card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
           <div className="flex items-start justify-between mb-4">

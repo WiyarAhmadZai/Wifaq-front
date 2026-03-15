@@ -108,7 +108,7 @@ export default function AttendanceForm() {
   }
 
   return (
-    <div className="px-4 py-4 mx-auto max-w-2xl">
+    <div className="px-4 py-4 mx-auto max-w-full">
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate("/hr/attendance")}

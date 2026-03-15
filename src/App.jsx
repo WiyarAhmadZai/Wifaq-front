@@ -114,6 +114,26 @@ import ApplicationForm from "./pages/recruitment/ApplicationForm";
 import ApplicationShow from "./pages/recruitment/ApplicationShow";
 import CandidatePool from "./pages/recruitment/CandidatePool";
 
+// Purchase Module Pages
+import PurchaseRequests from "./pages/purchase/PurchaseRequests";
+import PurchaseRequestFormNew from "./pages/purchase/PurchaseRequestForm";
+import PurchaseRequestShowNew from "./pages/purchase/PurchaseRequestShow";
+import Suppliers from "./pages/purchase/Suppliers";
+import SupplierForm from "./pages/purchase/SupplierForm";
+import SupplierShow from "./pages/purchase/SupplierShow";
+import Stock from "./pages/purchase/Stock";
+import StockForm from "./pages/purchase/StockForm";
+import StockShow from "./pages/purchase/StockShow";
+import RoutineItems from "./pages/purchase/RoutineItems";
+import RoutineItemForm from "./pages/purchase/RoutineItemForm";
+import RoutineItemShow from "./pages/purchase/RoutineItemShow";
+import RepairRequests from "./pages/purchase/RepairRequests";
+import RepairRequestForm from "./pages/purchase/RepairRequestForm";
+import RepairRequestShow from "./pages/purchase/RepairRequestShow";
+import Projects from "./pages/purchase/Projects";
+import ProjectForm from "./pages/purchase/ProjectForm";
+import ProjectShow from "./pages/purchase/ProjectShow";
+
 // Student Registration Pages
 
 const Placeholder = ({ title }) => (
@@ -562,6 +582,42 @@ function App() {
 
           {/* Recruitment Routes - Candidate Pool */}
           <Route path="recruitment/candidate-pool" element={<CandidatePool />} />
+
+          {/* Purchase Routes - Purchase Requests */}
+          <Route path="purchase/purchase-requests" element={<PurchaseRequests />} />
+          <Route path="purchase/purchase-requests/create" element={<PurchaseRequestFormNew />} />
+          <Route path="purchase/purchase-requests/edit/:id" element={<PurchaseRequestFormNew />} />
+          <Route path="purchase/purchase-requests/show/:id" element={<PurchaseRequestShowNew />} />
+
+          {/* Purchase Routes - Suppliers */}
+          <Route path="purchase/suppliers" element={<Suppliers />} />
+          <Route path="purchase/suppliers/create" element={<SupplierForm />} />
+          <Route path="purchase/suppliers/edit/:id" element={<SupplierForm />} />
+          <Route path="purchase/suppliers/show/:id" element={<SupplierShow />} />
+
+          {/* Purchase Routes - Stock */}
+          <Route path="purchase/stock" element={<Stock />} />
+          <Route path="purchase/stock/create" element={<StockForm />} />
+          <Route path="purchase/stock/edit/:id" element={<StockForm />} />
+          <Route path="purchase/stock/show/:id" element={<StockShow />} />
+
+          {/* Purchase Routes - Routine Items */}
+          <Route path="purchase/routine-items" element={<RoutineItems />} />
+          <Route path="purchase/routine-items/create" element={<RoutineItemForm />} />
+          <Route path="purchase/routine-items/edit/:id" element={<RoutineItemForm />} />
+          <Route path="purchase/routine-items/show/:id" element={<RoutineItemShow />} />
+
+          {/* Purchase Routes - Repair Requests */}
+          <Route path="purchase/repair-requests" element={<RepairRequests />} />
+          <Route path="purchase/repair-requests/create" element={<RepairRequestForm />} />
+          <Route path="purchase/repair-requests/edit/:id" element={<RepairRequestForm />} />
+          <Route path="purchase/repair-requests/show/:id" element={<RepairRequestShow />} />
+
+          {/* Purchase Routes - Projects */}
+          <Route path="purchase/projects" element={<Projects />} />
+          <Route path="purchase/projects/create" element={<ProjectForm />} />
+          <Route path="purchase/projects/edit/:id" element={<ProjectForm />} />
+          <Route path="purchase/projects/show/:id" element={<ProjectShow />} />
         </Route>
       </Routes>
     </Router>

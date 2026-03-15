@@ -22,7 +22,7 @@ export default function Projects() {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const res = await get('/hr/projects');
+      const res = await get('/purchase/projects');
       const list = res.data?.data || res.data || [];
       setItems(list.length ? list : DEMO_ITEMS);
     } catch { setItems(DEMO_ITEMS); }
@@ -32,7 +32,7 @@ export default function Projects() {
   const handleDelete = async (id) => {
     const result = await Swal.fire({ title: 'Delete Project?', text: 'This action cannot be undone.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#0d9488', cancelButtonColor: '#ef4444', confirmButtonText: 'Yes, delete' });
     if (result.isConfirmed) {
-      try { await del(`/hr/projects/${id}`); fetchItems(); } catch { setItems(prev => prev.filter(i => i.id !== id)); }
+      try { await del(`/purchase/projects/${id}`); fetchItems(); } catch { setItems(prev => prev.filter(i => i.id !== id)); }
       Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
     }
   };
@@ -52,7 +52,7 @@ export default function Projects() {
             <h1 className="text-sm font-bold text-white">Projects</h1>
             <p className="text-xs text-teal-100 mt-0.5">{items.length} projects</p>
           </div>
-          <button onClick={() => navigate('/hr/projects/create')}
+          <button onClick={() => navigate('/purchase/projects/create')}
             className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             New Project
@@ -108,7 +108,7 @@ export default function Projects() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filtered.map((item, i) => (
-                    <tr key={item.id} onClick={() => navigate(`/hr/projects/show/${item.id}`)} className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
+                    <tr key={item.id} onClick={() => navigate(`/purchase/projects/show/${item.id}`)} className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
                       <td className="px-4 py-3 text-xs font-medium text-teal-600">{i + 1}</td>
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-gray-800">{item.project_name}</p>
@@ -119,10 +119,10 @@ export default function Projects() {
                       <td className="px-4 py-3"><span className="text-sm font-bold text-teal-700">AFN {(item.budget || 0).toLocaleString()}</span></td>
                       <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => navigate(`/hr/projects/show/${item.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
+                          <button onClick={() => navigate(`/purchase/projects/show/${item.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                           </button>
-                          <button onClick={() => navigate(`/hr/projects/edit/${item.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                          <button onClick={() => navigate(`/purchase/projects/edit/${item.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           </button>
                           <button onClick={() => handleDelete(item.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
@@ -139,7 +139,7 @@ export default function Projects() {
               <div className="text-center py-12">
                 <svg className="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" /></svg>
                 <p className="text-sm text-gray-400 font-medium">No projects found</p>
-                <button onClick={() => navigate('/hr/projects/create')} className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">Create your first project</button>
+                <button onClick={() => navigate('/purchase/projects/create')} className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">Create your first project</button>
               </div>
             )}
           </div>

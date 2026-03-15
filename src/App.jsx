@@ -126,6 +126,7 @@ import Applications from "./pages/recruitment/Applications";
 import ApplicationForm from "./pages/recruitment/ApplicationForm";
 import ApplicationShow from "./pages/recruitment/ApplicationShow";
 import CandidatePool from "./pages/recruitment/CandidatePool";
+import CandidatePoolForm from "./pages/recruitment/CandidatePoolForm";
 
 // Purchase Module Pages
 import PurchaseRequests from "./pages/purchase/PurchaseRequests";
@@ -610,6 +611,8 @@ function App() {
 
           {/* Recruitment Routes - Candidate Pool */}
           <Route path="recruitment/candidate-pool" element={<CandidatePool />} />
+          <Route path="recruitment/candidate-pool/create" element={<CandidatePoolForm />} />
+          <Route path="recruitment/candidate-pool/edit/:id" element={<CandidatePoolForm />} />
 
           {/* Purchase Routes - Purchase Requests */}
           <Route path="purchase/purchase-requests" element={<PurchaseRequests />} />

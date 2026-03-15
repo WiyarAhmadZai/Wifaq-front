@@ -42,7 +42,7 @@ export default function AddVendorShow() {
   return (
     <div className="min-h-screen bg-gray-50/60">
       <div className="bg-teal-600 px-5 py-5">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-full mx-auto">
           <div className="flex items-center gap-3 mb-4">
             <button onClick={() => navigate('/hr/add-vendor')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
@@ -70,7 +70,7 @@ export default function AddVendorShow() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+      <div className="max-w-full mx-auto px-4 py-6 space-y-4">
         {/* Stat Cards */}
         <div className="grid grid-cols-4 gap-3">
           {ratings.map(r => (

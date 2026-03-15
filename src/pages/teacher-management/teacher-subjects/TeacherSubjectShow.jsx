@@ -154,7 +154,7 @@ export default function TeacherSubjectShow() {
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-full mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate('/teacher-management/teacher-subjects')}
               className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
@@ -191,7 +191,7 @@ export default function TeacherSubjectShow() {
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-5 py-6 space-y-6">
+      <div className="max-w-full mx-auto px-5 py-6 space-y-6">
         {/* Teacher Information */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">

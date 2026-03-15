@@ -124,7 +124,7 @@ export default function AcademicTermShow() {
   if (!term) {
     return (
       <div className="px-6 py-8">
-        <div className="max-w-2xl mx-auto text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div className="max-w-full mx-auto text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-100">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Icons.Calendar />
           </div>

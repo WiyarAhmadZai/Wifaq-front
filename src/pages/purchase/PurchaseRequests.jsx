@@ -5,24 +5,21 @@ import Swal from "sweetalert2";
 
 const pipelineStages = [
   { key: "draft", label: "Draft", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
-  { key: "submitted", label: "Submitted", color: "bg-blue-500", light: "bg-blue-50 text-blue-700 border-blue-200" },
   { key: "approved", label: "Approved", color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { key: "procurement", label: "Procurement", color: "bg-purple-500", light: "bg-purple-50 text-purple-700 border-purple-200" },
-  { key: "delivered", label: "Delivered", color: "bg-cyan-500", light: "bg-cyan-50 text-cyan-700 border-cyan-200" },
   { key: "completed", label: "Completed", color: "bg-teal-500", light: "bg-teal-50 text-teal-700 border-teal-200" },
   { key: "rejected", label: "Rejected", color: "bg-red-500", light: "bg-red-50 text-red-700 border-red-200" },
 ];
 
 const dummyData = [
   { id: 1, pr_number: "PR-2026-001", title: "Office Stationery for Q1", requested_by: "Ahmad Rahimi", department: "Admin", status: "approved", priority: "medium", total_amount: 15000, items_count: 5, created_at: "2026-01-15" },
-  { id: 2, pr_number: "PR-2026-002", title: "Computer Lab Equipment", requested_by: "Khalid Amiri", department: "IT", status: "procurement", priority: "high", total_amount: 250000, items_count: 8, created_at: "2026-01-28" },
+  { id: 2, pr_number: "PR-2026-002", title: "Computer Lab Equipment", requested_by: "Khalid Amiri", department: "IT", status: "approved", priority: "high", total_amount: 250000, items_count: 8, created_at: "2026-01-28" },
   { id: 3, pr_number: "PR-2026-003", title: "Cleaning Supplies - Monthly", requested_by: "Zahra Ahmadi", department: "Facilities", status: "completed", priority: "low", total_amount: 8500, items_count: 12, created_at: "2026-02-01" },
-  { id: 4, pr_number: "PR-2026-004", title: "Library Books - Science Section", requested_by: "Maryam Sultani", department: "Library", status: "submitted", priority: "medium", total_amount: 45000, items_count: 20, created_at: "2026-02-10" },
+  { id: 4, pr_number: "PR-2026-004", title: "Library Books - Science Section", requested_by: "Maryam Sultani", department: "Library", status: "draft", priority: "medium", total_amount: 45000, items_count: 20, created_at: "2026-02-10" },
   { id: 5, pr_number: "PR-2026-005", title: "Classroom Furniture Replacement", requested_by: "Mohammad Karimi", department: "Admin", status: "draft", priority: "high", total_amount: 180000, items_count: 15, created_at: "2026-02-20" },
   { id: 6, pr_number: "PR-2026-006", title: "Sports Equipment", requested_by: "Ali Mohammadi", department: "Sports", status: "approved", priority: "medium", total_amount: 35000, items_count: 10, created_at: "2026-02-25" },
-  { id: 7, pr_number: "PR-2026-007", title: "Printer Cartridges & Paper", requested_by: "Sara Hashimi", department: "Admin", status: "delivered", priority: "low", total_amount: 12000, items_count: 6, created_at: "2026-03-01" },
+  { id: 7, pr_number: "PR-2026-007", title: "Printer Cartridges & Paper", requested_by: "Sara Hashimi", department: "Admin", status: "completed", priority: "low", total_amount: 12000, items_count: 6, created_at: "2026-03-01" },
   { id: 8, pr_number: "PR-2026-008", title: "Lab Chemicals Restock", requested_by: "Hamid Nazari", department: "Science", status: "rejected", priority: "medium", total_amount: 28000, items_count: 8, created_at: "2026-03-05" },
-  { id: 9, pr_number: "PR-2026-009", title: "Security Camera System", requested_by: "Khalid Amiri", department: "IT", status: "submitted", priority: "urgent", total_amount: 95000, items_count: 4, created_at: "2026-03-08" },
+  { id: 9, pr_number: "PR-2026-009", title: "Security Camera System", requested_by: "Khalid Amiri", department: "IT", status: "draft", priority: "urgent", total_amount: 95000, items_count: 4, created_at: "2026-03-08" },
   { id: 10, pr_number: "PR-2026-010", title: "Teacher Desk Accessories", requested_by: "Fatima Noori", department: "HR", status: "draft", priority: "low", total_amount: 5500, items_count: 7, created_at: "2026-03-12" },
 ];
 
@@ -155,18 +152,18 @@ export default function PurchaseRequests() {
             <p className="text-2xl font-bold">{totalAmount.toLocaleString()} <span className="text-sm font-normal">AFN</span></p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-teal-200">Pending Approval</p>
-            <p className="text-2xl font-bold">{getStageCount("submitted")}</p>
+            <p className="text-[10px] uppercase tracking-wider text-teal-200">Drafts</p>
+            <p className="text-2xl font-bold">{getStageCount("draft")}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-teal-200">In Procurement</p>
-            <p className="text-2xl font-bold">{getStageCount("procurement")}</p>
+            <p className="text-[10px] uppercase tracking-wider text-teal-200">Approved</p>
+            <p className="text-2xl font-bold">{getStageCount("approved")}</p>
           </div>
         </div>
       </div>
 
       {/* Pipeline Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
         {pipelineStages.map((stage) => {
           const count = getStageCount(stage.key);
           const isActive = activeFilter === stage.key;

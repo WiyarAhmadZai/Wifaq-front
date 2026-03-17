@@ -148,8 +148,8 @@ export default function PurchaseRequest() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map(item => (
-                <tr key={item.id} onClick={() => navigate(`/hr/purchase-request/show/${item.id}`)}
-                  className="hover:bg-gray-50/80 cursor-pointer group transition-colors">
+                <tr key={item.id}
+                  className="hover:bg-gray-50/80 transition-colors">
                   {/* Item */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -201,8 +201,8 @@ export default function PurchaseRequest() {
                     </span>
                   </td>
                   {/* Actions */}
-                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
                       <button onClick={() => navigate(`/hr/purchase-request/show/${item.id}`)}
                         className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>

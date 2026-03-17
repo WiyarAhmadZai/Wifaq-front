@@ -541,6 +541,12 @@ export default function Layout() {
               active={isActive("/teacher-management/teachers")}
               onClick={closeSidebar}
             />
+            <SubMenuItem
+              label="Teacher Subjects"
+              to="/teacher-management/teacher-subjects"
+              active={isActive("/teacher-management/teacher-subjects")}
+              onClick={closeSidebar}
+            />
           </ParentMenu>
 
           <ParentMenu

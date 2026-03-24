@@ -36,8 +36,8 @@ const Label = ({ children, required }) => (
 
 // ── Step card ─────────────────────────────────────────────────────────────────
 const StepCard = ({ step, children }) => (
-  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-    <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+    <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 rounded-t-2xl flex items-center gap-3">
       <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} />
@@ -48,7 +48,7 @@ const StepCard = ({ step, children }) => (
         <p className="text-xs text-teal-600">{step.desc}</p>
       </div>
     </div>
-    <div className="p-5 space-y-5">{children}</div>
+    <div className="p-6 space-y-5">{children}</div>
   </div>
 );
 
@@ -81,12 +81,13 @@ function SearchMultiSelect({ options, selected, onChange, placeholder }) {
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
           {filtered.length === 0 ? <p className="px-4 py-3 text-sm text-gray-400">No results</p>
             : filtered.map(o => (
-              <label key={o} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${selected.includes(o) ? "bg-teal-50" : "hover:bg-gray-50"}`}>
+              <div key={o} onMouseDown={e => { e.preventDefault(); toggle(o); }}
+                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors select-none ${selected.includes(o) ? "bg-teal-50" : "hover:bg-gray-50"}`}>
                 <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${selected.includes(o) ? "bg-teal-600 border-teal-600" : "border-gray-300"}`}>
                   {selected.includes(o) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                 </div>
                 <span className={`text-sm ${selected.includes(o) ? "text-teal-800 font-medium" : "text-gray-700"}`}>{o}</span>
-              </label>
+              </div>
             ))}
         </div>
       )}

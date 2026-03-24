@@ -710,7 +710,7 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
-          <MenuSection title="Operations" />
+          {/* <MenuSection title="Operations" />
           <SidebarItem
             icon={Icons.Payroll}
             label="Payroll"
@@ -731,7 +731,7 @@ export default function Layout() {
             to="/number-puzzle"
             active={isActive("/number-puzzle")}
             onClick={closeSidebar}
-          />
+          /> */}
 
           <MenuSection title="System" />
           <SidebarItem

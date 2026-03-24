@@ -433,53 +433,6 @@ export default function StaffForm() {
                 </div>
               </div>
 
-              {/* Status */}
-              <div>
-                <Label required>Status</Label>
-                <div className="flex gap-3">
-                  {STATUS_OPTIONS.map(s => (
-                    <button key={s} type="button" onClick={() => set('status', s)}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${form.status === s ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {form.status === "probation" && (
-                <div>
-                  <Label>Probation End Date</Label>
-                  <input type="date" name="probation_end_date" value={form.probation_end_date} onChange={handle} className={inp} />
-                </div>
-              )}
-
-              {/* Academic-only fields */}
-              {form.department === "Academic" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-teal-100">
-                  <div>
-                    <Label required>Can Be Class Supervisor</Label>
-                    <div className="flex gap-3 mt-1">
-                      {[{ v: true, l: "Yes" }, { v: false, l: "No" }].map(o => (
-                        <button key={String(o.v)} type="button" onClick={() => set('can_be_supervisor', o.v)}
-                          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${form.can_be_supervisor === o.v ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                          {o.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Label required>Can Be Assistant Teacher</Label>
-                    <div className="flex gap-3 mt-1">
-                      {[{ v: true, l: "Yes" }, { v: false, l: "No" }].map(o => (
-                        <button key={String(o.v)} type="button" onClick={() => set('can_be_assistant', o.v)}
-                          className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${form.can_be_assistant === o.v ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                          {o.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
             </StepCard>
           )}
 

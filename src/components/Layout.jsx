@@ -415,8 +415,8 @@ export default function Layout() {
 
   const financeMenus = [
     { label: "Overview", path: "/finance/dashboard" },
-    { label: "Accounts", path: "/finance/accounts" },
     { label: "Chart of Accounts", path: "/finance/chart-of-accounts" },
+    { label: "Accounts", path: "/finance/accounts" },
     { label: "Invoices", path: "/finance/invoices" },
     { label: "Payments", path: "/finance/payments" },
     { label: "Budgets", path: "/finance/budgets" },

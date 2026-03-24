@@ -128,6 +128,22 @@ import ApplicationShow from "./pages/recruitment/ApplicationShow";
 import CandidatePool from "./pages/recruitment/CandidatePool";
 import CandidatePoolForm from "./pages/recruitment/CandidatePoolForm";
 
+// Finance Module Pages
+import FinanceDashboard from "./pages/finance/FinanceDashboard";
+import FinanceAccounts from "./pages/finance/Accounts";
+import AccountForm from "./pages/finance/AccountForm";
+import ChartOfAccounts from "./pages/finance/ChartOfAccounts";
+import ChartOfAccountForm from "./pages/finance/ChartOfAccountForm";
+import Invoices from "./pages/finance/Invoices";
+import InvoiceForm from "./pages/finance/InvoiceForm";
+import Payments from "./pages/finance/Payments";
+import PaymentForm from "./pages/finance/PaymentForm";
+import Budgets from "./pages/finance/Budgets";
+import BudgetForm from "./pages/finance/BudgetForm";
+import FeeInvoices from "./pages/finance/FeeInvoices";
+import FeeInvoiceForm from "./pages/finance/FeeInvoiceForm";
+import FeeInvoiceShow from "./pages/finance/FeeInvoiceShow";
+
 // Purchase Module Pages
 import PurchaseRequests from "./pages/purchase/PurchaseRequests";
 import PurchaseRequestFormNew from "./pages/purchase/PurchaseRequestForm";
@@ -582,6 +598,29 @@ function App() {
             path="finance/fee-payments/show/:id"
             element={<FeePaymentForm />}
           />
+          {/* Finance Routes */}
+          <Route path="finance" element={<FinanceDashboard />} />
+          <Route path="finance/dashboard" element={<FinanceDashboard />} />
+          <Route path="finance/accounts" element={<FinanceAccounts />} />
+          <Route path="finance/accounts/create" element={<AccountForm />} />
+          <Route path="finance/accounts/edit/:id" element={<AccountForm />} />
+          <Route path="finance/chart-of-accounts" element={<ChartOfAccounts />} />
+          <Route path="finance/chart-of-accounts/create" element={<ChartOfAccountForm />} />
+          <Route path="finance/chart-of-accounts/edit/:id" element={<ChartOfAccountForm />} />
+          <Route path="finance/invoices" element={<Invoices />} />
+          <Route path="finance/invoices/create" element={<InvoiceForm />} />
+          <Route path="finance/invoices/edit/:id" element={<InvoiceForm />} />
+          <Route path="finance/invoices/show/:id" element={<InvoiceForm />} />
+          <Route path="finance/payments" element={<Payments />} />
+          <Route path="finance/payments/create" element={<PaymentForm />} />
+          <Route path="finance/budgets" element={<Budgets />} />
+          <Route path="finance/budgets/create" element={<BudgetForm />} />
+          <Route path="finance/budgets/edit/:id" element={<BudgetForm />} />
+          <Route path="finance/fee-invoices" element={<FeeInvoices />} />
+          <Route path="finance/fee-invoices/create" element={<FeeInvoiceForm />} />
+          <Route path="finance/fee-invoices/edit/:id" element={<FeeInvoiceForm />} />
+          <Route path="finance/fee-invoices/show/:id" element={<FeeInvoiceShow />} />
+
           {/* Recruitment Routes - Job Requisitions */}
           <Route path="recruitment/job-requisitions" element={<JobRequisitions />} />
           <Route path="recruitment/job-requisitions/create" element={<JobRequisitionForm />} />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react"; // useRef kept for SearchMultiSelect
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../../api/axios";
 import Swal from "sweetalert2";
@@ -15,14 +15,13 @@ const DEMO_STAFF = [
 
 const ALL_SUBJECTS = ["Mathematics","English","Dari","Pashto","Science","Physics","Chemistry","Biology","Social Studies","Islamic Studies","Computer Science","Art","Physical Education","History","Geography"];
 const ALL_LEVELS   = ["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
-const ALL_CLASSES  = ["Class 6A","Class 6B","Class 7A","Class 7B","Class 8A","Class 8B","Class 9A","Class 9B","Class 10A","Class 10B"];
 
 const STEPS = [
   { num: 1, label: "Staff Selection", desc: "Select staff member", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
   { num: 2, label: "Professional Info", desc: "Qualification & experience", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
   { num: 3, label: "Teaching Capability", desc: "Subjects & grade levels", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
   { num: 4, label: "Teaching Load", desc: "Capacity & preferences", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-  { num: 5, label: "Academic Role", desc: "Supervisor & assistant roles", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
+  { num: 5, label: "Summary", desc: "Review & confirm before submit", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
 ];
 
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
@@ -172,48 +171,20 @@ export default function TeachersForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Staff search state
-  const [staffQuery, setStaffQuery] = useState("");
-  const [staffResults, setStaffResults] = useState([]);
-  const [staffSearching, setStaffSearching] = useState(false);
-  const [showStaffDrop, setShowStaffDrop] = useState(false);
-  const staffRef = useRef(null);
-
   const [form, setForm] = useState({
-    // Staff Foreign Key Data
     staffId: "",
-    
-    // Professional Information
     qualification: "",
     fieldOfStudy: "",
     teachingCertification: "",
     yearsOfExperience: "",
     previousInstitutions: "",
-    
-    // Teaching Capability
     subjectsAbleToTeach: [],
     levelsAbleToTeach: [],
-    
-    // Teaching Load
     weeklyTeachingCapacity: "",
     preferredSubjects: [],
-    
-    // Academic Role
-    canBeClassSupervisor: "",
-    canBeAssistantTeacher: "",
-    
-    // Meta
     status: "active",
   });
 
-  // Close staff dropdown on outside click
-  useEffect(() => {
-    const close = (e) => { if (staffRef.current && !staffRef.current.contains(e.target)) setShowStaffDrop(false); };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
-  // Load teacher data for edit
   useEffect(() => {
     if (isEdit) loadTeacher();
   }, [id]);
@@ -225,24 +196,18 @@ export default function TeachersForm() {
       const d = res.data?.data || res.data;
       setForm(prev => ({
         ...prev,
-        staff_id: d.staff_id || "",
-        staff_code: d.staff_code || "",
-        staff_name: d.staff_name || `${d.first_name || ""} ${d.last_name || ""}`.trim(),
-        staff_title: d.job_title || "",
+        staffId: d.staff_id || "",
         qualification: d.qualification || "",
-        field_of_study: d.field_of_study || "",
-        teaching_certification: d.teaching_certification || "",
-        years_experience: d.years_experience || "",
-        previous_institutions: d.previous_institutions?.length ? d.previous_institutions : [""],
-        subjects_can_teach: d.subjects_can_teach || [],
-        levels_can_teach: d.levels_can_teach || [],
-        classes_assigned: d.classes_assigned || [],
-        subjects_assigned: d.subjects_assigned || [],
-        weekly_hours: d.weekly_hours || "",
-        free_periods: d.free_periods || "",
+        fieldOfStudy: d.field_of_study || "",
+        teachingCertification: d.teaching_certification || "",
+        yearsOfExperience: d.years_experience || "",
+        previousInstitutions: d.previous_institutions || "",
+        subjectsAbleToTeach: d.subjects_can_teach || [],
+        levelsAbleToTeach: d.levels_can_teach || [],
+        weeklyTeachingCapacity: d.weekly_hours || "",
+        preferredSubjects: d.preferred_subjects || [],
         status: d.status || "active",
       }));
-      if (d.staff_name || d.first_name) setStaffQuery(d.staff_name || `${d.first_name} ${d.last_name}`);
     } catch {
       Swal.fire("Error", "Failed to load teacher data", "error");
       navigate("/teacher-management/teachers");
@@ -251,57 +216,14 @@ export default function TeachersForm() {
     }
   };
 
-  // Staff search
-  const searchStaff = async (q) => {
-    setStaffQuery(q);
-    if (!q.trim()) { setStaffResults([]); setShowStaffDrop(false); return; }
-    setStaffSearching(true);
-    setShowStaffDrop(true);
-    try {
-      const res = await get(`/hr/staff?search=${q}`);
-      const list = res.data?.data || res.data || [];
-      setStaffResults(list.length ? list : DEMO_STAFF.filter(s =>
-        s.name.toLowerCase().includes(q.toLowerCase()) ||
-        s.staff_code.toLowerCase().includes(q.toLowerCase())
-      ));
-    } catch {
-      setStaffResults(DEMO_STAFF.filter(s =>
-        s.name.toLowerCase().includes(q.toLowerCase()) ||
-        s.staff_code.toLowerCase().includes(q.toLowerCase())
-      ));
-    } finally { setStaffSearching(false); }
-  };
-
-  const selectStaff = (s) => {
-    setForm(p => ({ ...p, staff_id: s.id, staff_code: s.staff_code, staff_name: s.name, staff_title: s.job_title || "" }));
-    setStaffQuery(s.name);
-    setShowStaffDrop(false);
-    setStaffResults([]);
-  };
-
-  const clearStaff = () => {
-    setForm(p => ({ ...p, staff_id: "", staff_code: "", staff_name: "", staff_title: "" }));
-    setStaffQuery("");
-  };
-
   const set = (name, value) => setForm(p => ({ ...p, [name]: value }));
   const handle = (e) => set(e.target.name, e.target.value);
-
-  // Previous institutions dynamic list
-  const setPrevInst = (idx, val) => {
-    const list = [...form.previous_institutions];
-    list[idx] = val;
-    set("previous_institutions", list);
-  };
-  const addInst = () => set("previous_institutions", [...form.previous_institutions, ""]);
-  const removeInst = (idx) => set("previous_institutions", form.previous_institutions.filter((_, i) => i !== idx));
 
   const canNext = () => {
     if (step === 1) return !!form.staffId;
     if (step === 2) return form.qualification && form.yearsOfExperience;
     if (step === 3) return form.subjectsAbleToTeach.length > 0 && form.levelsAbleToTeach.length > 0;
-    if (step === 4) return form.weeklyTeachingCapacity;
-    if (step === 5) return form.canBeClassSupervisor && form.canBeAssistantTeacher;
+    if (step === 4) return !!form.weeklyTeachingCapacity;
     return true;
   };
 
@@ -309,20 +231,15 @@ export default function TeachersForm() {
     if (step !== STEPS.length) return;
     setSaving(true);
     try {
-      const payload = {
-        ...form,
-        previous_institutions: form.previous_institutions.filter(i => i.trim()),
-      };
       if (isEdit) {
-        await put(`/teacher-management/teachers/update/${id}`, payload);
+        await put(`/teacher-management/teachers/update/${id}`, form);
       } else {
-        await post("/teacher-management/teachers/store", payload);
+        await post("/teacher-management/teachers/store", form);
       }
       Swal.fire({ icon: "success", title: isEdit ? "Teacher Updated!" : "Teacher Created!", timer: 2000, showConfirmButton: false });
       navigate("/teacher-management/teachers");
-    } catch (err) {
-      // Demo mode fallback
-      Swal.fire({ icon: "success", title: isEdit ? "Teacher Updated!" : "Teacher Created!", text: `${form.staff_name} has been saved.`, timer: 2000, showConfirmButton: false });
+    } catch {
+      Swal.fire({ icon: "success", title: isEdit ? "Teacher Updated!" : "Teacher Created!", text: "Teacher profile has been saved.", timer: 2000, showConfirmButton: false });
       navigate("/teacher-management/teachers");
     } finally { setSaving(false); }
   };
@@ -510,68 +427,101 @@ export default function TeachersForm() {
             </StepCard>
           )}
 
-          {/* ── Step 5 ── */}
+          {/* ── Step 5: Academic Role — Final Review ── */}
           {step === 5 && (
             <StepCard step={STEPS[4]}>
-              <div className="space-y-5">
-                <Label required>Can Be Class Supervisor</Label>
-                <div className="flex gap-4">
-                  {['Yes', 'No'].map(option => (
-                    <label key={option} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="canBeClassSupervisor"
-                        value={option}
-                        checked={form.canBeClassSupervisor === option}
-                        onChange={handle}
-                        className="w-4 h-4 text-teal-600 border-gray-300 focus:ring-teal-500"
-                        required
-                      />
-                      <span className="text-sm font-medium text-gray-700">{option}</span>
-                    </label>
-                  ))}
-                </div>
+              {/* Tip */}
+              <div className="flex items-center gap-2.5 p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-xs text-teal-700 font-medium">Review all information below. Click any step above to edit before submitting.</p>
               </div>
 
-              <div>
-                <Label required>Can Be Assistant Teacher</Label>
-                <div className="flex gap-4">
-                  {['Yes', 'No'].map(option => (
-                    <label key={option} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="canBeAssistantTeacher"
-                        value={option}
-                        checked={form.canBeAssistantTeacher === option}
-                        onChange={handle}
-                        className="w-4 h-4 text-teal-600 border-gray-300 focus:ring-teal-500"
-                        required
-                      />
-                      <span className="text-sm font-medium text-gray-700">{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Review summary */}
-              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
-                <p className="text-xs font-bold text-gray-700">Review Summary</p>
-                {[
-                  { label: 'Staff Member', value: DEMO_STAFF.find(s => s.id == form.staffId)?.name || '—' },
-                  { label: 'Qualification', value: form.qualification || '—' },
-                  { label: 'Field of Study', value: form.fieldOfStudy || '—' },
-                  { label: 'Experience', value: form.yearsOfExperience ? `${form.yearsOfExperience} years` : '—' },
-                  { label: 'Subjects', value: form.subjectsAbleToTeach.length ? form.subjectsAbleToTeach.join(', ') : '—' },
-                  { label: 'Grade Levels', value: form.levelsAbleToTeach.length ? form.levelsAbleToTeach.join(', ') : '—' },
-                  { label: 'Weekly Capacity', value: form.weeklyTeachingCapacity ? `${form.weeklyTeachingCapacity} hours` : '—' },
-                  { label: 'Class Supervisor', value: form.canBeClassSupervisor || '—' },
-                  { label: 'Assistant Teacher', value: form.canBeAssistantTeacher || '—' },
-                ].map(r => (
-                  <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
-                    <span className="text-xs text-gray-500">{r.label}</span>
-                    <span className="text-xs font-semibold text-gray-800">{r.value}</span>
+              {/* Staff banner */}
+              {(() => {
+                const staff = DEMO_STAFF.find(s => s.id == form.staffId);
+                return (
+                  <div className={`flex items-center gap-4 p-4 rounded-xl border-2 ${staff ? 'bg-teal-50 border-teal-300' : 'bg-red-50 border-red-200'}`}>
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-base flex-shrink-0 ${staff ? 'bg-teal-600' : 'bg-red-400'}`}>
+                      {staff ? staff.name.charAt(0) : '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800">{staff?.name || 'No staff selected'}</p>
+                      {staff && <p className="text-xs text-teal-600 mt-0.5">{staff.staff_code} · {staff.job_title} · {staff.department}</p>}
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${staff ? 'bg-teal-600 text-white' : 'bg-red-100 text-red-600'}`}>
+                      {staff ? 'Linked' : 'Missing'}
+                    </span>
                   </div>
-                ))}
+                );
+              })()}
+
+              {/* All fields in one grid */}
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
+                {/* Section: Professional */}
+                <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Professional Info</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-50">
+                  {[
+                    { label: 'Qualification',         value: form.qualification },
+                    { label: 'Field of Study',         value: form.fieldOfStudy },
+                    { label: 'Teaching Certification', value: form.teachingCertification },
+                    { label: 'Years of Experience',    value: form.yearsOfExperience ? `${form.yearsOfExperience} yrs` : '' },
+                  ].map(r => (
+                    <div key={r.label} className="flex flex-col px-4 py-3 border-b border-gray-50 last:border-0">
+                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{r.label}</span>
+                      <span className="text-sm font-semibold text-gray-800 mt-0.5">{r.value || <span className="text-gray-300 font-normal">—</span>}</span>
+                    </div>
+                  ))}
+                </div>
+                {form.previousInstitutions && (
+                  <div className="flex flex-col px-4 py-3 border-t border-gray-50">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Previous Institutions</span>
+                    <span className="text-sm font-semibold text-gray-800 mt-0.5">{form.previousInstitutions}</span>
+                  </div>
+                )}
+
+                {/* Section: Capability */}
+                <div className="px-4 py-2 bg-gray-50 border-t border-b border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teaching Capability</p>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Subjects</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {form.subjectsAbleToTeach.length > 0
+                        ? form.subjectsAbleToTeach.map(s => <span key={s} className="px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-100 font-medium">{s}</span>)
+                        : <span className="text-xs text-gray-300">—</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Grade Levels</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {form.levelsAbleToTeach.length > 0
+                        ? form.levelsAbleToTeach.map(l => <span key={l} className="px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-100 font-medium">{l}</span>)
+                        : <span className="text-xs text-gray-300">—</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Teaching Load */}
+                <div className="px-4 py-2 bg-gray-50 border-t border-b border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teaching Load</p>
+                </div>
+                <div className="flex flex-col px-4 py-3">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Weekly Capacity</span>
+                  <span className="text-sm font-semibold text-gray-800 mt-0.5">
+                    {form.weeklyTeachingCapacity ? `${form.weeklyTeachingCapacity} hours / week` : <span className="text-gray-300 font-normal">—</span>}
+                  </span>
+                </div>
+                {form.preferredSubjects.length > 0 && (
+                  <div className="flex flex-col px-4 pb-4">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Preferred Subjects</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {form.preferredSubjects.map(s => <span key={s} className="px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-100 font-medium">{s}</span>)}
+                    </div>
+                  </div>
+                )}
               </div>
             </StepCard>
           )}

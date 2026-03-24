@@ -402,19 +402,36 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
   }
 
   return (
-    <div className="w-full px-4 py-4">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-4 py-3 border-b border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-800">
-            {isEdit ? `Edit ${title}` : `Create ${title}`}
-          </h2>
+    <div className="min-h-screen bg-gray-50/60">
+      <div className="bg-teal-600 px-5 py-4">
+        <div className="max-w-full mx-auto flex items-center gap-3">
+          <button type="button" onClick={() => navigate(listRoute)}
+            className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <div>
+            <h1 className="text-sm font-bold text-white">{isEdit ? `Edit ${title}` : `Create ${title}`}</h1>
+            <p className="text-xs text-teal-100 mt-0.5">Fill in the details below</p>
+          </div>
+        </div>
+      </div>
+      <div className="max-w-full mx-auto px-4 py-6">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
+          <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-800">{title} Details</p>
+            <p className="text-xs text-teal-600">Primary information</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4">
+        <form onSubmit={handleSubmit} className="p-5">
           {/* Staff Details Section - Only show for leave requests */}
           {staffDetails && (
-            <div className="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-200">
-              <h3 className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">
+            <div className="bg-teal-50 rounded-xl p-4 mb-4 border border-teal-200">
+              <h3 className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3">
                 Staff Details
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
@@ -426,7 +443,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
             </div>
           )}
 
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <div className="bg-gray-50 rounded-xl p-5 mb-5">
             <h3 className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3">
               Primary Details
             </h3>
@@ -443,23 +460,26 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex items-center gap-3 pt-2">
             <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-auto px-4 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium text-xs"
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
               {saving ? 'Saving...' : (isEdit ? 'Update' : 'Create')}
             </button>
             <button
               type="button"
               onClick={() => navigate(listRoute)}
-              className="w-full sm:w-auto px-4 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium text-xs"
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
               Cancel
             </button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );

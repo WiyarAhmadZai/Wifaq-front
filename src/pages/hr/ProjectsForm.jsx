@@ -101,12 +101,12 @@ export default function ProjectsForm() {
   const loadProject = async () => {
     setLoading(true);
     try {
-      const res = await get(`/hr/projects/${id}`);
+      const res = await get(`/purchase/projects/${id}`);
       const d = res.data?.data || res.data;
       setForm({ project_name: d.project_name || '', start_date: d.start_date || '', end_date: d.end_date || '', budget: d.budget || '', manager_id: d.manager_id || '' });
     } catch {
       Swal.fire('Error', 'Failed to load project', 'error');
-      navigate('/hr/projects');
+      navigate('/purchase/projects');
     } finally { setLoading(false); }
   };
 
@@ -120,13 +120,13 @@ export default function ProjectsForm() {
     }
     setSaving(true);
     try {
-      if (isEdit) await put(`/hr/projects/${id}`, form);
-      else await post('/hr/projects', form);
+      if (isEdit) await put(`/purchase/projects/${id}`, form);
+      else await post('/purchase/projects', form);
       Swal.fire({ icon: 'success', title: isEdit ? 'Project Updated!' : 'Project Created!', timer: 2000, showConfirmButton: false });
-      navigate('/hr/projects');
+      navigate('/purchase/projects');
     } catch {
       Swal.fire({ icon: 'success', title: isEdit ? 'Project Updated!' : 'Project Created!', timer: 2000, showConfirmButton: false });
-      navigate('/hr/projects');
+      navigate('/purchase/projects');
     } finally { setSaving(false); }
   };
 
@@ -140,7 +140,7 @@ export default function ProjectsForm() {
     <div className="min-h-screen bg-gray-50/60">
       <div className="bg-teal-600 px-5 py-4">
         <div className="max-w-full mx-auto flex items-center gap-3">
-          <button onClick={() => navigate('/hr/projects')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={() => navigate('/purchase/projects')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
@@ -202,7 +202,7 @@ export default function ProjectsForm() {
           </div>
 
           <div className="flex items-center justify-between">
-            <button type="button" onClick={() => navigate('/hr/projects')}
+            <button type="button" onClick={() => navigate('/purchase/projects')}
               className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
               Cancel

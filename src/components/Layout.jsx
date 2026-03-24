@@ -365,7 +365,6 @@ export default function Layout() {
   const hrSubMenus = [
     { label: "Staff", path: "/hr/staff" },
   { label: "Salary Snapshot", path: "/hr/salary-snapshot" },
-  { label: "Projects", path: "/hr/projects" },
     { label: "Contracts", path: "/hr/contracts" },
     { label: "Attendance", path: "/hr/attendance" },
     { label: "Leave Request", path: "/hr/leave-request" },
@@ -540,6 +539,12 @@ export default function Layout() {
               label="Teachers"
               to="/teacher-management/teachers"
               active={isActive("/teacher-management/teachers")}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Teacher Subjects"
+              to="/teacher-management/teacher-subjects"
+              active={isActive("/teacher-management/teacher-subjects")}
               onClick={closeSidebar}
             />
           </ParentMenu>

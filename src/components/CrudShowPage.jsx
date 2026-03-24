@@ -43,16 +43,16 @@ const Icons = {
 
 const getStatusBadge = (status) => {
   const styles = {
-    approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    pending: 'bg-amber-100 text-amber-800 border-amber-200',
-    rejected: 'bg-red-100 text-red-800 border-red-200',
-    new: 'bg-blue-100 text-blue-800 border-blue-200',
-    completed: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
-    present: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    absent: 'bg-red-100 text-red-800 border-red-200',
-    late: 'bg-amber-100 text-amber-800 border-amber-200',
-    active: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    approved: 'bg-teal-50 text-teal-700 border-teal-200',
+    pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    rejected: 'bg-red-50 text-red-700 border-red-200',
+    new: 'bg-teal-50 text-teal-700 border-teal-200',
+    completed: 'bg-teal-50 text-teal-700 border-teal-200',
+    in_progress: 'bg-teal-50 text-teal-600 border-teal-200',
+    present: 'bg-teal-50 text-teal-700 border-teal-200',
+    absent: 'bg-red-50 text-red-700 border-red-200',
+    late: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    active: 'bg-teal-50 text-teal-700 border-teal-200',
     inactive: 'bg-gray-100 text-gray-800 border-gray-200',
   };
   return styles[status?.toLowerCase()] || 'bg-gray-100 text-gray-800 border-gray-200';

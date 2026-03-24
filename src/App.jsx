@@ -144,9 +144,6 @@ import RoutineItemShow from "./pages/purchase/RoutineItemShow";
 import RepairRequests from "./pages/purchase/RepairRequests";
 import RepairRequestForm from "./pages/purchase/RepairRequestForm";
 import RepairRequestShow from "./pages/purchase/RepairRequestShow";
-import Projects from "./pages/purchase/Projects";
-import ProjectForm from "./pages/purchase/ProjectForm";
-import ProjectShow from "./pages/purchase/ProjectShow";
 
 // Student Registration Pages
 
@@ -359,12 +356,6 @@ function App() {
 
           {/* Profile */}
           <Route path="profile" element={<MyProfile />} />
-
-          {/* HR Routes - Projects */}
-          <Route path="hr/projects" element={<HRProjects />} />
-          <Route path="hr/projects/create" element={<HRProjectsForm />} />
-          <Route path="hr/projects/edit/:id" element={<HRProjectsForm />} />
-          <Route path="hr/projects/show/:id" element={<HRProjectsShow />} />
 
           {/* HR Routes - Salary Snapshot */}
           <Route path="hr/salary-snapshot" element={<SalarySnapshot />} />
@@ -645,10 +636,10 @@ function App() {
           <Route path="purchase/repair-requests/show/:id" element={<RepairRequestShow />} />
 
           {/* Purchase Routes - Projects */}
-          <Route path="purchase/projects" element={<Projects />} />
-          <Route path="purchase/projects/create" element={<ProjectForm />} />
-          <Route path="purchase/projects/edit/:id" element={<ProjectForm />} />
-          <Route path="purchase/projects/show/:id" element={<ProjectShow />} />
+          <Route path="purchase/projects" element={<HRProjects />} />
+          <Route path="purchase/projects/create" element={<HRProjectsForm />} />
+          <Route path="purchase/projects/edit/:id" element={<HRProjectsForm />} />
+          <Route path="purchase/projects/show/:id" element={<HRProjectsShow />} />
         </Route>
       </Routes>
     </Router>

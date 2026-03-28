@@ -79,17 +79,56 @@ export default function CrudPage({
     }
   };
 
-  const handleOpenStatusModal = (item) => { setSelectedItem(item); setNewStatus(item.status || ""); setShowStatusModal(true); };
+  const handleOpenStatusModal = (item) => { setSelectedItem(item); setNewStatus(item.status ? "true" : "false"); setShowStatusModal(true); };
   const handleCloseStatusModal = () => { setShowStatusModal(false); setSelectedItem(null); setNewStatus(""); };
   const handleStatusUpdate = async () => {
     if (!newStatus) { Swal.fire("Error", "Please select a status", "error"); return; }
     setSavingStatus(true);
     try {
-      await put(`${statusEndpoint}/${selectedItem[idField]}`, { status: newStatus });
-      Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
-      handleCloseStatusModal(); fetchItems();
-    } catch (error) { Swal.fire("Error", error.response?.data?.message || "Failed to update status", "error"); }
-    finally { setSavingStatus(false); }
+      // For branches, we need to send all fields to avoid validation errors
+      // First fetch the current branch data
+      let fetchEndpoint;
+      if (apiEndpoint.includes('/branches/list')) {
+        fetchEndpoint = `/branches/show/${selectedItem[idField]}`;
+      } else {
+        fetchEndpoint = `${apiEndpoint}/show/${selectedItem[idField]}`;
+      }
+      
+      const getResponse = await get(fetchEndpoint);
+      const currentBranch = getResponse.data?.data || getResponse.data;
+      
+      // Update only the status field
+      const updatedBranch = { ...currentBranch, status: newStatus === "true" };
+      
+      const putResponse = await put(`${statusEndpoint}/${selectedItem[idField]}`, updatedBranch);
+      
+      if (putResponse.data?.success || putResponse.data) {
+        Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
+        handleCloseStatusModal(); 
+        fetchItems();
+      } else {
+        throw new Error(putResponse.data?.message || "Failed to update status");
+      }
+    } catch (error) { 
+      console.error("Status update error:", error);
+      
+      // Handle different types of errors
+      let errorMessage = "Failed to update status";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors
+        const errors = error.response.data.errors;
+        const firstError = Object.values(errors)[0];
+        errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Swal.fire("Error", errorMessage, "error"); 
+    } finally { 
+      setSavingStatus(false); 
+    }
   };
 
   const stats = [
@@ -242,7 +281,7 @@ export default function CrudPage({
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Current Status</label>
                 <div className="px-3 py-2 rounded-xl bg-teal-50 text-teal-700 text-sm font-medium capitalize">
-                  {selectedItem?.status?.replace(/[-_]/g, " ")}
+                  {selectedItem?.status ? "Active" : "Inactive"}
                 </div>
               </div>
               <div>

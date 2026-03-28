@@ -48,6 +48,7 @@ export default function ApplicationShow() {
   const [checklist, setChecklist] = useState({});
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [viewingDoc, setViewingDoc] = useState(null); // Document being viewed in modal
 
   useEffect(() => {
     fetchData();
@@ -97,12 +98,11 @@ export default function ApplicationShow() {
   };
 
   const openDocument = (doc) => {
-    const url = getDocumentUrl(doc.file_url);
-    if (url) {
-      window.open(url, "_blank");
-    } else {
-      Swal.fire("Error", "Document not available", "error");
-    }
+    setViewingDoc(doc);
+  };
+
+  const closeDocument = () => {
+    setViewingDoc(null);
   };
 
   const getCurrentStepIndex = () => STEPS.findIndex((s) => s.key === data?.status);
@@ -157,7 +157,7 @@ export default function ApplicationShow() {
   );
 
   return (
-    <div className="px-4 py-6 mx-auto max-w-7xl">
+    <div className="px-4 py-6 mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate("/recruitment/applications")} className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
@@ -276,6 +276,50 @@ export default function ApplicationShow() {
                       <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Motivation</p>
                       <p className="text-sm text-gray-700 leading-relaxed">{data.motivation || "No motivation provided"}</p>
                     </div>
+                  </div>
+
+                  {/* Documents Section in Received Stage */}
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Uploaded Documents ({data.documents?.length || 0})
+                    </h3>
+                    {data.documents && data.documents.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {data.documents.map((doc) => {
+                          const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
+                          return (
+                            <div key={doc.id} className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg bg-${docType.color}-100 text-${docType.color}-600 flex items-center justify-center`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon} />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{docType.label}</p>
+                                <p className="text-xs text-gray-500">{formatDateTime(doc.uploaded_at)}</p>
+                              </div>
+                              <button
+                                onClick={() => openDocument(doc)}
+                                className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                                title="View Document"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                        <p className="text-sm text-gray-500">No documents uploaded</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100">
@@ -452,6 +496,54 @@ export default function ApplicationShow() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Documents Quick Access */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700">Documents</h3>
+                <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-medium">
+                  {data.documents?.length || 0}
+                </span>
+              </div>
+              {data.documents && data.documents.length > 0 ? (
+                <div className="space-y-2">
+                  {data.documents.slice(0, 3).map((doc) => {
+                    const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, color: "gray" };
+                    const docColors = COLOR_STYLES[docType.color];
+                    return (
+                      <button
+                        key={doc.id}
+                        onClick={() => openDocument(doc)}
+                        className="w-full p-2 bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 transition-all text-left"
+                      >
+                        <div className={`w-8 h-8 rounded-lg ${docColors.icon} flex items-center justify-center flex-shrink-0`}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon || "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"} />
+                          </svg>
+                        </div>
+                        <span className="text-sm text-gray-700 truncate flex-1">{docType.label}</span>
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                    );
+                  })}
+                  {data.documents.length > 3 && (
+                    <button
+                      onClick={() => setActiveTab("documents")}
+                      className="w-full py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                    >
+                      View all {data.documents.length} documents →
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">No documents uploaded</p>
+                </div>
+              )}
+            </div>
+
             {/* Candidate Info */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
               <h3 className="text-sm font-semibold text-gray-700 mb-4">Candidate Info</h3>
@@ -761,6 +853,107 @@ export default function ApplicationShow() {
                 <p className="text-sm text-gray-500">No documents have been uploaded for this application</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Document Viewer Modal */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const docType = DOCUMENT_TYPES[viewingDoc.document_type] || { label: viewingDoc.document_type, color: "gray" };
+                  const docColors = COLOR_STYLES[docType.color];
+                  return (
+                    <div className={`w-10 h-10 rounded-lg ${docColors.icon} flex items-center justify-center`}>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon || "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"} />
+                      </svg>
+                    </div>
+                  );
+                })()}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    {(() => {
+                      const docType = DOCUMENT_TYPES[viewingDoc.document_type];
+                      return docType?.label || viewingDoc.document_type;
+                    })()}
+                  </h3>
+                  <p className="text-sm text-gray-500">Uploaded: {formatDateTime(viewingDoc.uploaded_at)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={getDocumentUrl(viewingDoc.file_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-all flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open in New Tab
+                </a>
+                <button
+                  onClick={closeDocument}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - Document Preview */}
+            <div className="flex-1 overflow-auto bg-gray-100 p-4 flex items-center justify-center">
+              {viewingDoc.file_url?.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={getDocumentUrl(viewingDoc.file_url)}
+                  className="w-full h-full min-h-[500px] rounded-lg bg-white"
+                  title="Document Preview"
+                />
+              ) : viewingDoc.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <img
+                  src={getDocumentUrl(viewingDoc.file_url)}
+                  alt="Document"
+                  className="max-w-full max-h-[70vh] rounded-lg shadow-lg"
+                />
+              ) : (
+                <div className="text-center p-8">
+                  <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-600 mb-4">This file type cannot be previewed directly</p>
+                  <a
+                    href={getDocumentUrl(viewingDoc.file_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-all"
+                  >
+                    Download/View File
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                File: {viewingDoc.file_url?.split('/').pop()}
+              </p>
+              <button
+                onClick={closeDocument}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-all"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

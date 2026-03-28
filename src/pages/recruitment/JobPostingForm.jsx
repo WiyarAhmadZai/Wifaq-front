@@ -220,7 +220,7 @@ export default function JobPostingForm() {
             </div>
           </div>
 
-          <div className="p-5">
+          <div className="p-5" style={{ position: 'relative', zIndex: 1 }}>
             <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
               Requisition *
             </label>
@@ -234,6 +234,8 @@ export default function JobPostingForm() {
               isClearable
               className={`react-select-container ${err("requisition_id") ? "react-select-error" : ""}`}
               classNamePrefix="react-select"
+              menuPortalTarget={document.body}
+              menuPosition="fixed"
               styles={{
                 control: (baseStyles, state) => ({
                   ...baseStyles,
@@ -252,6 +254,10 @@ export default function JobPostingForm() {
                 noOptionsMessage: (baseStyles) => ({
                   ...baseStyles,
                   fontSize: "0.75rem",
+                }),
+                menuPortal: (baseStyles) => ({
+                  ...baseStyles,
+                  zIndex: 9999,
                 }),
               }}
             />

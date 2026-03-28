@@ -401,7 +401,7 @@ export default function Layout() {
     { label: "Job Applications", path: "/recruitment/job-requisitions" },
     { label: "Job Postings", path: "/recruitment/job-postings" },
     { label: "Applications", path: "/recruitment/applications" },
-    { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
+    // { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
   ];
 
   const purchaseMenus = [
@@ -414,6 +414,13 @@ export default function Layout() {
   ];
 
   const financeMenus = [
+    { label: "Overview", path: "/finance/dashboard" },
+    { label: "Chart of Accounts", path: "/finance/chart-of-accounts" },
+    { label: "Accounts", path: "/finance/accounts" },
+    { label: "Invoices", path: "/finance/invoices" },
+    { label: "Payments", path: "/finance/payments" },
+    { label: "Budgets", path: "/finance/budgets" },
+    // { label: "Fee Invoices", path: "/finance/fee-invoices" },
     { label: "Fee Payments", path: "/finance/fee-payments" },
   ];
 
@@ -539,6 +546,12 @@ export default function Layout() {
               label="Teachers"
               to="/teacher-management/teachers"
               active={isActive("/teacher-management/teachers")}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Teacher Subjects"
+              to="/teacher-management/teacher-subjects"
+              active={isActive("/teacher-management/teacher-subjects")}
               onClick={closeSidebar}
             />
           </ParentMenu>
@@ -697,7 +710,7 @@ export default function Layout() {
             ))}
           </ParentMenu>
 
-          <MenuSection title="Operations" />
+          {/* <MenuSection title="Operations" />
           <SidebarItem
             icon={Icons.Payroll}
             label="Payroll"
@@ -718,7 +731,7 @@ export default function Layout() {
             to="/number-puzzle"
             active={isActive("/number-puzzle")}
             onClick={closeSidebar}
-          />
+          /> */}
 
           <MenuSection title="System" />
           <SidebarItem

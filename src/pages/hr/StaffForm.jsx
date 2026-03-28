@@ -139,6 +139,7 @@ export default function StaffForm() {
     hire_date: new Date().toISOString().split("T")[0],
     contract_type: "FT", status: "active",
     probation_end_date: "", direct_supervisor_id: "",
+    can_be_supervisor: null, can_be_assistant: null,
     cv_upload: null, tazkira_scan: null, certificates: null, signed_contract: null,
   });
 
@@ -432,25 +433,6 @@ export default function StaffForm() {
                 </div>
               </div>
 
-              {/* Status */}
-              <div>
-                <Label required>Status</Label>
-                <div className="flex gap-3">
-                  {STATUS_OPTIONS.map(s => (
-                    <button key={s} type="button" onClick={() => set('status', s)}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${form.status === s ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {form.status === "probation" && (
-                <div>
-                  <Label>Probation End Date</Label>
-                  <input type="date" name="probation_end_date" value={form.probation_end_date} onChange={handle} className={inp} />
-                </div>
-              )}
             </StepCard>
           )}
 

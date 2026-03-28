@@ -5,66 +5,34 @@ import Swal from "sweetalert2";
 
 const pipelineStages = [
   { key: "draft", label: "Draft", color: "gray" },
-  { key: "submitted", label: "Submitted", color: "blue" },
   { key: "approved", label: "Approved", color: "emerald" },
-  { key: "procurement", label: "Procurement", color: "purple" },
-  { key: "delivered", label: "Delivered", color: "cyan" },
   { key: "completed", label: "Completed", color: "teal" },
 ];
 
 const colorMap = {
-  gray: { bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-700", iconBg: "bg-gray-100", btn: "bg-gray-600 hover:bg-gray-700" },
-  blue: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", iconBg: "bg-blue-100", btn: "bg-blue-600 hover:bg-blue-700" },
-  emerald: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", iconBg: "bg-emerald-100", btn: "bg-emerald-600 hover:bg-emerald-700" },
-  purple: { bg: "bg-purple-50", border: "border-purple-200", text: "text-purple-700", iconBg: "bg-purple-100", btn: "bg-purple-600 hover:bg-purple-700" },
-  cyan: { bg: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-700", iconBg: "bg-cyan-100", btn: "bg-cyan-600 hover:bg-cyan-700" },
-  teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", iconBg: "bg-teal-100", btn: "bg-teal-600 hover:bg-teal-700" },
+  gray: { bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-700", iconBg: "bg-gray-100" },
+  emerald: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", iconBg: "bg-emerald-100" },
+  teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", iconBg: "bg-teal-100" },
 };
 
 const stageGuide = {
   draft: {
     title: "Draft - Prepare Your Request",
-    description: "Review the items list and request details. When everything looks correct, submit the request for approval.",
-    nextAction: "Submit for Approval",
-    nextStatus: "submitted",
+    description: "Review the items and details. When ready, approve or reject.",
     icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
   },
-  submitted: {
-    title: "Awaiting Approval",
-    description: "This request has been submitted and is waiting for management review. You can approve or reject it below.",
-    nextAction: "Approve Request",
-    nextStatus: "approved",
-    icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
   approved: {
-    title: "Approved - Begin Procurement",
-    description: "The request has been approved. Now gather quotations from suppliers and select the best offer, then move to procurement.",
-    nextAction: "Start Procurement",
-    nextStatus: "procurement",
-    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-  },
-  procurement: {
-    title: "Procurement in Progress",
-    description: "The purchase order has been placed. Track the order and update when items are received.",
-    nextAction: "Mark as Delivered",
-    nextStatus: "delivered",
-    icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
-  },
-  delivered: {
-    title: "Items Delivered - Verify & Complete",
-    description: "Items have been delivered. Verify the quantities and quality, then add the invoice details and complete the process.",
-    nextAction: "Complete & Close",
-    nextStatus: "completed",
-    icon: "M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4",
+    title: "Approved - Ready for Procurement",
+    description: "This request has been approved. Add quotations, record invoice, and complete when done.",
+    icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   completed: {
     title: "Purchase Completed",
-    description: "This purchase request has been fully processed. All items delivered and invoiced.",
+    description: "This purchase request has been fully processed.",
     icon: "M5 13l4 4L19 7",
   },
 };
 
-// Dummy data
 const dummyRequests = {
   1: { id: 1, pr_number: "PR-2026-001", title: "Office Stationery for Q1", requested_by: "Ahmad Rahimi", department: "Admin", status: "approved", priority: "medium", total_amount: 15000, notes: "Needed for new semester", created_at: "2026-01-15",
     items: [
@@ -74,19 +42,20 @@ const dummyRequests = {
       { item_name: "Staplers", quantity: 10, unit: "pcs", unit_price: 200 },
       { item_name: "File Folders", quantity: 30, unit: "pcs", unit_price: 50 },
     ],
+    approval: { approved_by: "Mohammad Karimi", approved_date: "2026-01-16", notes: "Approved for Q1" },
   },
-  2: { id: 2, pr_number: "PR-2026-002", title: "Computer Lab Equipment", requested_by: "Khalid Amiri", department: "IT", status: "procurement", priority: "high", total_amount: 250000, notes: "Upgrade old lab computers", created_at: "2026-01-28",
+  2: { id: 2, pr_number: "PR-2026-002", title: "Computer Lab Equipment", requested_by: "Khalid Amiri", department: "IT", status: "approved", priority: "high", total_amount: 250000, notes: "Upgrade old lab computers", created_at: "2026-01-28",
     items: [
       { item_name: "Desktop Computer (i5, 8GB RAM)", quantity: 5, unit: "set", unit_price: 35000 },
       { item_name: "Monitor 24 inch", quantity: 5, unit: "pcs", unit_price: 8000 },
       { item_name: "Keyboard & Mouse Combo", quantity: 5, unit: "set", unit_price: 1500 },
       { item_name: "Network Switch 24-port", quantity: 1, unit: "pcs", unit_price: 12500 },
     ],
+    approval: { approved_by: "Mohammad Karimi", approved_date: "2026-02-03", notes: "Approved - high priority" },
     quotations: [
       { id: 1, supplier: "TechWorld Kabul", amount: 248000, submitted_date: "2026-02-05", selected: true },
       { id: 2, supplier: "CompuStore AF", amount: 265000, submitted_date: "2026-02-06", selected: false },
     ],
-    approval: { approved_by: "Mohammad Karimi", approved_date: "2026-02-03", notes: "Approved - high priority" },
   },
   3: { id: 3, pr_number: "PR-2026-003", title: "Cleaning Supplies - Monthly", requested_by: "Zahra Ahmadi", department: "Facilities", status: "completed", priority: "low", total_amount: 8500, notes: "", created_at: "2026-02-01",
     items: [
@@ -96,10 +65,9 @@ const dummyRequests = {
       { item_name: "Toilet Paper (12-roll)", quantity: 5, unit: "pack", unit_price: 300 },
     ],
     approval: { approved_by: "Fatima Noori", approved_date: "2026-02-02", notes: "Routine purchase" },
-    quotations: [{ id: 1, supplier: "CleanMart", amount: 8500, submitted_date: "2026-02-03", selected: true }],
     invoice: { invoice_number: "INV-CM-0245", amount: 8500, paid_date: "2026-02-10", supplier: "CleanMart" },
   },
-  4: { id: 4, pr_number: "PR-2026-004", title: "Library Books - Science Section", requested_by: "Maryam Sultani", department: "Library", status: "submitted", priority: "medium", total_amount: 45000, notes: "Reference books for grade 10-12", created_at: "2026-02-10",
+  4: { id: 4, pr_number: "PR-2026-004", title: "Library Books - Science Section", requested_by: "Maryam Sultani", department: "Library", status: "draft", priority: "medium", total_amount: 45000, notes: "Reference books for grade 10-12", created_at: "2026-02-10",
     items: [
       { item_name: "Physics Textbook (Grade 10)", quantity: 20, unit: "pcs", unit_price: 800 },
       { item_name: "Chemistry Lab Manual", quantity: 15, unit: "pcs", unit_price: 600 },
@@ -112,14 +80,14 @@ const dummyRequests = {
       { item_name: "Student Chair", quantity: 60, unit: "pcs", unit_price: 1000 },
     ],
   },
-  7: { id: 7, pr_number: "PR-2026-007", title: "Printer Cartridges & Paper", requested_by: "Sara Hashimi", department: "Admin", status: "delivered", priority: "low", total_amount: 12000, notes: "", created_at: "2026-03-01",
+  7: { id: 7, pr_number: "PR-2026-007", title: "Printer Cartridges & Paper", requested_by: "Sara Hashimi", department: "Admin", status: "completed", priority: "low", total_amount: 12000, notes: "", created_at: "2026-03-01",
     items: [
       { item_name: "HP Cartridge 85A", quantity: 4, unit: "pcs", unit_price: 2000 },
       { item_name: "A4 Paper (500 sheets)", quantity: 10, unit: "ream", unit_price: 250 },
       { item_name: "Color Ink Cartridge", quantity: 2, unit: "pcs", unit_price: 750 },
     ],
     approval: { approved_by: "Fatima Noori", approved_date: "2026-03-02", notes: "" },
-    quotations: [{ id: 1, supplier: "PrintStar", amount: 11800, submitted_date: "2026-03-03", selected: true }],
+    invoice: { invoice_number: "INV-PS-0312", amount: 11800, paid_date: "2026-03-08", supplier: "PrintStar" },
   },
 };
 
@@ -129,7 +97,6 @@ export default function PurchaseRequestShow() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Form states for guided workflow
   const [approvalForm, setApprovalForm] = useState({ approved_by: "", notes: "" });
   const [quotationForm, setQuotationForm] = useState({ supplier: "", amount: "", submitted_date: "" });
   const [invoiceForm, setInvoiceForm] = useState({ invoice_number: "", amount: "", paid_date: "", supplier: "" });
@@ -143,10 +110,24 @@ export default function PurchaseRequestShow() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const updateStatus = (newStatus) => {
-    put(`/purchase/purchase-requests/${id}`, { ...data, status: newStatus }).catch(() => {});
-    setData((prev) => ({ ...prev, status: newStatus }));
-    Swal.fire("Updated!", `Status changed to ${newStatus}`, "success");
+  const handleApprove = () => {
+    if (!approvalForm.approved_by) {
+      Swal.fire("Required", "Enter approver name", "warning");
+      return;
+    }
+    setData((prev) => ({
+      ...prev,
+      status: "approved",
+      approval: { ...approvalForm, approved_date: new Date().toISOString().split("T")[0] },
+    }));
+    put(`/purchase/purchase-requests/${id}`, { ...data, status: "approved" }).catch(() => {});
+    Swal.fire("Approved!", "Request has been approved.", "success");
+  };
+
+  const handleComplete = () => {
+    setData((prev) => ({ ...prev, status: "completed" }));
+    put(`/purchase/purchase-requests/${id}`, { ...data, status: "completed" }).catch(() => {});
+    Swal.fire("Completed!", "Purchase request has been completed.", "success");
   };
 
   const handleReject = () => {
@@ -176,16 +157,6 @@ export default function PurchaseRequestShow() {
       ...prev,
       quotations: prev.quotations.map((q) => ({ ...q, selected: q.id === qId })),
     }));
-  };
-
-  const saveApproval = () => {
-    if (!approvalForm.approved_by) return;
-    setData((prev) => ({
-      ...prev,
-      status: "approved",
-      approval: { ...approvalForm, approved_date: new Date().toISOString().split("T")[0] },
-    }));
-    Swal.fire("Approved!", "Request has been approved.", "success");
   };
 
   const saveInvoice = () => {
@@ -265,7 +236,7 @@ export default function PurchaseRequestShow() {
         </div>
       </div>
 
-      {/* Pipeline Stepper */}
+      {/* Pipeline Stepper - 3 steps only */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
         <div className="flex items-center justify-between">
           {pipelineStages.map((stage, i) => {
@@ -275,7 +246,7 @@ export default function PurchaseRequestShow() {
             return (
               <div key={stage.key} className="flex items-center flex-1">
                 <div className="flex flex-col items-center flex-1">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${
                     isCurrent ? `${c.iconBg} ${c.text} ring-2 ring-current`
                     : isPast ? "bg-teal-600 text-white"
                     : "bg-gray-100 text-gray-400"
@@ -286,12 +257,12 @@ export default function PurchaseRequestShow() {
                       </svg>
                     ) : i + 1}
                   </div>
-                  <span className={`text-[9px] mt-1 font-semibold uppercase tracking-wider ${
+                  <span className={`text-[10px] mt-1.5 font-semibold uppercase tracking-wider ${
                     isCurrent ? c.text : isPast ? "text-teal-600" : "text-gray-400"
                   }`}>{stage.label}</span>
                 </div>
                 {i < pipelineStages.length - 1 && (
-                  <div className={`h-0.5 flex-1 mx-1 ${isPast ? "bg-teal-400" : "bg-gray-200"}`} />
+                  <div className={`h-0.5 flex-1 mx-2 ${isPast ? "bg-teal-400" : "bg-gray-200"}`} />
                 )}
               </div>
             );
@@ -313,9 +284,9 @@ export default function PurchaseRequestShow() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Main Content - Left 2/3 */}
+        {/* Main Content */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Stage Guide Card */}
+          {/* Stage Guide */}
           {!isRejected && (
             <div className={`${colors.bg} border ${colors.border} rounded-xl p-4`}>
               <div className="flex items-start gap-3">
@@ -369,23 +340,8 @@ export default function PurchaseRequestShow() {
             </div>
           </div>
 
-          {/* Stage-specific content */}
-
-          {/* DRAFT: Just show items + submit button */}
+          {/* DRAFT: Approve or Reject */}
           {data.status === "draft" && (
-            <div className="flex gap-2">
-              <button onClick={() => updateStatus("submitted")} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-                Submit for Approval
-              </button>
-              <button onClick={handleReject} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-xs font-medium">Cancel Request</button>
-            </div>
-          )}
-
-          {/* SUBMITTED: Approval form */}
-          {data.status === "submitted" && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider mb-3">Approval Decision</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -405,7 +361,7 @@ export default function PurchaseRequestShow() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={saveApproval} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium flex items-center gap-2">
+                <button onClick={handleApprove} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
@@ -416,149 +372,119 @@ export default function PurchaseRequestShow() {
             </div>
           )}
 
-          {/* APPROVED: Quotations */}
+          {/* APPROVED: Quotations + Invoice + Complete */}
           {data.status === "approved" && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">Supplier Quotations</h3>
-                <button onClick={() => setShowQuotationForm(!showQuotationForm)}
-                  className="px-2.5 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-[10px] font-medium flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Quotation
-                </button>
-              </div>
-
-              {/* Existing quotations */}
-              {(data.quotations || []).length > 0 && (
-                <div className="space-y-2 mb-3">
-                  {data.quotations.map((q) => (
-                    <div key={q.id} className={`p-3 rounded-lg border ${q.selected ? "bg-emerald-50 border-emerald-200" : "bg-gray-50 border-gray-200"}`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-medium text-gray-800">{q.supplier}</p>
-                          <p className="text-[10px] text-gray-500">Submitted: {q.submitted_date}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-gray-800">{Number(q.amount).toLocaleString()} AFN</span>
-                          {q.selected ? (
-                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-semibold">Selected</span>
-                          ) : (
-                            <button onClick={() => selectQuotation(q.id)} className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-[10px] font-semibold hover:bg-teal-200">Select</button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add quotation form */}
-              {showQuotationForm && (
-                <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
-                    <input type="text" value={quotationForm.supplier}
-                      onChange={(e) => setQuotationForm((p) => ({ ...p, supplier: e.target.value }))}
-                      placeholder="Supplier name" className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
-                    <input type="number" value={quotationForm.amount}
-                      onChange={(e) => setQuotationForm((p) => ({ ...p, amount: e.target.value }))}
-                      placeholder="Amount (AFN)" className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
-                    <input type="date" value={quotationForm.submitted_date}
-                      onChange={(e) => setQuotationForm((p) => ({ ...p, submitted_date: e.target.value }))}
-                      className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
-                  </div>
-                  <button onClick={addQuotation} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-medium hover:bg-teal-700">Save Quotation</button>
-                </div>
-              )}
-
-              <button onClick={() => updateStatus("procurement")} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-xs font-medium flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                Start Procurement
-              </button>
-            </div>
-          )}
-
-          {/* PROCUREMENT: Track order */}
-          {data.status === "procurement" && (
             <div className="space-y-4">
-              {/* Show existing quotations */}
-              {(data.quotations || []).length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                  <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider mb-2">Selected Supplier</h3>
-                  {data.quotations.filter((q) => q.selected).map((q) => (
-                    <div key={q.id} className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                      <div className="flex justify-between">
-                        <p className="text-xs font-medium text-gray-800">{q.supplier}</p>
-                        <span className="text-sm font-bold text-emerald-700">{Number(q.amount).toLocaleString()} AFN</span>
+              {/* Quotations */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">Supplier Quotations</h3>
+                  <button onClick={() => setShowQuotationForm(!showQuotationForm)}
+                    className="px-2.5 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-[10px] font-medium flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Quotation
+                  </button>
+                </div>
+
+                {(data.quotations || []).length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {data.quotations.map((q) => (
+                      <div key={q.id} className={`p-3 rounded-lg border ${q.selected ? "bg-emerald-50 border-emerald-200" : "bg-gray-50 border-gray-200"}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-gray-800">{q.supplier}</p>
+                            <p className="text-[10px] text-gray-500">{q.submitted_date}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-gray-800">{Number(q.amount).toLocaleString()} AFN</span>
+                            {q.selected ? (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-semibold">Selected</span>
+                            ) : (
+                              <button onClick={() => selectQuotation(q.id)} className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-[10px] font-semibold hover:bg-teal-200">Select</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showQuotationForm && (
+                  <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                      <input type="text" value={quotationForm.supplier}
+                        onChange={(e) => setQuotationForm((p) => ({ ...p, supplier: e.target.value }))}
+                        placeholder="Supplier name" className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
+                      <input type="number" value={quotationForm.amount}
+                        onChange={(e) => setQuotationForm((p) => ({ ...p, amount: e.target.value }))}
+                        placeholder="Amount (AFN)" className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
+                      <input type="date" value={quotationForm.submitted_date}
+                        onChange={(e) => setQuotationForm((p) => ({ ...p, submitted_date: e.target.value }))}
+                        className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
+                    </div>
+                    <button onClick={addQuotation} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-medium hover:bg-teal-700">Save Quotation</button>
+                  </div>
+                )}
+
+                {(data.quotations || []).length === 0 && !showQuotationForm && (
+                  <p className="text-xs text-gray-400 italic">No quotations yet. Click &quot;Add Quotation&quot; to add one.</p>
+                )}
+              </div>
+
+              {/* Invoice */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider mb-3">Invoice Details (Optional)</h3>
+                {data.invoice ? (
+                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-gray-500">Invoice #:</span> <span className="font-medium">{data.invoice.invoice_number}</span></div>
+                      <div><span className="text-gray-500">Amount:</span> <span className="font-medium">{Number(data.invoice.amount).toLocaleString()} AFN</span></div>
+                      <div><span className="text-gray-500">Supplier:</span> <span className="font-medium">{data.invoice.supplier}</span></div>
+                      <div><span className="text-gray-500">Paid Date:</span> <span className="font-medium">{data.invoice.paid_date}</span></div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Invoice Number</label>
+                        <input type="text" value={invoiceForm.invoice_number}
+                          onChange={(e) => setInvoiceForm((p) => ({ ...p, invoice_number: e.target.value }))}
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Amount (AFN)</label>
+                        <input type="number" value={invoiceForm.amount}
+                          onChange={(e) => setInvoiceForm((p) => ({ ...p, amount: e.target.value }))}
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
+                        <input type="text" value={invoiceForm.supplier}
+                          onChange={(e) => setInvoiceForm((p) => ({ ...p, supplier: e.target.value }))}
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Paid Date</label>
+                        <input type="date" value={invoiceForm.paid_date}
+                          onChange={(e) => setInvoiceForm((p) => ({ ...p, paid_date: e.target.value }))}
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-              <button onClick={() => updateStatus("delivered")} className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-xs font-medium flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                </svg>
-                Mark as Delivered
-              </button>
-            </div>
-          )}
-
-          {/* DELIVERED: Invoice form + complete */}
-          {data.status === "delivered" && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider mb-3">Invoice Details</h3>
-              {data.invoice ? (
-                <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 mb-3">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div><span className="text-gray-500">Invoice #:</span> <span className="font-medium">{data.invoice.invoice_number}</span></div>
-                    <div><span className="text-gray-500">Amount:</span> <span className="font-medium">{Number(data.invoice.amount).toLocaleString()} AFN</span></div>
-                    <div><span className="text-gray-500">Supplier:</span> <span className="font-medium">{data.invoice.supplier}</span></div>
-                    <div><span className="text-gray-500">Paid Date:</span> <span className="font-medium">{data.invoice.paid_date}</span></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Invoice Number <span className="text-red-500">*</span></label>
-                    <input type="text" value={invoiceForm.invoice_number}
-                      onChange={(e) => setInvoiceForm((p) => ({ ...p, invoice_number: e.target.value }))}
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Amount (AFN)</label>
-                    <input type="number" value={invoiceForm.amount}
-                      onChange={(e) => setInvoiceForm((p) => ({ ...p, amount: e.target.value }))}
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Supplier</label>
-                    <input type="text" value={invoiceForm.supplier}
-                      onChange={(e) => setInvoiceForm((p) => ({ ...p, supplier: e.target.value }))}
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Paid Date</label>
-                    <input type="date" value={invoiceForm.paid_date}
-                      onChange={(e) => setInvoiceForm((p) => ({ ...p, paid_date: e.target.value }))}
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500" />
-                  </div>
-                </div>
-              )}
-              {!data.invoice && (
-                <button onClick={saveInvoice} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-medium hover:bg-teal-700 mb-3">Save Invoice</button>
-              )}
-              <div>
-                <button onClick={() => updateStatus("completed")} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Complete & Close
-                </button>
+                    <button onClick={saveInvoice} className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-xs font-medium hover:bg-gray-700">Save Invoice</button>
+                  </>
+                )}
               </div>
+
+              {/* Complete */}
+              <button onClick={handleComplete} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Mark as Completed
+              </button>
             </div>
           )}
 
@@ -591,9 +517,8 @@ export default function PurchaseRequestShow() {
           )}
         </div>
 
-        {/* Sidebar - Right 1/3 */}
+        {/* Sidebar */}
         <div className="space-y-4">
-          {/* Request Info */}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider mb-3">Request Info</h3>
             <div className="space-y-3">
@@ -665,7 +590,7 @@ export default function PurchaseRequestShow() {
             </div>
           )}
 
-          {/* Timeline */}
+          {/* Record Info */}
           <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-xl p-4 text-white">
             <h3 className="text-xs font-semibold mb-3">Record Info</h3>
             <div className="space-y-2 text-xs">

@@ -43,7 +43,7 @@ export default function JobRequisitionForm() {
     employment_type: "",
     number_of_positions: 1,
     justification: "",
-    approval_status: "pending",
+    approval_status: "approved",
     approved_by: "",
     deadline_date: "",
   });
@@ -73,15 +73,26 @@ export default function JobRequisitionForm() {
     try {
       const response = await get(`/recruitment/job-requisitions/${id}`);
       const d = response.data?.data || response.data;
+      console.log("Fetched data:", d);
+      console.log("Deadline date raw:", d.deadline_date);
+      
+      // Handle various date formats from backend
+      let formattedDate = "";
+      if (d.deadline_date) {
+        // Handle ISO format with T (2026-03-30T00:00:00.000Z) or space (2026-03-30 00:00:00)
+        formattedDate = d.deadline_date.toString().split(/[T\s]/)[0];
+        console.log("Formatted date:", formattedDate);
+      }
+      
       setFormData({
         department: d.department || "",
         position_title: d.position_title || "",
         employment_type: d.employment_type || "",
         number_of_positions: d.number_of_positions || 1,
         justification: d.justification || "",
-        approval_status: d.approval_status || "pending",
+        approval_status: d.approval_status || "approved",
         approved_by: d.approved_by || "",
-        deadline_date: d.deadline_date || "",
+        deadline_date: formattedDate,
       });
     } catch (error) {
       Swal.fire("Error", "Failed to load job requisition", "error");
@@ -125,9 +136,15 @@ export default function JobRequisitionForm() {
     
     try {
       const dataToSend = {
-        ...formData,
-        approved_by: formData.approved_by || null,
+        department: formData.department,
+        position_title: formData.position_title,
+        employment_type: formData.employment_type,
+        number_of_positions: formData.number_of_positions,
+        justification: formData.justification,
         deadline_date: formData.deadline_date || null,
+        // For create, explicitly set approval_status. For edit, include if in edit mode
+        approval_status: formData.approval_status || 'approved',
+        approved_by: formData.approved_by || null,
       };
       
       if (isEdit) {
@@ -139,10 +156,18 @@ export default function JobRequisitionForm() {
       }
       navigate("/recruitment/job-requisitions");
     } catch (error) {
+      console.error("Submit error:", error);
+      console.error("Error response:", error.response);
       if (error.response?.status === 422 && error.response?.data?.errors) {
         setErrors(error.response.data.errors);
       } else {
-        Swal.fire("Error", error.response?.data?.message || "Failed to save job requisition", "error");
+        let errorMessage = "Failed to save job requisition";
+        if (error.code === "ERR_NETWORK" || !error.response) {
+          errorMessage = "Cannot connect to server. Please make sure the backend is running.";
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+        Swal.fire("Error", errorMessage, "error");
       }
     } finally {
       setSaving(false);
@@ -311,63 +336,20 @@ export default function JobRequisitionForm() {
               />
               {err("deadline_date") && <p className="text-red-500 text-[10px] mt-1">{err("deadline_date")}</p>}
             </div>
+
+            {/* Hidden fields for create mode - approval_status */}
+            {!isEdit && (
+              <input type="hidden" name="approval_status" value={formData.approval_status} />
+            )}
           </div>
         </div>
 
-        {/* Approval Section */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-800">Approval Information</h3>
-                <p className="text-[10px] text-gray-500">Approval status and authorization</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Approval Status */}
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Approval Status
-              </label>
-              <select
-                name="approval_status"
-                value={formData.approval_status}
-                onChange={handleChange}
-                className={inputClass("approval_status")}
-              >
-                {APPROVAL_STATUSES.map((status) => (
-                  <option key={status.value} value={status.value}>{status.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Approved By */}
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Approved By
-              </label>
-              <select
-                name="approved_by"
-                value={formData.approved_by}
-                onChange={handleChange}
-                className={inputClass("approved_by")}
-              >
-                <option value="">Select Approver</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>{s.full_name}</option>
-                ))}
-              </select>
-              {err("approved_by") && <p className="text-red-500 text-[10px] mt-1">{err("approved_by")}</p>}
-            </div>
-          </div>
-        </div>
+        {/* Approval Section - Only show when editing */}
+        {/* Note: Approval status is managed through the list view action button */}
+        {/* Hidden fields for approval - managed via list actions */}
+        {!isEdit && (
+          <input type="hidden" name="approval_status" value={formData.approval_status} />
+        )}
 
         {/* Action Buttons */}
         <div className="flex items-center justify-between pt-2">

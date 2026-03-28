@@ -606,6 +606,32 @@ export default function Layout() {
           </ParentMenu>
 
           <ParentMenu
+            icon={Icons.HR}
+            label="Teacher Management"
+            isOpen={openMenu.includes("teacher-mgmt")}
+            onClick={() => toggleMenu("teacher-mgmt")}
+          >
+            <SubMenuItem
+              label="Teachers"
+              to="/class-management/teachers"
+              active={isActive("/class-management/teachers")}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Annual Plans"
+              to="/class-management/annual-plans"
+              active={isActive("/class-management/annual-plans")}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Lesson Plans"
+              to="/class-management/lesson-plans"
+              active={isActive("/class-management/lesson-plans")}
+              onClick={closeSidebar}
+            />
+          </ParentMenu>
+
+          <ParentMenu
             icon={Icons.Departments}
             label="Job Applications"
             isOpen={openMenu.includes("recruitment")}

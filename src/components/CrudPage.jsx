@@ -16,6 +16,7 @@ export default function CrudPage({
   searchable = false,
   searchFields = [],
   statusEndpoint = null,
+  statusField = "status",
   statusOptions = [],
 }) {
   const navigate = useNavigate();
@@ -79,13 +80,13 @@ export default function CrudPage({
     }
   };
 
-  const handleOpenStatusModal = (item) => { setSelectedItem(item); setNewStatus(item.status || ""); setShowStatusModal(true); };
+  const handleOpenStatusModal = (item) => { setSelectedItem(item); setNewStatus(item[statusField] || ""); setShowStatusModal(true); };
   const handleCloseStatusModal = () => { setShowStatusModal(false); setSelectedItem(null); setNewStatus(""); };
   const handleStatusUpdate = async () => {
     if (!newStatus) { Swal.fire("Error", "Please select a status", "error"); return; }
     setSavingStatus(true);
     try {
-      await put(`${statusEndpoint}/${selectedItem[idField]}`, { status: newStatus });
+      await put(`${statusEndpoint}/${selectedItem[idField]}`, { [statusField]: newStatus });
       Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
       handleCloseStatusModal(); fetchItems();
     } catch (error) { Swal.fire("Error", error.response?.data?.message || "Failed to update status", "error"); }
@@ -172,7 +173,7 @@ export default function CrudPage({
                     <td className="px-4 py-3 text-xs font-medium text-teal-600">#{String(index + 1).padStart(4, "0")}</td>
                     {listColumns.map(col => (
                       <td key={col.key} className="px-4 py-3 text-sm text-gray-700">
-                        {col.render ? col.render(item[col.key], item) : item[col.key]}
+                        {col.render ? col.render(item[col.key], item, col.isStatus ? handleOpenStatusModal : null) : item[col.key]}
                       </td>
                     ))}
                     <td className="px-4 py-3">
@@ -242,7 +243,7 @@ export default function CrudPage({
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Current Status</label>
                 <div className="px-3 py-2 rounded-xl bg-teal-50 text-teal-700 text-sm font-medium capitalize">
-                  {selectedItem?.status?.replace(/[-_]/g, " ")}
+                  {selectedItem?.[statusField]?.replace(/[-_]/g, " ")}
                 </div>
               </div>
               <div>

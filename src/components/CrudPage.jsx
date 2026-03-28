@@ -16,6 +16,7 @@ export default function CrudPage({
   searchable = false,
   searchFields = [],
   statusEndpoint = null,
+  statusField = "status",
   statusOptions = [],
 }) {
   const navigate = useNavigate();
@@ -79,56 +80,17 @@ export default function CrudPage({
     }
   };
 
-  const handleOpenStatusModal = (item) => { setSelectedItem(item); setNewStatus(item.status ? "true" : "false"); setShowStatusModal(true); };
+  const handleOpenStatusModal = (item) => { setSelectedItem(item); setNewStatus(item[statusField] || ""); setShowStatusModal(true); };
   const handleCloseStatusModal = () => { setShowStatusModal(false); setSelectedItem(null); setNewStatus(""); };
   const handleStatusUpdate = async () => {
     if (!newStatus) { Swal.fire("Error", "Please select a status", "error"); return; }
     setSavingStatus(true);
     try {
-      // For branches, we need to send all fields to avoid validation errors
-      // First fetch the current branch data
-      let fetchEndpoint;
-      if (apiEndpoint.includes('/branches/list')) {
-        fetchEndpoint = `/branches/show/${selectedItem[idField]}`;
-      } else {
-        fetchEndpoint = `${apiEndpoint}/show/${selectedItem[idField]}`;
-      }
-      
-      const getResponse = await get(fetchEndpoint);
-      const currentBranch = getResponse.data?.data || getResponse.data;
-      
-      // Update only the status field
-      const updatedBranch = { ...currentBranch, status: newStatus === "true" };
-      
-      const putResponse = await put(`${statusEndpoint}/${selectedItem[idField]}`, updatedBranch);
-      
-      if (putResponse.data?.success || putResponse.data) {
-        Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
-        handleCloseStatusModal(); 
-        fetchItems();
-      } else {
-        throw new Error(putResponse.data?.message || "Failed to update status");
-      }
-    } catch (error) { 
-      console.error("Status update error:", error);
-      
-      // Handle different types of errors
-      let errorMessage = "Failed to update status";
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.response?.data?.errors) {
-        // Handle validation errors
-        const errors = error.response.data.errors;
-        const firstError = Object.values(errors)[0];
-        errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      Swal.fire("Error", errorMessage, "error"); 
-    } finally { 
-      setSavingStatus(false); 
-    }
+      await put(`${statusEndpoint}/${selectedItem[idField]}`, { [statusField]: newStatus });
+      Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
+      handleCloseStatusModal(); fetchItems();
+    } catch (error) { Swal.fire("Error", error.response?.data?.message || "Failed to update status", "error"); }
+    finally { setSavingStatus(false); }
   };
 
   const stats = [
@@ -153,36 +115,39 @@ export default function CrudPage({
         </div>
       </div>
 
-      {/* Stat card */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {stats.map((s, i) => (
-          <div key={s.label} className={`flex items-center gap-3 p-4 rounded-2xl border ${i === 0 ? "bg-teal-600 border-teal-600" : "bg-white border-teal-100"}`}>
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${i === 0 ? "bg-white/20" : "bg-teal-50"}`}>
-              <svg className={`w-4 h-4 ${i === 0 ? "text-white" : "text-teal-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={s.icon} /></svg>
+      {/* Stats and Search Row */}
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Stat card */}
+        <div className="flex-shrink-0">
+          {stats.map((s, i) => (
+            <div key={s.label} className={`flex items-center gap-3 px-5 py-4 rounded-2xl border ${i === 0 ? "bg-teal-600 border-teal-600" : "bg-white border-teal-100"}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${i === 0 ? "bg-white/20" : "bg-teal-50"}`}>
+                <svg className={`w-5 h-5 ${i === 0 ? "text-white" : "text-teal-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={s.icon} /></svg>
+              </div>
+              <div>
+                <p className={`text-[10px] font-medium ${i === 0 ? "text-teal-100" : "text-gray-500"}`}>{s.label}</p>
+                <p className={`text-2xl font-bold leading-tight ${i === 0 ? "text-white" : "text-gray-800"}`}>{s.value}</p>
+              </div>
             </div>
-            <div>
-              <p className={`text-[10px] font-medium ${i === 0 ? "text-teal-100" : "text-gray-500"}`}>{s.label}</p>
-              <p className={`text-xl font-bold leading-tight ${i === 0 ? "text-white" : "text-gray-800"}`}>{s.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            <input value={searchQuery} onChange={handleSearch}
-              placeholder={`Search ${title.toLowerCase()}...`}
-              className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
+        {/* Search */}
+        <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input value={searchQuery} onChange={handleSearch}
+                placeholder={`Search ${title.toLowerCase()}...`}
+                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
+            </div>
+            {searchQuery && (
+              <button onClick={() => { setSearchQuery(""); setFilteredItems(items); }}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
+                Clear
+              </button>
+            )}
           </div>
-          {searchQuery && (
-            <button onClick={() => { setSearchQuery(""); setFilteredItems(items); }}
-              className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
-              Clear
-            </button>
-          )}
         </div>
       </div>
 
@@ -211,13 +176,13 @@ export default function CrudPage({
                     <td className="px-4 py-3 text-xs font-medium text-teal-600">#{String(index + 1).padStart(4, "0")}</td>
                     {listColumns.map(col => (
                       <td key={col.key} className="px-4 py-3 text-sm text-gray-700">
-                        {col.render ? col.render(item[col.key], item) : item[col.key]}
+                        {col.render ? col.render(item[col.key], item, col.isStatus ? handleOpenStatusModal : null) : item[col.key]}
                       </td>
                     ))}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => navigate(`${showRoute}/${item[idField]}`)}
-                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
+                          className="p-1.5 text-teal-600 hover:bg-teal-50 ed-lg transition-colors" title="View">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                         </button>
                         <button onClick={() => navigate(`${editRoute}/${item[idField]}`)}
@@ -281,7 +246,7 @@ export default function CrudPage({
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Current Status</label>
                 <div className="px-3 py-2 rounded-xl bg-teal-50 text-teal-700 text-sm font-medium capitalize">
-                  {selectedItem?.status ? "Active" : "Inactive"}
+                  {selectedItem?.[statusField]?.replace(/[-_]/g, " ")}
                 </div>
               </div>
               <div>

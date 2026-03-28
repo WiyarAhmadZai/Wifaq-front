@@ -401,7 +401,7 @@ export default function Layout() {
     { label: "Job Applications", path: "/recruitment/job-requisitions" },
     { label: "Job Postings", path: "/recruitment/job-postings" },
     { label: "Applications", path: "/recruitment/applications" },
-    { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
+    // { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
   ];
 
   const purchaseMenus = [

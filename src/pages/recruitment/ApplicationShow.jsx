@@ -50,8 +50,11 @@ export default function ApplicationShow() {
   const [activeTab, setActiveTab] = useState("overview");
   const [viewingDoc, setViewingDoc] = useState(null); // Document being viewed in modal
 
+  const [documents, setDocuments] = useState([]); // Separate state for documents
+
   useEffect(() => {
     fetchData();
+    fetchDocuments();
   }, [id]);
 
   const fetchData = async () => {
@@ -61,10 +64,27 @@ export default function ApplicationShow() {
       const appData = response.data?.data || response.data;
       setData(appData);
       setScreeningNotes(appData?.screening_notes || "");
+      // Also set documents if they come with the application data
+      if (appData?.documents) {
+        setDocuments(appData.documents);
+      }
     } catch (error) {
       Swal.fire("Error", "Failed to load application", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDocuments = async () => {
+    try {
+      console.log("Fetching documents for application ID:", id);
+      const response = await get(`/recruitment/application-documents/${id}`);
+      console.log("Documents response:", response.data);
+      const docsData = response.data?.data || response.data || [];
+      console.log("Parsed documents:", docsData);
+      setDocuments(docsData);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
     }
   };
 
@@ -223,7 +243,7 @@ export default function ApplicationShow() {
       <div className="flex gap-2 mb-6">
         <TabButton tab="overview" label="Overview" icon="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
         <TabButton tab="full-info" label="Full Application" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        <TabButton tab="documents" label={`Documents (${data.documents?.length || 0})`} icon="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        <TabButton tab="documents" label={`Documents (${documents?.length || 0})`} icon="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </div>
 
       {/* OVERVIEW TAB */}
@@ -284,11 +304,11 @@ export default function ApplicationShow() {
                       <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
-                      Uploaded Documents ({data.documents?.length || 0})
+                      Uploaded Documents ({documents?.length || 0})
                     </h3>
-                    {data.documents && data.documents.length > 0 ? (
+                    {documents && documents.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {data.documents.map((doc) => {
+                        {documents.map((doc) => {
                           const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
                           return (
                             <div key={doc.id} className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center gap-3">
@@ -367,11 +387,11 @@ export default function ApplicationShow() {
                       <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
-                      Uploaded Documents ({data.documents?.length || 0})
+                      Uploaded Documents ({documents?.length || 0})
                     </h3>
-                    {data.documents && data.documents.length > 0 ? (
+                    {documents && documents.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {data.documents.map((doc) => {
+                        {documents.map((doc) => {
                           const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
                           return (
                             <div key={doc.id} className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center gap-3">
@@ -434,7 +454,7 @@ export default function ApplicationShow() {
                           <span className={`text-sm ${checklist[item.id] ? "text-amber-700 font-medium" : "text-gray-700"}`}>
                             {item.label}
                           </span>
-                          {item.docType && data.documents?.some(d => d.document_type === item.docType) && (
+                          {item.docType && documents?.some(d => d.document_type === item.docType) && (
                             <span className="ml-auto text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">
                               Uploaded
                             </span>
@@ -501,12 +521,12 @@ export default function ApplicationShow() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-700">Documents</h3>
                 <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-medium">
-                  {data.documents?.length || 0}
+                  {documents?.length || 0}
                 </span>
               </div>
-              {data.documents && data.documents.length > 0 ? (
+              {documents && documents.length > 0 ? (
                 <div className="space-y-2">
-                  {data.documents.slice(0, 3).map((doc) => {
+                  {documents.slice(0, 3).map((doc) => {
                     const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, color: "gray" };
                     const docColors = COLOR_STYLES[docType.color];
                     return (
@@ -528,12 +548,12 @@ export default function ApplicationShow() {
                       </button>
                     );
                   })}
-                  {data.documents.length > 3 && (
+                  {documents.length > 3 && (
                     <button
                       onClick={() => setActiveTab("documents")}
                       className="w-full py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
                     >
-                      View all {data.documents.length} documents →
+                      View all {documents.length} documents →
                     </button>
                   )}
                 </div>
@@ -806,13 +826,13 @@ export default function ApplicationShow() {
               <h2 className="text-lg font-bold text-gray-800">Uploaded Documents</h2>
             </div>
             <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm font-medium">
-              {data.documents?.length || 0} documents
+              {documents?.length || 0} documents
             </span>
           </div>
           <div className="p-6">
-            {data.documents && data.documents.length > 0 ? (
+            {documents && documents.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {data.documents.map((doc) => {
+                {documents.map((doc) => {
                   const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
                   const docColors = COLOR_STYLES[docType.color];
                   return (

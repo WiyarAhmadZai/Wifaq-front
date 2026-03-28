@@ -13,7 +13,7 @@ const statusBadge = (val) => (
 export default function JobRequisitions() {
   return (
     <CrudPage
-      title="Job Requisitions"
+      title="Job Applications"
       apiEndpoint="/recruitment/job-requisitions"
       listColumns={[
         { key: "position_title", label: "Position" },

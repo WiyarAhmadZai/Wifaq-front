@@ -88,6 +88,7 @@ export default function ApplicationForm() {
     desired_role: "",
     full_name: "",
     contact_number: "",
+    email: "",
     date_of_birth: "",
     current_address: "",
     place_of_origin: "",
@@ -149,6 +150,7 @@ export default function ApplicationForm() {
         desired_role: d.desired_role || "",
         full_name: d.full_name || "",
         contact_number: d.contact_number || "",
+        email: d.email || "",
         date_of_birth: formattedDate,
         current_address: d.current_address || "",
         place_of_origin: d.place_of_origin || "",
@@ -243,6 +245,7 @@ export default function ApplicationForm() {
     if (step === 2) {
       if (!formData.full_name) newErrors.full_name = "Full name is required";
       if (!formData.contact_number) newErrors.contact_number = "Contact number is required";
+      if (!formData.email) newErrors.email = "Email is required";
       if (!formData.date_of_birth) newErrors.date_of_birth = "Date of birth is required";
       if (!formData.current_address) newErrors.current_address = "Current address is required";
       if (!formData.place_of_origin) newErrors.place_of_origin = "Place of origin is required";
@@ -261,7 +264,7 @@ export default function ApplicationForm() {
 
   const canNext = () => {
     if (step === 1) return formData.job_posting_id && formData.desired_role;
-    if (step === 2) return formData.full_name && formData.contact_number && formData.date_of_birth && formData.current_address && formData.place_of_origin && formData.introduction;
+    if (step === 2) return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin && formData.introduction;
     if (step === 5) return formData.education_level && formData.field_of_study && formData.institution_name;
     return true;
   };
@@ -414,6 +417,11 @@ export default function ApplicationForm() {
                 <Label required>Contact Number</Label>
                 <input type="text" name="contact_number" value={formData.contact_number} onChange={handleChange} placeholder="e.g. +93 770 123 456" className={errors.contact_number ? inpError : inp} />
                 {errors.contact_number && <p className="text-red-500 text-xs mt-1">{errors.contact_number}</p>}
+              </div>
+              <div>
+                <Label required>Email</Label>
+                <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="e.g. ahmad@example.com" className={errors.email ? inpError : inp} />
+                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
               <div>
                 <Label required>Date of Birth</Label>
@@ -577,6 +585,7 @@ export default function ApplicationForm() {
                 { label: "Job Posting", value: jobPostings.find(jp => jp.id === parseInt(formData.job_posting_id))?.title || "—" },
                 { label: "Desired Role", value: DESIRED_ROLES.find(r => r.value === formData.desired_role)?.label || "—" },
                 { label: "Applicant", value: formData.full_name || "—" },
+                { label: "Email", value: formData.email || "—" },
                 { label: "Contact", value: formData.contact_number || "—" },
                 { label: "Education", value: EDUCATION_LEVELS.find(e => e.value === formData.education_level)?.label || "—" },
                 { label: "Experience", value: `${formData.total_experience_years || 0} years` },

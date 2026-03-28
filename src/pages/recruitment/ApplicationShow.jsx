@@ -49,8 +49,18 @@ export default function ApplicationShow() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [viewingDoc, setViewingDoc] = useState(null); // Document being viewed in modal
-
   const [documents, setDocuments] = useState([]); // Separate state for documents
+
+  // Interview scheduling state for Shortlisted stage
+  const [interviewData, setInterviewData] = useState({
+    interview_type: "technical",
+    interview_date: "",
+    interview_time: "",
+    interviewers: "",
+    location: "",
+    notes: "",
+  });
+  const [isScheduling, setIsScheduling] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -160,6 +170,7 @@ export default function ApplicationShow() {
 
   const isReceived = data.status === "received";
   const isScreening = data.status === "screening";
+  const isShortlisted = data.status === "shortlisted";
 
   // Tab Navigation Component
   const TabButton = ({ tab, label, icon }) => (
@@ -502,8 +513,336 @@ export default function ApplicationShow() {
               </div>
             )}
 
+            {/* SCREENING STAGE */}
+            {isScreening && (
+              <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden`}>
+                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Screening in Progress</h2>
+                    <p className="text-sm text-gray-600">Review documents and complete checklist</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-white space-y-6">
+                  {/* Documents Section in Screening */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Uploaded Documents ({documents?.length || 0})
+                    </h3>
+                    {documents && documents.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {documents.map((doc) => {
+                          const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
+                          return (
+                            <div key={doc.id} className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg bg-${docType.color}-100 text-${docType.color}-600 flex items-center justify-center`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon} />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{docType.label}</p>
+                                <p className="text-xs text-gray-500">{formatDateTime(doc.uploaded_at)}</p>
+                              </div>
+                              <button
+                                onClick={() => openDocument(doc)}
+                                className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                                title="View Document"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                        <p className="text-sm text-gray-500">No documents uploaded</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Screening Checklist - Document Focused */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Document Review Checklist</h3>
+                    <div className="space-y-2">
+                      {SCREENING_CHECKLIST.map((item) => (
+                        <label
+                          key={item.id}
+                          className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                            checklist[item.id] ? "bg-teal-50 border-teal-200" : "bg-gray-50 border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                            checklist[item.id] ? "bg-teal-500 border-teal-500" : "border-gray-300"
+                          }`}>
+                            {checklist[item.id] && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={checklist[item.id] || false}
+                            onChange={() => toggleChecklist(item.id)}
+                          />
+                          <span className={`text-sm ${checklist[item.id] ? "text-teal-700 font-medium" : "text-gray-700"}`}>
+                            {item.label}
+                          </span>
+                          {item.docType && documents?.some(d => d.document_type === item.docType) && (
+                            <span className="ml-auto text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">
+                              Uploaded
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Screening Notes */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Screening Notes</h3>
+                    <textarea
+                      value={screeningNotes}
+                      onChange={(e) => setScreeningNotes(e.target.value)}
+                      rows={4}
+                      placeholder="Add your screening observations, document review notes, strengths, concerns..."
+                      className="w-full p-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => handleStatusChange("shortlisted")}
+                      disabled={isUpdating}
+                      className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {isUpdating ? "Processing..." : "Shortlist Candidate"}
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange("rejected")}
+                      disabled={isUpdating}
+                      className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SHORTLISTED STAGE */}
+            {isShortlisted && (
+              <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden`}>
+                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Candidate Shortlisted</h2>
+                    <p className="text-sm text-gray-600">Schedule interview to proceed</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-white space-y-6">
+                  {/* Candidate Summary Card */}
+                  <div className="p-4 bg-teal-50 rounded-xl border border-teal-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold">
+                        {data.full_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-800">{data.full_name}</p>
+                        <p className="text-sm text-gray-600">{data.desired_role?.replace(/_/g, " ")} • {data.total_experience_years || 0} years exp</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-2 py-1 bg-white rounded text-xs text-teal-700 border border-teal-200">
+                        {data.education_level?.replace(/_/g, " ")}
+                      </span>
+                      <span className="px-2 py-1 bg-white rounded text-xs text-teal-700 border border-teal-200">
+                        {data.field_of_study}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Interview Scheduling Form */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Schedule Interview
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Interview Type */}
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1.5 block">Interview Type</label>
+                        <select
+                          value={interviewData.interview_type}
+                          onChange={(e) => setInterviewData({ ...interviewData, interview_type: e.target.value })}
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                        >
+                          <option value="phone">Phone Screen</option>
+                          <option value="technical">Technical Interview</option>
+                          <option value="hr">HR Interview</option>
+                          <option value="panel">Panel Interview</option>
+                          <option value="final">Final Round</option>
+                        </select>
+                      </div>
+
+                      {/* Interview Date */}
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1.5 block">Interview Date</label>
+                        <input
+                          type="date"
+                          value={interviewData.interview_date}
+                          onChange={(e) => setInterviewData({ ...interviewData, interview_date: e.target.value })}
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Interview Time */}
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1.5 block">Interview Time</label>
+                        <input
+                          type="time"
+                          value={interviewData.interview_time}
+                          onChange={(e) => setInterviewData({ ...interviewData, interview_time: e.target.value })}
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Interviewers */}
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1.5 block">Interviewers</label>
+                        <input
+                          type="text"
+                          value={interviewData.interviewers}
+                          onChange={(e) => setInterviewData({ ...interviewData, interviewers: e.target.value })}
+                          placeholder="e.g. John Doe, Jane Smith"
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Location/Mode */}
+                      <div className="md:col-span-2">
+                        <label className="text-xs text-gray-500 mb-1.5 block">Location / Meeting Link</label>
+                        <input
+                          type="text"
+                          value={interviewData.location}
+                          onChange={(e) => setInterviewData({ ...interviewData, location: e.target.value })}
+                          placeholder="Office address, Zoom link, Google Meet, etc."
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Interview Notes */}
+                      <div className="md:col-span-2">
+                        <label className="text-xs text-gray-500 mb-1.5 block">Interview Notes / Preparation</label>
+                        <textarea
+                          value={interviewData.notes}
+                          onChange={(e) => setInterviewData({ ...interviewData, notes: e.target.value })}
+                          rows={3}
+                          placeholder="Topics to cover, questions to ask, candidate strengths to verify..."
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Interview Preparation Checklist */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Interview Preparation</h3>
+                    <div className="space-y-2">
+                      {[
+                        { id: "calendar_invite", label: "Send calendar invite to candidate" },
+                        { id: "interviewers_notified", label: "Notify interviewers" },
+                        { id: "room_booked", label: "Book meeting room / Set up video call" },
+                        { id: "questions_prepared", label: "Prepare interview questions" },
+                        { id: "resume_reviewed", label: "Review candidate resume before interview" },
+                      ].map((item) => (
+                        <label
+                          key={item.id}
+                          className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                            checklist[item.id] ? "bg-teal-50 border-teal-200" : "bg-gray-50 border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                            checklist[item.id] ? "bg-teal-500 border-teal-500" : "border-gray-300"
+                          }`}>
+                            {checklist[item.id] && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={checklist[item.id] || false}
+                            onChange={() => toggleChecklist(item.id)}
+                          />
+                          <span className={`text-sm ${checklist[item.id] ? "text-teal-700 font-medium" : "text-gray-700"}`}>
+                            {item.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => handleStatusChange("interview")}
+                      disabled={isUpdating || isScheduling}
+                      className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {isUpdating ? "Processing..." : "Schedule Interview"}
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange("screening")}
+                      disabled={isUpdating}
+                      className="px-4 py-3 bg-gray-100 text-gray-600 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+                    >
+                      Back to Screening
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange("rejected")}
+                      disabled={isUpdating}
+                      className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Other Stages */}
-            {!isReceived && !isScreening && (
+            {!isReceived && !isScreening && !isShortlisted && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -577,6 +916,10 @@ export default function ApplicationShow() {
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Contact</p>
                   <p className="text-sm font-medium text-gray-800">{data.contact_number || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Email</p>
+                  <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Address</p>
@@ -656,6 +999,10 @@ export default function ApplicationShow() {
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Contact Number</p>
                   <p className="text-sm font-medium text-gray-800">{data.contact_number || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</p>
+                  <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Date of Birth</p>

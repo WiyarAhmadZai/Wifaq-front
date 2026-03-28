@@ -68,11 +68,16 @@ export default function BranchForm() {
       const response = await get(`/branches/show/${id}`);
       if (response.data?.success || response.data) {
         const branchData = response.data?.data || response.data;
+        const normalizedStatus =
+          branchData.status === true ||
+          branchData.status === 1 ||
+          branchData.status === "1" ||
+          branchData.status === "true";
         setFormData({
           name: branchData.name || "",
           phone: branchData.phone || "",
           manager: branchData.manager || "",
-          status: branchData.status === 1 ? true : false,
+          status: normalizedStatus,
           established_year: branchData.established_year || "",
           address: branchData.address || "",
         });

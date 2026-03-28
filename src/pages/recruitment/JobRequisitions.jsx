@@ -19,13 +19,14 @@ const statusBadge = (val, item, onClick) => (
 export default function JobRequisitions() {
   return (
     <CrudPage
-      title="Job Requisitions"
+      title="Job Applications"
       apiEndpoint="/recruitment/job-requisitions"
       listColumns={[
         { key: "position_title", label: "Position" },
         { key: "employment_type", label: "Type", render: (val) => <span className="capitalize">{val?.replace(/_/g, " ")}</span> },
         { key: "number_of_positions", label: "Positions" },
         { key: "department", label: "Department" },
+        { key: "deadline_date", label: "Deadline", render: (val) => val ? new Date(val).toLocaleDateString() : "-" },
         { key: "approval_status", label: "Status", render: statusBadge, isStatus: true },
       ]}
       createRoute="/recruitment/job-requisitions/create"

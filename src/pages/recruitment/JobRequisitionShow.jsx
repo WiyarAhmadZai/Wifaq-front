@@ -150,6 +150,9 @@ export default function JobRequisitionShow() {
     if (key === "created_at" || key === "updated_at") {
       return new Date(value).toLocaleString();
     }
+    if (key === "deadline_date") {
+      return new Date(value).toLocaleDateString();
+    }
     if (key === "employment_type") {
       return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
     }
@@ -186,6 +189,7 @@ export default function JobRequisitionShow() {
     { key: "department", label: "Department", icon: Icons.Building },
     { key: "employment_type", label: "Employment Type", icon: Icons.Document },
     { key: "number_of_positions", label: "Number of Positions", icon: Icons.Document },
+    { key: "deadline_date", label: "Deadline Date", icon: Icons.Calendar },
     { key: "justification", label: "Justification", icon: Icons.Document },
   ];
 
@@ -206,7 +210,7 @@ export default function JobRequisitionShow() {
             <Icons.ArrowLeft />
           </button>
           <div>
-            <h2 className="text-lg font-bold text-gray-800">Job Requisition Details</h2>
+            <h2 className="text-lg font-bold text-gray-800">Job Application Details</h2>
             <p className="text-xs text-gray-500">View complete information</p>
           </div>
         </div>
@@ -353,7 +357,7 @@ export default function JobRequisitionShow() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Type</span>
-                <span className="text-xs font-medium">Job Requisition</span>
+                <span className="text-xs font-medium">Job Application</span>
               </div>
             </div>
           </div>

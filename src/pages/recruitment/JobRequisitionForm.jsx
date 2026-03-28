@@ -45,6 +45,7 @@ export default function JobRequisitionForm() {
     justification: "",
     approval_status: "pending",
     approved_by: "",
+    deadline_date: "",
   });
 
   const [staff, setStaff] = useState([]);
@@ -80,6 +81,7 @@ export default function JobRequisitionForm() {
         justification: d.justification || "",
         approval_status: d.approval_status || "pending",
         approved_by: d.approved_by || "",
+        deadline_date: d.deadline_date || "",
       });
     } catch (error) {
       Swal.fire("Error", "Failed to load job requisition", "error");
@@ -125,6 +127,7 @@ export default function JobRequisitionForm() {
       const dataToSend = {
         ...formData,
         approved_by: formData.approved_by || null,
+        deadline_date: formData.deadline_date || null,
       };
       
       if (isEdit) {
@@ -157,7 +160,7 @@ export default function JobRequisitionForm() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div>
-          <span className="text-gray-500 text-sm">Loading job requisition...</span>
+          <span className="text-gray-500 text-sm">Loading job applications...</span>
         </div>
       </div>
     );
@@ -177,10 +180,10 @@ export default function JobRequisitionForm() {
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-800">
-            {isEdit ? "Edit Job Requisition" : "Create Job Requisition"}
+            {isEdit ? "Edit Job Application" : "Create Job Application"}
           </h2>
           <p className="text-[11px] text-gray-400">
-            {isEdit ? "Update job requisition details" : "Request a new hire for your department"}
+            {isEdit ? "Update job application details" : "Request a new hire for your department"}
           </p>
         </div>
       </div>
@@ -292,6 +295,21 @@ export default function JobRequisitionForm() {
                 className={inputClass("justification")}
               />
               {err("justification") && <p className="text-red-500 text-[10px] mt-1">{err("justification")}</p>}
+            </div>
+
+            {/* Deadline Date */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                Deadline Date
+              </label>
+              <input
+                type="date"
+                name="deadline_date"
+                value={formData.deadline_date}
+                onChange={handleChange}
+                className={inputClass("deadline_date")}
+              />
+              {err("deadline_date") && <p className="text-red-500 text-[10px] mt-1">{err("deadline_date")}</p>}
             </div>
           </div>
         </div>

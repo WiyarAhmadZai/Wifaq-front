@@ -22,7 +22,7 @@ export default function JobPostingForm() {
     description: "",
     requirements: [""],
     location: "",
-    status: "draft",
+    status: "published",
   });
 
   const [requisitions, setRequisitions] = useState([]);
@@ -68,7 +68,7 @@ export default function JobPostingForm() {
         description: d.description || "",
         requirements: d.requirements?.length > 0 ? d.requirements : [""],
         location: d.location || "",
-        status: d.status || "draft",
+        status: d.status || "published",
       });
       
       // Set the selected requisition option for react-select
@@ -141,8 +141,12 @@ export default function JobPostingForm() {
 
     try {
       const dataToSend = {
-        ...formData,
+        requisition_id: formData.requisition_id,
+        title: formData.title,
+        description: formData.description,
+        location: formData.location,
         requirements: formData.requirements.filter(r => r.trim() !== ""),
+        status: formData.status || "published",
       };
 
       if (isEdit) {
@@ -306,7 +310,7 @@ export default function JobPostingForm() {
             </div>
 
             {/* Location */}
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Location *
               </label>
@@ -323,22 +327,8 @@ export default function JobPostingForm() {
               {err("location") && <p className="text-red-500 text-[10px] mt-1">{err("location")}</p>}
             </div>
 
-            {/* Status */}
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Status
-              </label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className={inputClass("status")}
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+            {/* Hidden status field - managed via list actions */}
+            <input type="hidden" name="status" value={formData.status} />
 
             {/* Description */}
             <div className="sm:col-span-2">

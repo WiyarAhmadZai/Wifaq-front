@@ -73,6 +73,14 @@ export default function JobRequisitionForm() {
     try {
       const response = await get(`/recruitment/job-requisitions/${id}`);
       const d = response.data?.data || response.data;
+      
+      // Format date to YYYY-MM-DD for HTML date input
+      let formattedDate = "";
+      if (d.deadline_date) {
+        const date = new Date(d.deadline_date);
+        formattedDate = date.toISOString().split('T')[0];
+      }
+      
       setFormData({
         department: d.department || "",
         position_title: d.position_title || "",
@@ -80,8 +88,8 @@ export default function JobRequisitionForm() {
         number_of_positions: d.number_of_positions || 1,
         justification: d.justification || "",
         approval_status: d.approval_status || "pending",
-        approved_by: d.approved_by || "",
-        deadline_date: d.deadline_date || "",
+        approved_by: d.approved_by ? String(d.approved_by) : "",
+        deadline_date: formattedDate,
       });
     } catch (error) {
       Swal.fire("Error", "Failed to load job requisition", "error");

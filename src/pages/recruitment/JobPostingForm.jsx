@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import Select from "react-select";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
@@ -25,6 +26,7 @@ export default function JobPostingForm() {
   });
 
   const [requisitions, setRequisitions] = useState([]);
+  const [requisitionOptions, setRequisitionOptions] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,7 +40,18 @@ export default function JobPostingForm() {
     try {
       const response = await get("/recruitment/job-postings/approved-requisitions");
       const data = response.data?.data || [];
-      setRequisitions(Array.isArray(data) ? data : []);
+      const requisitionsArray = Array.isArray(data) ? data : [];
+      setRequisitions(requisitionsArray);
+      
+      // Transform data for react-select
+      const options = requisitionsArray.map((req) => ({
+        value: req.id,
+        label: `${req.position_title} - ${req.department}${
+          req.deadline_date ? ` (Deadline: ${new Date(req.deadline_date).toLocaleDateString()})` : ""
+        }`,
+        ...req // Keep original data for reference
+      }));
+      setRequisitionOptions(options);
     } catch (error) {
       console.error("Failed to fetch requisitions", error);
     }
@@ -57,6 +70,14 @@ export default function JobPostingForm() {
         location: d.location || "",
         status: d.status || "draft",
       });
+      
+      // Set the selected requisition option for react-select
+      if (d.requisition_id && requisitionOptions.length > 0) {
+        const selectedOption = requisitionOptions.find(opt => opt.value === d.requisition_id);
+        if (selectedOption) {
+          // We'll handle this in the component after options are loaded
+        }
+      }
     } catch (error) {
       Swal.fire("Error", "Failed to load job posting", "error");
       navigate("/recruitment/job-postings");
@@ -69,6 +90,11 @@ export default function JobPostingForm() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
+  };
+
+  const handleRequisitionChange = (selectedOption) => {
+    setFormData((prev) => ({ ...prev, requisition_id: selectedOption ? selectedOption.value : "" }));
+    if (errors.requisition_id) setErrors((prev) => ({ ...prev, requisition_id: null }));
   };
 
   const handleRequirementChange = (index, value) => {
@@ -198,23 +224,39 @@ export default function JobPostingForm() {
             <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
               Requisition *
             </label>
-            <select
+            <Select
               name="requisition_id"
-              value={formData.requisition_id}
-              onChange={handleChange}
-              required
-              className={inputClass("requisition_id")}
-            >
-              <option value="">Select Requisition</option>
-              {requisitions.map((req) => (
-                <option key={req.id} value={req.id}>
-                  {req.position_title} - {req.department}
-                  {req.deadline_date ? ` (Deadline: ${new Date(req.deadline_date).toLocaleDateString()})` : ""}
-                </option>
-              ))}
-            </select>
+              value={requisitionOptions.find(option => option.value === formData.requisition_id) || null}
+              onChange={handleRequisitionChange}
+              options={requisitionOptions}
+              placeholder="Select Requisition"
+              isSearchable
+              isClearable
+              className={`react-select-container ${err("requisition_id") ? "react-select-error" : ""}`}
+              classNamePrefix="react-select"
+              styles={{
+                control: (baseStyles, state) => ({
+                  ...baseStyles,
+                  borderColor: err("requisition_id") ? "#f87171" : state.isFocused ? "#14b8a6" : "#e5e7eb",
+                  boxShadow: err("requisition_id") ? "0 0 0 1px #f87171" : state.isFocused ? "0 0 0 1px #14b8a6" : "none",
+                  "&:hover": {
+                    borderColor: err("requisition_id") ? "#f87171" : "#d1d5db",
+                  },
+                  fontSize: "0.75rem",
+                  minHeight: "42px",
+                }),
+                option: (baseStyles) => ({
+                  ...baseStyles,
+                  fontSize: "0.75rem",
+                }),
+                noOptionsMessage: (baseStyles) => ({
+                  ...baseStyles,
+                  fontSize: "0.75rem",
+                }),
+              }}
+            />
             {err("requisition_id") && <p className="text-red-500 text-[10px] mt-1">{err("requisition_id")}</p>}
-            {requisitions.length === 0 && (
+            {requisitionOptions.length === 0 && (
               <p className="text-amber-600 text-[10px] mt-2">
                 No approved requisitions available. Please approve a job requisition first.
               </p>

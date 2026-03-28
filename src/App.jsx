@@ -174,14 +174,14 @@ const Placeholder = ({ title }) => (
 
 // DEV MODE: Auth disabled — comment these back in to re-enable login protection
 function ProtectedRoute({ children }) {
-  // const token = localStorage.getItem("token");
-  // return token ? children : <Navigate to="/login" replace />;
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" replace />;
   return children;
 }
 
 function PublicRoute({ children }) {
-  // const token = localStorage.getItem("token");
-  // return !token ? children : <Navigate to="/" replace />;
+  const token = localStorage.getItem("token");
+  return !token ? children : <Navigate to="/" replace />;
   return children;
 }
 

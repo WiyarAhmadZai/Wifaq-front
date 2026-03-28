@@ -114,7 +114,9 @@ export default function ApplicationShow() {
   const getDocumentUrl = (fileUrl) => {
     if (!fileUrl) return null;
     if (fileUrl.startsWith("http")) return fileUrl;
-    return `${API_BASE_URL}/storage/${fileUrl}`;
+    // Remove /api from base URL to get storage base URL
+    const storageBaseUrl = API_BASE_URL.replace(/\/api$/, "");
+    return `${storageBaseUrl}/storage/${fileUrl}`;
   };
 
   const openDocument = (doc) => {

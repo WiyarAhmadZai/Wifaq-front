@@ -6,7 +6,7 @@ import { API_BASE_URL } from "../../api/axios";
 
 const STEPS = [
   { key: "received", label: "Received", desc: "Application received", color: "blue", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-  { key: "screening", label: "Screening", desc: "Under review", color: "amber", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
+  { key: "screening", label: "Screening", desc: "Under review", color: "teal", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
   { key: "shortlisted", label: "Shortlisted", desc: "Candidate selected", color: "teal", icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" },
   { key: "interview", label: "Interview", desc: "Interview stage", color: "cyan", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
   { key: "offer", label: "Offer", desc: "Job offer sent", color: "indigo", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
@@ -15,7 +15,7 @@ const STEPS = [
 
 const COLOR_STYLES = {
   blue: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", icon: "bg-blue-100 text-blue-600", btn: "bg-blue-600 hover:bg-blue-700", light: "bg-blue-100 text-blue-700" },
-  amber: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", icon: "bg-amber-100 text-amber-600", btn: "bg-amber-600 hover:bg-amber-700", light: "bg-amber-100 text-amber-700" },
+  teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
   teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
   cyan: { bg: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-700", icon: "bg-cyan-100 text-cyan-600", btn: "bg-cyan-600 hover:bg-cyan-700", light: "bg-cyan-100 text-cyan-700" },
   indigo: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", icon: "bg-indigo-100 text-indigo-600", btn: "bg-indigo-600 hover:bg-indigo-700", light: "bg-indigo-100 text-indigo-700" },
@@ -25,7 +25,7 @@ const COLOR_STYLES = {
 
 const DOCUMENT_TYPES = {
   cv_resume: { label: "CV/Resume", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", color: "blue" },
-  identity_document: { label: "Identity Document", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2", color: "amber" },
+  identity_document: { label: "Identity Document", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2", color: "teal" },
   educational_document: { label: "Educational Document", icon: "M12 14l9-5-9-5-9 5 9 5z", color: "teal" },
   work_samples: { label: "Work Samples", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", color: "cyan" },
 };
@@ -386,7 +386,7 @@ export default function ApplicationShow() {
                   {/* Documents Section in Screening */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
                       Uploaded Documents ({documents?.length || 0})
@@ -435,11 +435,11 @@ export default function ApplicationShow() {
                         <label
                           key={item.id}
                           className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                            checklist[item.id] ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200 hover:border-gray-300"
+                            checklist[item.id] ? "bg-teal-50 border-teal-200" : "bg-gray-50 border-gray-200 hover:border-gray-300"
                           }`}
                         >
                           <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                            checklist[item.id] ? "bg-amber-500 border-amber-500" : "border-gray-300"
+                            checklist[item.id] ? "bg-teal-500 border-teal-500" : "border-gray-300"
                           }`}>
                             {checklist[item.id] && (
                               <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -453,7 +453,7 @@ export default function ApplicationShow() {
                             checked={checklist[item.id] || false}
                             onChange={() => toggleChecklist(item.id)}
                           />
-                          <span className={`text-sm ${checklist[item.id] ? "text-amber-700 font-medium" : "text-gray-700"}`}>
+                          <span className={`text-sm ${checklist[item.id] ? "text-teal-700 font-medium" : "text-gray-700"}`}>
                             {item.label}
                           </span>
                           {item.docType && documents?.some(d => d.document_type === item.docType) && (
@@ -474,7 +474,7 @@ export default function ApplicationShow() {
                       onChange={(e) => setScreeningNotes(e.target.value)}
                       rows={4}
                       placeholder="Add your screening observations, document review notes, strengths, concerns..."
-                      className="w-full p-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none"
+                      className="w-full p-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
                     />
                   </div>
 
@@ -720,7 +720,7 @@ export default function ApplicationShow() {
           {/* Motivation & Skills */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
@@ -739,7 +739,7 @@ export default function ApplicationShow() {
                   <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Unique Skills</p>
                   <div className="flex flex-wrap gap-2">
                     {data.unique_skill.map((skill, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm">
+                      <span key={idx} className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm">
                         {skill}
                       </span>
                     ))}

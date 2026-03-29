@@ -12,13 +12,6 @@ export default function SupplierForm() {
         { name: "phone", label: "Phone", type: "text", required: true },
         { name: "email", label: "Email", type: "email" },
         { name: "address", label: "Address", type: "textarea" },
-        {
-          name: "status", label: "Status", type: "select",
-          options: [
-            { value: "active", label: "Active" },
-            { value: "inactive", label: "Inactive" },
-          ],
-        },
         { name: "notes", label: "Notes", type: "textarea" },
       ]}
     />

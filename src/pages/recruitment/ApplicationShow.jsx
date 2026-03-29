@@ -61,10 +61,28 @@ export default function ApplicationShow() {
   });
   const [isScheduling, setIsScheduling] = useState(false);
 
+  // Interview feedback state for Interview stage
+  const [interviewSchedule, setInterviewSchedule] = useState(null);
+  const [feedbackData, setFeedbackData] = useState({
+    feedback_notes: "",
+    rating: 0,
+    interview_result: "pending",
+  });
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
   useEffect(() => {
     fetchData();
     fetchDocuments();
+    if (data?.status === "interview") {
+      fetchInterviewSchedule();
+    }
   }, [id]);
+
+  useEffect(() => {
+    if (data?.status === "interview") {
+      fetchInterviewSchedule();
+    }
+  }, [data?.status]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -156,6 +174,56 @@ export default function ApplicationShow() {
     }
   };
 
+  const fetchInterviewSchedule = async () => {
+    try {
+      const response = await get(`/recruitment/applications/${id}/interview-schedule`);
+      if (response.data?.success) {
+        setInterviewSchedule(response.data.data);
+        setFeedbackData({
+          feedback_notes: response.data.data.feedback_notes || "",
+          rating: response.data.data.rating || 0,
+          interview_result: response.data.data.interview_result || "pending",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching interview schedule:", error);
+    }
+  };
+
+  const handleInterviewFeedback = async (result) => {
+    setIsSubmittingFeedback(true);
+    try {
+      const response = await put(`/recruitment/applications/${id}/interview-feedback`, {
+        ...feedbackData,
+        interview_result: result,
+      });
+
+      if (response.data?.success) {
+        const resultMessages = {
+          passed: { status: "offer", text: "Candidate passed - moving to Offer stage" },
+          failed: { status: "rejected", text: "Candidate rejected" },
+          no_show: { status: "rejected", text: "Candidate marked as No Show" },
+          pending: { status: "interview", text: "Feedback saved" },
+        };
+        const resultInfo = resultMessages[result];
+        setData((prev) => ({ ...prev, status: resultInfo.status }));
+        Swal.fire({
+          title: "Success!",
+          text: resultInfo.text,
+          icon: result === "passed" ? "success" : result === "pending" ? "info" : "warning",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        throw new Error(response.data?.message || "Failed to save feedback");
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to save feedback", "error");
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
   const toggleChecklist = (id) => {
     setChecklist((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -210,6 +278,7 @@ export default function ApplicationShow() {
   const isReceived = data.status === "received";
   const isScreening = data.status === "screening";
   const isShortlisted = data.status === "shortlisted";
+  const isInterview = data.status === "interview";
 
   // Tab Navigation Component
   const TabButton = ({ tab, label, icon }) => (
@@ -649,8 +718,148 @@ export default function ApplicationShow() {
               </div>
             )}
 
+            {/* INTERVIEW STAGE */}
+            {isInterview && (
+              <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden`}>
+                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Interview Stage</h2>
+                    <p className="text-sm text-gray-600">Conduct interview and provide feedback</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-white space-y-6">
+                  {/* Interview Details Card */}
+                  {interviewSchedule && (
+                    <div className="p-4 bg-cyan-50 rounded-xl border border-cyan-200">
+                      <h3 className="text-sm font-semibold text-cyan-800 mb-3 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Scheduled Interview
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-xs text-cyan-600 mb-1">Type</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">{interviewSchedule.interview_type}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cyan-600 mb-1">Date</p>
+                          <p className="text-sm font-medium text-gray-800">{interviewSchedule.interview_date}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cyan-600 mb-1">Time</p>
+                          <p className="text-sm font-medium text-gray-800">{interviewSchedule.interview_time}</p>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                          <p className="text-xs text-cyan-600 mb-1">Location</p>
+                          <p className="text-sm font-medium text-gray-800 truncate">{interviewSchedule.location || "Not specified"}</p>
+                        </div>
+                      </div>
+                      {interviewSchedule.notes && (
+                        <div className="mt-3 pt-3 border-t border-cyan-200">
+                          <p className="text-xs text-cyan-600 mb-1">Notes</p>
+                          <p className="text-sm text-gray-700">{interviewSchedule.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Interview Feedback Form */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                      </svg>
+                      Interview Feedback
+                    </h3>
+
+                    {/* Rating */}
+                    <div className="mb-4">
+                      <label className="text-xs text-gray-500 mb-2 block">Rating (1-5 stars)</label>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => setFeedbackData({ ...feedbackData, rating: star })}
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
+                              feedbackData.rating >= star
+                                ? "bg-yellow-100 text-yellow-600"
+                                : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                            }`}
+                          >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Feedback Notes */}
+                    <div className="mb-4">
+                      <label className="text-xs text-gray-500 mb-2 block">Feedback Notes</label>
+                      <textarea
+                        value={feedbackData.feedback_notes}
+                        onChange={(e) => setFeedbackData({ ...feedbackData, feedback_notes: e.target.value })}
+                        rows={4}
+                        placeholder="Enter your interview observations, strengths, weaknesses, overall impression..."
+                        className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                      <button
+                        onClick={() => handleInterviewFeedback("passed")}
+                        disabled={isSubmittingFeedback}
+                        className="flex-1 min-w-[140px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {isSubmittingFeedback ? "Saving..." : "Pass - Make Offer"}
+                      </button>
+                      <button
+                        onClick={() => handleInterviewFeedback("failed")}
+                        disabled={isSubmittingFeedback}
+                        className="flex-1 min-w-[140px] py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        {isSubmittingFeedback ? "Saving..." : "Fail - Reject"}
+                      </button>
+                      <button
+                        onClick={() => handleInterviewFeedback("no_show")}
+                        disabled={isSubmittingFeedback}
+                        className="flex-1 min-w-[140px] py-3 px-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {isSubmittingFeedback ? "Saving..." : "No Show"}
+                      </button>
+                      <button
+                        onClick={() => handleInterviewFeedback("pending")}
+                        disabled={isSubmittingFeedback}
+                        className="py-3 px-4 bg-gray-100 text-gray-600 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+                      >
+                        {isSubmittingFeedback ? "Saving..." : "Save Feedback"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Other Stages */}
-            {!isReceived && !isScreening && !isShortlisted && (
+            {!isReceived && !isScreening && !isShortlisted && !isInterview && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

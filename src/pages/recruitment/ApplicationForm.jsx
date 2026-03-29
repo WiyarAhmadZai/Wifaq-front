@@ -365,10 +365,17 @@ export default function ApplicationForm() {
             <div className="grid grid-cols-1 gap-5">
               <div>
                 <Label required>Job Posting</Label>
-                <select name="job_posting_id" value={formData.job_posting_id} onChange={handleChange} className={errors.job_posting_id ? inpError : inp}>
+                <select 
+                  name="job_posting_id" 
+                  value={formData.job_posting_id} 
+                  onChange={handleChange} 
+                  className={`${errors.job_posting_id ? inpError : inp} max-w-md`}
+                >
                   <option value="">Select Job Posting</option>
                   {jobPostings.map((jp) => (
-                    <option key={jp.id} value={jp.id}>{jp.title} - {jp.location}</option>
+                    <option key={jp.id} value={jp.id} className="truncate max-w-md">
+                      {jp.title} - {jp.location}
+                    </option>
                   ))}
                 </select>
                 {errors.job_posting_id && <p className="text-red-500 text-xs mt-1">{errors.job_posting_id}</p>}

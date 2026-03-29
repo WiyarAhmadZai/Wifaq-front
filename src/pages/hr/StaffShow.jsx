@@ -5,11 +5,6 @@ import Swal from 'sweetalert2';
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary" };
 
-const DEMO_DATA = {
-  1: { id: 1, staff_code: "WS-2026-001", full_name_en: "Ahmad Rahimi", full_name_dari: "احمد رحیمی", father_name: "Mohammad Rahimi", date_of_birth: "1990-05-15", national_id: "1401-0123-45678", blood_type: "A+", phone: "0770123456", whatsapp: "0770123456", email: "ahmad.rahimi@wifaqschool.com", address: "Kabul, District 4, Street 12, House 45", emergency_contact_name: "Ali Rahimi", emergency_contact_phone: "0790111222", hire_date: "2024-03-15", entity: "WS", department: "Academic", role_title_en: "Senior Teacher", role_title_dari: "استاد ارشد", contract_type: "FT", status: "active", direct_supervisor: "Mohammad Karimi", rank_level: "Level 5", base_salary: 25000, housing_allowance: 3000, transport_allowance: 2000, family_allowance: 2000, documents: { cv: "ahmad_cv.pdf", tazkira: "ahmad_tazkira.pdf", certificates: "ahmad_certificates.pdf", contract: "ahmad_contract.pdf" }, created_at: "2024-03-15T10:30:00Z", updated_at: "2025-12-01T14:20:00Z" },
-  2: { id: 2, staff_code: "WS-2026-002", full_name_en: "Mohammad Karimi", full_name_dari: "محمد کریمی", father_name: "Hassan Karimi", date_of_birth: "1988-11-20", national_id: "1401-0456-78901", blood_type: "B+", phone: "0790234567", whatsapp: "0790234567", email: "mohammad.karimi@wifaqschool.com", address: "Kabul, District 7, Street 3, House 12", emergency_contact_name: "Yousuf Karimi", emergency_contact_phone: "0780222333", hire_date: "2024-06-01", entity: "WLS", department: "Finance", role_title_en: "Accountant", role_title_dari: "حسابدار", contract_type: "PT", status: "active", direct_supervisor: null, rank_level: "Level 4", base_salary: 20000, housing_allowance: 2500, transport_allowance: 1500, family_allowance: 2000, documents: { cv: "karimi_cv.pdf", tazkira: "karimi_tazkira.pdf", certificates: "karimi_certs.pdf", contract: null }, created_at: "2024-06-01T09:00:00Z", updated_at: "2025-11-15T16:45:00Z" },
-};
-
 export default function StaffShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -24,7 +19,8 @@ export default function StaffShow() {
       const response = await get(`/hr/staff/show/${id}`);
       setData(response.data?.data || response.data);
     } catch {
-      setData(DEMO_DATA[id] || { ...DEMO_DATA[1], id: parseInt(id), staff_code: `WS-2026-${String(id).padStart(3, '0')}` });
+      Swal.fire("Error", "Failed to load staff data", "error");
+      navigate('/hr/staff');
     } finally { setLoading(false); }
   };
 
@@ -49,12 +45,13 @@ export default function StaffShow() {
     </div>
   );
 
-  const name = data.full_name_en || data.full_name || 'Staff';
-  const entity = data.entity || data.organization || '';
-  const role = data.role_title_en || data.job_title_en || '';
+  // All personal info comes from the linked application
+  const app = data.application;
+  const name = app?.full_name || `Staff #${data.employee_id}`;
+  const branchName = data.branch?.name || '—';
+  const role = data.role_title_en || '';
   const contract = data.contract_type || '';
-  const status = data.status || data.employment_status || '';
-  const totalSalary = (parseFloat(data.base_salary) || 0) + (parseFloat(data.housing_allowance) || 0) + (parseFloat(data.transport_allowance) || 0) + (parseFloat(data.family_allowance) || 0);
+  const status = data.status || '';
 
   return (
     <div className="min-h-screen bg-gray-50/60">
@@ -90,14 +87,11 @@ export default function StaffShow() {
               {name.charAt(0)}
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg font-black text-white">{name}</h2>
-                {data.full_name_dari && <span className="text-sm text-teal-100" dir="rtl">{data.full_name_dari}</span>}
-              </div>
+              <h2 className="text-lg font-black text-white">{name}</h2>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.staff_code}</span>
-                <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{entity}</span>
-                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : status === 'probation' ? 'bg-teal-300/30 text-white' : 'bg-red-400/30 text-white'}`}>
+                <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.employee_id}</span>
+                <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{branchName}</span>
+                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : status === 'probation' ? 'bg-amber-300/30 text-white' : 'bg-red-400/30 text-white'}`}>
                   {status}
                 </span>
               </div>
@@ -110,84 +104,76 @@ export default function StaffShow() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Left: Info Sections */}
           <div className="lg:col-span-2 space-y-4">
-            {/* Personal */}
-            <Section title="Personal Information" icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z">
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <Field label="Father's Name" value={data.father_name} />
-                <Field label="Date of Birth" value={data.date_of_birth || data.dob} />
-                <Field label="National ID / Tazkira" value={data.national_id} />
-                <Field label="Blood Type" value={data.blood_type} />
-              </div>
-            </Section>
 
-            {/* Contact */}
-            <Section title="Contact Information" icon="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z">
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <Field label="Phone" value={data.phone} />
-                <Field label="WhatsApp" value={data.whatsapp} />
-                <Field label="Email" value={data.email} />
-              </div>
-              <div className="mt-3">
-                <Field label="Address" value={data.address || data.home_address} />
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-3">Emergency Contact</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Name" value={data.emergency_contact_name} />
-                  <Field label="Phone" value={data.emergency_contact_phone} />
+            {/* Personal Info (from application) */}
+            {app && (
+              <Section title="Personal Information" icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  <Field label="Full Name" value={app.full_name} />
+                  <Field label="Email" value={app.email} />
+                  <Field label="Phone" value={app.contact_number} />
+                  <Field label="Date of Birth" value={app.date_of_birth?.split('T')[0]} />
+                  <Field label="Address" value={app.current_address} />
+                  <Field label="Place of Origin" value={app.place_of_origin} />
+                  <Field label="Father's Name" value={data.father_name} />
+                  <Field label="National ID / Tazkira" value={data.national_id} />
+                  <Field label="Blood Type" value={data.blood_type} />
                 </div>
-              </div>
-            </Section>
+                {(data.emergency_contact_name || data.emergency_contact_phone) && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-3">Emergency Contact</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Name" value={data.emergency_contact_name} />
+                      <Field label="Phone" value={data.emergency_contact_phone} />
+                    </div>
+                  </div>
+                )}
+              </Section>
+            )}
 
-            {/* Employment */}
+            {/* Education & Experience (from application) */}
+            {app && (
+              <Section title="Education & Experience" icon="M12 14l9-5-9-5-9 5 9 5z">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  <Field label="Education Level" value={app.education_level} />
+                  <Field label="Field of Study" value={app.field_of_study} />
+                  <Field label="Institution" value={app.institution_name} />
+                  <Field label="Experience" value={app.total_experience_years ? `${app.total_experience_years} years` : null} />
+                  <Field label="Applied For" value={app.job_posting?.requisition?.position_title || app.job_posting?.title} />
+                </div>
+                {app.offer && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] text-emerald-500 font-semibold uppercase tracking-wider mb-3">Accepted Offer</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Field label="Salary" value={app.offer.salary_amount ? `${app.offer.salary_currency || 'AFN'} ${Number(app.offer.salary_amount).toLocaleString()}` : null} />
+                      <Field label="Start Date" value={app.offer.start_date?.split('T')[0]} />
+                      <Field label="Offer Status" value={app.offer.status} />
+                    </div>
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {/* Employment Details (staff-only) */}
             <Section title="Employment Details" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <Field label="Hire Date" value={data.hire_date} />
-                <Field label="Entity" value={entity} />
+                <Field label="Hire Date" value={data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
+                <Field label="Branch" value={branchName} />
                 <Field label="Department" value={data.department} />
                 <Field label="Role Title (EN)" value={role} />
-                <Field label="Role Title (Dari)" value={data.role_title_dari || data.job_title_dari} />
+                <Field label="Role Title (Dari)" value={data.role_title_dari} />
                 <Field label="Contract Type" value={CONTRACT_LABELS[contract] || contract} />
-                <Field label="Supervisor" value={data.direct_supervisor} />
-                {data.probation_end_date && <Field label="Probation End" value={data.probation_end_date} />}
+                <Field label="Supervisor" value={data.supervisor?.application?.full_name || (data.supervisor ? `Staff #${data.supervisor.employee_id}` : null)} />
+                {data.probation_end_date && <Field label="Probation End" value={data.probation_end_date?.split('T')[0]} />}
               </div>
             </Section>
 
-            {/* Salary */}
-            <Section title="Salary Information" icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <Field label="Rank Level" value={data.rank_level} />
-                <Field label="Base Salary" value={data.base_salary ? `AFN ${parseFloat(data.base_salary).toLocaleString()}` : null} />
-              </div>
-              <div className="bg-teal-50 rounded-xl p-4 border border-teal-100">
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  {[
-                    { label: "Base", value: parseFloat(data.base_salary) || 0, prefix: "" },
-                    { label: "Housing", value: parseFloat(data.housing_allowance) || 0, prefix: "+" },
-                    { label: "Transport", value: parseFloat(data.transport_allowance) || 0, prefix: "+" },
-                    { label: "Family", value: parseFloat(data.family_allowance) || 0, prefix: "+" },
-                  ].map(s => (
-                    <div key={s.label} className="bg-white rounded-lg p-3 text-center border border-teal-100">
-                      <p className="text-[8px] font-bold text-teal-600 uppercase">{s.label}</p>
-                      <p className="text-xs font-bold text-gray-800">{s.prefix}{s.value.toLocaleString()}</p>
-                    </div>
-                  ))}
-                  <div className="bg-teal-600 rounded-lg p-3 text-center">
-                    <p className="text-[8px] font-bold text-teal-100 uppercase">Total</p>
-                    <p className="text-xs font-bold text-white">{totalSalary.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-            </Section>
-
-            {/* Documents */}
+            {/* Documents (staff-specific uploads) */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "CV", file: data.documents?.cv },
-                  { label: "Tazkira / National ID", file: data.documents?.tazkira },
-                  { label: "Certificates", file: data.documents?.certificates },
-                  { label: "Signed Contract", file: data.documents?.contract },
+                  { label: "Tazkira / National ID", file: data.tazkira_scan },
+                  { label: "Signed Contract", file: data.signed_contract },
                 ].map((doc, i) => (
                   <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${doc.file ? 'bg-teal-50/50 border-teal-200' : 'bg-gray-50 border-gray-100'}`}>
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${doc.file ? 'bg-teal-100 text-teal-600' : 'bg-gray-200 text-gray-400'}`}>
@@ -214,60 +200,57 @@ export default function StaffShow() {
               <p className="text-[10px] font-semibold text-teal-200 uppercase tracking-wider mb-3">Summary</p>
               <div className="space-y-2.5">
                 {[
-                  ['Staff Code', data.staff_code],
+                  ['Staff Code', data.employee_id],
                   ['Entity', entity],
+                  ['Department', data.department || '—'],
                   ['Contract', CONTRACT_LABELS[contract] || contract || '—'],
-                  ['Rank', data.rank_level || '—'],
+                  ['Role', role || '—'],
                 ].map(([l, v]) => (
                   <div key={l} className="flex justify-between items-center">
                     <span className="text-[10px] text-teal-200">{l}</span>
                     <span className="text-[11px] font-semibold">{v}</span>
                   </div>
                 ))}
-                <div className="border-t border-teal-500/50 pt-2.5 mt-2.5 flex justify-between items-center">
-                  <span className="text-[10px] text-teal-200">Total Salary</span>
-                  <span className="text-sm font-bold">{totalSalary.toLocaleString()} AFN</span>
-                </div>
+                {data.base_salary && (
+                  <div className="border-t border-teal-500/50 pt-2.5 mt-2.5 flex justify-between items-center">
+                    <span className="text-[10px] text-teal-200">Base Salary</span>
+                    <span className="text-sm font-bold">{Number(data.base_salary).toLocaleString()} AFN</span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Quick Contact */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Contact</p>
-              <div className="space-y-2.5">
-                {data.phone && (
-                  <a href={`tel:${data.phone}`} className="flex items-center gap-2.5 text-xs text-gray-700 hover:text-teal-600 transition-colors py-1">
-                    <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center text-teal-600 flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                    </div>
-                    {data.phone}
-                  </a>
-                )}
-                {data.whatsapp && (
-                  <div className="flex items-center gap-2.5 text-xs text-gray-700 py-1">
-                    <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center text-teal-600 flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                    </div>
-                    {data.whatsapp}
-                  </div>
-                )}
-                {data.email && (
-                  <a href={`mailto:${data.email}`} className="flex items-center gap-2.5 text-xs text-gray-700 hover:text-teal-600 transition-colors py-1">
-                    <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center text-teal-600 flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    </div>
-                    <span className="truncate">{data.email}</span>
-                  </a>
-                )}
+            {/* Quick Contact (from application) */}
+            {app && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Contact</p>
+                <div className="space-y-2.5">
+                  {app.contact_number && (
+                    <a href={`tel:${app.contact_number}`} className="flex items-center gap-2.5 text-xs text-gray-700 hover:text-teal-600 transition-colors py-1">
+                      <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center text-teal-600 flex-shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      </div>
+                      {app.contact_number}
+                    </a>
+                  )}
+                  {app.email && (
+                    <a href={`mailto:${app.email}`} className="flex items-center gap-2.5 text-xs text-gray-700 hover:text-teal-600 transition-colors py-1">
+                      <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center text-teal-600 flex-shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                      </div>
+                      <span className="truncate">{app.email}</span>
+                    </a>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Timeline */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Timeline</p>
               <div className="space-y-3">
                 {[
-                  { label: 'Hired', date: data.hire_date },
+                  { label: 'Hired', date: data.created_at ? new Date(data.created_at).toLocaleDateString() : null },
                   { label: 'Record Created', date: data.created_at ? new Date(data.created_at).toLocaleDateString() : null },
                   { label: 'Last Updated', date: data.updated_at ? new Date(data.updated_at).toLocaleDateString() : null },
                 ].map((item, i) => (
@@ -308,7 +291,7 @@ function Field({ label, value }) {
   return (
     <div className="p-3 bg-gray-50 rounded-xl">
       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-sm font-semibold text-gray-800">{value || '—'}</p>
+      <p className="text-sm font-semibold text-gray-800 capitalize">{value || '—'}</p>
     </div>
   );
 }

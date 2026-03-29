@@ -1,26 +1,31 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const STEPS = [
-  { num: 1, label: "Personal Info", desc: "Identity & personal details", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-  { num: 2, label: "Contact Info", desc: "Phone, email & emergency", icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" },
+  { num: 1, label: "Select Applicant", desc: "Choose hired applicant", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
+  { num: 2, label: "Staff Details", desc: "Additional identity info", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
   { num: 3, label: "Employment", desc: "Job details & contract", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
   { num: 4, label: "Documents", desc: "Upload required files", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
 ];
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const DEPARTMENTS = ["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations", "Science", "Languages"];
-const ENTITIES = ["WS", "WLS", "WISAL"];
-const STATUS_OPTIONS = ["active", "probation", "inactive"];
-
-const DEMO_STAFF = [
-  { id: 1, full_name: "Ahmad Rahimi" },
-  { id: 2, full_name: "Mohammad Karimi" },
-  { id: 3, full_name: "Fatima Noori" },
-  { id: 4, full_name: "Ali Ahmadi" },
+const CONTRACT_TYPES = [
+  { value: "FT", label: "Full Time" },
+  { value: "PT", label: "Part Time" },
+  { value: "TEMP", label: "Temporary" },
+  { value: "CONTRACT", label: "Contract" },
+  { value: "INTERNSHIP", label: "Internship" },
 ];
+
+const DOCUMENT_TYPES = {
+  cv_resume: "CV/Resume",
+  identity_document: "Identity Document",
+  educational_document: "Educational Document",
+  work_samples: "Work Samples",
+};
 
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
 
@@ -30,13 +35,6 @@ const Label = ({ children, required }) => (
   </label>
 );
 
-function generateStaffCode() {
-  const year = new Date().getFullYear();
-  const num = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
-  return `WS-${year}-${num}`;
-}
-
-// ── Searchable single select ─────────────────────────────────────────────────
 function SearchSelect({ options, value, onChange, placeholder = 'Search or select...' }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -55,7 +53,6 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
 
   const getLabel = (o) => typeof o === 'object' ? o.label || o.full_name || '' : String(o);
   const getValue = (o) => typeof o === 'object' ? o.value || o.id || '' : o;
-
   const selectedOption = options.find(o => String(getValue(o)) === String(value));
 
   return (
@@ -99,7 +96,6 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
   );
 }
 
-// ── Step Card ─────────────────────────────────────────────────────────────────
 const StepCard = ({ step, children }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
     <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
@@ -122,30 +118,58 @@ export default function StaffForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(isEdit ? 2 : 1);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(null);
 
+  const [hiredApplicants, setHiredApplicants] = useState([]);
+  const [selectedApplicant, setSelectedApplicant] = useState(null);
+  const [supervisors, setSupervisors] = useState([]);
+  const [branches, setBranches] = useState([]);
+
   const [form, setForm] = useState({
-    staff_code: generateStaffCode(),
-    full_name_en: "", full_name_dari: "", father_name: "",
-    date_of_birth: "", national_id: "", blood_type: "",
+    application_id: "",
+    father_name: "", national_id: "", blood_type: "",
     profile_photo: null,
-    phone: "", whatsapp: "", email: "",
-    address: "", emergency_contact_name: "", emergency_contact_phone: "",
-    entity: "WS", department: "",
+    emergency_contact_name: "", emergency_contact_phone: "",
+    branch_id: "", department: "",
     role_title_en: "", role_title_dari: "",
-    hire_date: new Date().toISOString().split("T")[0],
-    contract_type: "FT", status: "active",
-    probation_end_date: "", direct_supervisor_id: "",
+    contract_type: "", status: "active",
+    has_probation: false, probation_end_date: "",
+    direct_supervisor_id: "",
     can_be_supervisor: null, can_be_assistant: null,
-    cv_upload: null, tazkira_scan: null, certificates: null, signed_contract: null,
+    tazkira_scan: null, signed_contract: null,
   });
 
   useEffect(() => {
+    fetchHiredApplicants();
+    fetchSupervisors();
+    fetchBranches();
     if (isEdit) loadStaff();
   }, [id]);
+
+  const fetchHiredApplicants = async () => {
+    try {
+      const res = await get('/hr/staff/hired-applicants/list');
+      setHiredApplicants(res.data?.data || []);
+    } catch { setHiredApplicants([]); }
+  };
+
+  const fetchSupervisors = async () => {
+    try {
+      const res = await get('/hr/staff/supervisors/list');
+      setSupervisors(res.data?.data || []);
+    } catch { setSupervisors([]); }
+  };
+
+  const fetchBranches = async () => {
+    try {
+      const res = await get('/branches/list');
+      const list = res.data?.data || res.data || [];
+      setBranches(list);
+    } catch { setBranches([]); }
+  };
 
   const loadStaff = async () => {
     setLoading(true);
@@ -154,28 +178,38 @@ export default function StaffForm() {
       const d = res.data?.data || res.data;
       setForm(prev => ({
         ...prev,
-        staff_code: d.staff_code || prev.staff_code,
-        full_name_en: d.full_name_en || "", full_name_dari: d.full_name_dari || "",
-        father_name: d.father_name || "", date_of_birth: d.date_of_birth || d.dob || "",
+        application_id: d.application_id || "",
+        father_name: d.father_name || "",
         national_id: d.national_id || "", blood_type: d.blood_type || "",
-        phone: d.phone || "", whatsapp: d.whatsapp || "", email: d.email || "",
-        address: d.address || d.home_address || "",
         emergency_contact_name: d.emergency_contact_name || "",
         emergency_contact_phone: d.emergency_contact_phone || "",
-        entity: d.entity || d.organization || "WS", department: d.department || "",
-        role_title_en: d.role_title_en || d.job_title_en || "",
-        role_title_dari: d.role_title_dari || d.job_title_dari || "",
-        hire_date: d.hire_date || "", contract_type: d.contract_type || "FT",
-        status: d.status || d.employment_status || "active",
-        probation_end_date: d.probation_end_date || "",
+        branch_id: d.branch_id || "", department: d.department || "",
+        role_title_en: d.role_title_en || "",
+        role_title_dari: d.role_title_dari || "",
+        contract_type: d.contract_type || "",
+        status: d.status || "active",
+        has_probation: d.has_probation || false,
+        probation_end_date: d.probation_end_date?.split("T")[0] || "",
         direct_supervisor_id: d.direct_supervisor_id || "",
       }));
+      if (d.application) {
+        setSelectedApplicant({
+          ...d.application,
+          full_name: d.application.full_name,
+          email: d.application.email,
+          contact_number: d.application.contact_number,
+          date_of_birth: d.application.date_of_birth,
+          current_address: d.application.current_address,
+          position: d.application.job_posting?.requisition?.position_title || d.application.job_posting?.title || d.role_title_en || '',
+          department: d.application.job_posting?.requisition?.department || d.department || '',
+          documents: d.application.documents || [],
+          offer: d.application.offer,
+        });
+      }
     } catch {
       Swal.fire("Error", "Failed to load staff data", "error");
       navigate("/hr/staff");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const set = (name, value) => setForm(prev => ({ ...prev, [name]: value }));
@@ -193,29 +227,58 @@ export default function StaffForm() {
     }
   };
 
+  const handleApplicantSelect = (appId) => {
+    set('application_id', appId);
+    const applicant = hiredApplicants.find(a => String(a.id) === String(appId));
+    if (applicant) {
+      setSelectedApplicant(applicant);
+      setForm(prev => ({
+        ...prev,
+        application_id: appId,
+        department: applicant.department || prev.department,
+        role_title_en: applicant.position || prev.role_title_en,
+      }));
+    } else {
+      setSelectedApplicant(null);
+    }
+  };
+
   const canNext = () => {
-    if (step === 1) return form.full_name_en;
-    if (step === 3) return form.department && form.role_title_en;
+    if (step === 1) return form.application_id || isEdit;
+    if (step === 3) return form.department && form.role_title_en && form.contract_type && form.branch_id;
+    if (step === 3 && form.has_probation) return form.probation_end_date;
     return true;
   };
 
   const submit = async () => {
     if (step !== STEPS.length) return;
+    if (form.has_probation && !form.probation_end_date) {
+      Swal.fire("Error", "Probation end date is required when probation is enabled", "error");
+      return;
+    }
     setSaving(true);
     try {
+      const formData = new FormData();
+      Object.entries(form).forEach(([key, val]) => {
+        if (val !== null && val !== undefined && val !== "") {
+          if (typeof val === 'boolean') {
+            formData.append(key, val ? '1' : '0');
+          } else {
+            formData.append(key, val instanceof File ? val : val);
+          }
+        }
+      });
+
       if (isEdit) {
-        await put(`/hr/staff/update/${id}`, form);
+        await post(`/hr/staff/update/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       } else {
-        await post("/hr/staff/store", form);
+        await post("/hr/staff/store", formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       }
       Swal.fire({ icon: "success", title: isEdit ? "Staff Updated!" : "Staff Registered!", timer: 2000, showConfirmButton: false });
       navigate("/hr/staff");
-    } catch {
-      Swal.fire({ icon: "success", title: isEdit ? "Staff Updated!" : "Staff Registered!", text: `${form.full_name_en} has been saved.`, timer: 2000, showConfirmButton: false });
-      navigate("/hr/staff");
-    } finally {
-      setSaving(false);
-    }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to save staff", "error");
+    } finally { setSaving(false); }
   };
 
   if (loading) return (
@@ -226,9 +289,21 @@ export default function StaffForm() {
 
   const cur = STEPS[step - 1];
 
+  const ApplicantBanner = () => selectedApplicant ? (
+    <div className="flex items-center gap-3 p-3 bg-teal-50 rounded-xl border border-teal-200 mb-2">
+      <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+        {selectedApplicant.full_name?.charAt(0)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-gray-800 truncate">{selectedApplicant.full_name}</p>
+        <p className="text-[10px] text-teal-600">{selectedApplicant.email} · {selectedApplicant.contact_number}</p>
+      </div>
+      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">HIRED</span>
+    </div>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-gray-50/60">
-      {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
         <div className="max-w-full mx-auto flex items-center gap-3">
           <button onClick={() => navigate("/hr/staff")}
@@ -242,7 +317,6 @@ export default function StaffForm() {
         </div>
       </div>
 
-      {/* Step pills */}
       <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-10">
         <div className="max-w-full mx-auto px-4 py-3 flex items-center gap-1 overflow-x-auto">
           {STEPS.map((s, i) => {
@@ -269,10 +343,95 @@ export default function StaffForm() {
       <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
         <div className="max-w-full mx-auto px-4 py-6 space-y-4">
 
-          {/* ── Step 1: Personal Info ──────────────────────────────────────── */}
+          {/* ── Step 1: Select Applicant ──────────────────────────────────── */}
           {step === 1 && (
             <StepCard step={cur}>
-              {/* Photo upload + Photo URL */}
+              <div>
+                <Label required>Full Name (English)</Label>
+                <SearchSelect
+                  options={hiredApplicants.map(a => ({ value: a.id, label: a.full_name }))}
+                  value={form.application_id}
+                  onChange={handleApplicantSelect}
+                  placeholder="Search hired applicant by name..."
+                />
+                <p className="text-[10px] text-gray-400 mt-1.5">Only applicants with "Hired" status are shown</p>
+              </div>
+
+              {selectedApplicant && (
+                <div className="mt-4 p-5 bg-teal-50 rounded-xl border border-teal-200 space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b border-teal-200">
+                    <div className="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                      {selectedApplicant.full_name?.charAt(0) || "?"}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">{selectedApplicant.full_name}</p>
+                      <p className="text-xs text-teal-600">{selectedApplicant.position || "—"} {selectedApplicant.department ? `· ${selectedApplicant.department}` : ""}</p>
+                    </div>
+                    <span className="ml-auto px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase">Hired</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {[
+                      { label: "Email", value: selectedApplicant.email },
+                      { label: "Phone", value: selectedApplicant.contact_number },
+                      { label: "Date of Birth", value: selectedApplicant.date_of_birth?.split("T")[0] },
+                      { label: "Education", value: selectedApplicant.education_level },
+                      { label: "Field of Study", value: selectedApplicant.field_of_study },
+                      { label: "Institution", value: selectedApplicant.institution_name },
+                      { label: "Experience", value: selectedApplicant.total_experience_years ? `${selectedApplicant.total_experience_years} years` : null },
+                      { label: "Place of Origin", value: selectedApplicant.place_of_origin },
+                      { label: "Address", value: selectedApplicant.current_address },
+                    ].map(f => (
+                      <div key={f.label} className="bg-white rounded-lg p-2.5 border border-teal-100">
+                        <p className="text-[9px] font-semibold text-teal-500 uppercase tracking-wider">{f.label}</p>
+                        <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{f.value || "—"}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedApplicant.documents && selectedApplicant.documents.length > 0 && (
+                    <div className="pt-3 border-t border-teal-200">
+                      <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider mb-2">Application Documents</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedApplicant.documents.map((doc, i) => (
+                          <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-teal-200 rounded-lg text-[11px] font-medium text-teal-700">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                            {DOCUMENT_TYPES[doc.document_type] || doc.document_type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedApplicant.offer && (
+                    <div className="pt-3 border-t border-teal-200">
+                      <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider mb-2">Offer Details</p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white rounded-lg p-2.5 border border-teal-100">
+                          <p className="text-[9px] font-semibold text-teal-500 uppercase">Salary</p>
+                          <p className="text-xs font-bold text-gray-800">{selectedApplicant.offer.salary_currency || "AFN"} {Number(selectedApplicant.offer.salary_amount || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-2.5 border border-teal-100">
+                          <p className="text-[9px] font-semibold text-teal-500 uppercase">Start Date</p>
+                          <p className="text-xs font-medium text-gray-800">{selectedApplicant.offer.start_date?.split("T")[0] || "—"}</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-2.5 border border-teal-100">
+                          <p className="text-[9px] font-semibold text-teal-500 uppercase">Status</p>
+                          <p className="text-xs font-medium text-gray-800 capitalize">{selectedApplicant.offer.status || "—"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </StepCard>
+          )}
+
+          {/* ── Step 2: Staff Details ─────────────────────────────────────── */}
+          {step === 2 && (
+            <StepCard step={cur}>
+              <ApplicantBanner />
+
               <div className="flex items-center gap-5 pb-5 border-b border-gray-100">
                 <div className="w-20 h-20 rounded-2xl bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {photoPreview ? (
@@ -291,65 +450,18 @@ export default function StaffForm() {
                 </div>
               </div>
 
-              {/* Staff Code Banner */}
-              <div className="bg-teal-50 rounded-xl px-4 py-3 flex items-center gap-3 border border-teal-100">
-                <div className="w-9 h-9 bg-teal-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-teal-500 uppercase tracking-wider">Staff Code (Auto)</p>
-                  <p className="text-sm font-bold text-teal-800">{form.staff_code}</p>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label required>Full Name (English)</Label>
-                  <input type="text" name="full_name_en" value={form.full_name_en} onChange={handle} className={inp} placeholder="Enter full name" />
-                </div>
-                <div>
-                  <Label required>Full Name (Dari)</Label>
-                  <input type="text" name="full_name_dari" value={form.full_name_dari} onChange={handle} className={inp} placeholder="نام کامل به دری" dir="rtl" />
-                </div>
-                <div>
-                  <Label required>Father's Name</Label>
+                  <Label>Father's Name</Label>
                   <input type="text" name="father_name" value={form.father_name} onChange={handle} className={inp} placeholder="Enter father's name" />
                 </div>
                 <div>
-                  <Label required>Date of Birth</Label>
-                  <input type="date" name="date_of_birth" value={form.date_of_birth} onChange={handle} className={inp} />
-                </div>
-                <div>
-                  <Label required>National ID / Tazkira</Label>
+                  <Label>National ID / Tazkira</Label>
                   <input type="text" name="national_id" value={form.national_id} onChange={handle} className={inp} placeholder="e.g. 1401-0123-45678" />
                 </div>
                 <div>
                   <Label>Blood Type</Label>
                   <SearchSelect options={BLOOD_TYPES} value={form.blood_type} onChange={v => set('blood_type', v)} placeholder="Select blood type..." />
-                </div>
-              </div>
-            </StepCard>
-          )}
-
-          {/* ── Step 2: Contact Info ───────────────────────────────────────── */}
-          {step === 2 && (
-            <StepCard step={cur}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label required>Phone Number</Label>
-                  <input type="tel" name="phone" value={form.phone} onChange={handle} className={inp} placeholder="07X XXX XXXX" />
-                </div>
-                <div>
-                  <Label>WhatsApp Number</Label>
-                  <input type="tel" name="whatsapp" value={form.whatsapp} onChange={handle} className={inp} placeholder="07X XXX XXXX" />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Email Address</Label>
-                  <input type="email" name="email" value={form.email} onChange={handle} className={inp} placeholder="example@wifaqschool.com" />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label required>Address</Label>
-                  <textarea name="address" value={form.address} onChange={handle} rows={2} className={`${inp} resize-none`} placeholder="Full home address..." />
                 </div>
               </div>
 
@@ -360,11 +472,11 @@ export default function StaffForm() {
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label required>Contact Name</Label>
+                    <Label>Contact Name</Label>
                     <input type="text" name="emergency_contact_name" value={form.emergency_contact_name} onChange={handle} className={inp} placeholder="Contact person name" />
                   </div>
                   <div>
-                    <Label required>Contact Phone</Label>
+                    <Label>Contact Phone</Label>
                     <input type="tel" name="emergency_contact_phone" value={form.emergency_contact_phone} onChange={handle} className={inp} placeholder="07X XXX XXXX" />
                   </div>
                 </div>
@@ -375,10 +487,17 @@ export default function StaffForm() {
           {/* ── Step 3: Employment ─────────────────────────────────────────── */}
           {step === 3 && (
             <StepCard step={cur}>
+              <ApplicantBanner />
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label required>Hire Date</Label>
-                  <input type="date" name="hire_date" value={form.hire_date} onChange={handle} className={inp} />
+                  <Label required>Branch</Label>
+                  <SearchSelect
+                    options={branches.map(b => ({ value: b.id, label: b.name }))}
+                    value={form.branch_id}
+                    onChange={v => set('branch_id', v)}
+                    placeholder="Select branch..."
+                  />
                 </div>
                 <div>
                   <Label required>Department</Label>
@@ -393,9 +512,18 @@ export default function StaffForm() {
                   <input type="text" name="role_title_dari" value={form.role_title_dari} onChange={handle} className={inp} placeholder="عنوان وظیفه به دری" dir="rtl" />
                 </div>
                 <div>
+                  <Label required>Contract Type</Label>
+                  <SearchSelect
+                    options={CONTRACT_TYPES}
+                    value={form.contract_type}
+                    onChange={v => set('contract_type', v)}
+                    placeholder="Select contract type..."
+                  />
+                </div>
+                <div>
                   <Label>Direct Supervisor</Label>
                   <SearchSelect
-                    options={DEMO_STAFF.map(s => ({ value: s.id, label: s.full_name }))}
+                    options={supervisors.map(s => ({ value: s.id, label: `${s.full_name_en} (${s.employee_id})` }))}
                     value={form.direct_supervisor_id}
                     onChange={v => set('direct_supervisor_id', v)}
                     placeholder="Select supervisor..."
@@ -403,48 +531,39 @@ export default function StaffForm() {
                 </div>
               </div>
 
-              {/* Entity */}
-              <div>
-                <Label required>Entity</Label>
-                <div className="flex gap-3">
-                  {ENTITIES.map(e => (
-                    <button key={e} type="button" onClick={() => set('entity', e)}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${form.entity === e ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Probation Toggle */}
+              <div className="pt-4 border-t border-gray-100">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className={`relative w-10 h-5 rounded-full transition-colors ${form.has_probation ? 'bg-teal-600' : 'bg-gray-300'}`}
+                    onClick={() => {
+                      const newVal = !form.has_probation;
+                      set('has_probation', newVal);
+                      if (!newVal) set('probation_end_date', '');
+                    }}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.has_probation ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 group-hover:text-teal-600 transition-colors">Has Probation Period</span>
+                </label>
 
-              {/* Contract Type */}
-              <div>
-                <Label required>Contract Type</Label>
-                <div className="flex gap-3">
-                  {[
-                    { v: "FT", l: "Full Time" },
-                    { v: "PT", l: "Part Time" },
-                    { v: "TEMP", l: "Temporary" },
-                  ].map(c => (
-                    <button key={c.v} type="button" onClick={() => set('contract_type', c.v)}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${form.contract_type === c.v ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                      {c.l}
-                    </button>
-                  ))}
-                </div>
+                {form.has_probation && (
+                  <div className="mt-4 max-w-xs">
+                    <Label required>Probation End Date</Label>
+                    <input type="date" name="probation_end_date" value={form.probation_end_date} onChange={handle} className={inp} />
+                  </div>
+                )}
               </div>
-
             </StepCard>
           )}
 
           {/* ── Step 4: Documents ──────────────────────────────────────────── */}
           {step === 4 && (
             <StepCard step={cur}>
+              <ApplicantBanner />
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {[
-                  { name: "cv_upload", label: "CV Upload", required: true, accept: ".pdf,.doc,.docx", desc: "PDF, DOC - Max 5MB" },
-                  { name: "tazkira_scan", label: "Tazkira / National ID Scan", required: true, accept: ".pdf,.jpg,.jpeg,.png", desc: "PDF, JPG, PNG - Max 5MB" },
-                  { name: "certificates", label: "Certificates", required: true, accept: ".pdf,.jpg,.jpeg,.png", desc: "PDF, JPG, PNG" },
-                  { name: "signed_contract", label: "Signed Contract", required: false, accept: ".pdf", desc: "PDF - Optional" },
+                  { name: "tazkira_scan", label: "Tazkira / National ID Scan", accept: ".pdf,.jpg,.jpeg,.png", desc: "PDF, JPG, PNG - Max 5MB" },
+                  { name: "signed_contract", label: "Signed Contract", accept: ".pdf", desc: "PDF - Optional" },
                 ].map((doc) => (
                   <div key={doc.name} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${form[doc.name] ? 'bg-teal-50/50 border-teal-200' : 'border-gray-200 hover:border-teal-200'}`}>
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${form[doc.name] ? "bg-teal-100 text-teal-600" : "bg-gray-100 text-gray-400"}`}>
@@ -455,9 +574,9 @@ export default function StaffForm() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-700">{doc.label} {doc.required && <span className="text-red-400">*</span>}</p>
+                      <p className="text-xs font-semibold text-gray-700">{doc.label}</p>
                       {form[doc.name] ? (
-                        <p className="text-[10px] text-teal-600 font-medium truncate">{form[doc.name].name}</p>
+                        <p className="text-[10px] text-teal-600 font-medium truncate">{form[doc.name].name || form[doc.name]}</p>
                       ) : (
                         <p className="text-[10px] text-gray-400">{doc.desc}</p>
                       )}
@@ -474,13 +593,12 @@ export default function StaffForm() {
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5 mt-2">
                 <p className="text-xs font-bold text-gray-700">Review Summary</p>
                 {[
-                  { label: "Full Name", value: form.full_name_en },
-                  { label: "Staff Code", value: form.staff_code },
-                  { label: "Entity", value: form.entity },
+                  { label: "Applicant", value: selectedApplicant?.full_name || "—" },
+                  { label: "Branch", value: branches.find(b => String(b.id) === String(form.branch_id))?.name || "—" },
                   { label: "Department", value: form.department || "—" },
                   { label: "Role", value: form.role_title_en || "—" },
-                  { label: "Contract", value: form.contract_type },
-                  { label: "Status", value: form.status },
+                  { label: "Contract", value: CONTRACT_TYPES.find(c => c.value === form.contract_type)?.label || form.contract_type || "—" },
+                  { label: "Probation", value: form.has_probation ? `Yes — until ${form.probation_end_date}` : "No" },
                 ].map(r => (
                   <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
                     <span className="text-xs text-gray-500">{r.label}</span>

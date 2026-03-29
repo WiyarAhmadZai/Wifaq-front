@@ -16,6 +16,22 @@ const DEPARTMENTS = [
   { value: "Languages", label: "Languages" },
 ];
 
+// Desired Role labels mapping (matching the enum labels)
+const DESIRED_ROLE_LABELS = {
+  motion_graphics_designer: "طراح موشن گرافیک - Motion Graphics Designer",
+  curriculum_expert: "متخصص نصاب - Curriculum Expert",
+  visual_learning_specialist: "متخصص یادگیری بصری - Visual Learning Specialist",
+  school_psychology_counselor: "مشاور روانشناسی مدرسه - School Psychology Counselor",
+  social_religious_studies_teacher: "آموزگار علوم اجتماعی و مذهبی - Social & Religious Studies Teacher",
+  chief_science_teacher_lab_manager: "آموزگار ارشد علوم و مدیر آزمایشگاه - Chief Science Teacher & Lab Manager",
+  dari_pashto_teacher: "آموزگار دری و پشتو - Dari & Pashto Teacher",
+  coding_teacher_computer_lab_manager: "آموزگار کدنویسی و مدیر لابراتوار کمپیوتر - Coding Teacher & Computer Lab Manager",
+  arabic_teacher_wisal: "آموزگار عربی (ویسال) - Arabic Teacher (Wisal)",
+  educational_videographer: "فیلمبردار آموزشی - Educational Videographer",
+  security_guard: "محافظ/نگهبان - Security Guard",
+  other: "سایر - Other",
+};
+
 const EMPLOYMENT_TYPES = [
   { value: "", label: "Select Employment Type" },
   { value: "full_time", label: "Full Time" },
@@ -49,12 +65,14 @@ export default function JobRequisitionForm() {
   });
 
   const [staff, setStaff] = useState([]);
+  const [desiredRoles, setDesiredRoles] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchStaff();
+    fetchEnums();
     if (isEdit) fetchRequisition();
   }, [id]);
 
@@ -65,6 +83,18 @@ export default function JobRequisitionForm() {
       setStaff(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch staff", error);
+    }
+  };
+
+  const fetchEnums = async () => {
+    try {
+      const response = await get("/recruitment/job-requisitions/enums");
+      const data = response.data?.data || response.data || {};
+      if (data.desired_roles) {
+        setDesiredRoles(data.desired_roles);
+      }
+    } catch (error) {
+      console.error("Failed to fetch enums", error);
     }
   };
 
@@ -115,7 +145,6 @@ export default function JobRequisitionForm() {
     const newErrors = {};
     if (!formData.department) newErrors.department = ["Department is required"];
     if (!formData.position_title) newErrors.position_title = ["Position title is required"];
-    if (formData.position_title?.length > 200) newErrors.position_title = ["Position title must not exceed 200 characters"];
     if (!formData.employment_type) newErrors.employment_type = ["Employment type is required"];
     if (!formData.number_of_positions || formData.number_of_positions < 1) {
       newErrors.number_of_positions = ["Number of positions must be at least 1"];
@@ -255,16 +284,20 @@ export default function JobRequisitionForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Position Title *
               </label>
-              <input
-                type="text"
+              <select
                 name="position_title"
                 value={formData.position_title}
                 onChange={handleChange}
                 required
-                maxLength={200}
-                placeholder="e.g. Senior Mathematics Teacher"
                 className={inputClass("position_title")}
-              />
+              >
+                <option value="">Select Position Title</option>
+                {desiredRoles.map((role) => (
+                  <option key={role} value={role}>
+                    {DESIRED_ROLE_LABELS[role] || role}
+                  </option>
+                ))}
+              </select>
               {err("position_title") && <p className="text-red-500 text-[10px] mt-1">{err("position_title")}</p>}
             </div>
 

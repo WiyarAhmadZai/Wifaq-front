@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { get, post, put } from '../api/axios';
 import Swal from 'sweetalert2';
 
-export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) {
+export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, storeEndpoint = null, editEndpoint = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
@@ -124,10 +124,12 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute }) 
     
     try {
       if (isEdit) {
-        await put(`${apiEndpoint}/${id}`, formData);
+        const updateUrl = editEndpoint ? `${editEndpoint}/${id}` : `${apiEndpoint}/${id}`;
+        await put(updateUrl, formData);
         Swal.fire('Success', 'Updated successfully', 'success');
       } else {
-        await post(apiEndpoint, formData);
+        const createUrl = storeEndpoint || apiEndpoint;
+        await post(createUrl, formData);
         Swal.fire('Success', 'Created successfully', 'success');
       }
       navigate(listRoute);

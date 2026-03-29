@@ -4,7 +4,9 @@ export default function StockForm() {
   return (
     <CrudFormPage
       title="Stock Item"
-      apiEndpoint="/purchase/stock"
+      apiEndpoint="/purchase/stock/show"
+      storeEndpoint="/purchase/stock/store"
+      editEndpoint="/purchase/stock/edit"
       listRoute="/purchase/stock"
       fields={[
         { name: "item_name", label: "Item Name", type: "text", required: true },

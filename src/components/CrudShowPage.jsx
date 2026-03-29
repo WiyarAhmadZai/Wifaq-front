@@ -83,7 +83,7 @@ const DetailRow = ({ label, value, isStatus = false }) => (
   </div>
 );
 
-export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, editRoute }) {
+export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, editRoute, deleteEndpoint = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -97,7 +97,8 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
     setLoading(true);
     try {
       const response = await get(`${apiEndpoint}/${id}`);
-      setData(response.data);
+      const itemData = response.data?.data || response.data;
+      setData(itemData);
     } catch (error) {
       Swal.fire('Error', 'Failed to load data', 'error');
     } finally {
@@ -119,7 +120,8 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
 
     if (result.isConfirmed) {
       try {
-        await del(`${apiEndpoint}/${id}`);
+        const delUrl = deleteEndpoint ? `${deleteEndpoint}/${id}` : `${apiEndpoint}/${id}`;
+        await del(delUrl);
         Swal.fire('Deleted', 'Record deleted successfully', 'success');
         navigate(listRoute);
       } catch (error) {

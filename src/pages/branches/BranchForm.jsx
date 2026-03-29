@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const Icons = {
@@ -45,7 +46,6 @@ export default function BranchForm() {
 
   const [formData, setFormData] = useState({
     name: "",
-    code: "",
     phone: "",
     manager: "",
     status: true,
@@ -65,27 +65,22 @@ export default function BranchForm() {
   const fetchBranch = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/branches/show/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setFormData({
-            name: result.data.name || "",
-            code: result.data.code || "",
-            phone: result.data.phone || "",
-            manager: result.data.manager || "",
-            status: result.data.status === 1 ? true : false,
-            established_year: result.data.established_year || "",
-            address: result.data.address || "",
-          });
-        }
+      const response = await get(`/branches/show/${id}`);
+      if (response.data?.success || response.data) {
+        const branchData = response.data?.data || response.data;
+        const normalizedStatus =
+          branchData.status === true ||
+          branchData.status === 1 ||
+          branchData.status === "1" ||
+          branchData.status === "true";
+        setFormData({
+          name: branchData.name || "",
+          phone: branchData.phone || "",
+          manager: branchData.manager || "",
+          status: normalizedStatus,
+          established_year: branchData.established_year || "",
+          address: branchData.address || "",
+        });
       } else {
         Swal.fire("Error", "Failed to fetch branch data", "error");
         navigate("/branches");
@@ -112,25 +107,26 @@ export default function BranchForm() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem("token");
-      const url = isEdit
-        ? `${API_BASE_URL}/branches/update/${id}`
-        : `${API_BASE_URL}/branches/store`;
+      // Validate required fields before sending
+      if (!formData.name || formData.name.trim() === '') {
+        Swal.fire("Error", "Branch name is required", "error");
+        setSubmitting(false);
+        return;
+      }
 
-      const method = isEdit ? "PUT" : "POST";
+      let response;
+      
+      if (isEdit) {
+        // Don't send code field - backend handles it
+        response = await put(`/branches/update/${id}`, formData);
+      } else {
+        // Don't send code field - backend will generate it automatically
+        response = await post('/branches/store', formData);
+      }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      console.log('API Response:', response);
 
-      const result = await response.json();
-
-      if (response.ok && result.success) {
+      if (response.data?.success || response.data) {
         Swal.fire(
           "Success",
           `Branch ${isEdit ? "updated" : "created"} successfully`,
@@ -138,12 +134,28 @@ export default function BranchForm() {
         );
         navigate("/branches");
       } else {
-        const errorMessage = result.message || "Failed to save branch";
+        const errorMessage = response.data?.message || "Failed to save branch";
+        console.error('API Error:', response.data);
         Swal.fire("Error", errorMessage, "error");
       }
     } catch (error) {
       console.error("Error saving branch:", error);
-      Swal.fire("Error", "Failed to save branch", "error");
+      console.error("Error response:", error.response);
+      
+      // Handle different types of errors
+      let errorMessage = "Failed to save branch";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors
+        const errors = error.response.data.errors;
+        const firstError = Object.values(errors)[0];
+        errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Swal.fire("Error", errorMessage, "error");
     } finally {
       setSubmitting(false);
     }
@@ -193,20 +205,6 @@ export default function BranchForm() {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 placeholder="e.g., Main Branch"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Branch Code <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="code"
-                value={formData.code}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="e.g., BR-001"
                 required
               />
             </div>

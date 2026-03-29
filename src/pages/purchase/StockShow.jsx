@@ -4,7 +4,8 @@ export default function StockShow() {
   return (
     <CrudShowPage
       title="Stock Item"
-      apiEndpoint="/purchase/stock"
+      apiEndpoint="/purchase/stock/show"
+      deleteEndpoint="/purchase/stock/delete"
       listRoute="/purchase/stock"
       editRoute="/purchase/stock/edit"
       fields={[

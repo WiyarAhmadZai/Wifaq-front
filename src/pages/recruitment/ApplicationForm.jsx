@@ -4,29 +4,13 @@ import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const STEPS = [
-  { num: 1, label: "Job Selection", desc: "Select job posting & desired role", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
+  { num: 1, label: "Job Selection", desc: "Select job posting", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
   { num: 2, label: "Personal Info", desc: "Basic information & introduction", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
   { num: 3, label: "Social Media", desc: "Social media profiles (optional)", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
   { num: 4, label: "Motivation", desc: "Your motivation for this role", icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" },
   { num: 5, label: "Education", desc: "Educational background", icon: "M12 14l9-5-9-5-9 5 9 5z" },
   { num: 6, label: "Experience", desc: "Work history", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
   { num: 7, label: "Documents", desc: "Upload required documents", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-];
-
-const DESIRED_ROLES = [
-  { value: "", label: "Select Desired Role" },
-  { value: "motion_graphics_designer", label: "Motion Graphics Designer" },
-  { value: "curriculum_expert", label: "Curriculum Expert" },
-  { value: "visual_learning_specialist", label: "Visual Learning Specialist" },
-  { value: "school_psychology_counselor", label: "School Psychology Counselor" },
-  { value: "social_religious_studies_teacher", label: "Social & Religious Studies Teacher" },
-  { value: "chief_science_teacher_lab_manager", label: "Chief Science Teacher & Lab Manager" },
-  { value: "dari_pashto_teacher", label: "Dari-Pashto Teacher" },
-  { value: "coding_teacher_computer_lab_manager", label: "Coding Teacher & Computer Lab Manager" },
-  { value: "arabic_teacher_wisal", label: "Arabic Teacher (WISAL)" },
-  { value: "educational_videographer", label: "Educational Videographer" },
-  { value: "security_guard", label: "Security Guard" },
-  { value: "other", label: "Other" },
 ];
 
 const EDUCATION_LEVELS = [
@@ -85,7 +69,6 @@ export default function ApplicationForm() {
 
   const [formData, setFormData] = useState({
     job_posting_id: "",
-    desired_role: "",
     full_name: "",
     contact_number: "",
     email: "",
@@ -147,7 +130,6 @@ export default function ApplicationForm() {
 
       setFormData({
         job_posting_id: d.job_posting_id || "",
-        desired_role: d.desired_role || "",
         full_name: d.full_name || "",
         contact_number: d.contact_number || "",
         email: d.email || "",
@@ -239,7 +221,6 @@ export default function ApplicationForm() {
     
     if (step === 1) {
       if (!formData.job_posting_id) newErrors.job_posting_id = "Please select a job posting";
-      if (!formData.desired_role) newErrors.desired_role = "Please select a desired role";
     }
     
     if (step === 2) {
@@ -263,7 +244,7 @@ export default function ApplicationForm() {
   };
 
   const canNext = () => {
-    if (step === 1) return formData.job_posting_id && formData.desired_role;
+    if (step === 1) return formData.job_posting_id;
     if (step === 2) return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin && formData.introduction;
     if (step === 5) return formData.education_level && formData.field_of_study && formData.institution_name;
     return true;
@@ -384,22 +365,20 @@ export default function ApplicationForm() {
             <div className="grid grid-cols-1 gap-5">
               <div>
                 <Label required>Job Posting</Label>
-                <select name="job_posting_id" value={formData.job_posting_id} onChange={handleChange} className={errors.job_posting_id ? inpError : inp}>
+                <select 
+                  name="job_posting_id" 
+                  value={formData.job_posting_id} 
+                  onChange={handleChange} 
+                  className={`${errors.job_posting_id ? inpError : inp} max-w-md`}
+                >
                   <option value="">Select Job Posting</option>
                   {jobPostings.map((jp) => (
-                    <option key={jp.id} value={jp.id}>{jp.title} - {jp.location}</option>
+                    <option key={jp.id} value={jp.id} className="truncate max-w-md">
+                      {jp.title} - {jp.location}
+                    </option>
                   ))}
                 </select>
                 {errors.job_posting_id && <p className="text-red-500 text-xs mt-1">{errors.job_posting_id}</p>}
-              </div>
-              <div>
-                <Label required>Desired Role</Label>
-                <select name="desired_role" value={formData.desired_role} onChange={handleChange} className={errors.desired_role ? inpError : inp}>
-                  {DESIRED_ROLES.map((role) => (
-                    <option key={role.value} value={role.value}>{role.label}</option>
-                  ))}
-                </select>
-                {errors.desired_role && <p className="text-red-500 text-xs mt-1">{errors.desired_role}</p>}
               </div>
             </div>
           </StepCard>
@@ -583,7 +562,6 @@ export default function ApplicationForm() {
               <p className="text-xs font-bold text-gray-700">Review Summary</p>
               {[
                 { label: "Job Posting", value: jobPostings.find(jp => jp.id === parseInt(formData.job_posting_id))?.title || "—" },
-                { label: "Desired Role", value: DESIRED_ROLES.find(r => r.value === formData.desired_role)?.label || "—" },
                 { label: "Applicant", value: formData.full_name || "—" },
                 { label: "Email", value: formData.email || "—" },
                 { label: "Contact", value: formData.contact_number || "—" },

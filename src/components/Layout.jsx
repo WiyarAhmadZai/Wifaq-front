@@ -369,7 +369,6 @@ export default function Layout() {
     { label: "Attendance", path: "/hr/attendance" },
     { label: "Leave Request", path: "/hr/leave-request" },
     { label: "Add Vendor", path: "/hr/add-vendor" },
-    { label: "Purchase Request", path: "/hr/purchase-request" },
     { label: "Staff Task", path: "/hr/staff-task" },
     { label: "Planner", path: "/hr/planner" },
     { label: "Visitor Log", path: "/hr/visitor-log" },

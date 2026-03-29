@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, put } from "../../api/axios";
+import { get, put, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
 
@@ -15,7 +15,6 @@ const STEPS = [
 
 const COLOR_STYLES = {
   blue: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", icon: "bg-blue-100 text-blue-600", btn: "bg-blue-600 hover:bg-blue-700", light: "bg-blue-100 text-blue-700" },
-  teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
   teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
   cyan: { bg: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-700", icon: "bg-cyan-100 text-cyan-600", btn: "bg-cyan-600 hover:bg-cyan-700", light: "bg-cyan-100 text-cyan-700" },
   indigo: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", icon: "bg-indigo-100 text-indigo-600", btn: "bg-indigo-600 hover:bg-indigo-700", light: "bg-indigo-100 text-indigo-700" },
@@ -56,16 +55,48 @@ export default function ApplicationShow() {
     interview_type: "technical",
     interview_date: "",
     interview_time: "",
-    interviewers: "",
     location: "",
     notes: "",
   });
   const [isScheduling, setIsScheduling] = useState(false);
 
+  // Interview feedback state for Interview stage
+  const [interviewSchedule, setInterviewSchedule] = useState(null);
+  const [feedbackData, setFeedbackData] = useState({
+    feedback_notes: "",
+    rating: 0,
+    interview_result: "pending",
+  });
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+  // Offer state
+  const [offerData, setOfferData] = useState({
+    salary_amount: "",
+    salary_currency: "AFN",
+    start_date: "",
+    additional_terms: "",
+  });
+  const [existingOffer, setExistingOffer] = useState(null);
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [offerMode, setOfferMode] = useState("form"); // "form" | "view"
+  const [respondNotes, setRespondNotes] = useState("");
+
   useEffect(() => {
     fetchData();
     fetchDocuments();
+    if (data?.status === "interview") {
+      fetchInterviewSchedule();
+    }
   }, [id]);
+
+  useEffect(() => {
+    if (data?.status === "interview") {
+      fetchInterviewSchedule();
+    }
+    if (data?.status === "offer") {
+      fetchOffer();
+    }
+  }, [data?.status]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -99,6 +130,21 @@ export default function ApplicationShow() {
   };
 
   const handleStatusChange = async (newStatus) => {
+    // Confirmation dialog for reject actions
+    if (newStatus === "rejected") {
+      const result = await Swal.fire({
+        title: "Reject Application?",
+        text: `Are you sure you want to reject ${data.full_name}'s application? This action cannot be easily undone.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#dc2626",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "Yes, Reject",
+        cancelButtonText: "Cancel",
+      });
+      if (!result.isConfirmed) return;
+    }
+
     setIsUpdating(true);
     try {
       await put(`/recruitment/applications/${id}`, { ...data, status: newStatus, screening_notes: screeningNotes });
@@ -114,6 +160,331 @@ export default function ApplicationShow() {
       Swal.fire("Error", "Failed to update status", "error");
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleScheduleInterview = async () => {
+    // Validate required fields
+    if (!interviewData.interview_date || !interviewData.interview_time) {
+      Swal.fire("Error", "Please select interview date and time", "error");
+      return;
+    }
+
+    setIsScheduling(true);
+    try {
+      const response = await post(`/recruitment/applications/${id}/schedule-interview`, {
+        interview_type: interviewData.interview_type,
+        interview_date: interviewData.interview_date,
+        interview_time: interviewData.interview_time,
+        location: interviewData.location,
+        notes: interviewData.notes,
+        send_email: true,
+      });
+
+      if (response.data?.success) {
+        setData((prev) => ({ ...prev, status: "interview" }));
+        Swal.fire({
+          title: "Success!",
+          text: "Interview scheduled and email sent to candidate",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        throw new Error(response.data?.message || "Failed to schedule interview");
+      }
+    } catch (error) {
+      console.error("Schedule interview error:", error);
+      console.error("Error response:", error.response);
+      console.error("Error data:", error.response?.data);
+      Swal.fire("Error", error.response?.data?.message || "Failed to schedule interview", "error");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  const fetchInterviewSchedule = async () => {
+    try {
+      const response = await get(`/recruitment/applications/${id}/interview-schedule`);
+      if (response.data?.success) {
+        setInterviewSchedule(response.data.data);
+        setFeedbackData({
+          feedback_notes: response.data.data.feedback_notes || "",
+          rating: response.data.data.rating || 0,
+          interview_result: response.data.data.interview_result || "pending",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching interview schedule:", error);
+    }
+  };
+
+  // ==================== OFFER FUNCTIONS ====================
+
+  const fetchOffer = async () => {
+    try {
+      const response = await get(`/recruitment/applications/${id}/offer`);
+      if (response.data?.success) {
+        const offer = response.data.data;
+        setExistingOffer(offer);
+        setOfferData({
+          salary_amount: offer.salary_amount || "",
+          salary_currency: offer.salary_currency || "AFN",
+          start_date: offer.start_date?.split("T")[0] || "",
+          additional_terms: offer.additional_terms || "",
+        });
+        setOfferMode("view");
+      }
+    } catch (error) {
+      // No offer yet - show form
+      setOfferMode("form");
+    }
+  };
+
+  const handleCreateOffer = async (sendEmail = false) => {
+    if (!offerData.salary_amount || !offerData.start_date) {
+      Swal.fire("Error", "Please fill in salary and start date", "error");
+      return;
+    }
+
+    setIsSubmittingOffer(true);
+    try {
+      const response = await post(`/recruitment/applications/${id}/offer`, {
+        ...offerData,
+        send_email: sendEmail,
+      });
+
+      if (response.data?.success) {
+        setExistingOffer(response.data.data);
+        setOfferMode("view");
+        Swal.fire({
+          title: "Success!",
+          text: sendEmail ? "Offer created and email sent to candidate" : "Offer created successfully",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to create offer", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleUpdateOffer = async (sendEmail = false) => {
+    setIsSubmittingOffer(true);
+    try {
+      const response = await put(`/recruitment/applications/${id}/offer`, {
+        ...offerData,
+        send_email: sendEmail,
+      });
+
+      if (response.data?.success) {
+        setExistingOffer(response.data.data);
+        setOfferMode("view");
+        Swal.fire({
+          title: "Success!",
+          text: sendEmail ? "Offer updated and email sent" : "Offer updated successfully",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to update offer", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleOfferResponse = async (response) => {
+    const messages = {
+      accepted: { title: "Accept Offer?", text: "Mark this offer as accepted? The candidate will move to Hired status.", confirmText: "Yes, Accept", color: "#059669" },
+      declined: { title: "Decline Offer?", text: "Mark this offer as declined? The candidate will be moved to Rejected status.", confirmText: "Yes, Decline", color: "#dc2626" },
+      negotiated: { title: "Mark as Negotiated?", text: "The candidate wants to negotiate terms. You can revise the offer afterwards.", confirmText: "Yes, Negotiate", color: "#d97706" },
+    };
+
+    const msg = messages[response];
+    const confirmResult = await Swal.fire({
+      title: msg.title,
+      text: msg.text,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: msg.color,
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: msg.confirmText,
+      cancelButtonText: "Cancel",
+      input: response === "declined" || response === "negotiated" ? "textarea" : undefined,
+      inputPlaceholder: response === "declined" ? "Reason for declining..." : "Negotiation notes...",
+      inputAttributes: { "aria-label": "Notes" },
+    });
+
+    if (!confirmResult.isConfirmed) return;
+
+    setIsSubmittingOffer(true);
+    try {
+      const res = await put(`/recruitment/applications/${id}/offer/respond`, {
+        response,
+        candidate_notes: confirmResult.value || respondNotes,
+      });
+
+      if (res.data?.success) {
+        const statusMap = { accepted: "hired", declined: "rejected", negotiated: "offer" };
+        setData((prev) => ({ ...prev, status: statusMap[response] }));
+        setExistingOffer(res.data.data);
+
+        if (response === "negotiated") {
+          setOfferMode("form");
+        }
+
+        const resultMessages = {
+          accepted: "Offer accepted! Candidate moved to Hired stage.",
+          declined: "Offer declined. Application moved to Rejected.",
+          negotiated: "Marked for negotiation. You can now revise the offer terms.",
+        };
+
+        Swal.fire({
+          title: "Updated!",
+          text: resultMessages[response],
+          icon: response === "accepted" ? "success" : response === "declined" ? "info" : "warning",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to record response", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleSendOfferEmail = async () => {
+    setIsSubmittingOffer(true);
+    try {
+      const response = await post(`/recruitment/applications/${id}/offer/send-email`);
+      if (response.data?.success) {
+        setExistingOffer((prev) => ({ ...prev, status: "sent", sent_at: new Date().toISOString() }));
+        Swal.fire({
+          title: "Sent!",
+          text: "Offer email sent to candidate",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to send email", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleUploadResponsibilityFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("responsibility_file", file);
+
+    setIsSubmittingOffer(true);
+    try {
+      const response = await post(`/recruitment/applications/${id}/offer/responsibility-file`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (response.data?.success) {
+        setExistingOffer(response.data.data);
+        Swal.fire({ title: "Uploaded!", text: "Responsibility file uploaded", icon: "success", timer: 1500, showConfirmButton: false });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to upload file", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteResponsibilityFile = async () => {
+    const result = await Swal.fire({
+      title: "Delete File?",
+      text: "Are you sure you want to remove the responsibility file?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Delete",
+    });
+    if (!result.isConfirmed) return;
+
+    setIsSubmittingOffer(true);
+    try {
+      const response = await del(`/recruitment/applications/${id}/offer/responsibility-file`);
+      if (response.data?.success) {
+        setExistingOffer(response.data.data);
+        Swal.fire({ title: "Deleted!", text: "File removed", icon: "success", timer: 1500, showConfirmButton: false });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to delete file", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const getResponsibilityFileUrl = (fileUrl) => {
+    if (!fileUrl) return null;
+    if (fileUrl.startsWith("http")) return fileUrl;
+    const storageBaseUrl = API_BASE_URL.replace(/\/api$/, "");
+    return `${storageBaseUrl}/storage/${fileUrl}`;
+  };
+
+  const handleInterviewFeedback = async (result) => {
+    // Confirmation dialog for reject-type actions
+    if (result === "failed" || result === "no_show") {
+      const confirmResult = await Swal.fire({
+        title: result === "failed" ? "Reject Candidate?" : "Mark as No Show?",
+        text: result === "failed"
+          ? `Are you sure you want to reject ${data.full_name}? This will move the application to rejected status.`
+          : `Mark ${data.full_name} as a no-show? This will reject the application.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#dc2626",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: result === "failed" ? "Yes, Reject" : "Yes, No Show",
+        cancelButtonText: "Cancel",
+      });
+      if (!confirmResult.isConfirmed) return;
+    }
+
+    setIsSubmittingFeedback(true);
+    try {
+      const response = await put(`/recruitment/applications/${id}/interview-feedback`, {
+        ...feedbackData,
+        interview_result: result,
+      });
+
+      if (response.data?.success) {
+        const resultMessages = {
+          passed: { status: "offer", text: "Candidate passed - moving to Offer stage" },
+          failed: { status: "rejected", text: "Candidate rejected" },
+          no_show: { status: "rejected", text: "Candidate marked as No Show" },
+          pending: { status: "interview", text: "Feedback saved" },
+        };
+        const resultInfo = resultMessages[result];
+        setData((prev) => ({ ...prev, status: resultInfo.status }));
+        Swal.fire({
+          title: "Success!",
+          text: resultInfo.text,
+          icon: result === "passed" ? "success" : result === "pending" ? "info" : "warning",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        throw new Error(response.data?.message || "Failed to save feedback");
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to save feedback", "error");
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   };
 
@@ -171,6 +542,8 @@ export default function ApplicationShow() {
   const isReceived = data.status === "received";
   const isScreening = data.status === "screening";
   const isShortlisted = data.status === "shortlisted";
+  const isInterview = data.status === "interview";
+  const isOffer = data.status === "offer";
 
   // Tab Navigation Component
   const TabButton = ({ tab, label, icon }) => (
@@ -553,18 +926,6 @@ export default function ApplicationShow() {
                         />
                       </div>
 
-                      {/* Interviewers */}
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1.5 block">Interviewers</label>
-                        <input
-                          type="text"
-                          value={interviewData.interviewers}
-                          onChange={(e) => setInterviewData({ ...interviewData, interviewers: e.target.value })}
-                          placeholder="e.g. John Doe, Jane Smith"
-                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                        />
-                      </div>
-
                       {/* Location/Mode */}
                       <div className="md:col-span-2">
                         <label className="text-xs text-gray-500 mb-1.5 block">Location / Meeting Link</label>
@@ -594,14 +955,14 @@ export default function ApplicationShow() {
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4 border-t border-gray-100">
                     <button
-                      onClick={() => handleStatusChange("interview")}
+                      onClick={handleScheduleInterview}
                       disabled={isUpdating || isScheduling}
                       className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      {isUpdating ? "Processing..." : "Schedule Interview"}
+                      {isScheduling ? "Scheduling..." : "Schedule Interview"}
                     </button>
                     <button
                       onClick={() => handleStatusChange("screening")}
@@ -622,8 +983,545 @@ export default function ApplicationShow() {
               </div>
             )}
 
-            {/* Other Stages */}
-            {!isReceived && !isScreening && !isShortlisted && (
+            {/* INTERVIEW STAGE */}
+            {isInterview && (
+              <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden`}>
+                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Interview Stage</h2>
+                    <p className="text-sm text-gray-600">Conduct interview and provide feedback</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-white space-y-6">
+                  {/* Interview Details Card */}
+                  {interviewSchedule && (
+                    <div className="p-4 bg-cyan-50 rounded-xl border border-cyan-200">
+                      <h3 className="text-sm font-semibold text-cyan-800 mb-3 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Scheduled Interview
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-xs text-cyan-600 mb-1">Type</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">{interviewSchedule.interview_type}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cyan-600 mb-1">Date</p>
+                          <p className="text-sm font-medium text-gray-800">{interviewSchedule.interview_date}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cyan-600 mb-1">Time</p>
+                          <p className="text-sm font-medium text-gray-800">{interviewSchedule.interview_time}</p>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                          <p className="text-xs text-cyan-600 mb-1">Location</p>
+                          <p className="text-sm font-medium text-gray-800 truncate">{interviewSchedule.location || "Not specified"}</p>
+                        </div>
+                      </div>
+                      {interviewSchedule.notes && (
+                        <div className="mt-3 pt-3 border-t border-cyan-200">
+                          <p className="text-xs text-cyan-600 mb-1">Notes</p>
+                          <p className="text-sm text-gray-700">{interviewSchedule.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Interview Feedback Form */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                      </svg>
+                      Interview Feedback
+                    </h3>
+
+                    {/* Rating */}
+                    <div className="mb-4">
+                      <label className="text-xs text-gray-500 mb-2 block">Rating (1-5 stars)</label>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => setFeedbackData({ ...feedbackData, rating: star })}
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
+                              feedbackData.rating >= star
+                                ? "bg-yellow-100 text-yellow-600"
+                                : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                            }`}
+                          >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Feedback Notes */}
+                    <div className="mb-4">
+                      <label className="text-xs text-gray-500 mb-2 block">Feedback Notes</label>
+                      <textarea
+                        value={feedbackData.feedback_notes}
+                        onChange={(e) => setFeedbackData({ ...feedbackData, feedback_notes: e.target.value })}
+                        rows={4}
+                        placeholder="Enter your interview observations, strengths, weaknesses, overall impression..."
+                        className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                      <button
+                        onClick={() => handleInterviewFeedback("passed")}
+                        disabled={isSubmittingFeedback}
+                        className="flex-1 min-w-[140px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {isSubmittingFeedback ? "Saving..." : "Pass - Make Offer"}
+                      </button>
+                      <button
+                        onClick={() => handleInterviewFeedback("failed")}
+                        disabled={isSubmittingFeedback}
+                        className="flex-1 min-w-[140px] py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        {isSubmittingFeedback ? "Saving..." : "Fail - Reject"}
+                      </button>
+                      <button
+                        onClick={() => handleInterviewFeedback("no_show")}
+                        disabled={isSubmittingFeedback}
+                        className="flex-1 min-w-[140px] py-3 px-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {isSubmittingFeedback ? "Saving..." : "No Show"}
+                      </button>
+                      <button
+                        onClick={() => handleInterviewFeedback("pending")}
+                        disabled={isSubmittingFeedback}
+                        className="py-3 px-4 bg-gray-100 text-gray-600 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+                      >
+                        {isSubmittingFeedback ? "Saving..." : "Save Feedback"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* OFFER STAGE */}
+            {isOffer && (
+              <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden`}>
+                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Offer Management</h2>
+                    <p className="text-sm text-gray-600">
+                      {existingOffer ? `Offer Status: ${existingOffer.status?.replace(/_/g, " ")}` : "Create and send offer to candidate"}
+                    </p>
+                  </div>
+                  {existingOffer && offerMode === "view" && (
+                    <div className="ml-auto flex gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                        existingOffer.status === "accepted" ? "bg-emerald-100 text-emerald-700" :
+                        existingOffer.status === "declined" ? "bg-red-100 text-red-700" :
+                        existingOffer.status === "negotiated" ? "bg-amber-100 text-amber-700" :
+                        existingOffer.status === "sent" ? "bg-blue-100 text-blue-700" :
+                        existingOffer.status === "expired" ? "bg-gray-100 text-gray-700" :
+                        "bg-indigo-100 text-indigo-700"
+                      }`}>
+                        {existingOffer.status?.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 bg-white space-y-6">
+
+                  {/* ===== OFFER VIEW MODE ===== */}
+                  {offerMode === "view" && existingOffer && (
+                    <>
+                      {/* Offer Details Card */}
+                      <div className="p-5 bg-indigo-50 rounded-xl border border-indigo-200">
+                        <h3 className="text-sm font-semibold text-indigo-800 mb-4 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Offer Details
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Position</p>
+                            <p className="text-sm font-medium text-gray-800">{data.job_posting?.requisition?.position_title || data.job_posting?.title || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Department</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.department?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Employment Type</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.employment_type?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Salary</p>
+                            <p className="text-sm font-bold text-gray-800">
+                              {Number(existingOffer.salary_amount).toLocaleString()} {existingOffer.salary_currency}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Start Date</p>
+                            <p className="text-sm font-medium text-gray-800">{formatDate(existingOffer.start_date)}</p>
+                          </div>
+                        </div>
+
+                        {/* Additional Terms */}
+                        {existingOffer.additional_terms && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-1">Additional Terms</p>
+                            <p className="text-sm text-gray-700">{existingOffer.additional_terms}</p>
+                          </div>
+                        )}
+
+                        {/* Responsibility File */}
+                        {existingOffer.responsibility_file_url ? (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-2">Responsibility File</p>
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-indigo-100">
+                              <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <span className="text-sm text-gray-700 flex-1 truncate">{existingOffer.responsibility_file_url.split("/").pop()}</span>
+                              <a
+                                href={getResponsibilityFileUrl(existingOffer.responsibility_file_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-all flex items-center gap-1"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-2">Responsibility File</p>
+                            <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-200 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-white transition-all">
+                              <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                              <span className="text-xs text-indigo-500">Upload responsibility file</span>
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleUploadResponsibilityFile} />
+                            </label>
+                          </div>
+                        )}
+
+                        {/* Candidate Notes (if responded) */}
+                        {existingOffer.candidate_notes && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-1">Candidate Notes</p>
+                            <p className="text-sm text-gray-700 italic">{existingOffer.candidate_notes}</p>
+                          </div>
+                        )}
+
+                        {/* Sent info */}
+                        {existingOffer.sent_at && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-gray-500">
+                              Email sent: {formatDateTime(existingOffer.sent_at)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                        {/* Send/Resend email - only for draft or sent */}
+                        {(existingOffer.status === "draft" || existingOffer.status === "sent") && (
+                          <button
+                            onClick={handleSendOfferEmail}
+                            disabled={isSubmittingOffer}
+                            className="flex-1 min-w-[140px] py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            {isSubmittingOffer ? "Sending..." : existingOffer.sent_at ? "Resend Email" : "Send Offer Email"}
+                          </button>
+                        )}
+
+                        {/* Edit offer - for draft, sent, or negotiated */}
+                        {["draft", "sent", "negotiated"].includes(existingOffer.status) && (
+                          <button
+                            onClick={() => setOfferMode("form")}
+                            className="flex-1 min-w-[140px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            {existingOffer.status === "negotiated" ? "Revise Offer" : "Edit Offer"}
+                          </button>
+                        )}
+
+                        {/* Response buttons - only for sent or draft (pending response) */}
+                        {["draft", "sent"].includes(existingOffer.status) && (
+                          <>
+                            <button
+                              onClick={() => handleOfferResponse("accepted")}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[120px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              {isSubmittingOffer ? "..." : "Accepted"}
+                            </button>
+                            <button
+                              onClick={() => handleOfferResponse("negotiated")}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[120px] py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                              </svg>
+                              {isSubmittingOffer ? "..." : "Negotiated"}
+                            </button>
+                            <button
+                              onClick={() => handleOfferResponse("declined")}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[120px] py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              {isSubmittingOffer ? "..." : "Declined"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* ===== OFFER FORM MODE ===== */}
+                  {offerMode === "form" && (
+                    <>
+                      {existingOffer?.status === "negotiated" && (
+                        <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            <p className="text-sm font-semibold text-amber-800">Candidate Requested Negotiation</p>
+                          </div>
+                          {existingOffer.candidate_notes && (
+                            <p className="text-sm text-amber-700 italic">"{existingOffer.candidate_notes}"</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Job Info from Requisition (read-only) */}
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Position</p>
+                            <p className="text-sm font-medium text-gray-800">{data.job_posting?.requisition?.position_title || data.job_posting?.title || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Department</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.department?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Employment Type</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.employment_type?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Salary */}
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1.5 block">Proposed Salary *</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={offerData.salary_amount}
+                              onChange={(e) => setOfferData({ ...offerData, salary_amount: e.target.value })}
+                              placeholder="e.g. 25000"
+                              className="flex-1 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                            />
+                            <select
+                              value={offerData.salary_currency}
+                              onChange={(e) => setOfferData({ ...offerData, salary_currency: e.target.value })}
+                              className="w-28 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                            >
+                              <option value="AFN">AFN</option>
+                              <option value="USDT">USDT</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Start Date */}
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1.5 block">Start Date *</label>
+                          <input
+                            type="date"
+                            value={offerData.start_date}
+                            onChange={(e) => setOfferData({ ...offerData, start_date: e.target.value })}
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+
+                        {/* Additional Terms */}
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-gray-500 mb-1.5 block">Additional Terms / Notes</label>
+                          <textarea
+                            value={offerData.additional_terms}
+                            onChange={(e) => setOfferData({ ...offerData, additional_terms: e.target.value })}
+                            rows={3}
+                            placeholder="Probation period, working hours, reporting structure, special conditions..."
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Responsibility File Upload */}
+                      {existingOffer && (
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1.5 block">Responsibility File</label>
+                          <p className="text-xs text-gray-400 mb-2">Upload a document describing the candidate's responsibilities in your organization</p>
+                          {existingOffer.responsibility_file_url ? (
+                            <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                              <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{existingOffer.responsibility_file_url.split("/").pop()}</p>
+                                <p className="text-xs text-gray-500">Responsibility file uploaded</p>
+                              </div>
+                              <a
+                                href={getResponsibilityFileUrl(existingOffer.responsibility_file_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                                title="View File"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </a>
+                              <button
+                                onClick={handleDeleteResponsibilityFile}
+                                disabled={isSubmittingOffer}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
+                                title="Delete File"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                              <label className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all cursor-pointer" title="Replace File">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleUploadResponsibilityFile} />
+                              </label>
+                            </div>
+                          ) : (
+                            <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all">
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                              <span className="text-sm text-gray-500">Click to upload responsibility file</span>
+                              <span className="text-xs text-gray-400">(PDF, DOC, DOCX, JPG, PNG - max 10MB)</span>
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleUploadResponsibilityFile} />
+                            </label>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Form Action Buttons */}
+                      <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                        {existingOffer ? (
+                          <>
+                            <button
+                              onClick={() => handleUpdateOffer(true)}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[160px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {isSubmittingOffer ? "Saving..." : "Update & Send Email"}
+                            </button>
+                            <button
+                              onClick={() => handleUpdateOffer(false)}
+                              disabled={isSubmittingOffer}
+                              className="py-3 px-4 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+                            >
+                              {isSubmittingOffer ? "Saving..." : "Save Draft"}
+                            </button>
+                            <button
+                              onClick={() => setOfferMode("view")}
+                              className="py-3 px-4 bg-gray-50 text-gray-500 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-100 transition-all"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleCreateOffer(true)}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[160px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {isSubmittingOffer ? "Creating..." : "Create & Send Offer"}
+                            </button>
+                            <button
+                              onClick={() => handleCreateOffer(false)}
+                              disabled={isSubmittingOffer}
+                              className="py-3 px-4 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+                            >
+                              {isSubmittingOffer ? "Creating..." : "Save as Draft"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Other Stages (Hired, etc.) */}
+            {!isReceived && !isScreening && !isShortlisted && !isInterview && !isOffer && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

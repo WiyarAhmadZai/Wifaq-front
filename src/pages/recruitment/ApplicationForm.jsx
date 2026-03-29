@@ -380,6 +380,36 @@ export default function ApplicationForm() {
                 </select>
                 {errors.job_posting_id && <p className="text-red-500 text-xs mt-1">{errors.job_posting_id}</p>}
               </div>
+
+              {(() => {
+                const selected = jobPostings.find(jp => jp.id === parseInt(formData.job_posting_id));
+                if (!selected) return null;
+                const infoItems = [
+                  { label: "Position Title", value: selected.position_title },
+                  { label: "Department", value: selected.department?.replace(/_/g, ' ') },
+                  { label: "Employment Type", value: selected.employment_type?.replace(/_/g, ' ') },
+                  { label: "Open Positions", value: selected.number_of_positions },
+                  { label: "Deadline", value: selected.deadline_date },
+                ].filter(item => item.value);
+                return (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs font-bold text-teal-700 uppercase tracking-wider">Job Details</p>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {infoItems.map((item, i) => (
+                        <div key={i} className="bg-white/70 rounded-lg px-3 py-2">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{item.label}</p>
+                          <p className={`text-sm font-medium ${item.label === "Deadline" ? "text-red-600" : "text-gray-800"} capitalize`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </StepCard>
         )}

@@ -11,28 +11,23 @@ const pipelineStages = [
   { key: "offer", label: "Offer", color: "bg-indigo-500", light: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   { key: "hired", label: "Hired", color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   { key: "rejected", label: "Rejected", color: "bg-red-500", light: "bg-red-50 text-red-700 border-red-200" },
+  { key: "withdrawn", label: "Withdrawn", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
 ];
-
-// ── Dummy data for demo ──
 const dummyData = [
-  { id: 1, candidate_name: "Ahmad Rahimi", email: "ahmad.rahimi@email.com", phone: "+93 770 123 456", status: "interview", source: "website", job_title: "Mathematics Teacher", created_at: "2026-02-15" },
-  { id: 2, candidate_name: "Fatima Noori", email: "fatima.noori@email.com", phone: "+93 772 456 789", status: "screening", source: "referral", job_title: "Quran Teacher", created_at: "2026-03-01" },
-  { id: 3, candidate_name: "Mohammad Karimi", email: "m.karimi@email.com", phone: "+93 775 789 012", status: "offer", source: "job_board", job_title: "Science Teacher", created_at: "2026-01-20" },
-  { id: 4, candidate_name: "Zahra Ahmadi", email: "zahra.a@email.com", phone: "+93 773 321 654", status: "hired", source: "internal", job_title: "Administrative Assistant", created_at: "2026-01-05" },
-  { id: 5, candidate_name: "Ali Mohammadi", email: "ali.m@email.com", phone: "+93 774 654 987", status: "received", source: "website", job_title: "Quran Teacher", created_at: "2026-03-14" },
-  { id: 6, candidate_name: "Sara Hashimi", email: "sara.h@email.com", phone: "+93 776 111 222", status: "shortlisted", source: "website", job_title: "Arabic Language Teacher", created_at: "2026-02-28" },
-  { id: 7, candidate_name: "Hamid Nazari", email: "hamid.n@email.com", phone: "+93 777 333 444", status: "received", source: "referral", job_title: "Mathematics Teacher", created_at: "2026-03-13" },
-  { id: 8, candidate_name: "Maryam Sultani", email: "maryam.s@email.com", phone: "+93 778 555 666", status: "rejected", source: "job_board", job_title: "Science Teacher", created_at: "2026-02-10" },
-  { id: 9, candidate_name: "Khalid Amiri", email: "khalid.a@email.com", phone: "+93 779 777 888", status: "screening", source: "website", job_title: "IT Support", created_at: "2026-03-08" },
-  { id: 10, candidate_name: "Nasreen Popal", email: "nasreen.p@email.com", phone: "+93 771 999 000", status: "interview", source: "internal", job_title: "Librarian", created_at: "2026-03-02" },
+  { id: 1, full_name: "Ahmad Rahimi", desired_role: "mathematics_teacher", contact_number: "+93 770 123 456", status: "interview", source: "website", job_posting: { title: "Mathematics Teacher" }, created_at: "2026-02-15" },
+  { id: 2, full_name: "Fatima Noori", desired_role: "quran_teacher", contact_number: "+93 772 456 789", status: "screening", source: "referral", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-01" },
+  { id: 3, full_name: "Mohammad Karimi", desired_role: "science_teacher", contact_number: "+93 775 789 012", status: "offer", source: "job_board", job_posting: { title: "Science Teacher" }, created_at: "2026-01-20" },
+  { id: 4, full_name: "Zahra Ahmadi", desired_role: "administrative_assistant", contact_number: "+93 773 321 654", status: "hired", source: "internal", job_posting: { title: "Administrative Assistant" }, created_at: "2026-01-05" },
+  { id: 5, full_name: "Ali Mohammadi", desired_role: "quran_teacher", contact_number: "+93 774 654 987", status: "received", source: "website", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-14" },
 ];
 
-const statusBadge = (val) => {
+const statusBadge = (val, item, onClick) => {
   const stage = pipelineStages.find((s) => s.key === val);
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${stage?.light || "bg-gray-100 text-gray-700 border-gray-200"}`}>
+    <button onClick={() => onClick && onClick(item)}
+      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${stage?.light || "bg-gray-100 text-gray-700 border-gray-200"}`}>
       {val?.replace(/_/g, " ")}
-    </span>
+    </button>
   );
 };
 
@@ -83,7 +78,7 @@ export default function Applications() {
     }
     if (query) {
       result = result.filter((item) =>
-        ["candidate_name", "email", "phone", "job_title"].some((field) =>
+        ["full_name", "contact_number", "desired_role"].some((field) =>
           String(item[field] || "").toLowerCase().includes(query)
         )
       );
@@ -172,8 +167,9 @@ export default function Applications() {
             <table className="w-full min-w-[700px]">
               <thead className="bg-teal-50">
                 <tr>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Candidate</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Position</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Applicant</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Desired Role</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Job Posting</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Contact</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Source</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
@@ -187,18 +183,16 @@ export default function Applications() {
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-[10px] flex-shrink-0">
-                          {item.candidate_name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                          {item.full_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-xs font-medium text-gray-800">{item.candidate_name}</span>
+                        <span className="text-xs font-medium text-gray-800">{item.full_name}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_title || "-"}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-xs text-gray-600">{item.email}</div>
-                      <div className="text-[10px] text-gray-400">{item.phone}</div>
-                    </td>
+                    <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.desired_role?.replace(/_/g, " ") || "-"}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_posting?.title || "-"}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-600">{item.contact_number}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.source?.replace(/_/g, " ")}</td>
-                    <td className="px-3 py-2.5 text-xs">{statusBadge(item.status)}</td>
+                    <td className="px-3 py-2.5 text-xs">{statusBadge(item.status, item)}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "-"}</td>
                     <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
@@ -206,6 +200,11 @@ export default function Applications() {
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                        <button onClick={() => navigate(`/recruitment/applications/edit/${item.id}`)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
                         <button onClick={() => handleDelete(item.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">

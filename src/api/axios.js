@@ -39,6 +39,9 @@ api.interceptors.response.use(
 // Export the configured axios instance
 export default api;
 
+// Export API base URL for constructing storage URLs
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 // Export common HTTP methods for direct use
 export const get = (url, config = {}) => api.get(url, config);
 export const post = (url, data = {}, config = {}) => api.post(url, data, config);

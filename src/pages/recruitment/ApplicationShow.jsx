@@ -56,7 +56,6 @@ export default function ApplicationShow() {
     interview_type: "technical",
     interview_date: "",
     interview_time: "",
-    interviewers: "",
     location: "",
     notes: "",
   });
@@ -549,18 +548,6 @@ export default function ApplicationShow() {
                           type="time"
                           value={interviewData.interview_time}
                           onChange={(e) => setInterviewData({ ...interviewData, interview_time: e.target.value })}
-                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                        />
-                      </div>
-
-                      {/* Interviewers */}
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1.5 block">Interviewers</label>
-                        <input
-                          type="text"
-                          value={interviewData.interviewers}
-                          onChange={(e) => setInterviewData({ ...interviewData, interviewers: e.target.value })}
-                          placeholder="e.g. John Doe, Jane Smith"
                           className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                         />
                       </div>

@@ -10,6 +10,12 @@ export default function Suppliers() {
       showRoute="/purchase/suppliers/show"
       searchable
       searchFields={["name", "contact_person", "phone", "email"]}
+      statusEndpoint="/purchase/suppliers"
+      statusField="status"
+      statusOptions={[
+        { value: "active", label: "Active", color: "emerald" },
+        { value: "inactive", label: "Inactive", color: "gray" },
+      ]}
       listColumns={[
         { key: "name", label: "Supplier Name" },
         { key: "contact_person", label: "Contact Person" },

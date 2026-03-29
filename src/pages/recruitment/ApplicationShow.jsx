@@ -283,10 +283,6 @@ export default function ApplicationShow() {
                 <div className="p-6 bg-white">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Desired Role</p>
-                      <p className="text-sm font-medium text-gray-800 capitalize">{data.desired_role?.replace(/_/g, " ") || "—"}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                       <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Applied For</p>
                       <p className="text-sm font-medium text-gray-800">{data.job_posting?.title || "—"}</p>
                     </div>
@@ -297,6 +293,10 @@ export default function ApplicationShow() {
                     <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                       <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Date of Birth</p>
                       <p className="text-sm font-medium text-gray-800">{formatDate(data.date_of_birth)}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</p>
+                      <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
                     </div>
                   </div>
 
@@ -493,7 +493,7 @@ export default function ApplicationShow() {
                       </div>
                       <div>
                         <p className="font-semibold text-gray-800">{data.full_name}</p>
-                        <p className="text-sm text-gray-600">{data.desired_role?.replace(/_/g, " ")} • {data.total_experience_years || 0} years exp</p>
+                        <p className="text-sm text-gray-600">{data.total_experience_years || 0} years exp</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -790,16 +790,12 @@ export default function ApplicationShow() {
                   <p className="text-sm font-medium text-gray-800">{formatDate(data.date_of_birth)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Current Address</p>
-                  <p className="text-sm text-gray-700">{data.current_address || "—"}</p>
-                </div>
-                <div>
                   <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Place of Origin</p>
                   <p className="text-sm text-gray-700">{data.place_of_origin || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Desired Role</p>
-                  <p className="text-sm font-medium text-gray-800 capitalize">{data.desired_role?.replace(/_/g, " ") || "—"}</p>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Current Address</p>
+                  <p className="text-sm text-gray-700">{data.current_address || "—"}</p>
                 </div>
               </div>
               <div className="mt-6">

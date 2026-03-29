@@ -14,11 +14,11 @@ const pipelineStages = [
   { key: "withdrawn", label: "Withdrawn", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
 ];
 const dummyData = [
-  { id: 1, full_name: "Ahmad Rahimi", desired_role: "mathematics_teacher", contact_number: "+93 770 123 456", status: "interview", source: "website", job_posting: { title: "Mathematics Teacher" }, created_at: "2026-02-15" },
-  { id: 2, full_name: "Fatima Noori", desired_role: "quran_teacher", contact_number: "+93 772 456 789", status: "screening", source: "referral", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-01" },
-  { id: 3, full_name: "Mohammad Karimi", desired_role: "science_teacher", contact_number: "+93 775 789 012", status: "offer", source: "job_board", job_posting: { title: "Science Teacher" }, created_at: "2026-01-20" },
-  { id: 4, full_name: "Zahra Ahmadi", desired_role: "administrative_assistant", contact_number: "+93 773 321 654", status: "hired", source: "internal", job_posting: { title: "Administrative Assistant" }, created_at: "2026-01-05" },
-  { id: 5, full_name: "Ali Mohammadi", desired_role: "quran_teacher", contact_number: "+93 774 654 987", status: "received", source: "website", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-14" },
+  { id: 1, full_name: "Ahmad Rahimi", contact_number: "+93 770 123 456", status: "interview", source: "website", job_posting: { title: "Mathematics Teacher" }, created_at: "2026-02-15" },
+  { id: 2, full_name: "Fatima Noori", contact_number: "+93 772 456 789", status: "screening", source: "referral", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-01" },
+  { id: 3, full_name: "Mohammad Karimi", contact_number: "+93 775 789 012", status: "offer", source: "job_board", job_posting: { title: "Science Teacher" }, created_at: "2026-01-20" },
+  { id: 4, full_name: "Zahra Ahmadi", contact_number: "+93 773 321 654", status: "hired", source: "internal", job_posting: { title: "Administrative Assistant" }, created_at: "2026-01-05" },
+  { id: 5, full_name: "Ali Mohammadi", contact_number: "+93 774 654 987", status: "received", source: "website", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-14" },
 ];
 
 const statusBadge = (val, item, onClick) => {
@@ -78,7 +78,7 @@ export default function Applications() {
     }
     if (query) {
       result = result.filter((item) =>
-        ["full_name", "contact_number", "desired_role"].some((field) =>
+        ["full_name", "contact_number"].some((field) =>
           String(item[field] || "").toLowerCase().includes(query)
         )
       );
@@ -168,7 +168,6 @@ export default function Applications() {
               <thead className="bg-teal-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Applicant</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Desired Role</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Job Posting</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Contact</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Source</th>
@@ -188,7 +187,6 @@ export default function Applications() {
                         <span className="text-xs font-medium text-gray-800">{item.full_name}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.desired_role?.replace(/_/g, " ") || "-"}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_posting?.title || "-"}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.contact_number}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.source?.replace(/_/g, " ")}</td>

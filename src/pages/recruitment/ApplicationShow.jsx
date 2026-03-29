@@ -75,6 +75,7 @@ export default function ApplicationShow() {
     salary_currency: "AFN",
     start_date: "",
     additional_terms: "",
+    job_responsibilities: "",
   });
   const [existingOffer, setExistingOffer] = useState(null);
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
@@ -233,6 +234,7 @@ export default function ApplicationShow() {
           salary_currency: offer.salary_currency || "AFN",
           start_date: offer.start_date?.split("T")[0] || "",
           additional_terms: offer.additional_terms || "",
+          job_responsibilities: offer.job_responsibilities || "",
         });
         setOfferMode("view");
       }
@@ -1212,6 +1214,14 @@ export default function ApplicationShow() {
                           </div>
                         </div>
 
+                        {/* Job Responsibilities */}
+                        {existingOffer.job_responsibilities && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-1">Job Responsibilities</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{existingOffer.job_responsibilities}</p>
+                          </div>
+                        )}
+
                         {/* Additional Terms */}
                         {existingOffer.additional_terms && (
                           <div className="mt-4 pt-4 border-t border-indigo-200">
@@ -1410,6 +1420,18 @@ export default function ApplicationShow() {
                             value={offerData.start_date}
                             onChange={(e) => setOfferData({ ...offerData, start_date: e.target.value })}
                             className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+
+                        {/* Job Responsibilities */}
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-gray-500 mb-1.5 block">Job Responsibilities</label>
+                          <textarea
+                            value={offerData.job_responsibilities}
+                            onChange={(e) => setOfferData({ ...offerData, job_responsibilities: e.target.value })}
+                            rows={4}
+                            placeholder="List the key responsibilities and duties for this role..."
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
                           />
                         </div>
 

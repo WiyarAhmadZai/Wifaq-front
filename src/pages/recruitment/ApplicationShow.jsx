@@ -252,43 +252,58 @@ export default function ApplicationShow() {
 
     setIsSubmittingOffer(true);
     try {
-      const response = await post(`/recruitment/applications/${id}/offer`, {
+      // STEP 1: Create the offer first (without sending email yet if there's a file)
+      const createResponse = await post(`/recruitment/applications/${id}/offer`, {
         ...offerData,
-        send_email: sendEmail,
+        send_email: false, // Always false initially - we'll send after file upload
       });
 
-      if (response.data?.success) {
-        let offerResult = response.data.data;
-
-        // Upload pending responsibility file if selected
-        if (pendingResponsibilityFile) {
-          try {
-            const formData = new FormData();
-            formData.append("responsibility_file", pendingResponsibilityFile);
-            const fileRes = await post(`/recruitment/applications/${id}/offer/responsibility-file`, formData, {
-              headers: { "Content-Type": "multipart/form-data" },
-            });
-            if (fileRes.data?.success) {
-              offerResult = fileRes.data.data;
-            }
-          } catch (fileErr) {
-            console.error("Failed to upload responsibility file:", fileErr);
-          }
-          setPendingResponsibilityFile(null);
-        }
-
-        setExistingOffer(offerResult);
-        setOfferMode("view");
-        Swal.fire({
-          title: "Success!",
-          text: sendEmail ? "Offer created and email sent to candidate" : "Offer created successfully",
-          icon: "success",
-          timer: 2000,
-          showConfirmButton: false,
-        });
+      if (!createResponse.data?.success) {
+        throw new Error(createResponse.data?.message || "Failed to create offer");
       }
+
+      let offerResult = createResponse.data.data;
+
+      // STEP 2: Upload pending responsibility file if selected (before sending email)
+      if (pendingResponsibilityFile) {
+        try {
+          const formData = new FormData();
+          formData.append("responsibility_file", pendingResponsibilityFile);
+          const fileRes = await post(`/recruitment/applications/${id}/offer/responsibility-file`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          if (fileRes.data?.success) {
+            offerResult = fileRes.data.data;
+          }
+        } catch (fileErr) {
+          console.error("Failed to upload responsibility file:", fileErr);
+          Swal.fire("Warning", "Offer created but file upload failed", "warning");
+        }
+        setPendingResponsibilityFile(null);
+      }
+
+      // STEP 3: Now send the email if requested (file is now attached)
+      if (sendEmail) {
+        try {
+          await post(`/recruitment/applications/${id}/offer/send-email`);
+          offerResult = { ...offerResult, status: "sent", sent_at: new Date().toISOString() };
+        } catch (emailErr) {
+          console.error("Failed to send offer email:", emailErr);
+          Swal.fire("Warning", "Offer created but email failed to send", "warning");
+        }
+      }
+
+      setExistingOffer(offerResult);
+      setOfferMode("view");
+      Swal.fire({
+        title: "Success!",
+        text: sendEmail ? "Offer created and email sent to candidate" : "Offer created successfully",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
     } catch (error) {
-      Swal.fire("Error", error.response?.data?.message || "Failed to create offer", "error");
+      Swal.fire("Error", error.response?.data?.message || error.message || "Failed to create offer", "error");
     } finally {
       setIsSubmittingOffer(false);
     }
@@ -297,24 +312,58 @@ export default function ApplicationShow() {
   const handleUpdateOffer = async (sendEmail = false) => {
     setIsSubmittingOffer(true);
     try {
+      // STEP 1: Update the offer first (without sending email)
       const response = await put(`/recruitment/applications/${id}/offer`, {
         ...offerData,
-        send_email: sendEmail,
+        send_email: false, // Always false initially
       });
 
-      if (response.data?.success) {
-        setExistingOffer(response.data.data);
-        setOfferMode("view");
-        Swal.fire({
-          title: "Success!",
-          text: sendEmail ? "Offer updated and email sent" : "Offer updated successfully",
-          icon: "success",
-          timer: 2000,
-          showConfirmButton: false,
-        });
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || "Failed to update offer");
       }
+
+      let offerResult = response.data.data;
+
+      // STEP 2: Upload pending responsibility file if selected (before sending email)
+      if (pendingResponsibilityFile) {
+        try {
+          const formData = new FormData();
+          formData.append("responsibility_file", pendingResponsibilityFile);
+          const fileRes = await post(`/recruitment/applications/${id}/offer/responsibility-file`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          if (fileRes.data?.success) {
+            offerResult = fileRes.data.data;
+          }
+        } catch (fileErr) {
+          console.error("Failed to upload responsibility file:", fileErr);
+          Swal.fire("Warning", "Offer updated but file upload failed", "warning");
+        }
+        setPendingResponsibilityFile(null);
+      }
+
+      // STEP 3: Now send the email if requested (file is now attached)
+      if (sendEmail) {
+        try {
+          await post(`/recruitment/applications/${id}/offer/send-email`);
+          offerResult = { ...offerResult, status: "sent", sent_at: new Date().toISOString() };
+        } catch (emailErr) {
+          console.error("Failed to send offer email:", emailErr);
+          Swal.fire("Warning", "Offer updated but email failed to send", "warning");
+        }
+      }
+
+      setExistingOffer(offerResult);
+      setOfferMode("view");
+      Swal.fire({
+        title: "Success!",
+        text: sendEmail ? "Offer updated and email sent" : "Offer updated successfully",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
     } catch (error) {
-      Swal.fire("Error", error.response?.data?.message || "Failed to update offer", "error");
+      Swal.fire("Error", error.response?.data?.message || error.message || "Failed to update offer", "error");
     } finally {
       setIsSubmittingOffer(false);
     }

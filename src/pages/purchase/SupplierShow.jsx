@@ -4,7 +4,7 @@ export default function SupplierShow() {
   return (
     <CrudShowPage
       title="Supplier"
-      apiEndpoint="/purchase/suppliers"
+      apiEndpoint="/purchase/suppliers/show"
       listRoute="/purchase/suppliers"
       editRoute="/purchase/suppliers/edit"
       fields={[

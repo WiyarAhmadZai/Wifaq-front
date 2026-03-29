@@ -369,7 +369,6 @@ export default function Layout() {
     { label: "Attendance", path: "/hr/attendance" },
     { label: "Leave Request", path: "/hr/leave-request" },
     { label: "Add Vendor", path: "/hr/add-vendor" },
-    { label: "Purchase Request", path: "/hr/purchase-request" },
     { label: "Staff Task", path: "/hr/staff-task" },
     { label: "Planner", path: "/hr/planner" },
     { label: "Visitor Log", path: "/hr/visitor-log" },
@@ -603,6 +602,32 @@ export default function Layout() {
                 onClick={closeSidebar}
               />
             ))}
+          </ParentMenu>
+
+          <ParentMenu
+            icon={Icons.HR}
+            label="Teacher Management"
+            isOpen={openMenu.includes("teacher-mgmt")}
+            onClick={() => toggleMenu("teacher-mgmt")}
+          >
+            <SubMenuItem
+              label="Teachers"
+              to="/class-management/teachers"
+              active={isActive("/class-management/teachers")}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Annual Plans"
+              to="/class-management/annual-plans"
+              active={isActive("/class-management/annual-plans")}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
+              label="Lesson Plans"
+              to="/class-management/lesson-plans"
+              active={isActive("/class-management/lesson-plans")}
+              onClick={closeSidebar}
+            />
           </ParentMenu>
 
           <ParentMenu

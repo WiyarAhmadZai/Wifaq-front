@@ -18,7 +18,6 @@ import LeaveRequest from "./pages/hr/LeaveRequest";
 import Jobs from "./pages/hr/Jobs";
 import JobApplication from "./pages/hr/JobApplication";
 import AddVendor from "./pages/hr/AddVendor";
-import PurchaseRequest from "./pages/hr/PurchaseRequest";
 import StaffTask from "./pages/hr/StaffTask";
 import Planner from "./pages/hr/Planner";
 import VisitorLog from "./pages/hr/VisitorLog";
@@ -55,7 +54,6 @@ import LeaveRequestForm from "./pages/hr/LeaveRequestForm";
 import JobsForm from "./pages/hr/JobsForm";
 import JobApplicationForm from "./pages/hr/JobApplicationForm";
 import AddVendorForm from "./pages/hr/AddVendorForm";
-import PurchaseRequestForm from "./pages/hr/PurchaseRequestForm";
 import StaffTaskForm from "./pages/hr/StaffTaskForm";
 import PlannerForm from "./pages/hr/PlannerForm";
 import VisitorLogForm from "./pages/hr/VisitorLogForm";
@@ -68,7 +66,6 @@ import LeaveRequestShow from "./pages/hr/LeaveRequestShow";
 import JobsShow from "./pages/hr/JobsShow";
 import JobApplicationShow from "./pages/hr/JobApplicationShow";
 import AddVendorShow from "./pages/hr/AddVendorShow";
-import PurchaseRequestShow from "./pages/hr/PurchaseRequestShow";
 import StaffTaskShow from "./pages/hr/StaffTaskShow";
 import PlannerShow from "./pages/hr/PlannerShow";
 import VisitorLogShow from "./pages/hr/VisitorLogShow";
@@ -90,11 +87,6 @@ import MyProfile from "./pages/MyProfile";
 import SalarySnapshot from "./pages/hr/SalarySnapshot";
 import SalarySnapshotForm from "./pages/hr/SalarySnapshotForm";
 import SalarySnapshotShow from "./pages/hr/SalarySnapshotShow";
-
-// HR Projects
-import HRProjects from "./pages/hr/Projects";
-import HRProjectsForm from "./pages/hr/ProjectsForm";
-import HRProjectsShow from "./pages/hr/ProjectsShow";
 
 // Branches Pages
 import Branches from "./pages/branches/Branches";
@@ -160,6 +152,11 @@ import RoutineItemShow from "./pages/purchase/RoutineItemShow";
 import RepairRequests from "./pages/purchase/RepairRequests";
 import RepairRequestForm from "./pages/purchase/RepairRequestForm";
 import RepairRequestShow from "./pages/purchase/RepairRequestShow";
+
+// Projects Pages
+import Projects from "./pages/purchase/Projects";
+import ProjectForm from "./pages/purchase/ProjectForm";
+import ProjectShow from "./pages/purchase/ProjectShow";
 
 // Student Registration Pages
 
@@ -441,21 +438,6 @@ function App() {
           <Route path="hr/add-vendor/edit/:id" element={<AddVendorForm />} />
           <Route path="hr/add-vendor/show/:id" element={<AddVendorShow />} />
 
-          {/* HR Routes - Purchase Request */}
-          <Route path="hr/purchase-request" element={<PurchaseRequest />} />
-          <Route
-            path="hr/purchase-request/create"
-            element={<PurchaseRequestForm />}
-          />
-          <Route
-            path="hr/purchase-request/edit/:id"
-            element={<PurchaseRequestForm />}
-          />
-          <Route
-            path="hr/purchase-request/show/:id"
-            element={<PurchaseRequestShow />}
-          />
-
           {/* HR Routes - Staff Task */}
           <Route path="hr/staff-task" element={<StaffTask />} />
           <Route path="hr/staff-task/create" element={<StaffTaskForm />} />
@@ -675,10 +657,10 @@ function App() {
           <Route path="purchase/repair-requests/show/:id" element={<RepairRequestShow />} />
 
           {/* Purchase Routes - Projects */}
-          <Route path="purchase/projects" element={<HRProjects />} />
-          <Route path="purchase/projects/create" element={<HRProjectsForm />} />
-          <Route path="purchase/projects/edit/:id" element={<HRProjectsForm />} />
-          <Route path="purchase/projects/show/:id" element={<HRProjectsShow />} />
+          <Route path="purchase/projects" element={<Projects />} />
+          <Route path="purchase/projects/create" element={<ProjectForm />} />
+          <Route path="purchase/projects/edit/:id" element={<ProjectForm />} />
+          <Route path="purchase/projects/show/:id" element={<ProjectShow />} />
         </Route>
       </Routes>
     </Router>

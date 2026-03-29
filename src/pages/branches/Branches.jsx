@@ -5,6 +5,12 @@ export default function Branches() {
     <CrudPage
       title="Branches Management"
       apiEndpoint="/branches/list"
+      statusEndpoint="/branches/update"
+      deleteEndpoint="/branches/delete"
+      statusOptions={[
+        { value: "true", label: "Active" },
+        { value: "false", label: "Inactive" }
+      ]}
       listColumns={[
         { key: "name", label: "Branch Name" },
         { key: "code", label: "Code" },
@@ -13,7 +19,13 @@ export default function Branches() {
         {
           key: "status",
           label: "Status",
-          render: (val) => (val ? "Active" : "Inactive"),
+          render: (val) => (
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+              val ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+            }`}>
+              {val ? "Active" : "Inactive"}
+            </span>
+          ),
         },
         { key: "established_year", label: "Established Year" },
       ]}

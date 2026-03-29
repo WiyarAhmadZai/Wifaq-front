@@ -4,12 +4,19 @@ export default function Suppliers() {
   return (
     <CrudPage
       title="Suppliers"
-      apiEndpoint="/purchase/suppliers"
+      apiEndpoint="/purchase/suppliers/index"
       createRoute="/purchase/suppliers/create"
       editRoute="/purchase/suppliers/edit"
       showRoute="/purchase/suppliers/show"
+      deleteEndpoint="/purchase/suppliers/delete"
       searchable
       searchFields={["name", "contact_person", "phone", "email"]}
+      statusEndpoint="/purchase/suppliers/status"
+      statusField="status"
+      statusOptions={[
+        { value: "active", label: "Active", color: "emerald" },
+        { value: "inactive", label: "Inactive", color: "gray" },
+      ]}
       listColumns={[
         { key: "name", label: "Supplier Name" },
         { key: "contact_person", label: "Contact Person" },

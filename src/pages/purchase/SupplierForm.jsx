@@ -4,7 +4,9 @@ export default function SupplierForm() {
   return (
     <CrudFormPage
       title="Supplier"
-      apiEndpoint="/purchase/suppliers"
+      apiEndpoint="/purchase/suppliers/show"
+      storeEndpoint="/purchase/suppliers/store"
+      editEndpoint="/purchase/suppliers/edit"
       listRoute="/purchase/suppliers"
       fields={[
         { name: "name", label: "Supplier Name", type: "text", required: true },

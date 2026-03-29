@@ -11,7 +11,6 @@ const STEPS = [
 ];
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-const DEPARTMENTS = ["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations", "Science", "Languages"];
 const CONTRACT_TYPES = [
   { value: "FT", label: "Full Time" },
   { value: "PT", label: "Part Time" },
@@ -97,8 +96,8 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
 }
 
 const StepCard = ({ step, children }) => (
-  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-    <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+    <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 rounded-t-2xl flex items-center gap-3">
       <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} />
@@ -122,6 +121,12 @@ export default function StaffForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [hiredApplicants, setHiredApplicants] = useState([]);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
@@ -227,6 +232,48 @@ export default function StaffForm() {
     }
   };
 
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+      streamRef.current = stream;
+      setShowCamera(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      }, 100);
+    } catch {
+      Swal.fire("Error", "Could not access camera. Please check permissions.", "error");
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        set('profile_photo', file);
+        setPhotoPreview(canvas.toDataURL('image/jpeg'));
+      }
+      stopCamera();
+      setShowPhotoModal(false);
+    }, 'image/jpeg', 0.9);
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setShowCamera(false);
+  };
+
   const handleApplicantSelect = (appId) => {
     set('application_id', appId);
     const applicant = hiredApplicants.find(a => String(a.id) === String(appId));
@@ -245,8 +292,11 @@ export default function StaffForm() {
 
   const canNext = () => {
     if (step === 1) return form.application_id || isEdit;
-    if (step === 3) return form.department && form.role_title_en && form.contract_type && form.branch_id;
-    if (step === 3 && form.has_probation) return form.probation_end_date;
+    if (step === 3) {
+      if (!form.contract_type || !form.branch_id) return false;
+      if (form.has_probation && !form.probation_end_date) return false;
+      return true;
+    }
     return true;
   };
 
@@ -432,23 +482,31 @@ export default function StaffForm() {
             <StepCard step={cur}>
               <ApplicantBanner />
 
+              {/* Photo - click to open modal */}
               <div className="flex items-center gap-5 pb-5 border-b border-gray-100">
-                <div className="w-20 h-20 rounded-2xl bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {photoPreview ? (
-                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                  )}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-teal-50 text-teal-700 rounded-lg text-xs font-semibold cursor-pointer hover:bg-teal-100 transition-all">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    Upload Photo
-                    <input type="file" name="profile_photo" accept="image/*" onChange={handleFileChange} className="hidden" />
-                  </label>
-                  <p className="text-[10px] text-gray-400 mt-1">JPG, PNG - Max 2MB</p>
+                <button type="button" onClick={() => setShowPhotoModal(true)} className="flex-shrink-0 group">
+                  <div className="w-20 h-20 rounded-2xl bg-gray-100 border-2 border-dashed border-gray-300 group-hover:border-teal-400 flex items-center justify-center overflow-hidden transition-colors relative cursor-pointer">
+                    {photoPreview ? (
+                      <>
+                        <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <svg className="w-7 h-7 text-gray-300 group-hover:text-teal-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        <span className="text-[8px] font-semibold text-gray-400 group-hover:text-teal-500 uppercase">Add Photo</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-700">{photoPreview ? "Photo added" : "Profile Photo"}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Click the photo area to upload or capture</p>
                 </div>
               </div>
+              <input ref={fileInputRef} type="file" name="profile_photo" accept="image/*" onChange={(e) => { handleFileChange(e); setShowPhotoModal(false); }} className="hidden" />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -500,12 +558,12 @@ export default function StaffForm() {
                   />
                 </div>
                 <div>
-                  <Label required>Department</Label>
-                  <SearchSelect options={DEPARTMENTS} value={form.department} onChange={v => set('department', v)} placeholder="Search department..." />
+                  <Label>Department</Label>
+                  <input type="text" value={form.department || "—"} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
                 </div>
                 <div>
-                  <Label required>Role Title (English)</Label>
-                  <input type="text" name="role_title_en" value={form.role_title_en} onChange={handle} className={inp} placeholder="e.g. Senior Teacher" />
+                  <Label>Role Title (English)</Label>
+                  <input type="text" value={form.role_title_en || "—"} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
                 </div>
                 <div>
                   <Label>Role Title (Dari)</Label>
@@ -538,7 +596,15 @@ export default function StaffForm() {
                     onClick={() => {
                       const newVal = !form.has_probation;
                       set('has_probation', newVal);
-                      if (!newVal) set('probation_end_date', '');
+                      if (newVal) {
+                        // Default: 1 month after offer start_date
+                        const startDate = selectedApplicant?.offer?.start_date?.split("T")[0];
+                        const base = startDate ? new Date(startDate) : new Date();
+                        base.setMonth(base.getMonth() + 1);
+                        set('probation_end_date', base.toISOString().split("T")[0]);
+                      } else {
+                        set('probation_end_date', '');
+                      }
                     }}>
                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.has_probation ? 'translate-x-5' : 'translate-x-0.5'}`} />
                   </div>
@@ -546,9 +612,18 @@ export default function StaffForm() {
                 </label>
 
                 {form.has_probation && (
-                  <div className="mt-4 max-w-xs">
-                    <Label required>Probation End Date</Label>
-                    <input type="date" name="probation_end_date" value={form.probation_end_date} onChange={handle} className={inp} />
+                  <div className="mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Start Date (from offer)</Label>
+                        <input type="text" value={selectedApplicant?.offer?.start_date?.split("T")[0] || new Date().toISOString().split("T")[0]} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
+                      </div>
+                      <div>
+                        <Label required>Probation End Date</Label>
+                        <input type="date" name="probation_end_date" value={form.probation_end_date} onChange={handle} className={inp} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-2">Default: 1 month from start date. You can adjust as needed.</p>
                   </div>
                 )}
               </div>
@@ -641,6 +716,105 @@ export default function StaffForm() {
           </div>
         </div>
       </form>
+
+      {/* ── Photo Modal ────────────────────────────────────────────────── */}
+      {showPhotoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { if (!showCamera) setShowPhotoModal(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800">{showCamera ? "Capture Photo" : "Profile Photo"}</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">{showCamera ? "Position yourself and capture" : "Choose how to add your photo"}</p>
+              </div>
+              <button type="button" onClick={() => { stopCamera(); setShowPhotoModal(false); }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-5">
+              {showCamera ? (
+                /* Camera View */
+                <div className="space-y-4">
+                  <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3]">
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                    <canvas ref={canvasRef} className="hidden" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={capturePhoto}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-all">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                        <circle cx="12" cy="12" r="4" fill="currentColor" />
+                      </svg>
+                      Capture
+                    </button>
+                    <button type="button" onClick={stopCamera}
+                      className="py-3 px-5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-all">
+                      Back
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Option Cards */
+                <div className="space-y-3">
+                  {/* Current preview */}
+                  {photoPreview && (
+                    <div className="flex items-center gap-3 p-3 bg-teal-50 rounded-xl border border-teal-200">
+                      <img src={photoPreview} alt="Current" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-800">Current photo</p>
+                        <p className="text-[10px] text-teal-600">Click an option below to change</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload from file */}
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:bg-teal-50/50 transition-all group text-left">
+                    <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center flex-shrink-0 group-hover:bg-teal-200 transition-colors">
+                      <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Upload from Files</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">JPG, PNG — Max 2MB</p>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-300 ml-auto group-hover:text-teal-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </button>
+
+                  {/* Capture from camera */}
+                  <button type="button" onClick={startCamera}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-cyan-400 hover:bg-cyan-50/50 transition-all group text-left">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center flex-shrink-0 group-hover:bg-cyan-200 transition-colors">
+                      <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Take with Camera</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Use your device camera</p>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-300 ml-auto group-hover:text-cyan-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </button>
+
+                  {/* Remove photo */}
+                  {photoPreview && (
+                    <button type="button" onClick={() => { set('profile_photo', null); setPhotoPreview(null); setShowPhotoModal(false); }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      Remove Photo
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

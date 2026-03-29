@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, put } from "../../api/axios";
+import { get, put, post } from "../../api/axios";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
 
@@ -113,6 +113,46 @@ export default function ApplicationShow() {
       Swal.fire("Error", "Failed to update status", "error");
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleScheduleInterview = async () => {
+    // Validate required fields
+    if (!interviewData.interview_date || !interviewData.interview_time) {
+      Swal.fire("Error", "Please select interview date and time", "error");
+      return;
+    }
+
+    setIsScheduling(true);
+    try {
+      const response = await post(`/recruitment/applications/${id}/schedule-interview`, {
+        interview_type: interviewData.interview_type,
+        interview_date: interviewData.interview_date,
+        interview_time: interviewData.interview_time,
+        location: interviewData.location,
+        notes: interviewData.notes,
+        send_email: true,
+      });
+
+      if (response.data?.success) {
+        setData((prev) => ({ ...prev, status: "interview" }));
+        Swal.fire({
+          title: "Success!",
+          text: "Interview scheduled and email sent to candidate",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        throw new Error(response.data?.message || "Failed to schedule interview");
+      }
+    } catch (error) {
+      console.error("Schedule interview error:", error);
+      console.error("Error response:", error.response);
+      console.error("Error data:", error.response?.data);
+      Swal.fire("Error", error.response?.data?.message || "Failed to schedule interview", "error");
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -581,14 +621,14 @@ export default function ApplicationShow() {
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4 border-t border-gray-100">
                     <button
-                      onClick={() => handleStatusChange("interview")}
+                      onClick={handleScheduleInterview}
                       disabled={isUpdating || isScheduling}
                       className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      {isUpdating ? "Processing..." : "Schedule Interview"}
+                      {isScheduling ? "Scheduling..." : "Schedule Interview"}
                     </button>
                     <button
                       onClick={() => handleStatusChange("screening")}

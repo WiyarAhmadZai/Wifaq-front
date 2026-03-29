@@ -16,7 +16,6 @@ const STEPS = [
 const COLOR_STYLES = {
   blue: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", icon: "bg-blue-100 text-blue-600", btn: "bg-blue-600 hover:bg-blue-700", light: "bg-blue-100 text-blue-700" },
   teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
-  teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
   cyan: { bg: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-700", icon: "bg-cyan-100 text-cyan-600", btn: "bg-cyan-600 hover:bg-cyan-700", light: "bg-cyan-100 text-cyan-700" },
   indigo: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", icon: "bg-indigo-100 text-indigo-600", btn: "bg-indigo-600 hover:bg-indigo-700", light: "bg-indigo-100 text-indigo-700" },
   emerald: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", icon: "bg-emerald-100 text-emerald-600", btn: "bg-emerald-600 hover:bg-emerald-700", light: "bg-emerald-100 text-emerald-700" },
@@ -70,6 +69,18 @@ export default function ApplicationShow() {
   });
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
+  // Offer state
+  const [offerData, setOfferData] = useState({
+    salary_amount: "",
+    salary_currency: "AFN",
+    start_date: "",
+    additional_terms: "",
+  });
+  const [existingOffer, setExistingOffer] = useState(null);
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [offerMode, setOfferMode] = useState("form"); // "form" | "view"
+  const [respondNotes, setRespondNotes] = useState("");
+
   useEffect(() => {
     fetchData();
     fetchDocuments();
@@ -81,6 +92,9 @@ export default function ApplicationShow() {
   useEffect(() => {
     if (data?.status === "interview") {
       fetchInterviewSchedule();
+    }
+    if (data?.status === "offer") {
+      fetchOffer();
     }
   }, [data?.status]);
 
@@ -116,6 +130,21 @@ export default function ApplicationShow() {
   };
 
   const handleStatusChange = async (newStatus) => {
+    // Confirmation dialog for reject actions
+    if (newStatus === "rejected") {
+      const result = await Swal.fire({
+        title: "Reject Application?",
+        text: `Are you sure you want to reject ${data.full_name}'s application? This action cannot be easily undone.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#dc2626",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "Yes, Reject",
+        cancelButtonText: "Cancel",
+      });
+      if (!result.isConfirmed) return;
+    }
+
     setIsUpdating(true);
     try {
       await put(`/recruitment/applications/${id}`, { ...data, status: newStatus, screening_notes: screeningNotes });
@@ -190,7 +219,185 @@ export default function ApplicationShow() {
     }
   };
 
+  // ==================== OFFER FUNCTIONS ====================
+
+  const fetchOffer = async () => {
+    try {
+      const response = await get(`/recruitment/applications/${id}/offer`);
+      if (response.data?.success) {
+        const offer = response.data.data;
+        setExistingOffer(offer);
+        setOfferData({
+          salary_amount: offer.salary_amount || "",
+          salary_currency: offer.salary_currency || "AFN",
+          start_date: offer.start_date?.split("T")[0] || "",
+          additional_terms: offer.additional_terms || "",
+        });
+        setOfferMode("view");
+      }
+    } catch (error) {
+      // No offer yet - show form
+      setOfferMode("form");
+    }
+  };
+
+  const handleCreateOffer = async (sendEmail = false) => {
+    if (!offerData.salary_amount || !offerData.start_date) {
+      Swal.fire("Error", "Please fill in salary and start date", "error");
+      return;
+    }
+
+    setIsSubmittingOffer(true);
+    try {
+      const response = await post(`/recruitment/applications/${id}/offer`, {
+        ...offerData,
+        send_email: sendEmail,
+      });
+
+      if (response.data?.success) {
+        setExistingOffer(response.data.data);
+        setOfferMode("view");
+        Swal.fire({
+          title: "Success!",
+          text: sendEmail ? "Offer created and email sent to candidate" : "Offer created successfully",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to create offer", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleUpdateOffer = async (sendEmail = false) => {
+    setIsSubmittingOffer(true);
+    try {
+      const response = await put(`/recruitment/applications/${id}/offer`, {
+        ...offerData,
+        send_email: sendEmail,
+      });
+
+      if (response.data?.success) {
+        setExistingOffer(response.data.data);
+        setOfferMode("view");
+        Swal.fire({
+          title: "Success!",
+          text: sendEmail ? "Offer updated and email sent" : "Offer updated successfully",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to update offer", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleOfferResponse = async (response) => {
+    const messages = {
+      accepted: { title: "Accept Offer?", text: "Mark this offer as accepted? The candidate will move to Hired status.", confirmText: "Yes, Accept", color: "#059669" },
+      declined: { title: "Decline Offer?", text: "Mark this offer as declined? The candidate will be moved to Rejected status.", confirmText: "Yes, Decline", color: "#dc2626" },
+      negotiated: { title: "Mark as Negotiated?", text: "The candidate wants to negotiate terms. You can revise the offer afterwards.", confirmText: "Yes, Negotiate", color: "#d97706" },
+    };
+
+    const msg = messages[response];
+    const confirmResult = await Swal.fire({
+      title: msg.title,
+      text: msg.text,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: msg.color,
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: msg.confirmText,
+      cancelButtonText: "Cancel",
+      input: response === "declined" || response === "negotiated" ? "textarea" : undefined,
+      inputPlaceholder: response === "declined" ? "Reason for declining..." : "Negotiation notes...",
+      inputAttributes: { "aria-label": "Notes" },
+    });
+
+    if (!confirmResult.isConfirmed) return;
+
+    setIsSubmittingOffer(true);
+    try {
+      const res = await put(`/recruitment/applications/${id}/offer/respond`, {
+        response,
+        candidate_notes: confirmResult.value || respondNotes,
+      });
+
+      if (res.data?.success) {
+        const statusMap = { accepted: "hired", declined: "rejected", negotiated: "offer" };
+        setData((prev) => ({ ...prev, status: statusMap[response] }));
+        setExistingOffer(res.data.data);
+
+        if (response === "negotiated") {
+          setOfferMode("form");
+        }
+
+        const resultMessages = {
+          accepted: "Offer accepted! Candidate moved to Hired stage.",
+          declined: "Offer declined. Application moved to Rejected.",
+          negotiated: "Marked for negotiation. You can now revise the offer terms.",
+        };
+
+        Swal.fire({
+          title: "Updated!",
+          text: resultMessages[response],
+          icon: response === "accepted" ? "success" : response === "declined" ? "info" : "warning",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to record response", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleSendOfferEmail = async () => {
+    setIsSubmittingOffer(true);
+    try {
+      const response = await post(`/recruitment/applications/${id}/offer/send-email`);
+      if (response.data?.success) {
+        setExistingOffer((prev) => ({ ...prev, status: "sent", sent_at: new Date().toISOString() }));
+        Swal.fire({
+          title: "Sent!",
+          text: "Offer email sent to candidate",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to send email", "error");
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
   const handleInterviewFeedback = async (result) => {
+    // Confirmation dialog for reject-type actions
+    if (result === "failed" || result === "no_show") {
+      const confirmResult = await Swal.fire({
+        title: result === "failed" ? "Reject Candidate?" : "Mark as No Show?",
+        text: result === "failed"
+          ? `Are you sure you want to reject ${data.full_name}? This will move the application to rejected status.`
+          : `Mark ${data.full_name} as a no-show? This will reject the application.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#dc2626",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: result === "failed" ? "Yes, Reject" : "Yes, No Show",
+        cancelButtonText: "Cancel",
+      });
+      if (!confirmResult.isConfirmed) return;
+    }
+
     setIsSubmittingFeedback(true);
     try {
       const response = await put(`/recruitment/applications/${id}/interview-feedback`, {
@@ -279,6 +486,7 @@ export default function ApplicationShow() {
   const isScreening = data.status === "screening";
   const isShortlisted = data.status === "shortlisted";
   const isInterview = data.status === "interview";
+  const isOffer = data.status === "offer";
 
   // Tab Navigation Component
   const TabButton = ({ tab, label, icon }) => (
@@ -858,8 +1066,309 @@ export default function ApplicationShow() {
               </div>
             )}
 
-            {/* Other Stages */}
-            {!isReceived && !isScreening && !isShortlisted && !isInterview && (
+            {/* OFFER STAGE */}
+            {isOffer && (
+              <div className={`rounded-2xl border ${colors.border} ${colors.bg} overflow-hidden`}>
+                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Offer Management</h2>
+                    <p className="text-sm text-gray-600">
+                      {existingOffer ? `Offer Status: ${existingOffer.status?.replace(/_/g, " ")}` : "Create and send offer to candidate"}
+                    </p>
+                  </div>
+                  {existingOffer && offerMode === "view" && (
+                    <div className="ml-auto flex gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                        existingOffer.status === "accepted" ? "bg-emerald-100 text-emerald-700" :
+                        existingOffer.status === "declined" ? "bg-red-100 text-red-700" :
+                        existingOffer.status === "negotiated" ? "bg-amber-100 text-amber-700" :
+                        existingOffer.status === "sent" ? "bg-blue-100 text-blue-700" :
+                        existingOffer.status === "expired" ? "bg-gray-100 text-gray-700" :
+                        "bg-indigo-100 text-indigo-700"
+                      }`}>
+                        {existingOffer.status?.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 bg-white space-y-6">
+
+                  {/* ===== OFFER VIEW MODE ===== */}
+                  {offerMode === "view" && existingOffer && (
+                    <>
+                      {/* Offer Details Card */}
+                      <div className="p-5 bg-indigo-50 rounded-xl border border-indigo-200">
+                        <h3 className="text-sm font-semibold text-indigo-800 mb-4 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Offer Details
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Position</p>
+                            <p className="text-sm font-medium text-gray-800">{data.job_posting?.requisition?.position_title || data.job_posting?.title || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Department</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.department?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Employment Type</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.employment_type?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Salary</p>
+                            <p className="text-sm font-bold text-gray-800">
+                              {Number(existingOffer.salary_amount).toLocaleString()} {existingOffer.salary_currency}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-indigo-600 mb-1">Start Date</p>
+                            <p className="text-sm font-medium text-gray-800">{formatDate(existingOffer.start_date)}</p>
+                          </div>
+                        </div>
+
+                        {/* Additional Terms */}
+                        {existingOffer.additional_terms && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-1">Additional Terms</p>
+                            <p className="text-sm text-gray-700">{existingOffer.additional_terms}</p>
+                          </div>
+                        )}
+
+                        {/* Candidate Notes (if responded) */}
+                        {existingOffer.candidate_notes && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-1">Candidate Notes</p>
+                            <p className="text-sm text-gray-700 italic">{existingOffer.candidate_notes}</p>
+                          </div>
+                        )}
+
+                        {/* Sent info */}
+                        {existingOffer.sent_at && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-xs text-gray-500">
+                              Email sent: {formatDateTime(existingOffer.sent_at)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                        {/* Send/Resend email - only for draft or sent */}
+                        {(existingOffer.status === "draft" || existingOffer.status === "sent") && (
+                          <button
+                            onClick={handleSendOfferEmail}
+                            disabled={isSubmittingOffer}
+                            className="flex-1 min-w-[140px] py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            {isSubmittingOffer ? "Sending..." : existingOffer.sent_at ? "Resend Email" : "Send Offer Email"}
+                          </button>
+                        )}
+
+                        {/* Edit offer - for draft, sent, or negotiated */}
+                        {["draft", "sent", "negotiated"].includes(existingOffer.status) && (
+                          <button
+                            onClick={() => setOfferMode("form")}
+                            className="flex-1 min-w-[140px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            {existingOffer.status === "negotiated" ? "Revise Offer" : "Edit Offer"}
+                          </button>
+                        )}
+
+                        {/* Response buttons - only for sent or draft (pending response) */}
+                        {["draft", "sent"].includes(existingOffer.status) && (
+                          <>
+                            <button
+                              onClick={() => handleOfferResponse("accepted")}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[120px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              {isSubmittingOffer ? "..." : "Accepted"}
+                            </button>
+                            <button
+                              onClick={() => handleOfferResponse("negotiated")}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[120px] py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                              </svg>
+                              {isSubmittingOffer ? "..." : "Negotiated"}
+                            </button>
+                            <button
+                              onClick={() => handleOfferResponse("declined")}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[120px] py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              {isSubmittingOffer ? "..." : "Declined"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* ===== OFFER FORM MODE ===== */}
+                  {offerMode === "form" && (
+                    <>
+                      {existingOffer?.status === "negotiated" && (
+                        <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            <p className="text-sm font-semibold text-amber-800">Candidate Requested Negotiation</p>
+                          </div>
+                          {existingOffer.candidate_notes && (
+                            <p className="text-sm text-amber-700 italic">"{existingOffer.candidate_notes}"</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Job Info from Requisition (read-only) */}
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Position</p>
+                            <p className="text-sm font-medium text-gray-800">{data.job_posting?.requisition?.position_title || data.job_posting?.title || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Department</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.department?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Employment Type</p>
+                            <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.employment_type?.replace(/_/g, " ") || "—"}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Salary */}
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1.5 block">Proposed Salary *</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={offerData.salary_amount}
+                              onChange={(e) => setOfferData({ ...offerData, salary_amount: e.target.value })}
+                              placeholder="e.g. 25000"
+                              className="flex-1 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                            />
+                            <select
+                              value={offerData.salary_currency}
+                              onChange={(e) => setOfferData({ ...offerData, salary_currency: e.target.value })}
+                              className="w-28 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                            >
+                              <option value="AFN">AFN</option>
+                              <option value="USDT">USDT</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Start Date */}
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1.5 block">Start Date *</label>
+                          <input
+                            type="date"
+                            value={offerData.start_date}
+                            onChange={(e) => setOfferData({ ...offerData, start_date: e.target.value })}
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+
+                        {/* Additional Terms */}
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-gray-500 mb-1.5 block">Additional Terms / Notes</label>
+                          <textarea
+                            value={offerData.additional_terms}
+                            onChange={(e) => setOfferData({ ...offerData, additional_terms: e.target.value })}
+                            rows={3}
+                            placeholder="Probation period, working hours, reporting structure, special conditions..."
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Form Action Buttons */}
+                      <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                        {existingOffer ? (
+                          <>
+                            <button
+                              onClick={() => handleUpdateOffer(true)}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[160px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {isSubmittingOffer ? "Saving..." : "Update & Send Email"}
+                            </button>
+                            <button
+                              onClick={() => handleUpdateOffer(false)}
+                              disabled={isSubmittingOffer}
+                              className="py-3 px-4 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+                            >
+                              {isSubmittingOffer ? "Saving..." : "Save Draft"}
+                            </button>
+                            <button
+                              onClick={() => setOfferMode("view")}
+                              className="py-3 px-4 bg-gray-50 text-gray-500 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-100 transition-all"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleCreateOffer(true)}
+                              disabled={isSubmittingOffer}
+                              className="flex-1 min-w-[160px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {isSubmittingOffer ? "Creating..." : "Create & Send Offer"}
+                            </button>
+                            <button
+                              onClick={() => handleCreateOffer(false)}
+                              disabled={isSubmittingOffer}
+                              className="py-3 px-4 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+                            >
+                              {isSubmittingOffer ? "Creating..." : "Save as Draft"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Other Stages (Hired, etc.) */}
+            {!isReceived && !isScreening && !isShortlisted && !isInterview && !isOffer && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

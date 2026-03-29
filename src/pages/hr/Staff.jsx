@@ -3,15 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { get, del, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 
-const DEMO_ITEMS = [
-  { id: 1, staff_code: "WS-2026-001", full_name_en: "Ahmad Rahimi", full_name_dari: "احمد رحیمی", department: "Academic", entity: "WS", role_title_en: "Senior Teacher", contract_type: "FT", status: "active", phone: "0770123456", hire_date: "2024-03-15", base_salary: 25000 },
-  { id: 2, staff_code: "WS-2026-002", full_name_en: "Mohammad Karimi", full_name_dari: "محمد کریمی", department: "Finance", entity: "WLS", role_title_en: "Accountant", contract_type: "PT", status: "active", phone: "0790234567", hire_date: "2024-06-01", base_salary: 20000 },
-  { id: 3, staff_code: "WS-2026-003", full_name_en: "Fatima Noori", full_name_dari: "فاطمه نوری", department: "Administration", entity: "WISAL", role_title_en: "Admin Officer", contract_type: "FT", status: "probation", phone: "0780345678", hire_date: "2025-01-10", base_salary: 18000 },
-  { id: 4, staff_code: "WS-2026-004", full_name_en: "Ali Ahmadi", full_name_dari: "علی احمدی", department: "IT", entity: "WS", role_title_en: "IT Support", contract_type: "TEMP", status: "active", phone: "0700456789", hire_date: "2023-09-20", base_salary: 22000 },
-  { id: 5, staff_code: "WS-2026-005", full_name_en: "Zahra Hashimi", full_name_dari: "زهرا هاشمی", department: "Academic", entity: "WLS", role_title_en: "Teacher", contract_type: "FT", status: "inactive", phone: "0710567890", hire_date: "2024-08-05", base_salary: 15000 },
-];
-
-const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary" };
+const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
+const DEPARTMENTS = ["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations", "Science", "Languages"];
 
 export default function Staff() {
   const navigate = useNavigate();
@@ -20,36 +13,57 @@ export default function Staff() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('');
-  const [entityFilter, setEntityFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [contractFilter, setContractFilter] = useState('');
+  const [branches, setBranches] = useState([]);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchBranches(); }, []);
+  useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
 
-  const fetchItems = async () => {
+  const fetchBranches = async () => {
+    try {
+      const res = await get('/branches/list');
+      setBranches(res.data?.data || res.data || []);
+    } catch { setBranches([]); }
+  };
+
+  const fetchItems = async (page = 1) => {
     setLoading(true);
     try {
-      const res = await get('/hr/staff/list');
-      const list = res.data?.data || res.data || [];
-      setItems(list.length ? list : DEMO_ITEMS);
+      const params = new URLSearchParams();
+      params.append('page', page);
+      if (search) params.append('search', search);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (deptFilter) params.append('department', deptFilter);
+      if (branchFilter) params.append('branch_id', branchFilter);
+      if (contractFilter) params.append('contract_type', contractFilter);
+
+      const res = await get(`/hr/staff/list?${params.toString()}`);
+      const data = res.data;
+      setItems(data?.data || []);
+      setPagination({ current_page: data?.current_page || 1, last_page: data?.last_page || 1, total: data?.total || 0 });
     } catch {
-      setItems(DEMO_ITEMS);
+      setItems([]);
     } finally { setLoading(false); }
   };
 
   const handleDelete = async (id) => {
     const result = await Swal.fire({ title: 'Delete Staff?', text: 'This action cannot be undone.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#0d9488', cancelButtonColor: '#ef4444', confirmButtonText: 'Yes, delete' });
     if (result.isConfirmed) {
-      try { await del(`/hr/staff/delete/${id}`); fetchItems(); } catch { setItems(prev => prev.filter(i => i.id !== id)); }
+      try { await del(`/hr/staff/delete/${id}`); } catch {}
+      fetchItems();
       Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
     }
   };
 
   const openStatusModal = (staff) => {
     setSelectedStaff(staff);
-    setStatusUpdate(staff.status || staff.employment_status || '');
+    setStatusUpdate(staff.status || '');
     setShowStatusModal(true);
   };
 
@@ -67,24 +81,22 @@ export default function Staff() {
     setSaving(false);
   };
 
-  const filtered = items.filter(item => {
-    const q = search.toLowerCase();
-    const name = (item.full_name_en || item.full_name || '').toLowerCase();
-    const code = (item.staff_code || '').toLowerCase();
-    const role = (item.role_title_en || item.job_title_en || '').toLowerCase();
-    const matchSearch = !q || name.includes(q) || code.includes(q) || role.includes(q);
-    const st = item.status || item.employment_status || '';
-    const matchStatus = statusFilter === 'all' || st === statusFilter;
-    const dept = item.department || '';
-    const matchDept = !deptFilter || dept === deptFilter;
-    const ent = item.entity || item.organization || '';
-    const matchEntity = !entityFilter || ent === entityFilter;
-    return matchSearch && matchStatus && matchDept && matchEntity;
-  });
+  const activeCount = items.filter(i => i.status === 'active').length;
+  const probationCount = items.filter(i => i.status === 'probation').length;
+  const inactiveCount = items.filter(i => i.status === 'inactive').length;
 
-  const activeCount = items.filter(i => (i.status || i.employment_status) === 'active').length;
-  const probationCount = items.filter(i => (i.status || i.employment_status) === 'probation').length;
-  const inactiveCount = items.filter(i => (i.status || i.employment_status) === 'inactive').length;
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+    setDeptFilter('');
+    setBranchFilter('');
+    setContractFilter('');
+  };
+
+  const hasFilters = search || statusFilter !== 'all' || deptFilter || branchFilter || contractFilter;
+
+  // Helper to get name from application relationship
+  const getName = (item) => item.application?.full_name || `Staff #${item.employee_id}`;
 
   return (
     <div className="min-h-screen bg-gray-50/60">
@@ -93,7 +105,7 @@ export default function Staff() {
         <div className="max-w-full mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold text-white">Staff Management</h1>
-            <p className="text-xs text-teal-100 mt-0.5">{items.length} staff members</p>
+            <p className="text-xs text-teal-100 mt-0.5">{pagination.total} staff members</p>
           </div>
           <button onClick={() => navigate('/hr/staff/create')}
             className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
@@ -107,7 +119,7 @@ export default function Staff() {
         {/* Stat Cards */}
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: 'Total', value: items.length, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+            { label: 'Total', value: pagination.total, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
             { label: 'Active', value: activeCount, icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
             { label: 'Probation', value: probationCount, icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
             { label: 'Inactive', value: inactiveCount, icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -132,7 +144,7 @@ export default function Staff() {
             <div className="flex-1 relative">
               <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, staff code, or role..."
+                placeholder="Search by name, staff code, email, phone, or role..."
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none placeholder-gray-400" />
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -144,21 +156,26 @@ export default function Staff() {
               ))}
             </div>
           </div>
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-3 flex-wrap">
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
               <option value="">All Departments</option>
-              {["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations"].map(d => <option key={d} value={d}>{d}</option>)}
+              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
-            <select value={entityFilter} onChange={e => setEntityFilter(e.target.value)}
+            <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
-              <option value="">All Entities</option>
-              {["WS", "WLS", "WISAL"].map(e => <option key={e} value={e}>{e}</option>)}
+              <option value="">All Branches</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
-            {(deptFilter || entityFilter) && (
-              <button onClick={() => { setDeptFilter(''); setEntityFilter(''); }}
+            <select value={contractFilter} onChange={e => setContractFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
+              <option value="">All Contracts</option>
+              {[{ v: "FT", l: "Full Time" }, { v: "PT", l: "Part Time" }, { v: "TEMP", l: "Temporary" }, { v: "CONTRACT", l: "Contract" }, { v: "INTERNSHIP", l: "Internship" }].map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
+            </select>
+            {hasFilters && (
+              <button onClick={clearFilters}
                 className="px-3 py-2 text-xs text-teal-600 font-semibold hover:bg-teal-50 rounded-xl transition-colors">
-                Clear
+                Clear All
               </button>
             )}
           </div>
@@ -176,7 +193,7 @@ export default function Staff() {
                 <thead>
                   <tr className="bg-teal-50 border-b border-teal-100">
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Staff</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Entity</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Branch</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden md:table-cell">Department</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Contract</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Phone</th>
@@ -185,14 +202,15 @@ export default function Staff() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filtered.map(item => {
-                    const name = item.full_name_en || item.full_name || '';
-                    const code = item.staff_code || item.employee_id || '';
-                    const role = item.role_title_en || item.job_title_en || '';
-                    const entity = item.entity || item.organization || '';
+                  {items.map(item => {
+                    const name = getName(item);
+                    const code = item.employee_id || '';
+                    const role = item.role_title_en || '';
+                    const branchName = item.branch?.name || '—';
                     const dept = item.department || '';
                     const contract = item.contract_type || '';
-                    const status = item.status || item.employment_status || '';
+                    const status = item.status || '';
+                    const phone = item.application?.contact_number || '';
 
                     return (
                       <tr key={item.id} onClick={() => navigate(`/hr/staff/show/${item.id}`)}
@@ -209,17 +227,17 @@ export default function Staff() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] font-semibold rounded-lg">{entity}</span>
+                          <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] font-semibold rounded-lg">{branchName}</span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">{dept || '—'}</td>
                         <td className="px-4 py-3 hidden lg:table-cell">
                           <span className="text-[11px] text-gray-600 font-medium">{CONTRACT_LABELS[contract] || contract || '—'}</span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-500 hidden lg:table-cell">{item.phone || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 hidden lg:table-cell">{phone || '—'}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={`px-2.5 py-1 text-[11px] font-semibold rounded-full capitalize ${
                             status === 'active' ? 'bg-teal-100 text-teal-700' :
-                            status === 'probation' ? 'bg-teal-50 text-teal-600' :
+                            status === 'probation' ? 'bg-amber-100 text-amber-700' :
                             'bg-gray-100 text-gray-500'
                           }`}>
                             {status}
@@ -251,7 +269,8 @@ export default function Staff() {
                 </tbody>
               </table>
             </div>
-            {filtered.length === 0 && (
+
+            {items.length === 0 && (
               <div className="text-center py-12">
                 <svg className="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 <p className="text-sm text-gray-400 font-medium">No staff found</p>
@@ -259,6 +278,18 @@ export default function Staff() {
                   className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">
                   Register your first staff member
                 </button>
+              </div>
+            )}
+
+            {pagination.last_page > 1 && (
+              <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+                <p className="text-xs text-gray-500">Page {pagination.current_page} of {pagination.last_page} ({pagination.total} total)</p>
+                <div className="flex gap-1">
+                  <button onClick={() => fetchItems(pagination.current_page - 1)} disabled={pagination.current_page <= 1}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+                  <button onClick={() => fetchItems(pagination.current_page + 1)} disabled={pagination.current_page >= pagination.last_page}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+                </div>
               </div>
             )}
           </div>
@@ -271,7 +302,7 @@ export default function Staff() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Update Status</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">{selectedStaff.full_name_en || selectedStaff.full_name} ({selectedStaff.staff_code})</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">{getName(selectedStaff)} ({selectedStaff.employee_id})</p>
             </div>
             <div className="p-5">
               <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">New Status</p>

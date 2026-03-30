@@ -79,7 +79,6 @@ export default function ApplicationShow() {
   const [existingOffer, setExistingOffer] = useState(null);
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
   const [offerMode, setOfferMode] = useState("form"); // "form" | "view"
-  const [respondNotes, setRespondNotes] = useState("");
   const [pendingResponsibilityFile, setPendingResponsibilityFile] = useState(null);
 
   // Email logs state
@@ -381,15 +380,8 @@ export default function ApplicationShow() {
   };
 
   const handleOfferResponse = async (response) => {
-    // "accepted" → just jump to hired section for review (no DB update yet)
-    if (response === "accepted") {
-      setData((prev) => ({ ...prev, status: "hired" }));
-      return;
-    }
-
     const messages = {
-      declined: { title: "Decline Offer?", text: "Mark this offer as declined? The candidate will be moved to Rejected status.", confirmText: "Yes, Decline", color: "#dc2626" },
-      negotiated: { title: "Mark as Negotiated?", text: "The candidate wants to negotiate terms. You can revise the offer afterwards.", confirmText: "Yes, Negotiate", color: "#d97706" },
+      accepted: { title: "Confirm Hiring", text: `Are you sure you want to hire ${data.full_name}? This will finalize the recruitment process and send a welcome email.`, confirmText: "Yes, Hire", color: "#059669" },
     };
 
     const msg = messages[response];
@@ -402,9 +394,6 @@ export default function ApplicationShow() {
       cancelButtonColor: "#6b7280",
       confirmButtonText: msg.confirmText,
       cancelButtonText: "Cancel",
-      input: "textarea",
-      inputPlaceholder: response === "declined" ? "Reason for declining..." : "Negotiation notes...",
-      inputAttributes: { "aria-label": "Notes" },
     });
 
     if (!confirmResult.isConfirmed) return;
@@ -413,27 +402,17 @@ export default function ApplicationShow() {
     try {
       const res = await put(`/recruitment/applications/${id}/offer/respond`, {
         response,
-        candidate_notes: confirmResult.value || respondNotes,
+        candidate_notes: "",
       });
 
       if (res.data?.success) {
-        const statusMap = { declined: "rejected", negotiated: "offer" };
-        setData((prev) => ({ ...prev, status: statusMap[response] }));
+        setData((prev) => ({ ...prev, status: "hired" }));
         setExistingOffer(res.data.data);
 
-        if (response === "negotiated") {
-          setOfferMode("form");
-        }
-
-        const resultMessages = {
-          declined: "Offer declined. Application moved to Rejected.",
-          negotiated: "Marked for negotiation. You can now revise the offer terms.",
-        };
-
         Swal.fire({
-          title: "Updated!",
-          text: resultMessages[response],
-          icon: response === "declined" ? "info" : "warning",
+          title: "Hired!",
+          text: `${data.full_name} has been successfully hired. A welcome email has been sent.`,
+          icon: "success",
           timer: 2500,
           showConfirmButton: false,
         });
@@ -1368,17 +1347,17 @@ export default function ApplicationShow() {
                           </button>
                         )}
 
-                        {/* Response buttons - only for sent or draft (pending response) */}
+                        {/* Accept & Confirm Hiring - only for sent or draft */}
                         {["draft", "sent"].includes(existingOffer.status) && (
                           <button
                             onClick={() => handleOfferResponse("accepted")}
                             disabled={isSubmittingOffer}
-                            className="flex-1 min-w-[120px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            className="flex-1 min-w-[200px] py-3 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg hover:shadow-xl"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
-                            {isSubmittingOffer ? "..." : "Accepted"}
+                            {isSubmittingOffer ? "Processing..." : "Accept & Confirm Hiring"}
                           </button>
                         )}
                       </div>
@@ -1632,163 +1611,107 @@ export default function ApplicationShow() {
 
             {/* HIRED STAGE */}
             {isHired && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
-                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-800">Hiring Confirmation</h2>
-                    <p className="text-sm text-gray-600">Review applicant summary and confirm hiring</p>
+              <div className="space-y-6">
+                {/* Success Card */}
+                <div className="rounded-2xl overflow-hidden border border-emerald-200">
+                  <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-500 px-6 py-10 text-center">
+                    <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-5">
+                      <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">Successfully Hired!</h2>
+                    <p className="text-white/90 text-sm mb-4">{data.full_name} has been officially welcomed to the team</p>
+                    <span className="inline-block px-5 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-semibold">
+                      {data.job_posting?.requisition?.position_title?.replace(/_/g, " ") || data.job_posting?.title || "—"}
+                    </span>
                   </div>
                 </div>
 
-                <div className="p-6 bg-white space-y-6">
-                  {/* Applicant Summary */}
-                  <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <h3 className="text-sm font-semibold text-emerald-800 mb-4 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      Applicant Summary
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Full Name</p>
-                        <p className="text-sm font-medium text-gray-800">{data.full_name || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Email</p>
-                        <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Phone</p>
-                        <p className="text-sm font-medium text-gray-800">{data.phone || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Position</p>
-                        <p className="text-sm font-medium text-gray-800">{data.job_posting?.requisition?.position_title || data.job_posting?.title || "—"}</p>
-                      </div>
-                      {existingOffer && (
-                        <>
-                          <div>
-                            <p className="text-xs text-emerald-600 mb-1">Offered Salary</p>
-                            <p className="text-sm font-medium text-gray-800">{existingOffer.salary_currency} {Number(existingOffer.salary_amount).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-emerald-600 mb-1">Start Date</p>
-                            <p className="text-sm font-medium text-gray-800">{existingOffer.start_date ? new Date(existingOffer.start_date).toLocaleDateString() : "—"}</p>
-                          </div>
-                        </>
-                      )}
+                {/* Hiring Details */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
+                  {/* Candidate Card */}
+                  <div className="flex items-center gap-4 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      {data.full_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                     </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-800">{data.full_name}</h3>
+                      <p className="text-sm text-emerald-700 font-medium">
+                        {data.job_posting?.requisition?.position_title?.replace(/_/g, " ") || data.job_posting?.title || "—"}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{data.email}</p>
+                    </div>
+                    <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wide">
+                      Hired
+                    </span>
                   </div>
 
-                  {/* Documents Summary */}
-                  <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Documents ({documents?.length || 0})
-                    </h3>
-                    {documents && documents.length > 0 ? (
-                      <div className="space-y-2">
-                        {documents.map((doc) => {
-                          const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
-                          const docColors = COLOR_STYLES[docType.color];
-                          return (
-                            <div key={doc.id} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
-                              <div className={`w-8 h-8 rounded-lg ${docColors?.icon || "bg-gray-100 text-gray-600"} flex items-center justify-center flex-shrink-0`}>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon || "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"} />
-                                </svg>
-                              </div>
-                              <span className="text-sm text-gray-700 flex-1">{docType.label}</span>
-                              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 text-center py-2">No documents on file</p>
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {existingOffer && (
+                      <>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Salary</p>
+                          <p className="text-sm font-bold text-gray-800">
+                            {Number(existingOffer.salary_amount).toLocaleString()} {existingOffer.salary_currency}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Start Date</p>
+                          <p className="text-sm font-bold text-gray-800">{formatDate(existingOffer.start_date)}</p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Department</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">
+                            {data.job_posting?.requisition?.department?.replace(/_/g, " ") || "—"}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Employment Type</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">
+                            {data.job_posting?.requisition?.employment_type?.replace(/_/g, " ") || "—"}
+                          </p>
+                        </div>
+                      </>
                     )}
-                  </div>
-
-                  {/* Process Timeline */}
-                  <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
-                      Process Completed
-                    </h3>
-                    <div className="space-y-3">
-                      {STEPS.slice(0, -1).map((step) => {
-                        const stepColors = COLOR_STYLES[step.color];
-                        return (
-                          <div key={step.key} className="flex items-center gap-3">
-                            <div className={`w-6 h-6 rounded-full ${stepColors.icon} flex items-center justify-center flex-shrink-0`}>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                            <span className="text-sm text-gray-700">{step.label}</span>
-                            <span className="text-xs text-gray-400">— {step.desc}</span>
-                          </div>
-                        );
-                      })}
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Hired Date</p>
+                      <p className="text-sm font-bold text-gray-800">{formatDate(existingOffer?.responded_at || data.updated_at)}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Application ID</p>
+                      <p className="text-sm font-medium text-gray-800">#{String(data.id).padStart(4, "0")}</p>
                     </div>
                   </div>
 
-                  {/* Accept Button */}
-                  <div className="flex justify-center pt-2">
-                    <button
-                      onClick={async () => {
-                        const result = await Swal.fire({
-                          title: "Confirm Hiring",
-                          text: `Are you sure you want to hire ${data.full_name}? This will finalize the recruitment process.`,
-                          icon: "question",
-                          showCancelButton: true,
-                          confirmButtonColor: "#059669",
-                          cancelButtonColor: "#6b7280",
-                          confirmButtonText: "Yes, Hire",
-                          cancelButtonText: "Cancel",
-                        });
-                        if (!result.isConfirmed) return;
-                        setIsUpdating(true);
-                        try {
-                          await put(`/recruitment/applications/${id}`, { ...data, status: "hired" });
-                          if (existingOffer) {
-                            await put(`/recruitment/applications/${id}/offer/respond`, { response: "accepted", candidate_notes: "" });
-                            setExistingOffer((prev) => ({ ...prev, status: "accepted" }));
-                          }
-                          setData((prev) => ({ ...prev, status: "hired" }));
-                          Swal.fire({
-                            title: "Hired!",
-                            text: `${data.full_name} has been successfully hired.`,
-                            icon: "success",
-                            timer: 2000,
-                            showConfirmButton: false,
-                          });
-                        } catch (error) {
-                          Swal.fire("Error", "Failed to update status", "error");
-                        } finally {
-                          setIsUpdating(false);
-                        }
-                      }}
-                      disabled={isUpdating}
-                      className="py-4 px-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all disabled:opacity-50 shadow-lg hover:shadow-xl"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  {/* Job Responsibilities */}
+                  {existingOffer?.job_responsibilities && (
+                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                      <p className="text-xs text-blue-700 uppercase font-semibold mb-2">Job Responsibilities</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{existingOffer.job_responsibilities}</p>
+                    </div>
+                  )}
+
+                  {/* Additional Terms */}
+                  {existingOffer?.additional_terms && (
+                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                      <p className="text-xs text-amber-700 uppercase font-semibold mb-2">Additional Terms</p>
+                      <p className="text-sm text-gray-700">{existingOffer.additional_terms}</p>
+                    </div>
+                  )}
+
+                  {/* Email Notice */}
+                  <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      {isUpdating ? "Processing..." : "Accept & Confirm Hiring"}
-                    </button>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-800">Welcome email sent to candidate</p>
+                      <p className="text-xs text-emerald-600">A congratulations email has been sent to {data.email}</p>
+                    </div>
                   </div>
                 </div>
               </div>

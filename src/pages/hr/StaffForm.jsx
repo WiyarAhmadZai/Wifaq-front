@@ -279,11 +279,13 @@ export default function StaffForm() {
     const applicant = hiredApplicants.find(a => String(a.id) === String(appId));
     if (applicant) {
       setSelectedApplicant(applicant);
+      const etMap = { full_time: 'FT', part_time: 'PT', contract: 'CONTRACT', temporary: 'TEMP', internship: 'INTERNSHIP' };
       setForm(prev => ({
         ...prev,
         application_id: appId,
         department: applicant.department || prev.department,
         role_title_en: applicant.position || prev.role_title_en,
+        contract_type: etMap[applicant.employment_type] || applicant.employment_type || prev.contract_type,
       }));
     } else {
       setSelectedApplicant(null);
@@ -293,7 +295,7 @@ export default function StaffForm() {
   const canNext = () => {
     if (step === 1) return form.application_id || isEdit;
     if (step === 3) {
-      if (!form.contract_type || !form.branch_id) return false;
+      if (!form.branch_id) return false;
       if (form.has_probation && !form.probation_end_date) return false;
       return true;
     }
@@ -570,13 +572,8 @@ export default function StaffForm() {
                   <input type="text" name="role_title_dari" value={form.role_title_dari} onChange={handle} className={inp} placeholder="عنوان وظیفه به دری" dir="rtl" />
                 </div>
                 <div>
-                  <Label required>Contract Type</Label>
-                  <SearchSelect
-                    options={CONTRACT_TYPES}
-                    value={form.contract_type}
-                    onChange={v => set('contract_type', v)}
-                    placeholder="Select contract type..."
-                  />
+                  <Label>Contract Type</Label>
+                  <input type="text" value={CONTRACT_TYPES.find(c => c.value === form.contract_type)?.label || form.contract_type || "—"} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
                 </div>
                 <div>
                   <Label>Direct Supervisor</Label>

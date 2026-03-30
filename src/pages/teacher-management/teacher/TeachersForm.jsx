@@ -172,11 +172,6 @@ export default function TeachersForm() {
 
   const [form, setForm] = useState({
     staffId: "",
-    qualification: "",
-    fieldOfStudy: "",
-    teachingCertification: "",
-    yearsOfExperience: "",
-    previousInstitutions: "",
     subjectsAbleToTeach: [],
     levelsAbleToTeach: [],
     weeklyTeachingCapacity: "",
@@ -196,11 +191,6 @@ export default function TeachersForm() {
       setForm(prev => ({
         ...prev,
         staffId: d.staff_id || "",
-        qualification: d.qualification || "",
-        fieldOfStudy: d.field_of_study || "",
-        teachingCertification: d.teaching_certification || "",
-        yearsOfExperience: d.years_experience || "",
-        previousInstitutions: d.previous_institutions || "",
         subjectsAbleToTeach: d.subjects_can_teach || [],
         levelsAbleToTeach: d.levels_can_teach || [],
         weeklyTeachingCapacity: d.weekly_hours || "",
@@ -220,9 +210,8 @@ export default function TeachersForm() {
 
   const canNext = () => {
     if (step === 1) return !!form.staffId;
-    if (step === 2) return form.qualification && form.yearsOfExperience;
-    if (step === 3) return form.subjectsAbleToTeach.length > 0 && form.levelsAbleToTeach.length > 0;
-    if (step === 4) return !!form.weeklyTeachingCapacity;
+    if (step === 2) return form.subjectsAbleToTeach.length > 0 && form.levelsAbleToTeach.length > 0;
+    if (step === 3) return !!form.weeklyTeachingCapacity;
     return true;
   };
 
@@ -327,42 +316,6 @@ export default function TeachersForm() {
         {step === 2 && (
           <StepCard step={STEPS[1]}>
             <div>
-              <Label required>Qualification</Label>
-              <input type="text" name="qualification" value={form.qualification} onChange={handle} 
-                className={inp} placeholder="e.g. Master's in Education" required />
-            </div>
-
-            <div>
-              <Label required>Field of Study</Label>
-              <input type="text" name="fieldOfStudy" value={form.fieldOfStudy} onChange={handle} 
-                className={inp} placeholder="e.g. Education, Mathematics, Science" required />
-            </div>
-
-            <div>
-              <Label>Teaching Certification</Label>
-              <input type="text" name="teachingCertification" value={form.teachingCertification} onChange={handle} 
-                className={inp} placeholder="e.g. Teaching License Number" />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label required>Years of Experience</Label>
-                <input type="number" name="yearsOfExperience" value={form.yearsOfExperience} onChange={handle} 
-                  className={inp} placeholder="e.g. 5" min="0" required />
-              </div>
-              <div>
-                <Label>Previous Institutions</Label>
-                <input type="text" name="previousInstitutions" value={form.previousInstitutions} onChange={handle} 
-                  className={inp} placeholder="e.g. Kabul Public School" />
-              </div>
-            </div>
-          </StepCard>
-        )}
-
-        {/* ── Step 3 ── */}
-        {step === 3 && (
-          <StepCard step={STEPS[2]}>
-            <div>
               <Label required>Subjects Able to Teach</Label>
               <SearchMultiSelect 
                 options={ALL_SUBJECTS} 
@@ -397,9 +350,9 @@ export default function TeachersForm() {
           </StepCard>
         )}
 
-        {/* ── Step 4 ── */}
-        {step === 4 && (
-          <StepCard step={STEPS[3]}>
+        {/* ── Step 3 ── */}
+        {step === 3 && (
+          <StepCard step={STEPS[2]}>
             <div>
               <Label required>Weekly Teaching Capacity (Hours)</Label>
               <input type="number" name="weeklyTeachingCapacity" value={form.weeklyTeachingCapacity} onChange={handle} 

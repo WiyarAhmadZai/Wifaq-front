@@ -86,7 +86,7 @@ export default function StaffShow() {
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0 overflow-hidden">
               {data.profile_photo ? (
-                <img src={`${API_BASE_URL}/storage/${data.profile_photo}`} alt={name} className="w-full h-full object-cover" />
+                <img src={`${STORAGE_URL}/storage/${data.profile_photo}`} alt={name} className="w-full h-full object-cover" />
               ) : name.charAt(0)}
             </div>
             <div className="flex-1">
@@ -196,7 +196,7 @@ export default function StaffShow() {
                   <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-3">Application Documents</p>
                   <div className="grid grid-cols-2 gap-3">
                     {app.documents.map((doc, i) => (
-                      <a key={i} href={`${API_BASE_URL}/storage/${doc.file_url}`} target="_blank" rel="noopener noreferrer"
+                      <a key={i} href={`${STORAGE_URL}/storage/${doc.file_url}`} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-teal-50/50 border-teal-200 hover:bg-teal-100/50 transition-colors group">
                         <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>

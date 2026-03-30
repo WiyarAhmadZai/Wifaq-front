@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, API_BASE_URL as _API } from '../../api/axios';
+const STORAGE_URL = _API.replace(/\/api\/?$/, '');
 import Swal from 'sweetalert2';
+
+const DOCUMENT_TYPES = { cv_resume: "CV/Resume", identity_document: "Identity Document", educational_document: "Educational Document", work_samples: "Work Samples" };
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship", full_time: "Full Time", part_time: "Part Time", contract: "Contract", temporary: "Temporary", internship: "Internship" };
 
@@ -81,8 +84,10 @@ export default function StaffShow() {
 
           {/* Profile banner */}
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0">
-              {name.charAt(0)}
+            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0 overflow-hidden">
+              {data.profile_photo ? (
+                <img src={`${API_BASE_URL}/storage/${data.profile_photo}`} alt={name} className="w-full h-full object-cover" />
+              ) : name.charAt(0)}
             </div>
             <div className="flex-1">
               <h2 className="text-lg font-black text-white">{name}</h2>
@@ -163,6 +168,7 @@ export default function StaffShow() {
 
             {/* Documents */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+              {/* Staff documents */}
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { label: "Tazkira / National ID", file: data.tazkira_scan },
@@ -183,6 +189,28 @@ export default function StaffShow() {
                   </div>
                 ))}
               </div>
+
+              {/* Application documents */}
+              {app?.documents?.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-3">Application Documents</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {app.documents.map((doc, i) => (
+                      <a key={i} href={`${API_BASE_URL}/storage/${doc.file_url}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-teal-50/50 border-teal-200 hover:bg-teal-100/50 transition-colors group">
+                        <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-700">{DOCUMENT_TYPES[doc.document_type] || doc.document_type}</p>
+                          <p className="text-[10px] text-teal-600 truncate">{doc.file_url?.split('/').pop()}</p>
+                        </div>
+                        <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-teal-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Section>
           </div>
 

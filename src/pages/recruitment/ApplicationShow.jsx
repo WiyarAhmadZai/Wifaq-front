@@ -1790,13 +1790,14 @@ export default function ApplicationShow() {
                             setExistingOffer((prev) => ({ ...prev, status: "accepted" }));
                           }
                           setData((prev) => ({ ...prev, status: "hired" }));
-                          Swal.fire({
+                          await Swal.fire({
                             title: "Hired!",
                             text: `${data.full_name} has been successfully hired.`,
                             icon: "success",
                             timer: 2000,
                             showConfirmButton: false,
                           });
+                          navigate("/recruitment/applications");
                         } catch (error) {
                           Swal.fire("Error", "Failed to update status", "error");
                         } finally {

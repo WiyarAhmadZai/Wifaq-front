@@ -596,7 +596,7 @@ export default function ApplicationShow() {
 
   const getCurrentStepIndex = () => STEPS.findIndex((s) => s.key === data?.status);
   const currentStep = STEPS[getCurrentStepIndex()] || STEPS[0];
-  const colors = COLOR_STYLES[currentStep.color] || COLOR_STYLES.blue;
+  const colors = COLOR_STYLES[currentStep.color] || COLOR_STYLES.teal;
 
   const formatDate = (date) => date ? new Date(date).toLocaleDateString() : "—";
   const formatDateTime = (date) => date ? new Date(date).toLocaleString() : "—";

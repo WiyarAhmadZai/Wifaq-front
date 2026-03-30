@@ -379,9 +379,9 @@ export default function TeachersForm() {
             </StepCard>
           )}
 
-          {/* ── Step 5: Academic Role — Final Review ── */}
-          {step === 5 && (
-            <StepCard step={STEPS[4]}>
+          {/* ── Step 4: Final Review ── */}
+          {step === 4 && (
+            <StepCard step={STEPS[3]}>
               {/* Tip */}
               <div className="flex items-center gap-2.5 p-3 bg-teal-50 border border-teal-200 rounded-xl">
                 <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -409,32 +409,8 @@ export default function TeachersForm() {
 
               {/* All fields in one grid */}
               <div className="rounded-xl border border-gray-100 overflow-hidden">
-                {/* Section: Professional */}
-                <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Professional Info</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-50">
-                  {[
-                    { label: 'Qualification',         value: form.qualification },
-                    { label: 'Field of Study',         value: form.fieldOfStudy },
-                    { label: 'Teaching Certification', value: form.teachingCertification },
-                    { label: 'Years of Experience',    value: form.yearsOfExperience ? `${form.yearsOfExperience} yrs` : '' },
-                  ].map(r => (
-                    <div key={r.label} className="flex flex-col px-4 py-3 border-b border-gray-50 last:border-0">
-                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{r.label}</span>
-                      <span className="text-sm font-semibold text-gray-800 mt-0.5">{r.value || <span className="text-gray-300 font-normal">—</span>}</span>
-                    </div>
-                  ))}
-                </div>
-                {form.previousInstitutions && (
-                  <div className="flex flex-col px-4 py-3 border-t border-gray-50">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Previous Institutions</span>
-                    <span className="text-sm font-semibold text-gray-800 mt-0.5">{form.previousInstitutions}</span>
-                  </div>
-                )}
-
                 {/* Section: Capability */}
-                <div className="px-4 py-2 bg-gray-50 border-t border-b border-gray-100">
+                <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teaching Capability</p>
                 </div>
                 <div className="p-4 space-y-3">

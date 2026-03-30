@@ -43,7 +43,6 @@ export default function ApplicationShow() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [screeningNotes, setScreeningNotes] = useState("");
   const [checklist, setChecklist] = useState({});
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
@@ -110,8 +109,6 @@ export default function ApplicationShow() {
       const response = await get(`/recruitment/applications/${id}`);
       const appData = response.data?.data || response.data;
       setData(appData);
-      setScreeningNotes(appData?.screening_notes || "");
-      // Also set documents if they come with the application data
       if (appData?.documents) {
         setDocuments(appData.documents);
       }
@@ -164,7 +161,7 @@ export default function ApplicationShow() {
 
     setIsUpdating(true);
     try {
-      await put(`/recruitment/applications/${id}`, { ...data, status: newStatus, screening_notes: screeningNotes });
+      await put(`/recruitment/applications/${id}`, { ...data, status: newStatus});
       setData((prev) => ({ ...prev, status: newStatus }));
       Swal.fire({
         title: "Updated!",
@@ -895,19 +892,7 @@ export default function ApplicationShow() {
                       ))}
                     </div>
                   </div>
-
-                  {/* Screening Notes */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Screening Notes</h3>
-                    <textarea
-                      value={screeningNotes}
-                      onChange={(e) => setScreeningNotes(e.target.value)}
-                      rows={4}
-                      placeholder="Add your screening observations, document review notes, strengths, concerns..."
-                      className="w-full p-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
-                    />
-                  </div>
-
+                      
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4 border-t border-gray-100">
                     <button

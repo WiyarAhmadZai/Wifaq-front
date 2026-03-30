@@ -272,8 +272,10 @@ export default function StaffForm() {
     return (
       <div className="bg-white rounded-2xl border border-teal-200 shadow-sm mb-4 overflow-hidden">
         <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
-          <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-            {a.full_name?.charAt(0)}
+          <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 overflow-hidden">
+            {photoPreview ? (
+              <img src={photoPreview} alt={a.full_name} className="w-full h-full object-cover" />
+            ) : a.full_name?.charAt(0)}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-gray-800 truncate">{a.full_name}</p>

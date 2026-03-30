@@ -182,55 +182,9 @@ export default function StaffShow() {
 
             {/* Documents */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-              {/* Staff documents */}
-              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Staff Documents</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { label: "Tazkira / National ID", file: data.tazkira_scan, color: "teal", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" },
-                  { label: "Signed Contract", file: data.signed_contract, color: "emerald", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-                ].map((doc, i) => {
-                  const colors = DOC_COLORS[doc.color];
-                  return doc.file ? (
-                    <button key={i} onClick={() => setViewingDoc({ file_url: doc.file, label: doc.label })}
-                      className={`p-4 rounded-xl border ${colors.border} ${colors.bg} hover:shadow-md transition-all text-left`}>
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center flex-shrink-0`}>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={doc.icon} />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800">{doc.label}</p>
-                          <p className="text-[10px] text-gray-500 truncate mt-0.5">{doc.file?.split('/').pop()}</p>
-                          <div className={`mt-2 w-full py-1.5 px-3 ${colors.btn} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all`}>
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            View Document
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  ) : (
-                    <div key={i} className="p-4 rounded-xl border border-gray-100 bg-gray-50 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gray-200 text-gray-400 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={doc.icon} />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-400">{doc.label}</p>
-                        <p className="text-[10px] text-gray-300">Not uploaded</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
               {/* Application documents */}
-              {app?.documents?.length > 0 && (
-                <div className="mt-5 pt-5 border-t border-gray-100">
+              {app?.documents?.length > 0 ? (
+                <div>
                   <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-3">Application Documents ({app.documents.length})</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {app.documents.map((doc, i) => {
@@ -262,6 +216,10 @@ export default function StaffShow() {
                       );
                     })}
                   </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                  <p className="text-sm text-gray-400">No documents available</p>
                 </div>
               )}
             </Section>

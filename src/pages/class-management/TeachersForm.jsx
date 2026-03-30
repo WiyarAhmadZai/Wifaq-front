@@ -171,12 +171,7 @@ export default function TeachersForm() {
     // Staff Foreign Key Data
     staffId: '',
     
-    // Professional Information
-    qualification: '',
-    fieldOfStudy: '',
-    teachingCertification: '',
-    yearsOfExperience: '',
-    previousInstitutions: '',
+   
     
     // Teaching Capability
     subjectsAbleToTeach: [],
@@ -305,17 +300,13 @@ export default function TeachersForm() {
           {/* ── Step 2 ── */}
           {step === 2 && (
             <StepCard step={STEPS[1]}>
-              <div>
-                <Label required>Qualification</Label>
-                <input type="text" name="qualification" value={form.qualification} onChange={handle} 
-                  className={inp} placeholder="e.g. Master's in Education" required />
-              </div>
+             
 
-              <div>
+              {/* <div>
                 <Label required>Field of Study</Label>
                 <input type="text" name="fieldOfStudy" value={form.fieldOfStudy} onChange={handle} 
                   className={inp} placeholder="e.g. Education, Mathematics, Science" required />
-              </div>
+              </div> */}
 
               <div>
                 <Label>Teaching Certification</Label>
@@ -453,9 +444,8 @@ export default function TeachersForm() {
                 <p className="text-xs font-bold text-gray-700">Review Summary</p>
                 {[
                   { label: 'Staff Member', value: STAFF_MEMBERS.find(s => s.id == form.staffId)?.name || '—' },
-                  { label: 'Qualification', value: form.qualification || '—' },
-                  { label: 'Field of Study', value: form.fieldOfStudy || '—' },
-                  { label: 'Experience', value: form.yearsOfExperience ? `${form.yearsOfExperience} years` : '—' },
+                 
+                  
                   { label: 'Subjects', value: form.subjectsAbleToTeach.length ? form.subjectsAbleToTeach.join(', ') : '—' },
                   { label: 'Grade Levels', value: form.levelsAbleToTeach.length ? form.levelsAbleToTeach.join(', ') : '—' },
                   { label: 'Weekly Capacity', value: form.weeklyTeachingCapacity ? `${form.weeklyTeachingCapacity} hours` : '—' },

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
 
-const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
+const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship", full_time: "Full Time", part_time: "Part Time", contract: "Contract", temporary: "Temporary", internship: "Internship" };
 
 export default function StaffShow() {
   const { id } = useParams();
@@ -49,7 +49,6 @@ export default function StaffShow() {
   const name = app?.full_name || `Staff #${data.employee_id}`;
   const branchName = data.branch?.name || '—';
   const role = data.role_title_en || '—';
-  const contract = data.contract_type || '';
   const status = data.status || '';
 
   return (
@@ -114,7 +113,6 @@ export default function StaffShow() {
                 <Field label="Address" value={app?.current_address} />
                 <Field label="Place of Origin" value={app?.place_of_origin} />
                 <Field label="Father's Name" value={data.father_name} />
-                <Field label="National ID / Tazkira" value={data.national_id} />
                 <Field label="Blood Type" value={data.blood_type} />
               </div>
               {(data.emergency_contact_name || data.emergency_contact_phone) && (
@@ -157,10 +155,8 @@ export default function StaffShow() {
                 <Field label="Hire Date" value={data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
                 <Field label="Branch" value={branchName} />
                 <Field label="Department" value={data.department} />
-                <Field label="Role Title (EN)" value={role} />
-                <Field label="Role Title (Dari)" value={data.role_title_dari} />
-                <Field label="Contract Type" value={CONTRACT_LABELS[contract] || contract} />
-                <Field label="Supervisor" value={data.supervisor?.application?.full_name || (data.supervisor ? `Staff #${data.supervisor.employee_id}` : null)} />
+                <Field label="Position Title" value={role} />
+                <Field label="Contract Type" value={CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || app?.job_posting?.requisition?.employment_type || '—'} />
                 {data.has_probation && <Field label="Probation End" value={data.probation_end_date?.split('T')[0]} />}
               </div>
             </Section>
@@ -200,20 +196,13 @@ export default function StaffShow() {
                   ['Staff Code', data.employee_id],
                   ['Branch', branchName],
                   ['Department', data.department || '—'],
-                  ['Contract', CONTRACT_LABELS[contract] || contract || '—'],
-                  ['Role', role],
+                  ['Position', role],
                 ].map(([l, v]) => (
                   <div key={l} className="flex justify-between items-center">
                     <span className="text-[10px] text-teal-200">{l}</span>
                     <span className="text-[11px] font-semibold">{v}</span>
                   </div>
                 ))}
-                {data.base_salary && (
-                  <div className="border-t border-teal-500/50 pt-2.5 mt-2.5 flex justify-between items-center">
-                    <span className="text-[10px] text-teal-200">Base Salary</span>
-                    <span className="text-sm font-bold">{Number(data.base_salary).toLocaleString()} AFN</span>
-                  </div>
-                )}
               </div>
             </div>
 

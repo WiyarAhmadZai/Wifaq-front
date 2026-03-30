@@ -1370,38 +1370,16 @@ export default function ApplicationShow() {
 
                         {/* Response buttons - only for sent or draft (pending response) */}
                         {["draft", "sent"].includes(existingOffer.status) && (
-                          <>
-                            <button
-                              onClick={() => handleOfferResponse("accepted")}
-                              disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[120px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              {isSubmittingOffer ? "..." : "Accepted"}
-                            </button>
-                            <button
-                              onClick={() => handleOfferResponse("negotiated")}
-                              disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[120px] py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                              </svg>
-                              {isSubmittingOffer ? "..." : "Negotiated"}
-                            </button>
-                            <button
-                              onClick={() => handleOfferResponse("declined")}
-                              disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[120px] py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                              {isSubmittingOffer ? "..." : "Declined"}
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleOfferResponse("accepted")}
+                            disabled={isSubmittingOffer}
+                            className="flex-1 min-w-[120px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {isSubmittingOffer ? "..." : "Accepted"}
+                          </button>
                         )}
                       </div>
                     </>

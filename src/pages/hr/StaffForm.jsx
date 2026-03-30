@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post } from "../../api/axios";
+import { get, post, API_BASE_URL } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const STEPS = [
@@ -163,6 +163,9 @@ export default function StaffForm() {
         has_probation: d.has_probation || false,
         probation_end_date: d.probation_end_date?.split("T")[0] || "",
       }));
+      if (d.profile_photo) {
+        setPhotoPreview(`${API_BASE_URL.replace(/\/api\/?$/, '')}/storage/${d.profile_photo}`);
+      }
       if (d.application) {
         setSelectedApplicant({
           ...d.application,

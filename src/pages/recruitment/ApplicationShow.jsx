@@ -1636,13 +1636,13 @@ export default function ApplicationShow() {
                               </svg>
                               {isSubmittingOffer ? "Creating..." : "Create & Send Offer"}
                             </button>
-                            <button
+                            {/* <button
                               onClick={() => handleCreateOffer(false)}
                               disabled={isSubmittingOffer}
                               className="py-3 px-4 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
                             >
                               {isSubmittingOffer ? "Creating..." : "Save as Draft"}
-                            </button>
+                            </button> */}
                           </>
                         )}
                       </div>

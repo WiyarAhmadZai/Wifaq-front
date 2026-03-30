@@ -83,9 +83,13 @@ export default function ApplicationShow() {
   const [respondNotes, setRespondNotes] = useState("");
   const [pendingResponsibilityFile, setPendingResponsibilityFile] = useState(null);
 
+  // Email logs state
+  const [emailLogs, setEmailLogs] = useState([]);
+
   useEffect(() => {
     fetchData();
     fetchDocuments();
+    fetchEmailLogs();
     if (data?.status === "interview") {
       fetchInterviewSchedule();
     }
@@ -128,6 +132,17 @@ export default function ApplicationShow() {
       setDocuments(docsData);
     } catch (error) {
       console.error("Error fetching documents:", error);
+    }
+  };
+
+  const fetchEmailLogs = async () => {
+    try {
+      const response = await get(`/email-logs/application/${id}`);
+      if (response.data?.success) {
+        setEmailLogs(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching email logs:", error);
     }
   };
 
@@ -1947,6 +1962,70 @@ export default function ApplicationShow() {
                   <span className="text-xs font-medium">#{String(data.id).padStart(4, "0")}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Email Status */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700">Email Status</h3>
+                <button onClick={fetchEmailLogs} className="text-xs text-teal-600 hover:text-teal-700 transition-all" title="Refresh">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+              {emailLogs.length > 0 ? (
+                <div className="space-y-2.5">
+                  {emailLogs.map((log) => (
+                    <div key={log.id} className="p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-xs font-medium text-gray-800 leading-tight flex-1 truncate" title={log.subject}>
+                          {log.subject || log.mailable_class?.split("\\").pop()}
+                        </p>
+                        <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          log.status === "sent" ? "bg-emerald-100 text-emerald-700" :
+                          log.status === "failed" ? "bg-red-100 text-red-700" :
+                          "bg-amber-100 text-amber-700"
+                        }`}>
+                          {log.status === "sent" ? "Sent" : log.status === "failed" ? "Failed" : "Queued"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {log.status === "sent" && (
+                          <svg className="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {log.status === "failed" && (
+                          <svg className="w-3 h-3 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                        {log.status === "queued" && (
+                          <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                        <p className="text-[10px] text-gray-500">
+                          {log.status === "sent" && log.sent_at ? formatDateTime(log.sent_at) :
+                           log.status === "failed" && log.failed_at ? formatDateTime(log.failed_at) :
+                           formatDateTime(log.created_at)}
+                        </p>
+                      </div>
+                      {log.status === "failed" && log.error_message && (
+                        <p className="text-[10px] text-red-500 mt-1 truncate" title={log.error_message}>{log.error_message}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-xs text-gray-400">No emails sent yet</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

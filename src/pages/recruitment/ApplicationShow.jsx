@@ -892,7 +892,7 @@ export default function ApplicationShow() {
                       ))}
                     </div>
                   </div>
-                      
+
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4 border-t border-gray-100">
                     <button
@@ -1175,7 +1175,7 @@ export default function ApplicationShow() {
                         </svg>
                         {isSubmittingFeedback ? "Saving..." : "Fail - Reject"}
                       </button>
-                      <button
+                      {/* <button
                         onClick={() => handleInterviewFeedback("no_show")}
                         disabled={isSubmittingFeedback}
                         className="flex-1 min-w-[140px] py-3 px-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
@@ -1184,14 +1184,14 @@ export default function ApplicationShow() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         {isSubmittingFeedback ? "Saving..." : "No Show"}
-                      </button>
-                      <button
+                      </button> */}
+                      {/* <button
                         onClick={() => handleInterviewFeedback("pending")}
                         disabled={isSubmittingFeedback}
                         className="py-3 px-4 bg-gray-100 text-gray-600 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
                       >
                         {isSubmittingFeedback ? "Saving..." : "Save Feedback"}
-                      </button>
+                      </button> */}
                     </div>
                   </div>
                 </div>

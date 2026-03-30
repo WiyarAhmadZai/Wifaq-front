@@ -4,7 +4,20 @@ import { get, del, API_BASE_URL as _API } from '../../api/axios';
 const STORAGE_URL = _API.replace(/\/api\/?$/, '');
 import Swal from 'sweetalert2';
 
-const DOCUMENT_TYPES = { cv_resume: "CV/Resume", identity_document: "Identity Document", educational_document: "Educational Document", work_samples: "Work Samples" };
+const DOCUMENT_TYPES = {
+  cv_resume: { label: "CV/Resume", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", color: "blue" },
+  identity_document: { label: "Identity Document", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2", color: "teal" },
+  educational_document: { label: "Educational Document", icon: "M12 14l9-5-9-5-9 5 9 5z", color: "emerald" },
+  work_samples: { label: "Work Samples", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", color: "cyan" },
+};
+
+const DOC_COLORS = {
+  blue: { bg: "bg-blue-50", border: "border-blue-200", icon: "bg-blue-100 text-blue-600", btn: "bg-blue-600 hover:bg-blue-700" },
+  teal: { bg: "bg-teal-50", border: "border-teal-200", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700" },
+  emerald: { bg: "bg-emerald-50", border: "border-emerald-200", icon: "bg-emerald-100 text-emerald-600", btn: "bg-emerald-600 hover:bg-emerald-700" },
+  cyan: { bg: "bg-cyan-50", border: "border-cyan-200", icon: "bg-cyan-100 text-cyan-600", btn: "bg-cyan-600 hover:bg-cyan-700" },
+  gray: { bg: "bg-gray-50", border: "border-gray-200", icon: "bg-gray-100 text-gray-600", btn: "bg-gray-600 hover:bg-gray-700" },
+};
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship", full_time: "Full Time", part_time: "Part Time", contract: "Contract", temporary: "Temporary", internship: "Internship" };
 
@@ -13,6 +26,7 @@ export default function StaffShow() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [viewingDoc, setViewingDoc] = useState(null);
 
   useEffect(() => { fetchItem(); }, [id]);
 
@@ -169,45 +183,84 @@ export default function StaffShow() {
             {/* Documents */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
               {/* Staff documents */}
-              <div className="grid grid-cols-2 gap-3">
+              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Staff Documents</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { label: "Tazkira / National ID", file: data.tazkira_scan },
-                  { label: "Signed Contract", file: data.signed_contract },
-                ].map((doc, i) => (
-                  <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${doc.file ? 'bg-teal-50/50 border-teal-200' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${doc.file ? 'bg-teal-100 text-teal-600' : 'bg-gray-200 text-gray-400'}`}>
-                      {doc.file ? (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-                      )}
+                  { label: "Tazkira / National ID", file: data.tazkira_scan, color: "teal", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" },
+                  { label: "Signed Contract", file: data.signed_contract, color: "emerald", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+                ].map((doc, i) => {
+                  const colors = DOC_COLORS[doc.color];
+                  return doc.file ? (
+                    <button key={i} onClick={() => setViewingDoc({ file_url: doc.file, label: doc.label })}
+                      className={`p-4 rounded-xl border ${colors.border} ${colors.bg} hover:shadow-md transition-all text-left`}>
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center flex-shrink-0`}>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={doc.icon} />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800">{doc.label}</p>
+                          <p className="text-[10px] text-gray-500 truncate mt-0.5">{doc.file?.split('/').pop()}</p>
+                          <div className={`mt-2 w-full py-1.5 px-3 ${colors.btn} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all`}>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            View Document
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ) : (
+                    <div key={i} className="p-4 rounded-xl border border-gray-100 bg-gray-50 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gray-200 text-gray-400 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={doc.icon} />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-400">{doc.label}</p>
+                        <p className="text-[10px] text-gray-300">Not uploaded</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-700">{doc.label}</p>
-                      {doc.file && <p className="text-[10px] text-teal-600 truncate">{doc.file}</p>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Application documents */}
               {app?.documents?.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-3">Application Documents</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {app.documents.map((doc, i) => (
-                      <a key={i} href={`${STORAGE_URL}/storage/${doc.file_url}`} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-teal-50/50 border-teal-200 hover:bg-teal-100/50 transition-colors group">
-                        <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-gray-700">{DOCUMENT_TYPES[doc.document_type] || doc.document_type}</p>
-                          <p className="text-[10px] text-teal-600 truncate">{doc.file_url?.split('/').pop()}</p>
-                        </div>
-                        <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-teal-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                      </a>
-                    ))}
+                <div className="mt-5 pt-5 border-t border-gray-100">
+                  <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-3">Application Documents ({app.documents.length})</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {app.documents.map((doc, i) => {
+                      const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
+                      const colors = DOC_COLORS[docType.color];
+                      return (
+                        <button key={i} onClick={() => setViewingDoc({ file_url: doc.file_url, label: docType.label, uploaded_at: doc.uploaded_at })}
+                          className={`p-4 rounded-xl border ${colors.border} ${colors.bg} hover:shadow-md transition-all text-left`}>
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center flex-shrink-0`}>
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon} />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">{docType.label}</p>
+                              <p className="text-[10px] text-gray-500 truncate mt-0.5">{doc.file_url?.split('/').pop()}</p>
+                              {doc.uploaded_at && <p className="text-[10px] text-gray-400 mt-0.5">{new Date(doc.uploaded_at).toLocaleDateString()}</p>}
+                              <div className={`mt-2 w-full py-1.5 px-3 ${colors.btn} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View Document
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -283,6 +336,76 @@ export default function StaffShow() {
           </div>
         </div>
       </div>
+
+      {/* Document Preview Modal */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">{viewingDoc.label}</h3>
+                  {viewingDoc.uploaded_at && <p className="text-sm text-gray-500">Uploaded: {new Date(viewingDoc.uploaded_at).toLocaleDateString()}</p>}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a href={`${STORAGE_URL}/storage/${viewingDoc.file_url}`} target="_blank" rel="noopener noreferrer"
+                  className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-all flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open in New Tab
+                </a>
+                <button onClick={() => setViewingDoc(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-auto bg-gray-100 p-4 flex items-center justify-center">
+              {viewingDoc.file_url?.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={`${STORAGE_URL}/storage/${viewingDoc.file_url}`}
+                  className="w-full h-full min-h-[500px] rounded-lg bg-white" title="Document Preview" />
+              ) : viewingDoc.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <img src={`${STORAGE_URL}/storage/${viewingDoc.file_url}`}
+                  alt="Document" className="max-w-full max-h-[70vh] rounded-lg shadow-lg" />
+              ) : (
+                <div className="text-center p-8">
+                  <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-600 mb-4">This file type cannot be previewed directly</p>
+                  <a href={`${STORAGE_URL}/storage/${viewingDoc.file_url}`} target="_blank" rel="noopener noreferrer"
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-all">
+                    Download / View File
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+              <p className="text-sm text-gray-500">File: {viewingDoc.file_url?.split('/').pop()}</p>
+              <button onClick={() => setViewingDoc(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-all">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

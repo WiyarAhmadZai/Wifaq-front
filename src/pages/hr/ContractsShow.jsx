@@ -152,7 +152,7 @@ export default function ContractsShow() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-800">{data.contract_number}</h3>
-                <p className="text-sm text-gray-500">{data.staff?.full_name || 'Unknown Staff'}</p>
+                <p className="text-sm text-gray-500">{data.staff?.application?.full_name || data.staff?.full_name || 'Unknown Staff'}</p>
                 <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border mt-1 ${getStatusBadge(data.status)}`}>
                   {data.status}
                 </span>
@@ -168,7 +168,7 @@ export default function ContractsShow() {
               <InfoCard icon={Icons.Document} label="Contract Type" value={data.contract_type?.replace('_', ' ')} />
               <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date} />
               <InfoCard icon={Icons.Calendar} label="End Date" value={data.end_date || 'No end date'} />
-              <InfoCard icon={Icons.Currency} label="Salary" value={`AFN ${parseFloat(data.salary).toLocaleString()}`} />
+              <InfoCard icon={Icons.Currency} label="Salary" value={`${data.salary_currency || 'AFN'} ${parseFloat(data.salary).toLocaleString()}`} />
             </div>
           </div>
 

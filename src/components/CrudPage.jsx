@@ -18,6 +18,7 @@ export default function CrudPage({
   statusEndpoint = null,
   statusField = "status",
   statusOptions = [],
+  statusSuffix = "",
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -86,7 +87,7 @@ export default function CrudPage({
     if (!newStatus) { Swal.fire("Error", "Please select a status", "error"); return; }
     setSavingStatus(true);
     try {
-      await put(`${statusEndpoint}/${selectedItem[idField]}`, { [statusField]: newStatus });
+      await put(`${statusEndpoint}/${selectedItem[idField]}${statusSuffix}`, { [statusField]: newStatus });
       Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
       handleCloseStatusModal(); fetchItems();
     } catch (error) { Swal.fire("Error", error.response?.data?.message || "Failed to update status", "error"); }

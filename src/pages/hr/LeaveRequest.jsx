@@ -42,6 +42,7 @@ export default function LeaveRequest() {
       searchable
       searchFields={["leave_type", "reason", "coverage_plan"]}
       statusEndpoint="/hr/leave-requests"
+      statusSuffix="/status"
       statusField="status"
       statusOptions={[
         { value: "pending", label: "Pending" },

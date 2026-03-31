@@ -98,11 +98,13 @@ export default function StaffShow() {
 
           {/* Profile banner */}
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0 overflow-hidden">
-              {data.profile_photo ? (
-                <img src={`${STORAGE_URL}/storage/${data.profile_photo}`} alt={name} className="w-full h-full object-cover" />
-              ) : name.charAt(0)}
-            </div>
+            {data.profile_photo ? (
+              <img src={`${STORAGE_URL}/storage/${data.profile_photo}`} alt={name} className="w-14 h-14 rounded-2xl object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0">
+                {name.charAt(0)}
+              </div>
+            )}
             <div className="flex-1">
               <h2 className="text-lg font-black text-white">{name}</h2>
               <div className="flex items-center gap-2 mt-1 flex-wrap">

@@ -18,10 +18,9 @@ const ALL_LEVELS   = ["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6
 
 const STEPS = [
   { num: 1, label: "Staff Selection", desc: "Select staff member", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-  { num: 2, label: "Professional Info", desc: "Qualification & experience", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-  { num: 3, label: "Teaching Capability", desc: "Subjects & grade levels", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
-  { num: 4, label: "Teaching Load", desc: "Capacity & preferences", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-  { num: 5, label: "Summary", desc: "Review & confirm before submit", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
+  { num: 2, label: "Teaching Capability", desc: "Subjects & grade levels", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
+  { num: 3, label: "Teaching Load", desc: "Capacity & preferences", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+  { num: 4, label: "Summary", desc: "Review & confirm before submit", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
 ];
 
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
@@ -173,11 +172,6 @@ export default function TeachersForm() {
 
   const [form, setForm] = useState({
     staffId: "",
-    qualification: "",
-    fieldOfStudy: "",
-    teachingCertification: "",
-    yearsOfExperience: "",
-    previousInstitutions: "",
     subjectsAbleToTeach: [],
     levelsAbleToTeach: [],
     weeklyTeachingCapacity: "",
@@ -197,11 +191,6 @@ export default function TeachersForm() {
       setForm(prev => ({
         ...prev,
         staffId: d.staff_id || "",
-        qualification: d.qualification || "",
-        fieldOfStudy: d.field_of_study || "",
-        teachingCertification: d.teaching_certification || "",
-        yearsOfExperience: d.years_experience || "",
-        previousInstitutions: d.previous_institutions || "",
         subjectsAbleToTeach: d.subjects_can_teach || [],
         levelsAbleToTeach: d.levels_can_teach || [],
         weeklyTeachingCapacity: d.weekly_hours || "",
@@ -221,9 +210,8 @@ export default function TeachersForm() {
 
   const canNext = () => {
     if (step === 1) return !!form.staffId;
-    if (step === 2) return form.qualification && form.yearsOfExperience;
-    if (step === 3) return form.subjectsAbleToTeach.length > 0 && form.levelsAbleToTeach.length > 0;
-    if (step === 4) return !!form.weeklyTeachingCapacity;
+    if (step === 2) return form.subjectsAbleToTeach.length > 0 && form.levelsAbleToTeach.length > 0;
+    if (step === 3) return !!form.weeklyTeachingCapacity;
     return true;
   };
 
@@ -328,42 +316,6 @@ export default function TeachersForm() {
         {step === 2 && (
           <StepCard step={STEPS[1]}>
             <div>
-              <Label required>Qualification</Label>
-              <input type="text" name="qualification" value={form.qualification} onChange={handle} 
-                className={inp} placeholder="e.g. Master's in Education" required />
-            </div>
-
-            <div>
-              <Label required>Field of Study</Label>
-              <input type="text" name="fieldOfStudy" value={form.fieldOfStudy} onChange={handle} 
-                className={inp} placeholder="e.g. Education, Mathematics, Science" required />
-            </div>
-
-            <div>
-              <Label>Teaching Certification</Label>
-              <input type="text" name="teachingCertification" value={form.teachingCertification} onChange={handle} 
-                className={inp} placeholder="e.g. Teaching License Number" />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label required>Years of Experience</Label>
-                <input type="number" name="yearsOfExperience" value={form.yearsOfExperience} onChange={handle} 
-                  className={inp} placeholder="e.g. 5" min="0" required />
-              </div>
-              <div>
-                <Label>Previous Institutions</Label>
-                <input type="text" name="previousInstitutions" value={form.previousInstitutions} onChange={handle} 
-                  className={inp} placeholder="e.g. Kabul Public School" />
-              </div>
-            </div>
-          </StepCard>
-        )}
-
-        {/* ── Step 3 ── */}
-        {step === 3 && (
-          <StepCard step={STEPS[2]}>
-            <div>
               <Label required>Subjects Able to Teach</Label>
               <SearchMultiSelect 
                 options={ALL_SUBJECTS} 
@@ -398,9 +350,9 @@ export default function TeachersForm() {
           </StepCard>
         )}
 
-        {/* ── Step 4 ── */}
-        {step === 4 && (
-          <StepCard step={STEPS[3]}>
+        {/* ── Step 3 ── */}
+        {step === 3 && (
+          <StepCard step={STEPS[2]}>
             <div>
               <Label required>Weekly Teaching Capacity (Hours)</Label>
               <input type="number" name="weeklyTeachingCapacity" value={form.weeklyTeachingCapacity} onChange={handle} 
@@ -427,9 +379,9 @@ export default function TeachersForm() {
             </StepCard>
           )}
 
-          {/* ── Step 5: Academic Role — Final Review ── */}
-          {step === 5 && (
-            <StepCard step={STEPS[4]}>
+          {/* ── Step 4: Final Review ── */}
+          {step === 4 && (
+            <StepCard step={STEPS[3]}>
               {/* Tip */}
               <div className="flex items-center gap-2.5 p-3 bg-teal-50 border border-teal-200 rounded-xl">
                 <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -457,32 +409,8 @@ export default function TeachersForm() {
 
               {/* All fields in one grid */}
               <div className="rounded-xl border border-gray-100 overflow-hidden">
-                {/* Section: Professional */}
-                <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Professional Info</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-50">
-                  {[
-                    { label: 'Qualification',         value: form.qualification },
-                    { label: 'Field of Study',         value: form.fieldOfStudy },
-                    { label: 'Teaching Certification', value: form.teachingCertification },
-                    { label: 'Years of Experience',    value: form.yearsOfExperience ? `${form.yearsOfExperience} yrs` : '' },
-                  ].map(r => (
-                    <div key={r.label} className="flex flex-col px-4 py-3 border-b border-gray-50 last:border-0">
-                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{r.label}</span>
-                      <span className="text-sm font-semibold text-gray-800 mt-0.5">{r.value || <span className="text-gray-300 font-normal">—</span>}</span>
-                    </div>
-                  ))}
-                </div>
-                {form.previousInstitutions && (
-                  <div className="flex flex-col px-4 py-3 border-t border-gray-50">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Previous Institutions</span>
-                    <span className="text-sm font-semibold text-gray-800 mt-0.5">{form.previousInstitutions}</span>
-                  </div>
-                )}
-
                 {/* Section: Capability */}
-                <div className="px-4 py-2 bg-gray-50 border-t border-b border-gray-100">
+                <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teaching Capability</p>
                 </div>
                 <div className="p-4 space-y-3">

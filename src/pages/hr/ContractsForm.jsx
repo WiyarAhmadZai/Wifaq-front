@@ -3,12 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
-const CONTRACT_TYPE_LABELS = {
-  permanent: "Permanent", fixed_term: "Fixed Term", probation: "Probation",
-  consultancy: "Consultancy", internship: "Internship",
-  full_time: "Full Time", part_time: "Part Time", contract: "Contract", temporary: "Temporary",
-};
-
 export default function ContractsForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -36,11 +30,13 @@ export default function ContractsForm() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [contractTypes, setContractTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchStaffList();
+    fetchContractTypes();
     if (isEdit) fetchContract();
   }, [id]);
 
@@ -75,6 +71,15 @@ export default function ContractsForm() {
       setFilteredStaff(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load staff list", error);
+    }
+  };
+
+  const fetchContractTypes = async () => {
+    try {
+      const response = await get("/hr/contracts/types/list");
+      setContractTypes(response.data || []);
+    } catch (error) {
+      console.error("Failed to load contract types", error);
     }
   };
 
@@ -256,15 +261,13 @@ export default function ContractsForm() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
             >
               <option value="">Select Type</option>
-              <option value="permanent">Permanent</option>
-              <option value="fixed_term">Fixed Term</option>
-              <option value="probation">Probation</option>
-              <option value="consultancy">Consultancy</option>
-              <option value="internship">Internship</option>
+              {contractTypes.map((ct) => (
+                <option key={ct.value} value={ct.value}>{ct.label}</option>
+              ))}
             </select>
             {selectedStaff?.contract_type && (
               <p className="text-[10px] text-teal-600 mt-1">
-                Pre-filled from offer: {CONTRACT_TYPE_LABELS[selectedStaff.contract_type] || selectedStaff.contract_type}
+                Pre-filled from offer: {contractTypes.find(ct => ct.value === selectedStaff.contract_type)?.label || selectedStaff.contract_type}
               </p>
             )}
           </div>

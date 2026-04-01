@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del, put, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
+const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
 const DEPARTMENTS = ["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations", "Science", "Languages"];
@@ -217,9 +218,13 @@ export default function Staff() {
                         className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold flex-shrink-0">
-                              {name.charAt(0)}
-                            </div>
+                            {item.profile_photo ? (
+                              <img src={`${STORAGE}/storage/${item.profile_photo}`} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold flex-shrink-0">
+                                {name.charAt(0)}
+                              </div>
+                            )}
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
                               <p className="text-[11px] text-gray-400 truncate">{code} {role && `· ${role}`}</p>

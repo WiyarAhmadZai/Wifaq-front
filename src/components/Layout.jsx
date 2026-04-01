@@ -371,6 +371,7 @@ export default function Layout() {
     { label: "Add Vendor", path: "/hr/add-vendor" },
     { label: "Staff Task", path: "/hr/staff-task" },
     { label: "Planner", path: "/hr/planner" },
+    { label: "Meetings", path: "/hr/meetings" },
     { label: "Visitor Log", path: "/hr/visitor-log" },
     { label: "HR Reports", path: "/hr/reports" },
   ];

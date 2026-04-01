@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del, put, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
+const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const statusStyle = { pending: "bg-yellow-50 text-yellow-700", in_progress: "bg-teal-50 text-teal-700", completed: "bg-teal-50 text-teal-700" };
 const statusDot = { pending: "bg-yellow-500", in_progress: "bg-teal-500", completed: "bg-teal-600" };
@@ -189,9 +190,13 @@ export default function StaffTask() {
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-white">{getStaffName(item).charAt(0)}</span>
-                        </div>
+                        {item.staff?.profile_photo ? (
+                          <img src={`${STORAGE}/storage/${item.staff.profile_photo}`} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-white">{getStaffName(item).charAt(0)}</span>
+                          </div>
+                        )}
                         <div>
                           <p className="text-sm font-semibold text-gray-800">{getStaffName(item)}</p>
                           <p className="text-[11px] text-gray-400">by {item.assigner?.name || "Admin"}</p>
@@ -232,12 +237,10 @@ export default function StaffTask() {
                           className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         </button>
-                        {item.status === 'completed' && (
-                          <button onClick={(e) => handleQualityUpdate(e, item)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Rate Quality">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                          </button>
-                        )}
+                        <button onClick={(e) => handleQualityUpdate(e, item)}
+                          className={`p-1.5 rounded-lg transition-colors ${item.status === 'completed' ? 'text-teal-600 hover:bg-teal-50' : 'text-gray-300 cursor-not-allowed'}`} title={item.status === 'completed' ? "Rate Quality" : "Complete task first to rate quality"}>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                        </button>
                         <button onClick={() => navigate(`/hr/staff-task/show/${item.id}`)}
                           className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>

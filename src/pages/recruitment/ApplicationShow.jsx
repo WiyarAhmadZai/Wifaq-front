@@ -9,7 +9,7 @@ const STEPS = [
   { key: "screening", label: "Screening", desc: "Under review", color: "teal", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
   { key: "shortlisted", label: "Shortlisted", desc: "Candidate selected", color: "teal", icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" },
   { key: "interview", label: "Interview", desc: "Interview stage", color: "cyan", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
-  { key: "offer", label: "Offer", desc: "Job offer sent", color: "indigo", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+  { key: "offer", label: "Offer", desc: "Job offer sent", color: "teal", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
   { key: "hired", label: "Hired", desc: "Successfully hired", color: "emerald", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
 ];
 
@@ -17,7 +17,7 @@ const COLOR_STYLES = {
   blue: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", icon: "bg-blue-100 text-blue-600", btn: "bg-blue-600 hover:bg-blue-700", light: "bg-blue-100 text-blue-700" },
   teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
   cyan: { bg: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-700", icon: "bg-cyan-100 text-cyan-600", btn: "bg-cyan-600 hover:bg-cyan-700", light: "bg-cyan-100 text-cyan-700" },
-  indigo: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", icon: "bg-indigo-100 text-indigo-600", btn: "bg-indigo-600 hover:bg-indigo-700", light: "bg-indigo-100 text-indigo-700" },
+  indigo: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700", icon: "bg-teal-100 text-teal-600", btn: "bg-teal-600 hover:bg-teal-700", light: "bg-teal-100 text-teal-700" },
   emerald: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", icon: "bg-emerald-100 text-emerald-600", btn: "bg-emerald-600 hover:bg-emerald-700", light: "bg-emerald-100 text-emerald-700" },
   gray: { bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-700", icon: "bg-gray-100 text-gray-600", btn: "bg-gray-600 hover:bg-gray-700", light: "bg-gray-100 text-gray-700" },
 };
@@ -43,7 +43,6 @@ export default function ApplicationShow() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [screeningNotes, setScreeningNotes] = useState("");
   const [checklist, setChecklist] = useState({});
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
@@ -80,12 +79,15 @@ export default function ApplicationShow() {
   const [existingOffer, setExistingOffer] = useState(null);
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
   const [offerMode, setOfferMode] = useState("form"); // "form" | "view"
-  const [respondNotes, setRespondNotes] = useState("");
   const [pendingResponsibilityFile, setPendingResponsibilityFile] = useState(null);
+
+  // Email logs state
+  const [emailLogs, setEmailLogs] = useState([]);
 
   useEffect(() => {
     fetchData();
     fetchDocuments();
+    fetchEmailLogs();
     if (data?.status === "interview") {
       fetchInterviewSchedule();
     }
@@ -106,8 +108,6 @@ export default function ApplicationShow() {
       const response = await get(`/recruitment/applications/${id}`);
       const appData = response.data?.data || response.data;
       setData(appData);
-      setScreeningNotes(appData?.screening_notes || "");
-      // Also set documents if they come with the application data
       if (appData?.documents) {
         setDocuments(appData.documents);
       }
@@ -131,6 +131,17 @@ export default function ApplicationShow() {
     }
   };
 
+  const fetchEmailLogs = async () => {
+    try {
+      const response = await get(`/email-logs/application/${id}`);
+      if (response.data?.success) {
+        setEmailLogs(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching email logs:", error);
+    }
+  };
+
   const handleStatusChange = async (newStatus) => {
     // Confirmation dialog for reject actions
     if (newStatus === "rejected") {
@@ -149,7 +160,7 @@ export default function ApplicationShow() {
 
     setIsUpdating(true);
     try {
-      await put(`/recruitment/applications/${id}`, { ...data, status: newStatus, screening_notes: screeningNotes });
+      await put(`/recruitment/applications/${id}`, { ...data, status: newStatus});
       setData((prev) => ({ ...prev, status: newStatus }));
       Swal.fire({
         title: "Updated!",
@@ -369,15 +380,8 @@ export default function ApplicationShow() {
   };
 
   const handleOfferResponse = async (response) => {
-    // "accepted" → just jump to hired section for review (no DB update yet)
-    if (response === "accepted") {
-      setData((prev) => ({ ...prev, status: "hired" }));
-      return;
-    }
-
     const messages = {
-      declined: { title: "Decline Offer?", text: "Mark this offer as declined? The candidate will be moved to Rejected status.", confirmText: "Yes, Decline", color: "#dc2626" },
-      negotiated: { title: "Mark as Negotiated?", text: "The candidate wants to negotiate terms. You can revise the offer afterwards.", confirmText: "Yes, Negotiate", color: "#d97706" },
+      accepted: { title: "Confirm Hiring", text: `Are you sure you want to hire ${data.full_name}? This will finalize the recruitment process and send a welcome email.`, confirmText: "Yes, Hire", color: "#059669" },
     };
 
     const msg = messages[response];
@@ -390,9 +394,6 @@ export default function ApplicationShow() {
       cancelButtonColor: "#6b7280",
       confirmButtonText: msg.confirmText,
       cancelButtonText: "Cancel",
-      input: "textarea",
-      inputPlaceholder: response === "declined" ? "Reason for declining..." : "Negotiation notes...",
-      inputAttributes: { "aria-label": "Notes" },
     });
 
     if (!confirmResult.isConfirmed) return;
@@ -401,27 +402,17 @@ export default function ApplicationShow() {
     try {
       const res = await put(`/recruitment/applications/${id}/offer/respond`, {
         response,
-        candidate_notes: confirmResult.value || respondNotes,
+        candidate_notes: "",
       });
 
       if (res.data?.success) {
-        const statusMap = { declined: "rejected", negotiated: "offer" };
-        setData((prev) => ({ ...prev, status: statusMap[response] }));
+        setData((prev) => ({ ...prev, status: "hired" }));
         setExistingOffer(res.data.data);
 
-        if (response === "negotiated") {
-          setOfferMode("form");
-        }
-
-        const resultMessages = {
-          declined: "Offer declined. Application moved to Rejected.",
-          negotiated: "Marked for negotiation. You can now revise the offer terms.",
-        };
-
         Swal.fire({
-          title: "Updated!",
-          text: resultMessages[response],
-          icon: response === "declined" ? "info" : "warning",
+          title: "Hired!",
+          text: `${data.full_name} has been successfully hired. A welcome email has been sent.`,
+          icon: "success",
           timer: 2500,
           showConfirmButton: false,
         });
@@ -584,7 +575,7 @@ export default function ApplicationShow() {
 
   const getCurrentStepIndex = () => STEPS.findIndex((s) => s.key === data?.status);
   const currentStep = STEPS[getCurrentStepIndex()] || STEPS[0];
-  const colors = COLOR_STYLES[currentStep.color] || COLOR_STYLES.blue;
+  const colors = COLOR_STYLES[currentStep.color] || COLOR_STYLES.teal;
 
   const formatDate = (date) => date ? new Date(date).toLocaleDateString() : "—";
   const formatDateTime = (date) => date ? new Date(date).toLocaleString() : "—";
@@ -881,18 +872,6 @@ export default function ApplicationShow() {
                     </div>
                   </div>
 
-                  {/* Screening Notes */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Screening Notes</h3>
-                    <textarea
-                      value={screeningNotes}
-                      onChange={(e) => setScreeningNotes(e.target.value)}
-                      rows={4}
-                      placeholder="Add your screening observations, document review notes, strengths, concerns..."
-                      className="w-full p-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
-                    />
-                  </div>
-
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4 border-t border-gray-100">
                     <button
@@ -1175,7 +1154,7 @@ export default function ApplicationShow() {
                         </svg>
                         {isSubmittingFeedback ? "Saving..." : "Fail - Reject"}
                       </button>
-                      <button
+                      {/* <button
                         onClick={() => handleInterviewFeedback("no_show")}
                         disabled={isSubmittingFeedback}
                         className="flex-1 min-w-[140px] py-3 px-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
@@ -1184,14 +1163,14 @@ export default function ApplicationShow() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         {isSubmittingFeedback ? "Saving..." : "No Show"}
-                      </button>
-                      <button
+                      </button> */}
+                      {/* <button
                         onClick={() => handleInterviewFeedback("pending")}
                         disabled={isSubmittingFeedback}
                         className="py-3 px-4 bg-gray-100 text-gray-600 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
                       >
                         {isSubmittingFeedback ? "Saving..." : "Save Feedback"}
-                      </button>
+                      </button> */}
                     </div>
                   </div>
                 </div>
@@ -1221,7 +1200,7 @@ export default function ApplicationShow() {
                         existingOffer.status === "negotiated" ? "bg-amber-100 text-amber-700" :
                         existingOffer.status === "sent" ? "bg-blue-100 text-blue-700" :
                         existingOffer.status === "expired" ? "bg-gray-100 text-gray-700" :
-                        "bg-indigo-100 text-indigo-700"
+                        "bg-teal-100 text-teal-700"
                       }`}>
                         {existingOffer.status?.replace(/_/g, " ")}
                       </span>
@@ -1235,8 +1214,8 @@ export default function ApplicationShow() {
                   {offerMode === "view" && existingOffer && (
                     <>
                       {/* Offer Details Card */}
-                      <div className="p-5 bg-indigo-50 rounded-xl border border-indigo-200">
-                        <h3 className="text-sm font-semibold text-indigo-800 mb-4 flex items-center gap-2">
+                      <div className="p-5 bg-teal-50 rounded-xl border border-teal-200">
+                        <h3 className="text-sm font-semibold text-teal-800 mb-4 flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
@@ -1244,51 +1223,51 @@ export default function ApplicationShow() {
                         </h3>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                           <div>
-                            <p className="text-xs text-indigo-600 mb-1">Position</p>
+                            <p className="text-xs text-teal-600 mb-1">Position</p>
                             <p className="text-sm font-medium text-gray-800">{data.job_posting?.requisition?.position_title || data.job_posting?.title || "—"}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-indigo-600 mb-1">Department</p>
+                            <p className="text-xs text-teal-600 mb-1">Department</p>
                             <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.department?.replace(/_/g, " ") || "—"}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-indigo-600 mb-1">Employment Type</p>
+                            <p className="text-xs text-teal-600 mb-1">Employment Type</p>
                             <p className="text-sm font-medium text-gray-800 capitalize">{data.job_posting?.requisition?.employment_type?.replace(/_/g, " ") || "—"}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-indigo-600 mb-1">Salary</p>
+                            <p className="text-xs text-teal-600 mb-1">Salary</p>
                             <p className="text-sm font-bold text-gray-800">
                               {Number(existingOffer.salary_amount).toLocaleString()} {existingOffer.salary_currency}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-indigo-600 mb-1">Start Date</p>
+                            <p className="text-xs text-teal-600 mb-1">Start Date</p>
                             <p className="text-sm font-medium text-gray-800">{formatDate(existingOffer.start_date)}</p>
                           </div>
                         </div>
 
                         {/* Job Responsibilities */}
                         {existingOffer.job_responsibilities && (
-                          <div className="mt-4 pt-4 border-t border-indigo-200">
-                            <p className="text-xs text-indigo-600 mb-1">Job Responsibilities</p>
+                          <div className="mt-4 pt-4 border-t border-teal-200">
+                            <p className="text-xs text-teal-600 mb-1">Job Responsibilities</p>
                             <p className="text-sm text-gray-700 whitespace-pre-line">{existingOffer.job_responsibilities}</p>
                           </div>
                         )}
 
                         {/* Additional Terms */}
                         {existingOffer.additional_terms && (
-                          <div className="mt-4 pt-4 border-t border-indigo-200">
-                            <p className="text-xs text-indigo-600 mb-1">Additional Terms</p>
+                          <div className="mt-4 pt-4 border-t border-teal-200">
+                            <p className="text-xs text-teal-600 mb-1">Additional Terms</p>
                             <p className="text-sm text-gray-700">{existingOffer.additional_terms}</p>
                           </div>
                         )}
 
                         {/* Responsibility File */}
                         {existingOffer.responsibility_file_url ? (
-                          <div className="mt-4 pt-4 border-t border-indigo-200">
-                            <p className="text-xs text-indigo-600 mb-2">Responsibility File</p>
-                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-indigo-100">
-                              <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                          <div className="mt-4 pt-4 border-t border-teal-200">
+                            <p className="text-xs text-teal-600 mb-2">Responsibility File</p>
+                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-teal-100">
+                              <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
@@ -1298,7 +1277,7 @@ export default function ApplicationShow() {
                                 href={getResponsibilityFileUrl(existingOffer.responsibility_file_url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-all flex items-center gap-1"
+                                className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-medium hover:bg-teal-700 transition-all flex items-center gap-1"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1309,13 +1288,13 @@ export default function ApplicationShow() {
                             </div>
                           </div>
                         ) : (
-                          <div className="mt-4 pt-4 border-t border-indigo-200">
-                            <p className="text-xs text-indigo-600 mb-2">Responsibility File</p>
-                            <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-indigo-200 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-white transition-all">
-                              <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="mt-4 pt-4 border-t border-teal-200">
+                            <p className="text-xs text-teal-600 mb-2">Responsibility File</p>
+                            <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-teal-200 rounded-lg cursor-pointer hover:border-teal-400 hover:bg-white transition-all">
+                              <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                               </svg>
-                              <span className="text-xs text-indigo-500">Upload responsibility file</span>
+                              <span className="text-xs text-teal-500">Upload responsibility file</span>
                               <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleUploadResponsibilityFile} />
                             </label>
                           </div>
@@ -1323,15 +1302,15 @@ export default function ApplicationShow() {
 
                         {/* Candidate Notes (if responded) */}
                         {existingOffer.candidate_notes && (
-                          <div className="mt-4 pt-4 border-t border-indigo-200">
-                            <p className="text-xs text-indigo-600 mb-1">Candidate Notes</p>
+                          <div className="mt-4 pt-4 border-t border-teal-200">
+                            <p className="text-xs text-teal-600 mb-1">Candidate Notes</p>
                             <p className="text-sm text-gray-700 italic">{existingOffer.candidate_notes}</p>
                           </div>
                         )}
 
                         {/* Sent info */}
                         {existingOffer.sent_at && (
-                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                          <div className="mt-4 pt-4 border-t border-teal-200">
                             <p className="text-xs text-gray-500">
                               Email sent: {formatDateTime(existingOffer.sent_at)}
                             </p>
@@ -1359,7 +1338,7 @@ export default function ApplicationShow() {
                         {["draft", "sent", "negotiated"].includes(existingOffer.status) && (
                           <button
                             onClick={() => setOfferMode("form")}
-                            className="flex-1 min-w-[140px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+                            className="flex-1 min-w-[140px] py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1368,40 +1347,18 @@ export default function ApplicationShow() {
                           </button>
                         )}
 
-                        {/* Response buttons - only for sent or draft (pending response) */}
+                        {/* Accept & Confirm Hiring - only for sent or draft */}
                         {["draft", "sent"].includes(existingOffer.status) && (
-                          <>
-                            <button
-                              onClick={() => handleOfferResponse("accepted")}
-                              disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[120px] py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              {isSubmittingOffer ? "..." : "Accepted"}
-                            </button>
-                            <button
-                              onClick={() => handleOfferResponse("negotiated")}
-                              disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[120px] py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                              </svg>
-                              {isSubmittingOffer ? "..." : "Negotiated"}
-                            </button>
-                            <button
-                              onClick={() => handleOfferResponse("declined")}
-                              disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[120px] py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                              {isSubmittingOffer ? "..." : "Declined"}
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleOfferResponse("accepted")}
+                            disabled={isSubmittingOffer}
+                            className="flex-1 min-w-[200px] py-3 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg hover:shadow-xl"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {isSubmittingOffer ? "Processing..." : "Accept & Confirm Hiring"}
+                          </button>
                         )}
                       </div>
                     </>
@@ -1452,12 +1409,12 @@ export default function ApplicationShow() {
                               value={offerData.salary_amount}
                               onChange={(e) => setOfferData({ ...offerData, salary_amount: e.target.value })}
                               placeholder="e.g. 25000"
-                              className="flex-1 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                              className="flex-1 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                             />
                             <select
                               value={offerData.salary_currency}
                               onChange={(e) => setOfferData({ ...offerData, salary_currency: e.target.value })}
-                              className="w-28 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                              className="w-28 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                             >
                               <option value="AFN">AFN</option>
                               <option value="USDT">USDT</option>
@@ -1472,7 +1429,7 @@ export default function ApplicationShow() {
                             type="date"
                             value={offerData.start_date}
                             onChange={(e) => setOfferData({ ...offerData, start_date: e.target.value })}
-                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                           />
                         </div>
 
@@ -1484,7 +1441,7 @@ export default function ApplicationShow() {
                             onChange={(e) => setOfferData({ ...offerData, job_responsibilities: e.target.value })}
                             rows={4}
                             placeholder="List the key responsibilities and duties for this role..."
-                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
                           />
                         </div>
 
@@ -1496,7 +1453,7 @@ export default function ApplicationShow() {
                             onChange={(e) => setOfferData({ ...offerData, additional_terms: e.target.value })}
                             rows={3}
                             placeholder="Probation period, working hours, reporting structure, special conditions..."
-                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none resize-none"
                           />
                         </div>
                       </div>
@@ -1508,8 +1465,8 @@ export default function ApplicationShow() {
 
                         {/* Case 1: Existing offer with uploaded file */}
                         {existingOffer?.responsibility_file_url ? (
-                          <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
-                            <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                          <div className="flex items-center gap-3 p-3 bg-teal-50 rounded-xl border border-teal-200">
+                            <div className="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
@@ -1522,7 +1479,7 @@ export default function ApplicationShow() {
                               href={getResponsibilityFileUrl(existingOffer.responsibility_file_url)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                              className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-all"
                               title="View File"
                             >
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1540,7 +1497,7 @@ export default function ApplicationShow() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                             </button>
-                            <label className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all cursor-pointer" title="Replace File">
+                            <label className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-all cursor-pointer" title="Replace File">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                               </svg>
@@ -1550,15 +1507,15 @@ export default function ApplicationShow() {
 
                         ) : pendingResponsibilityFile ? (
                           /* Case 2: New offer - file selected but not yet uploaded */
-                          <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
-                            <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                          <div className="flex items-center gap-3 p-3 bg-teal-50 rounded-xl border border-teal-200">
+                            <div className="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-800 truncate">{pendingResponsibilityFile.name}</p>
-                              <p className="text-xs text-indigo-500">Will be uploaded when offer is created</p>
+                              <p className="text-xs text-teal-500">Will be uploaded when offer is created</p>
                             </div>
                             <button
                               onClick={() => setPendingResponsibilityFile(null)}
@@ -1573,7 +1530,7 @@ export default function ApplicationShow() {
 
                         ) : (
                           /* Case 3: No file yet - show upload area */
-                          <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all">
+                          <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-teal-400 hover:bg-teal-50/50 transition-all">
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
@@ -1603,7 +1560,7 @@ export default function ApplicationShow() {
                             <button
                               onClick={() => handleUpdateOffer(true)}
                               disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[160px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                              className="flex-1 min-w-[160px] py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -1629,20 +1586,20 @@ export default function ApplicationShow() {
                             <button
                               onClick={() => handleCreateOffer(true)}
                               disabled={isSubmittingOffer}
-                              className="flex-1 min-w-[160px] py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                              className="flex-1 min-w-[160px] py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                               </svg>
                               {isSubmittingOffer ? "Creating..." : "Create & Send Offer"}
                             </button>
-                            <button
+                            {/* <button
                               onClick={() => handleCreateOffer(false)}
                               disabled={isSubmittingOffer}
                               className="py-3 px-4 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
                             >
                               {isSubmittingOffer ? "Creating..." : "Save as Draft"}
-                            </button>
+                            </button> */}
                           </>
                         )}
                       </div>
@@ -1654,164 +1611,107 @@ export default function ApplicationShow() {
 
             {/* HIRED STAGE */}
             {isHired && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
-                <div className="px-6 py-4 border-b border-white/50 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-800">Hiring Confirmation</h2>
-                    <p className="text-sm text-gray-600">Review applicant summary and confirm hiring</p>
+              <div className="space-y-6">
+                {/* Success Card */}
+                <div className="rounded-2xl overflow-hidden border border-emerald-200">
+                  <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-500 px-6 py-10 text-center">
+                    <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-5">
+                      <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">Successfully Hired!</h2>
+                    <p className="text-white/90 text-sm mb-4">{data.full_name} has been officially welcomed to the team</p>
+                    <span className="inline-block px-5 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-semibold">
+                      {data.job_posting?.requisition?.position_title?.replace(/_/g, " ") || data.job_posting?.title || "—"}
+                    </span>
                   </div>
                 </div>
 
-                <div className="p-6 bg-white space-y-6">
-                  {/* Applicant Summary */}
-                  <div className="p-5 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <h3 className="text-sm font-semibold text-emerald-800 mb-4 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      Applicant Summary
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Full Name</p>
-                        <p className="text-sm font-medium text-gray-800">{data.full_name || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Email</p>
-                        <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Phone</p>
-                        <p className="text-sm font-medium text-gray-800">{data.phone || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-600 mb-1">Position</p>
-                        <p className="text-sm font-medium text-gray-800">{data.job_posting?.requisition?.position_title || data.job_posting?.title || "—"}</p>
-                      </div>
-                      {existingOffer && (
-                        <>
-                          <div>
-                            <p className="text-xs text-emerald-600 mb-1">Offered Salary</p>
-                            <p className="text-sm font-medium text-gray-800">{existingOffer.salary_currency} {Number(existingOffer.salary_amount).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-emerald-600 mb-1">Start Date</p>
-                            <p className="text-sm font-medium text-gray-800">{existingOffer.start_date ? new Date(existingOffer.start_date).toLocaleDateString() : "—"}</p>
-                          </div>
-                        </>
-                      )}
+                {/* Hiring Details */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
+                  {/* Candidate Card */}
+                  <div className="flex items-center gap-4 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      {data.full_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                     </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-800">{data.full_name}</h3>
+                      <p className="text-sm text-emerald-700 font-medium">
+                        {data.job_posting?.requisition?.position_title?.replace(/_/g, " ") || data.job_posting?.title || "—"}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{data.email}</p>
+                    </div>
+                    <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wide">
+                      Hired
+                    </span>
                   </div>
 
-                  {/* Documents Summary */}
-                  <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Documents ({documents?.length || 0})
-                    </h3>
-                    {documents && documents.length > 0 ? (
-                      <div className="space-y-2">
-                        {documents.map((doc) => {
-                          const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z", color: "gray" };
-                          const docColors = COLOR_STYLES[docType.color];
-                          return (
-                            <div key={doc.id} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
-                              <div className={`w-8 h-8 rounded-lg ${docColors?.icon || "bg-gray-100 text-gray-600"} flex items-center justify-center flex-shrink-0`}>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon || "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"} />
-                                </svg>
-                              </div>
-                              <span className="text-sm text-gray-700 flex-1">{docType.label}</span>
-                              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 text-center py-2">No documents on file</p>
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {existingOffer && (
+                      <>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Salary</p>
+                          <p className="text-sm font-bold text-gray-800">
+                            {Number(existingOffer.salary_amount).toLocaleString()} {existingOffer.salary_currency}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Start Date</p>
+                          <p className="text-sm font-bold text-gray-800">{formatDate(existingOffer.start_date)}</p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Department</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">
+                            {data.job_posting?.requisition?.department?.replace(/_/g, " ") || "—"}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Employment Type</p>
+                          <p className="text-sm font-medium text-gray-800 capitalize">
+                            {data.job_posting?.requisition?.employment_type?.replace(/_/g, " ") || "—"}
+                          </p>
+                        </div>
+                      </>
                     )}
-                  </div>
-
-                  {/* Process Timeline */}
-                  <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
-                      Process Completed
-                    </h3>
-                    <div className="space-y-3">
-                      {STEPS.slice(0, -1).map((step) => {
-                        const stepColors = COLOR_STYLES[step.color];
-                        return (
-                          <div key={step.key} className="flex items-center gap-3">
-                            <div className={`w-6 h-6 rounded-full ${stepColors.icon} flex items-center justify-center flex-shrink-0`}>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                            <span className="text-sm text-gray-700">{step.label}</span>
-                            <span className="text-xs text-gray-400">— {step.desc}</span>
-                          </div>
-                        );
-                      })}
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Hired Date</p>
+                      <p className="text-sm font-bold text-gray-800">{formatDate(existingOffer?.responded_at || data.updated_at)}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Application ID</p>
+                      <p className="text-sm font-medium text-gray-800">#{String(data.id).padStart(4, "0")}</p>
                     </div>
                   </div>
 
-                  {/* Accept Button */}
-                  <div className="flex justify-center pt-2">
-                    <button
-                      onClick={async () => {
-                        const result = await Swal.fire({
-                          title: "Confirm Hiring",
-                          text: `Are you sure you want to hire ${data.full_name}? This will finalize the recruitment process.`,
-                          icon: "question",
-                          showCancelButton: true,
-                          confirmButtonColor: "#059669",
-                          cancelButtonColor: "#6b7280",
-                          confirmButtonText: "Yes, Hire",
-                          cancelButtonText: "Cancel",
-                        });
-                        if (!result.isConfirmed) return;
-                        setIsUpdating(true);
-                        try {
-                          await put(`/recruitment/applications/${id}`, { ...data, status: "hired" });
-                          if (existingOffer) {
-                            await put(`/recruitment/applications/${id}/offer/respond`, { response: "accepted", candidate_notes: "" });
-                            setExistingOffer((prev) => ({ ...prev, status: "accepted" }));
-                          }
-                          setData((prev) => ({ ...prev, status: "hired" }));
-                          await Swal.fire({
-                            title: "Hired!",
-                            text: `${data.full_name} has been successfully hired.`,
-                            icon: "success",
-                            timer: 2000,
-                            showConfirmButton: false,
-                          });
-                          navigate("/recruitment/applications");
-                        } catch (error) {
-                          Swal.fire("Error", "Failed to update status", "error");
-                        } finally {
-                          setIsUpdating(false);
-                        }
-                      }}
-                      disabled={isUpdating}
-                      className="py-4 px-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all disabled:opacity-50 shadow-lg hover:shadow-xl"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  {/* Job Responsibilities */}
+                  {existingOffer?.job_responsibilities && (
+                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                      <p className="text-xs text-blue-700 uppercase font-semibold mb-2">Job Responsibilities</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{existingOffer.job_responsibilities}</p>
+                    </div>
+                  )}
+
+                  {/* Additional Terms */}
+                  {existingOffer?.additional_terms && (
+                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                      <p className="text-xs text-amber-700 uppercase font-semibold mb-2">Additional Terms</p>
+                      <p className="text-sm text-gray-700">{existingOffer.additional_terms}</p>
+                    </div>
+                  )}
+
+                  {/* Email Notice */}
+                  <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      {isUpdating ? "Processing..." : "Accept & Confirm Hiring"}
-                    </button>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-800">Welcome email sent to candidate</p>
+                      <p className="text-xs text-emerald-600">A congratulations email has been sent to {data.email}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1948,6 +1848,70 @@ export default function ApplicationShow() {
                   <span className="text-xs font-medium">#{String(data.id).padStart(4, "0")}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Email Status */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700">Email Status</h3>
+                <button onClick={fetchEmailLogs} className="text-xs text-teal-600 hover:text-teal-700 transition-all" title="Refresh">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+              {emailLogs.length > 0 ? (
+                <div className="space-y-2.5">
+                  {emailLogs.map((log) => (
+                    <div key={log.id} className="p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-xs font-medium text-gray-800 leading-tight flex-1 truncate" title={log.subject}>
+                          {log.subject || log.mailable_class?.split("\\").pop()}
+                        </p>
+                        <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          log.status === "sent" ? "bg-emerald-100 text-emerald-700" :
+                          log.status === "failed" ? "bg-red-100 text-red-700" :
+                          "bg-amber-100 text-amber-700"
+                        }`}>
+                          {log.status === "sent" ? "Sent" : log.status === "failed" ? "Failed" : "Queued"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {log.status === "sent" && (
+                          <svg className="w-3 h-3 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {log.status === "failed" && (
+                          <svg className="w-3 h-3 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                        {log.status === "queued" && (
+                          <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                        <p className="text-[10px] text-gray-500">
+                          {log.status === "sent" && log.sent_at ? formatDateTime(log.sent_at) :
+                           log.status === "failed" && log.failed_at ? formatDateTime(log.failed_at) :
+                           formatDateTime(log.created_at)}
+                        </p>
+                      </div>
+                      {log.status === "failed" && log.error_message && (
+                        <p className="text-[10px] text-red-500 mt-1 truncate" title={log.error_message}>{log.error_message}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-xs text-gray-400">No emails sent yet</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

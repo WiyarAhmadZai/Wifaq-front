@@ -255,8 +255,11 @@ export default function StaffTaskShow() {
               Task Information
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              <InfoCard icon={Icons.User} label="Staff Name" value={data.staff_name} highlight />
+              <InfoCard icon={Icons.User} label="Staff Name" value={data.staff?.application?.full_name || data.staff_name} highlight />
               <InfoCard icon={Icons.User} label="Assigned By" value={data.assigner?.name || '-'} />
+              <InfoCard icon={Icons.Calendar} label="Task Type" value={data.task_type ? data.task_type.charAt(0).toUpperCase() + data.task_type.slice(1) : 'Normal'} />
+              <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date ? new Date(data.start_date).toLocaleDateString() : '-'} />
+              {data.deadline && <InfoCard icon={Icons.Clock} label="Deadline" value={new Date(data.deadline).toLocaleDateString()} />}
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center gap-2 text-teal-600 mb-2">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const statusConf = {
@@ -10,11 +10,19 @@ const statusConf = {
   cancelled: { label: "Cancelled", bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500" },
 };
 
+const emptyNote = { key_points: "", action_items_summary: "", reminders: "", additional_notes: "" };
+
 export default function MeetingShow() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Notes state
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [noteForm, setNoteForm] = useState({ ...emptyNote });
+  const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data)).catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
@@ -24,6 +32,67 @@ export default function MeetingShow() {
     const r = await Swal.fire({ title: "Delete meeting?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
     if (r.isConfirmed) { try { await del(`/meetings/${id}`); } catch {} navigate("/hr/meetings"); }
   };
+
+  // ── Notes handlers ──
+  const openNewNote = () => {
+    setEditingNoteId(null);
+    setNoteForm({ ...emptyNote });
+    setShowNoteForm(true);
+  };
+
+  const openEditNote = (note) => {
+    setEditingNoteId(note.id);
+    setNoteForm({
+      key_points: note.key_points || "",
+      action_items_summary: note.action_items_summary || "",
+      reminders: note.reminders || "",
+      additional_notes: note.additional_notes || "",
+    });
+    setShowNoteForm(true);
+  };
+
+  const cancelNote = () => {
+    setShowNoteForm(false);
+    setEditingNoteId(null);
+    setNoteForm({ ...emptyNote });
+  };
+
+  const saveNote = async () => {
+    if (!noteForm.key_points.trim()) {
+      Swal.fire("Required", "Key points cannot be empty", "warning");
+      return;
+    }
+    setSavingNote(true);
+    try {
+      if (editingNoteId) {
+        const res = await put(`/meetings/${id}/notes/${editingNoteId}`, noteForm);
+        setData((p) => ({
+          ...p,
+          notes: p.notes.map((n) => n.id === editingNoteId ? (res.data?.data || res.data) : n),
+        }));
+      } else {
+        const res = await post(`/meetings/${id}/notes`, noteForm);
+        const newNote = res.data?.data || res.data;
+        setData((p) => ({ ...p, notes: [newNote, ...(p.notes || [])] }));
+      }
+      cancelNote();
+      Swal.fire({ icon: "success", title: editingNoteId ? "Notes Updated!" : "Notes Saved!", timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to save notes", "error");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const deleteNote = async (noteId) => {
+    const r = await Swal.fire({ title: "Delete this note?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
+    if (r.isConfirmed) {
+      try { await del(`/meetings/${id}/notes/${noteId}`); } catch {}
+      setData((p) => ({ ...p, notes: (p.notes || []).filter((n) => n.id !== noteId) }));
+    }
+  };
+
+  const handleNoteChange = (e) => setNoteForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div></div>;
   if (!data) return <div className="text-center py-24 text-sm text-gray-400">Meeting not found</div>;
@@ -37,6 +106,7 @@ export default function MeetingShow() {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
   const totalAgendaMin = (data.agenda_items || []).reduce((s, a) => s + (a.duration_min || 0), 0);
+  const notes = data.notes || [];
 
   return (
     <div className="min-h-screen bg-gray-50/60">
@@ -122,6 +192,154 @@ export default function MeetingShow() {
                 )}
               </div>
             </div>
+
+            {/* ── Meeting Notes ── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">Meeting Notes</p>
+                    <p className="text-[10px] text-amber-600">{notes.length} note{notes.length !== 1 ? "s" : ""} recorded</p>
+                  </div>
+                </div>
+                {!showNoteForm && (
+                  <button onClick={openNewNote}
+                    className="px-2.5 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-[10px] font-medium flex items-center gap-1 transition-colors">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Take Notes
+                  </button>
+                )}
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* Note Form (inline) */}
+                {showNoteForm && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      <p className="text-xs font-bold text-amber-800">{editingNoteId ? "Edit Notes" : "Record Meeting Notes"}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-amber-700 mb-1">Key Discussion Points *</label>
+                      <textarea name="key_points" value={noteForm.key_points} onChange={handleNoteChange} rows={3}
+                        placeholder="Main topics discussed, decisions made..."
+                        className="w-full px-3 py-2 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white resize-none placeholder-gray-400" />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-amber-700 mb-1">Action Items</label>
+                      <textarea name="action_items_summary" value={noteForm.action_items_summary} onChange={handleNoteChange} rows={2}
+                        placeholder="Tasks assigned, deadlines, who is responsible..."
+                        className="w-full px-3 py-2 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white resize-none placeholder-gray-400" />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-amber-700 mb-1">Reminders</label>
+                      <textarea name="reminders" value={noteForm.reminders} onChange={handleNoteChange} rows={2}
+                        placeholder="Follow-ups, deadlines, important dates..."
+                        className="w-full px-3 py-2 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white resize-none placeholder-gray-400" />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-amber-700 mb-1">Additional Notes</label>
+                      <textarea name="additional_notes" value={noteForm.additional_notes} onChange={handleNoteChange} rows={2}
+                        placeholder="Anything else worth noting..."
+                        className="w-full px-3 py-2 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white resize-none placeholder-gray-400" />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={saveNote} disabled={savingNote}
+                        className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                        {savingNote ? (
+                          <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
+                        ) : (
+                          <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{editingNoteId ? "Update Notes" : "Save Notes"}</>
+                        )}
+                      </button>
+                      <button onClick={cancelNote} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Existing Notes */}
+                {notes.length === 0 && !showNoteForm && (
+                  <div className="text-center py-6">
+                    <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    <p className="text-xs text-gray-400">No notes recorded yet</p>
+                    <button onClick={openNewNote} className="mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700">Take first notes</button>
+                  </div>
+                )}
+
+                {notes.map((note) => (
+                  <div key={note.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                    {/* Note header */}
+                    <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[8px] font-bold">
+                          {(note.recorded_by?.name || "?").charAt(0)}
+                        </div>
+                        <span className="text-[10px] font-medium text-gray-600">{note.recorded_by?.name || "Unknown"}</span>
+                        <span className="text-[9px] text-gray-400">{note.recorded_at ? new Date(note.recorded_at).toLocaleString() : ""}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openEditNote(note)} className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </button>
+                        <button onClick={() => deleteNote(note.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Note content */}
+                    <div className="p-4 space-y-3">
+                      {note.key_points && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Key Points</p>
+                          </div>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap pl-5">{note.key_points}</p>
+                        </div>
+                      )}
+                      {note.action_items_summary && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Action Items</p>
+                          </div>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap pl-5">{note.action_items_summary}</p>
+                        </div>
+                      )}
+                      {note.reminders && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Reminders</p>
+                          </div>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap pl-5">{note.reminders}</p>
+                        </div>
+                      )}
+                      {note.additional_notes && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Additional Notes</p>
+                          </div>
+                          <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap pl-5">{note.additional_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Sidebar */}
@@ -162,6 +380,7 @@ export default function MeetingShow() {
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between"><span className="text-teal-200">Organizer</span><span className="font-medium">{data.organizer?.name || "-"}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Duration</span><span className="font-medium">{getDuration()}</span></div>
+                <div className="flex justify-between"><span className="text-teal-200">Notes</span><span className="font-medium">{notes.length}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Created</span><span className="font-medium">{data.created_at ? new Date(data.created_at).toLocaleDateString() : "-"}</span></div>
               </div>
             </div>

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
+import { get, put } from "../api/axios";
 import Swal from "sweetalert2";
 
 const Icons = {
@@ -322,6 +323,149 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
     {isOpen && <div className="mt-1 space-y-0.5">{children}</div>}
   </div>
 );
+
+// ── Notification Bell ─────────────────────────────────────────────────────────
+function NotificationBell() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef(null);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await get("/notifications");
+      const data = res.data;
+      setNotifications(data?.data || []);
+      setUnreadCount(data?.unread_count || 0);
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // poll every 30s
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const markAsRead = async (id) => {
+    try { await put(`/notifications/${id}/read`); } catch {}
+    setNotifications((p) => p.map((n) => n.id === id ? { ...n, read_at: new Date().toISOString() } : n));
+    setUnreadCount((p) => Math.max(0, p - 1));
+  };
+
+  const markAllRead = async () => {
+    try { await put("/notifications/read-all"); } catch {}
+    setNotifications((p) => p.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
+    setUnreadCount(0);
+  };
+
+  const handleClick = (n) => {
+    if (!n.read_at) markAsRead(n.id);
+    const d = n.data || {};
+    if (d.meeting_id) navigate(`/hr/meetings/show/${d.meeting_id}`);
+    setOpen(false);
+  };
+
+  const timeAgo = (date) => {
+    if (!date) return "";
+    const diff = (Date.now() - new Date(date).getTime()) / 1000;
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return new Date(date).toLocaleDateString();
+  };
+
+  const getIcon = (data) => {
+    if (data?.type === "meeting_invite") {
+      if (data.action === "cancelled") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
+      return { bg: "bg-teal-100", color: "text-teal-600", path: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" };
+    }
+    return { bg: "bg-blue-100", color: "text-blue-600", path: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" };
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
+        className="relative p-2 text-gray-600 hover:text-gray-800 transition-colors">
+        <Icons.Bell />
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800">Notifications</h3>
+              {unreadCount > 0 && <p className="text-[10px] text-gray-500">{unreadCount} unread</p>}
+            </div>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} className="text-[10px] text-teal-600 hover:text-teal-700 font-semibold">
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          {/* List */}
+          <div className="max-h-80 overflow-y-auto">
+            {notifications.length === 0 ? (
+              <div className="px-4 py-8 text-center">
+                <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <p className="text-xs text-gray-400">No notifications yet</p>
+              </div>
+            ) : (
+              notifications.map((n) => {
+                const icon = getIcon(n.data);
+                const isUnread = !n.read_at;
+                return (
+                  <div key={n.id} onClick={() => handleClick(n)}
+                    className={`px-4 py-3 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors flex items-start gap-3 ${isUnread ? "bg-teal-50/40" : ""}`}>
+                    <div className={`w-8 h-8 rounded-lg ${icon.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                      <svg className={`w-4 h-4 ${icon.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon.path} />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[11px] leading-relaxed ${isUnread ? "text-gray-800 font-semibold" : "text-gray-600"}`}>
+                        {n.data?.message || "New notification"}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[9px] text-gray-400">{timeAgo(n.created_at)}</span>
+                        {n.data?.location && (
+                          <span className="text-[9px] text-gray-400 flex items-center gap-0.5">
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>
+                            {n.data.location}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isUnread && <div className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-2"></div>}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Profile Button (navigates to /profile page) ─────────────────────────────
 function ProfileButton() {
@@ -831,10 +975,7 @@ export default function Layout() {
                   AR
                 </button>
               </div>
-              <button className="relative p-2 text-gray-600 hover:text-gray-800">
-                <Icons.Bell />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
+              <NotificationBell />
               <ProfileButton />
             </div>
           </div>

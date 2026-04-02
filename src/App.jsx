@@ -48,6 +48,9 @@ const HRReports = lazy(() => import("./pages/hr/HRReports"));
 const Meetings = lazy(() => import("./pages/hr/Meetings"));
 const MeetingForm = lazy(() => import("./pages/hr/MeetingForm"));
 const MeetingShow = lazy(() => import("./pages/hr/MeetingShow"));
+const Events = lazy(() => import("./pages/hr/Events"));
+const EventForm = lazy(() => import("./pages/hr/EventForm"));
+const EventShow = lazy(() => import("./pages/hr/EventShow"));
 const SalarySnapshot = lazy(() => import("./pages/hr/SalarySnapshot"));
 
 // HR Pages - Form
@@ -309,6 +312,12 @@ function App() {
             <Route path="hr/meetings/create" element={<Suspense fallback={<PageLoader />}><MeetingForm /></Suspense>} />
             <Route path="hr/meetings/edit/:id" element={<Suspense fallback={<PageLoader />}><MeetingForm /></Suspense>} />
             <Route path="hr/meetings/show/:id" element={<Suspense fallback={<PageLoader />}><MeetingShow /></Suspense>} />
+
+            {/* HR Routes - Events */}
+            <Route path="hr/events" element={<Suspense fallback={<PageLoader />}><Events /></Suspense>} />
+            <Route path="hr/events/create" element={<Suspense fallback={<PageLoader />}><EventForm /></Suspense>} />
+            <Route path="hr/events/edit/:id" element={<Suspense fallback={<PageLoader />}><EventForm /></Suspense>} />
+            <Route path="hr/events/show/:id" element={<Suspense fallback={<PageLoader />}><EventShow /></Suspense>} />
 
             {/* Student Management */}
             <Route path="student-management/students" element={<Suspense fallback={<PageLoader />}><Students /></Suspense>} />

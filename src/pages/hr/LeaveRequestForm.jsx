@@ -78,7 +78,9 @@ export default function LeaveRequestForm() {
 
   const fetchStaff = async () => {
     try {
-      const res = await get("/hr/staff/list?per_page=1000");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const branchParam = user.branch_id ? `&branch_id=${user.branch_id}` : "";
+      const res = await get(`/hr/staff/list?per_page=1000&status=active${branchParam}`);
       const data = res.data?.data || res.data || [];
       setStaffList(Array.isArray(data) ? data : []);
       setFilteredStaff(Array.isArray(data) ? data : []);

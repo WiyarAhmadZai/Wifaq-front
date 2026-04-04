@@ -45,8 +45,9 @@ export default function PlannerForm() {
     try {
       // Assuming we'll get users from an API endpoint
       // We might need to adjust this based on your actual user API
-      const response = await get('/hr/staff/list'); // Using staff list as users
-      setUsers(response.data);
+      const response = await get('/hr/staff/list?per_page=1000');
+      const data = response.data?.data || response.data || [];
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching users:', error);
       // Fallback to sample users if API fails
@@ -178,7 +179,7 @@ export default function PlannerForm() {
         >
           <option value="">Select...</option>
           {users.map(user => (
-            <option key={user.id} value={user.id}>{user.full_name}</option>
+            <option key={user.id} value={user.id}>{user.application?.full_name || user.full_name || `Staff #${user.employee_id}`}</option>
           ))}
         </select>
         {errors.assigned_to && <p className="mt-1 text-sm text-red-600">{errors.assigned_to[0]}</p>}
@@ -556,7 +557,7 @@ export default function PlannerForm() {
                     className="rounded text-yellow-600 focus:ring-yellow-500"
                   />
                   <label htmlFor={`notify-${user.id}`} className="ml-2 text-xs text-gray-700">
-                    {user.full_name}
+                    {user.application?.full_name || user.full_name || `Staff #${user.employee_id}`}
                   </label>
                 </div>
               ))}

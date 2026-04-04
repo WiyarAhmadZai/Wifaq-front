@@ -58,6 +58,7 @@ export default function JobRequisitionForm() {
     position_title: "",
     employment_type: "",
     number_of_positions: 1,
+    experience_years: "",
     justification: "",
     approval_status: "approved",
     approved_by: "",
@@ -119,6 +120,7 @@ export default function JobRequisitionForm() {
         position_title: d.position_title || "",
         employment_type: d.employment_type || "",
         number_of_positions: d.number_of_positions || 1,
+        experience_years: d.experience_years || "",
         justification: d.justification || "",
         approval_status: d.approval_status || "approved",
         approved_by: d.approved_by || "",
@@ -169,6 +171,7 @@ export default function JobRequisitionForm() {
         position_title: formData.position_title,
         employment_type: formData.employment_type,
         number_of_positions: formData.number_of_positions,
+        experience_years: formData.experience_years || null,
         justification: formData.justification,
         deadline_date: formData.deadline_date || null,
         // For create, explicitly set approval_status. For edit, include if in edit mode
@@ -336,6 +339,30 @@ export default function JobRequisitionForm() {
                 className={inputClass("number_of_positions")}
               />
               {err("number_of_positions") && <p className="text-red-500 text-[10px] mt-1">{err("number_of_positions")}</p>}
+            </div>
+
+            {/* Experience Years */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                Experience Required (Years)
+              </label>
+              <select
+                name="experience_years"
+                value={formData.experience_years}
+                onChange={handleChange}
+                className={inputClass("experience_years")}
+              >
+                <option value="">Not specified</option>
+                <option value="0">No experience needed</option>
+                <option value="1">1 Year</option>
+                <option value="2">2 Years</option>
+                <option value="3">3 Years</option>
+                <option value="4">4 Years</option>
+                <option value="5">5 Years</option>
+                <option value="7">7+ Years</option>
+                <option value="10">10+ Years</option>
+              </select>
+              {err("experience_years") && <p className="text-red-500 text-[10px] mt-1">{err("experience_years")}</p>}
             </div>
 
             {/* Justification */}

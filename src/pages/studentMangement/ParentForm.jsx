@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 
 const INCOME_CATEGORIES = [
   {
@@ -184,9 +185,7 @@ export default function ParentForm() {
       }
       navigate(`/student-management/parents/show/${familyId}`);
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire(
           "Error",
           error.response?.data?.message || "Failed to save family",

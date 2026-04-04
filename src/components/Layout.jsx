@@ -514,10 +514,10 @@ export default function Layout() {
     { label: "Attendance", path: "/hr/attendance" },
     { label: "Leave Request", path: "/hr/leave-request" },
     { label: "Add Vendor", path: "/hr/add-vendor" },
-    { label: "Staff Task", path: "/hr/staff-task" },
     { label: "Planner", key: "planner", children: [
       { label: "Meetings", path: "/hr/meetings" },
       { label: "Events", path: "/hr/events" },
+      { label: "Staff Task", path: "/hr/staff-task" },
     ]},
     { label: "Visitor Log", path: "/hr/visitor-log" },
     { label: "HR Reports", path: "/hr/reports" },

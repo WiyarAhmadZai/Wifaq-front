@@ -52,6 +52,7 @@ export default function Events() {
   const getEventsForDay = (day) => {
     const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     return items.filter((ev) => {
+      if (ev.status === "cancelled") return false;
       const start = ev.start_date?.split("T")[0];
       const end = ev.end_date?.split("T")[0] || start;
       return start && dateStr >= start && dateStr <= end;

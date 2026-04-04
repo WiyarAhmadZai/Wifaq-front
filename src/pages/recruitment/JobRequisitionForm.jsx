@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import Select from "react-select";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
@@ -72,9 +73,14 @@ export default function JobRequisitionForm() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchStaff();
-    fetchEnums();
-    if (isEdit) fetchRequisition();
+    const loadData = async () => {
+      await fetchStaff();
+      // Fetch enums first to populate dropdown options
+      await fetchEnums();
+      // Then fetch requisition data so dropdowns can match values
+      if (isEdit) await fetchRequisition();
+    };
+    loadData();
   }, [id]);
 
   const fetchStaff = async () => {
@@ -105,6 +111,8 @@ export default function JobRequisitionForm() {
       const response = await get(`/recruitment/job-requisitions/${id}`);
       const d = response.data?.data || response.data;
       console.log("Fetched data:", d);
+      console.log("Position title value:", d.position_title);
+      console.log("Desired roles available:", desiredRoles);
       console.log("Deadline date raw:", d.deadline_date);
       
       // Handle various date formats from backend
@@ -116,13 +124,13 @@ export default function JobRequisitionForm() {
       }
       
       setFormData({
-        department: d.department || "",
-        position_title: d.position_title || "",
-        employment_type: d.employment_type || "",
+        department: d.department?.value || d.department || "",
+        position_title: d.position_title?.value || d.position_title || "",
+        employment_type: d.employment_type?.value || d.employment_type || "",
         number_of_positions: d.number_of_positions || 1,
         experience_years: d.experience_years || "",
         justification: d.justification || "",
-        approval_status: d.approval_status || "approved",
+        approval_status: d.approval_status?.value || d.approval_status || "approved",
         approved_by: d.approved_by || "",
         deadline_date: formattedDate,
       });
@@ -166,18 +174,27 @@ export default function JobRequisitionForm() {
     setErrors({});
     
     try {
-      const dataToSend = {
-        department: formData.department,
-        position_title: formData.position_title,
-        employment_type: formData.employment_type,
-        number_of_positions: formData.number_of_positions,
-        experience_years: formData.experience_years || null,
-        justification: formData.justification,
-        deadline_date: formData.deadline_date || null,
-        // For create, explicitly set approval_status. For edit, include if in edit mode
-        approval_status: formData.approval_status || 'approved',
-        approved_by: formData.approved_by || null,
-      };
+      const dataToSend = isEdit
+        ? {
+            // Exclude position_title in edit mode since it's read-only
+            department: formData.department,
+            employment_type: formData.employment_type,
+            number_of_positions: formData.number_of_positions,
+            justification: formData.justification,
+            deadline_date: formData.deadline_date || null,
+            approval_status: formData.approval_status || 'approved',
+            approved_by: formData.approved_by || null,
+          }
+        : {
+            department: formData.department,
+            position_title: formData.position_title,
+            employment_type: formData.employment_type,
+            number_of_positions: formData.number_of_positions,
+            justification: formData.justification,
+            deadline_date: formData.deadline_date || null,
+            approval_status: formData.approval_status || 'approved',
+            approved_by: formData.approved_by || null,
+          };
       
       if (isEdit) {
         await put(`/recruitment/job-requisitions/${id}`, dataToSend);
@@ -285,22 +302,73 @@ export default function JobRequisitionForm() {
             {/* Position Title */}
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Position Title *
+                Position Title {isEdit ? "" : "*"}
               </label>
-              <select
-                name="position_title"
-                value={formData.position_title}
-                onChange={handleChange}
-                required
-                className={inputClass("position_title")}
-              >
-                <option value="">Select Position Title</option>
-                {desiredRoles.map((role) => (
-                  <option key={role} value={role}>
-                    {DESIRED_ROLE_LABELS[role] || role}
-                  </option>
-                ))}
-              </select>
+              {isEdit ? (
+                <input
+                  type="text"
+                  name="position_title"
+                  value={DESIRED_ROLE_LABELS[formData.position_title] || formData.position_title}
+                  readOnly
+                  className={`${inputClass("position_title")} bg-gray-100 cursor-not-allowed`}
+                />
+              ) : (
+                <Select
+                  name="position_title"
+                  value={desiredRoles.find(r => r === formData.position_title) 
+                    ? { value: formData.position_title, label: DESIRED_ROLE_LABELS[formData.position_title] || formData.position_title }
+                    : null
+                  }
+                  onChange={(selected) => handleChange({ 
+                    target: { name: "position_title", value: selected?.value || "" }
+                  })}
+                  options={desiredRoles.map((role) => ({
+                    value: role,
+                    label: DESIRED_ROLE_LABELS[role] || role,
+                  }))}
+                  placeholder="Select Position Title"
+                  isClearable
+                  className={errors.position_title ? "react-select-error" : ""}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      minHeight: "42px",
+                      borderRadius: "0.75rem",
+                      borderColor: errors.position_title ? "#f87171" : state.isFocused ? "#2dd4bf" : "#e5e7eb",
+                      boxShadow: state.isFocused ? "0 0 0 2px rgba(45, 212, 191, 0.2)" : "none",
+                      fontSize: "12px",
+                      backgroundColor: errors.position_title ? "#fef2f2" : "#fff",
+                    }),
+                    placeholder: (base) => ({
+                      ...base,
+                      color: "#9ca3af",
+                      fontSize: "12px",
+                    }),
+                    option: (base, state) => ({
+                      ...base,
+                      fontSize: "12px",
+                      padding: "8px 12px",
+                      backgroundColor: state.isSelected ? "#0d9488" : state.isFocused ? "#ccfbf1" : "#fff",
+                      color: state.isSelected ? "#fff" : "#374151",
+                    }),
+                    singleValue: (base) => ({
+                      ...base,
+                      fontSize: "12px",
+                      color: "#374151",
+                    }),
+                    input: (base) => ({
+                      ...base,
+                      fontSize: "12px",
+                    }),
+                    menu: (base) => ({
+                      ...base,
+                      borderRadius: "0.75rem",
+                      marginTop: "4px",
+                      zIndex: 50,
+                    }),
+                  }}
+                />
+              )}
               {err("position_title") && <p className="text-red-500 text-[10px] mt-1">{err("position_title")}</p>}
             </div>
 

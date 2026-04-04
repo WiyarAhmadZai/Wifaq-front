@@ -175,7 +175,7 @@ export default function StaffShow() {
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <Field label="Hire Date" value={data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
                 <Field label="Branch" value={branchName} />
-                <Field label="Department" value={data.department} />
+                <Field label="Department" value={data.job_requisition?.department} />
                 <Field label="Position Title" value={role} />
                 <Field label="Contract Type" value={CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || app?.job_posting?.requisition?.employment_type || '—'} />
                 {data.has_probation && <Field label="Probation End" value={data.probation_end_date?.split('T')[0]} />}
@@ -236,7 +236,7 @@ export default function StaffShow() {
                 {[
                   ['Staff Code', data.employee_id],
                   ['Branch', branchName],
-                  ['Department', data.department || '—'],
+                  ['Department', data.job_requisition?.department || '—'],
                   ['Position', role],
                 ].map(([l, v]) => (
                   <div key={l} className="flex justify-between items-center">

@@ -1,17 +1,8 @@
 import { useState, useEffect, useRef } from "react"; // useRef kept for SearchMultiSelect
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../../api/axios";
+import { get, post, put, API_BASE_URL } from "../../../api/axios";
 import Swal from "sweetalert2";
-
-// ── Demo fallback data ────────────────────────────────────────────────────────
-const DEMO_STAFF = [
-  { id: 1, staff_code: "WS-2026-001", name: "Ahmad Karimi",    job_title: "Senior Teacher",   department: "Academic" },
-  { id: 2, staff_code: "WS-2026-002", name: "Fatima Ahmadi",   job_title: "Teacher",           department: "Academic" },
-  { id: 3, staff_code: "WS-2026-003", name: "Noor Rahman",     job_title: "Teacher",           department: "Academic" },
-  { id: 4, staff_code: "WS-2026-004", name: "Maryam Sultani",  job_title: "Lead Teacher",      department: "Academic" },
-  { id: 5, staff_code: "WS-2026-005", name: "Khalid Noori",    job_title: "Teacher",           department: "Science" },
-  { id: 6, staff_code: "WS-2026-006", name: "Zarghona Rasooli",job_title: "Subject Teacher",   department: "Languages" },
-];
+const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const ALL_SUBJECTS = ["Mathematics","English","Dari","Pashto","Science","Physics","Chemistry","Biology","Social Studies","Islamic Studies","Computer Science","Art","Physical Education","History","Geography"];
 const ALL_LEVELS   = ["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
@@ -169,6 +160,7 @@ export default function TeachersForm() {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [staffList, setStaffList] = useState([]);
 
   const [form, setForm] = useState({
     staffId: "",
@@ -180,8 +172,27 @@ export default function TeachersForm() {
   });
 
   useEffect(() => {
+    fetchStaff();
     if (isEdit) loadTeacher();
   }, [id]);
+
+  const fetchStaff = async () => {
+    try {
+      const res = await get('/hr/staff/list?per_page=1000&department=Academic');
+      const raw = res.data?.data || res.data || [];
+      const list = (Array.isArray(raw) ? raw : []).map(s => ({
+        id: s.id,
+        name: s.application?.full_name || `Staff #${s.employee_id}`,
+        staff_code: s.employee_id,
+        job_title: s.role_title_en || '—',
+        department: s.department || '—',
+        photo: s.profile_photo,
+      }));
+      setStaffList(list);
+    } catch (err) {
+      console.error('Failed to fetch staff', err);
+    }
+  };
 
   const loadTeacher = async () => {
     setLoading(true);
@@ -290,7 +301,7 @@ export default function TeachersForm() {
             <div>
               <Label required>Select Staff Member</Label>
               <SearchSelect
-                options={DEMO_STAFF}
+                options={staffList}
                 value={form.staffId}
                 onChange={v => set('staffId', v)}
                 placeholder="Search and select staff member..."
@@ -299,16 +310,27 @@ export default function TeachersForm() {
               />
             </div>
 
-            {form.staffId && (
-              <div className="p-4 bg-teal-50 rounded-xl border border-teal-100">
-                <p className="text-sm font-semibold text-teal-800">
-                  {DEMO_STAFF.find(s => s.id == form.staffId)?.name}
-                </p>
-                <p className="text-xs text-teal-600 mt-1">
-                  {DEMO_STAFF.find(s => s.id == form.staffId)?.staff_code} • {DEMO_STAFF.find(s => s.id == form.staffId)?.job_title}
-                </p>
-              </div>
-            )}
+            {form.staffId && (() => {
+              const s = staffList.find(x => x.id == form.staffId);
+              if (!s) return null;
+              return (
+                <div className="p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-200">
+                  <div className="flex items-center gap-3">
+                    {s.photo ? (
+                      <img src={`${STORAGE}/storage/${s.photo}`} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                        {s.name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800">{s.name}</p>
+                      <p className="text-xs text-teal-600">{s.staff_code} • {s.job_title} • {s.department}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </StepCard>
         )}
 
@@ -390,12 +412,16 @@ export default function TeachersForm() {
 
               {/* Staff banner */}
               {(() => {
-                const staff = DEMO_STAFF.find(s => s.id == form.staffId);
+                const staff = staffList.find(s => s.id == form.staffId);
                 return (
                   <div className={`flex items-center gap-4 p-4 rounded-xl border-2 ${staff ? 'bg-teal-50 border-teal-300' : 'bg-red-50 border-red-200'}`}>
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-base flex-shrink-0 ${staff ? 'bg-teal-600' : 'bg-red-400'}`}>
-                      {staff ? staff.name.charAt(0) : '?'}
-                    </div>
+                    {staff?.photo ? (
+                      <img src={`${STORAGE}/storage/${staff.photo}`} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                    ) : (
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base flex-shrink-0 ${staff ? 'bg-teal-600' : 'bg-red-400'}`}>
+                        {staff ? staff.name.charAt(0) : '?'}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-800">{staff?.name || 'No staff selected'}</p>
                       {staff && <p className="text-xs text-teal-600 mt-0.5">{staff.staff_code} · {staff.job_title} · {staff.department}</p>}

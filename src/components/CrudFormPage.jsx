@@ -155,9 +155,11 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
   };
 
   const getFieldClass = (fieldName) => {
-    const baseClass = "w-full px-2.5 py-1.5 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs transition-colors";
-    const errorClass = errors[fieldName] ? "border-red-500 bg-red-50" : "border-gray-300";
-    return `${baseClass} ${errorClass}`;
+    const baseClass = "w-full px-2.5 py-1.5 border rounded-lg focus:ring-2 text-xs transition-colors outline-none";
+    if (errors[fieldName]) {
+      return `${baseClass} border-red-400 bg-red-50 focus:ring-red-300 focus:border-red-400`;
+    }
+    return `${baseClass} border-gray-300 focus:ring-teal-500 focus:border-teal-500`;
   };
 
   const shouldRenderField = (field) => {

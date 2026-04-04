@@ -30,15 +30,11 @@ const BarChart = ({ data }) => {
   );
 };
 
-const MiniStat = ({ label, value, icon, color }) => (
-  <div className={`${color} rounded-xl p-3 flex items-center gap-3`}>
-    <div className="w-9 h-9 bg-white/80 rounded-lg flex items-center justify-center flex-shrink-0">
-      <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} /></svg>
-    </div>
-    <div>
-      <p className="text-lg font-black text-gray-800">{value}</p>
-      <p className="text-[9px] font-semibold text-gray-600 uppercase tracking-wider">{label}</p>
-    </div>
+const MiniStat = ({ label, value, color, textColor }) => (
+  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center hover:shadow-md transition-shadow">
+    <p className={`text-2xl font-black ${textColor}`}>{value}</p>
+    <p className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider mt-1">{label}</p>
+    <div className={`h-1 ${color} rounded-full mt-2 mx-auto w-8`} />
   </div>
 );
 
@@ -107,15 +103,15 @@ export default function HRReports() {
 
       <div className="px-4 py-5 space-y-5">
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-          <MiniStat label="Total Staff" value={totalStaff} icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" color="bg-teal-50" />
-          <MiniStat label="Active" value={Number(s.active) || 0} icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-emerald-50" />
-          <MiniStat label="On Leave" value={Number(s.on_leave) || 0} icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" color="bg-amber-50" />
-          <MiniStat label="Contracts" value={Number(c.active) || 0} icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" color="bg-blue-50" />
-          <MiniStat label="Pending Leave" value={Number(l.pending) || 0} icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-orange-50" />
-          <MiniStat label="Tasks" value={Number(t.pending) || 0} icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" color="bg-purple-50" />
-          <MiniStat label="Visitors In" value={Number(v.inside) || 0} icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" color="bg-cyan-50" />
-          <MiniStat label="Meetings" value={Number(m.scheduled) || 0} icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" color="bg-pink-50" />
+        <div className="grid grid-cols-4 lg:grid-cols-8 gap-3">
+          <MiniStat label="Total Staff" value={totalStaff} color="bg-teal-500" textColor="text-teal-700" />
+          <MiniStat label="Active" value={Number(s.active) || 0} color="bg-emerald-500" textColor="text-emerald-700" />
+          <MiniStat label="On Leave" value={Number(s.on_leave) || 0} color="bg-amber-500" textColor="text-amber-700" />
+          <MiniStat label="Contracts" value={Number(c.active) || 0} color="bg-blue-500" textColor="text-blue-700" />
+          <MiniStat label="Pending Leave" value={Number(l.pending) || 0} color="bg-orange-500" textColor="text-orange-700" />
+          <MiniStat label="Tasks" value={Number(t.pending) || 0} color="bg-purple-500" textColor="text-purple-700" />
+          <MiniStat label="Visitors In" value={Number(v.inside) || 0} color="bg-cyan-500" textColor="text-cyan-700" />
+          <MiniStat label="Meetings" value={Number(m.scheduled) || 0} color="bg-pink-500" textColor="text-pink-700" />
         </div>
 
         {/* Staff, Departments, Contracts */}

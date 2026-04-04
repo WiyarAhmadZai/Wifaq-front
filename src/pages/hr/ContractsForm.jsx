@@ -20,8 +20,6 @@ export default function ContractsForm() {
     allowances: {},
     expected_time: "",
     benefits: {},
-    job_description: "",
-    terms_conditions: "",
     status: "draft",
   });
 
@@ -106,8 +104,6 @@ export default function ContractsForm() {
         allowances: data.allowances || {},
         expected_time: data.expected_time || "",
         benefits: data.benefits || {},
-        job_description: data.job_description || "",
-        terms_conditions: data.terms_conditions || "",
         status: data.status || "draft",
       });
       if (data.staff) {
@@ -368,34 +364,6 @@ export default function ContractsForm() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
             />
           </div>
-        </div>
-
-        {/* Job Description */}
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Job Description <span className="text-gray-400 font-normal">(optional)</span>
-          </label>
-          <textarea
-            name="job_description"
-            value={formData.job_description}
-            onChange={handleChange}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          ></textarea>
-        </div>
-
-        {/* Terms & Conditions */}
-        <div className="mt-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Terms & Conditions <span className="text-gray-400 font-normal">(optional)</span>
-          </label>
-          <textarea
-            name="terms_conditions"
-            value={formData.terms_conditions}
-            onChange={handleChange}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-          ></textarea>
         </div>
 
         {/* Buttons */}

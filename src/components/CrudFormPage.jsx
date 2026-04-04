@@ -126,18 +126,26 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
       if (isEdit) {
         const updateUrl = editEndpoint ? `${editEndpoint}/${id}` : `${apiEndpoint}/${id}`;
         await put(updateUrl, formData);
-        Swal.fire('Success', 'Updated successfully', 'success');
+        await Swal.fire({ icon: 'success', title: `${title} Updated!`, text: `${title} has been updated successfully.`, timer: 2000, showConfirmButton: false });
       } else {
         const createUrl = storeEndpoint || apiEndpoint;
         await post(createUrl, formData);
-        Swal.fire('Success', 'Created successfully', 'success');
+        await Swal.fire({ icon: 'success', title: `${title} Created!`, text: `${title} has been created successfully.`, timer: 2000, showConfirmButton: false });
       }
       navigate(listRoute);
     } catch (error) {
       if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-        const firstError = Object.values(error.response.data.errors)[0][0];
-        Swal.fire('Validation Error', firstError, 'warning');
+        const errs = error.response.data.errors;
+        setErrors(errs);
+        // Scroll to the first error field
+        const firstErrorField = Object.keys(errs)[0];
+        setTimeout(() => {
+          const el = document.querySelector(`[name="${firstErrorField}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus();
+          }
+        }, 100);
       } else {
         Swal.fire('Error', error.response?.data?.message || 'Failed to save', 'error');
       }

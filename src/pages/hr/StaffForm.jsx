@@ -126,7 +126,7 @@ export default function StaffForm() {
     father_name: "", blood_type: "",
     profile_photo: null,
     emergency_contact_name: "", emergency_contact_phone: "",
-    branch_id: "", department: "",
+    branch_id: "", job_requisition_id: "",
     role_title_en: "", status: "active",
     has_probation: false, probation_end_date: "",
   });
@@ -164,7 +164,7 @@ export default function StaffForm() {
         blood_type: d.blood_type || "",
         emergency_contact_name: d.emergency_contact_name || "",
         emergency_contact_phone: d.emergency_contact_phone || "",
-        branch_id: d.branch_id || "", department: d.department || "",
+        branch_id: d.branch_id || "", job_requisition_id: d.job_requisition_id || "",
         role_title_en: d.role_title_en || "",
         status: d.status || "active",
         has_probation: d.has_probation || false,
@@ -177,7 +177,7 @@ export default function StaffForm() {
         setSelectedApplicant({
           ...d.application,
           position: d.application.job_posting?.requisition?.position_title || d.application.job_posting?.title || d.role_title_en || '',
-          department: d.application.job_posting?.requisition?.department || d.department || '',
+          department: d.job_requisition?.department || '',
           employment_type: d.application.job_posting?.requisition?.employment_type || '',
           documents: d.application.documents || [],
           offer: d.application.offer,
@@ -237,6 +237,7 @@ export default function StaffForm() {
       setForm(prev => ({
         ...prev,
         application_id: appId,
+        job_requisition_id: applicant.job_requisition_id || prev.job_requisition_id,
         department: applicant.department || prev.department,
         role_title_en: applicant.position || prev.role_title_en,
       }));
@@ -493,7 +494,7 @@ export default function StaffForm() {
                 </div>
                 <div>
                   <Label>Department</Label>
-                  <input type="text" value={form.department || "—"} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
+                  <input type="text" value={selectedApplicant?.department || "—"} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
                 </div>
                 <div>
                   <Label>Position Title</Label>
@@ -553,7 +554,7 @@ export default function StaffForm() {
                   { label: "Email", value: selectedApplicant?.email },
                   { label: "Phone", value: selectedApplicant?.contact_number },
                   { label: "Position", value: form.role_title_en },
-                  { label: "Department", value: form.department },
+                  { label: "Department", value: selectedApplicant?.department },,
                   { label: "Branch", value: branches.find(b => String(b.id) === String(form.branch_id))?.name },
                   { label: "Contract Type", value: CONTRACT_LABELS[selectedApplicant?.employment_type] || selectedApplicant?.employment_type },
                   { label: "Father's Name", value: form.father_name },

@@ -1,410 +1,336 @@
-import { useState, useEffect } from 'react';
-import { get } from '../../api/axios';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { get } from "../../api/axios";
 
-const Icons = {
-  Users: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
-  ),
-  CheckCircle: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  Calendar: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  ),
-  Briefcase: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-    </svg>
-  ),
-  FileText: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  ),
-  CheckSquare: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-    </svg>
-  ),
-  CreditCard: () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-    </svg>
-  ),
-  TrendingUp: () => (
-    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-    </svg>
-  ),
-  TrendingDown: () => (
-    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-    </svg>
-  ),
+const CircularProgress = ({ percentage, size = 56, color = "text-teal-600" }) => {
+  const sw = 5, r = (size - sw) / 2, c = r * 2 * Math.PI, off = c - (percentage / 100) * c;
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg className="transform -rotate-90" width={size} height={size}>
+        <circle cx={size/2} cy={size/2} r={r} stroke="currentColor" strokeWidth={sw} fill="transparent" className="text-gray-100" />
+        <circle cx={size/2} cy={size/2} r={r} stroke="currentColor" strokeWidth={sw} fill="transparent" strokeDasharray={c} strokeDashoffset={off} className={color} strokeLinecap="round" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center"><span className="text-xs font-black text-gray-800">{percentage}%</span></div>
+    </div>
+  );
 };
 
-const StatCard = ({ icon: Icon, title, value, trend, trendUp, color }) => (
-  <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-    <div className="flex items-start justify-between">
-      <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center`}>
-        <Icon />
-      </div>
+const BarChart = ({ data }) => {
+  const max = Math.max(...data.map((d) => d.value), 1);
+  return (
+    <div className="flex items-end justify-between gap-2 h-32">
+      {data.map((d) => (
+        <div key={d.label} className="flex-1 flex flex-col items-center gap-1.5">
+          <span className="text-[10px] font-bold text-gray-700">{d.value}</span>
+          <div className={`w-full rounded-t-lg ${d.color} transition-all duration-700`} style={{ height: `${Math.max((d.value / max) * 100, 4)}%` }} />
+          <span className="text-[9px] text-gray-500 font-medium text-center leading-tight">{d.label}</span>
+        </div>
+      ))}
     </div>
-    <div className="mt-4">
-      <p className="text-sm text-gray-500">{title}</p>
-      <p className="text-2xl font-bold text-gray-800 mt-1">{value}</p>
-      {trend && (
-        <p className={`text-xs flex items-center gap-1 mt-1 ${trendUp ? 'text-emerald-600' : 'text-rose-600'}`}>
-          {trendUp ? <Icons.TrendingUp /> : <Icons.TrendingDown />}
-          {trend}
-        </p>
-      )}
+  );
+};
+
+const MiniStat = ({ label, value, icon, color }) => (
+  <div className={`${color} rounded-xl p-3 flex items-center gap-3`}>
+    <div className="w-9 h-9 bg-white/80 rounded-lg flex items-center justify-center flex-shrink-0">
+      <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} /></svg>
+    </div>
+    <div>
+      <p className="text-lg font-black text-gray-800">{value}</p>
+      <p className="text-[9px] font-semibold text-gray-600 uppercase tracking-wider">{label}</p>
     </div>
   </div>
 );
 
-const ProgressBar = ({ label, value, total, color = 'bg-teal-600' }) => {
-  const percentage = total > 0 ? (value / total) * 100 : 0;
-  return (
-    <div className="mb-3">
-      <div className="flex items-center justify-between text-sm mb-1">
-        <span className="text-gray-600">{label}</span>
-        <span className="font-medium text-gray-800">{value}</span>
-      </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
-      </div>
+const Section = ({ title, subtitle, children, action, onAction }) => (
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+      <div><h3 className="text-sm font-bold text-gray-800">{title}</h3>{subtitle && <p className="text-[10px] text-gray-400">{subtitle}</p>}</div>
+      {action && <button onClick={onAction} className="text-[10px] text-teal-600 hover:text-teal-700 font-semibold">{action}</button>}
     </div>
-  );
-};
-
-const CircularProgress = ({ percentage, size = 60 }) => {
-  const strokeWidth = 5;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (percentage / 100) * circumference;
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg className="transform -rotate-90" width={size} height={size}>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          className="text-gray-100"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="text-teal-600"
-          strokeLinecap="round"
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-sm font-bold text-gray-800">{percentage}%</span>
-      </div>
-    </div>
-  );
-};
-
-const ModuleCard = ({ title, subtitle, icon: Icon, children, actionText, actionLink }) => (
-  <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-    <div className="flex items-start justify-between mb-4">
-      <div>
-        <h3 className="text-base font-semibold text-gray-800">{title}</h3>
-        <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
-      </div>
-      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
-        <Icon />
-      </div>
-    </div>
-    {children}
-    <Link
-      to={actionLink}
-      className="block w-full mt-4 py-2 text-center text-sm font-medium text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
-    >
-      {actionText}
-    </Link>
+    <div className="p-5">{children}</div>
   </div>
 );
 
 export default function HRReports() {
-  const [stats, setStats] = useState({
-    totalStaff: 0,
-    activeStaff: 0,
-    onLeaveStaff: 0,
-    activeContracts: 0,
-    draftContracts: 0,
-    expiringSoon: 0,
-    staffData: [],
-    contractsData: [],
-  });
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [d, setD] = useState(null);
 
   useEffect(() => {
-    fetchDashboardData();
+    get("/hr/reports/dashboard")
+      .then((res) => setD(res.data?.data || {}))
+      .catch(() => setD({}))
+      .finally(() => setLoading(false));
   }, []);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    try {
-      const [staffRes, contractsRes] = await Promise.all([
-        get('/hr/staff/list'),
-        get('/hr/contracts/list'),
-      ]);
-
-      const staffData = staffRes.data?.data || staffRes.data || [];
-      const contractsData = contractsRes.data?.data || contractsRes.data || [];
-
-      // Calculate stats from staff data
-      const totalStaff = Array.isArray(staffData) ? staffData.length : 0;
-      const activeStaff = staffData.filter(s => s.status === 'active').length;
-      const onLeaveStaff = staffData.filter(s => s.status === 'on_leave').length;
-      
-      // Calculate stats from contracts data
-      const activeContracts = contractsData.filter(c => c.status === 'active').length;
-      const draftContracts = contractsData.filter(c => c.status === 'draft').length;
-      const expiringSoon = contractsData.filter(c => {
-        if (!c.end_date) return false;
-        const endDate = new Date(c.end_date);
-        const thirtyDaysFromNow = new Date();
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-        return endDate <= thirtyDaysFromNow && endDate >= new Date();
-      }).length;
-
-      setStats({
-        totalStaff,
-        activeStaff,
-        onLeaveStaff,
-        activeContracts,
-        draftContracts,
-        expiringSoon,
-        staffData: Array.isArray(staffData) ? staffData : [],
-        contractsData: Array.isArray(contractsData) ? contractsData : [],
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setStats({
-        totalStaff: 0,
-        activeStaff: 0,
-        onLeaveStaff: 0,
-        activeContracts: 0,
-        draftContracts: 0,
-        expiringSoon: 0,
-        staffData: [],
-        contractsData: [],
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600"></div>
-      </div>
-    );
-  }
-
-  // Calculate staff stats
-  const activeStaffCount = stats.activeStaff || 0;
-  const onLeaveCount = stats.onLeaveStaff || 0;
-  const inactiveStaff = (stats.totalStaff || 0) - activeStaffCount - onLeaveCount;
-  const totalStaff = stats.totalStaff || 1;
-  const activeRate = totalStaff > 0 ? Math.round((activeStaffCount / totalStaff) * 100) : 0;
-
-  // Calculate contract stats
-  const activeContracts = stats.activeContracts || 0;
-  const draftContracts = stats.draftContracts || 0;
-  const expiringSoon = stats.expiringSoon || 0;
-  const totalContracts = (stats.contractsData?.length || 0) || 1;
-  const contractActivationRate = totalContracts > 0 ? Math.round((activeContracts / totalContracts) * 100) : 0;
-
-  return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-800">HR Management Dashboard</h2>
-        <p className="text-sm text-gray-500 mt-1">Welcome back, Admin. Here is today's overview.</p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-        <StatCard
-          icon={Icons.Users}
-          title="Total Staff"
-          value={stats.totalStaff}
-          trend="Active"
-          trendUp={true}
-          color="bg-teal-100 text-teal-600"
-        />
-        <StatCard
-          icon={Icons.CheckCircle}
-          title="Active Staff"
-          value={activeStaffCount}
-          trend={`${activeRate}%`}
-          trendUp={true}
-          color="bg-emerald-100 text-emerald-600"
-        />
-        <StatCard
-          icon={Icons.Calendar}
-          title="On Leave"
-          value={onLeaveCount}
-          trend="Current"
-          trendUp={false}
-          color="bg-amber-100 text-amber-600"
-        />
-        <StatCard
-          icon={Icons.Briefcase}
-          title="Active Contracts"
-          value={activeContracts}
-          trend={`${contractActivationRate}%`}
-          trendUp={true}
-          color="bg-rose-100 text-rose-600"
-        />
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-        {/* Staff Overview Chart */}
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-gray-800">Staff Overview</h3>
-            <span className="text-xs text-gray-500">Current Status</span>
-          </div>
-          <div className="h-40 flex items-end justify-between gap-3">
-            {[
-              { label: 'Total', value: stats.totalStaff, color: 'bg-teal-600' },
-              { label: 'Active', value: activeStaffCount, color: 'bg-emerald-500' },
-              { label: 'On Leave', value: onLeaveCount, color: 'bg-amber-500' },
-              { label: 'Inactive', value: inactiveStaff, color: 'bg-gray-400' },
-            ].map((item) => {
-              const maxValue = Math.max(stats.totalStaff || 1, 1);
-              const height = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
-              return (
-                <div key={item.label} className="flex-1 flex flex-col items-center gap-2">
-                  <div className={`w-full ${item.color} rounded-t-lg transition-all duration-500`} style={{ height: `${Math.max(height, 5)}%` }}></div>
-                  <span className="text-xs text-gray-500 font-medium">{item.label}</span>
-                  <span className="text-xs font-bold text-gray-700">{item.value}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Staff Status Overview */}
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h3 className="text-base font-semibold text-gray-800 mb-4">Staff Status Overview</h3>
-          <ProgressBar label="Active Staff" value={activeStaffCount} total={totalStaff} color="bg-teal-700" />
-          <ProgressBar label="On Leave" value={onLeaveCount} total={totalStaff} color="bg-amber-500" />
-          <ProgressBar label="Inactive" value={inactiveStaff} total={totalStaff} color="bg-gray-400" />
-          <ProgressBar label="Total Staff" value={stats.totalStaff} total={stats.totalStaff || 1} color="bg-teal-500" />
-        </div>
-      </div>
-
-      {/* Module Quick View */}
-      <h3 className="text-base font-semibold text-gray-800 mb-4">Module Quick View</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Staff Overview */}
-        <ModuleCard
-          title="Staff Overview"
-          subtitle={`${activeStaffCount} Active, ${onLeaveCount} On Leave`}
-          icon={Icons.Users}
-          actionText="View Staff"
-          actionLink="/hr/staff"
-        >
-          <div className="flex items-center gap-4">
-            <CircularProgress percentage={activeRate} size={60} />
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <span className="text-xs text-gray-600">Active ({activeStaffCount})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                <span className="text-xs text-gray-600">On Leave ({onLeaveCount})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                <span className="text-xs text-gray-600">Inactive ({inactiveStaff})</span>
-              </div>
-            </div>
-          </div>
-        </ModuleCard>
-
-        {/* Contracts Overview */}
-        <ModuleCard
-          title="Contracts Overview"
-          subtitle={`${expiringSoon} Expiring Soon`}
-          icon={Icons.FileText}
-          actionText="View Contracts"
-          actionLink="/hr/contracts"
-        >
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-gray-600 font-medium">ACTIVE CONTRACTS</span>
-                <span className="text-gray-800 font-semibold">{activeContracts}</span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-teal-600 rounded-full transition-all duration-500" style={{ width: `${contractActivationRate}%` }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-gray-600 font-medium">DRAFT CONTRACTS</span>
-                <span className="text-gray-800 font-semibold">{draftContracts}</span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${(draftContracts / totalContracts) * 100}%` }}></div>
-              </div>
-            </div>
-          </div>
-        </ModuleCard>
-
-        {/* Recent Staff */}
-        <ModuleCard
-          title="Recent Staff"
-          subtitle="Latest additions"
-          icon={Icons.CheckSquare}
-          actionText="Manage Staff"
-          actionLink="/hr/staff"
-        >
-          <div className="space-y-3">
-            {stats.staffData?.slice(0, 3).map((staff, i) => (
-              <div key={staff.id} className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 flex-shrink-0 text-xs font-bold">
-                  {staff.full_name?.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{staff.full_name}</p>
-                  <p className="text-xs text-gray-500">{staff.designation || staff.department || 'Staff'}</p>
-                </div>
-              </div>
-            ))}
-            {(!stats.staffData || stats.staffData.length === 0) && (
-              <p className="text-xs text-gray-500">No staff members yet</p>
-            )}
-          </div>
-        </ModuleCard>
+  if (loading) return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div>
+        <p className="text-xs text-gray-400">Loading HR reports...</p>
       </div>
     </div>
+  );
+
+  if (!d) return null;
+
+  const s = d.staff || {};
+  const c = d.contracts || {};
+  const l = d.leaves || {};
+  const a = d.attendance || {};
+  const t = d.tasks || {};
+  const v = d.visitors || {};
+  const m = d.meetings || {};
+  const e = d.events || {};
+
+  const totalStaff = Number(s.total) || 0;
+  const activeRate = totalStaff > 0 ? Math.round((Number(s.active) / totalStaff) * 100) : 0;
+  const attRate = totalStaff > 0 ? Math.round((Number(a.present) / totalStaff) * 100) : 0;
+  const totalTasks = Number(t.total) || 0;
+  const taskRate = totalTasks > 0 ? Math.round((Number(t.completed) / totalTasks) * 100) : 0;
+
+  const deptColors = ["bg-teal-500", "bg-blue-500", "bg-amber-500", "bg-purple-500", "bg-emerald-500", "bg-red-400", "bg-cyan-500", "bg-orange-500"];
+
+  return (
+    <div className="min-h-screen bg-gray-50/60">
+      <div className="bg-teal-600 px-5 py-5">
+        <h1 className="text-lg font-black text-white">HR Reports & Analytics</h1>
+        <p className="text-xs text-teal-100 mt-1">Comprehensive overview of all HR operations</p>
+        <div className="flex items-center gap-2 mt-3">
+          <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-semibold rounded-full">{totalStaff} Staff</span>
+          <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-semibold rounded-full">{Number(c.total) || 0} Contracts</span>
+          <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-semibold rounded-full">{Number(l.total) || 0} Leave Requests</span>
+          <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-semibold rounded-full">{totalTasks} Tasks</span>
+        </div>
+      </div>
+
+      <div className="px-4 py-5 space-y-5">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+          <MiniStat label="Total Staff" value={totalStaff} icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" color="bg-teal-50" />
+          <MiniStat label="Active" value={Number(s.active) || 0} icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-emerald-50" />
+          <MiniStat label="On Leave" value={Number(s.on_leave) || 0} icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" color="bg-amber-50" />
+          <MiniStat label="Contracts" value={Number(c.active) || 0} icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" color="bg-blue-50" />
+          <MiniStat label="Pending Leave" value={Number(l.pending) || 0} icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-orange-50" />
+          <MiniStat label="Tasks" value={Number(t.pending) || 0} icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" color="bg-purple-50" />
+          <MiniStat label="Visitors In" value={Number(v.inside) || 0} icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" color="bg-cyan-50" />
+          <MiniStat label="Meetings" value={Number(m.scheduled) || 0} icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" color="bg-pink-50" />
+        </div>
+
+        {/* Staff, Departments, Contracts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Section title="Staff Status" subtitle="Current workforce" action="View Staff" onAction={() => navigate("/hr/staff")}>
+            <div className="flex items-center gap-5">
+              <CircularProgress percentage={activeRate} />
+              <div className="flex-1 space-y-2">
+                {[{ label: "Active", value: Number(s.active) || 0, color: "bg-emerald-500" }, { label: "Probation", value: Number(s.probation) || 0, color: "bg-blue-500" }, { label: "On Leave", value: Number(s.on_leave) || 0, color: "bg-amber-500" }, { label: "Inactive", value: Number(s.inactive) || 0, color: "bg-gray-400" }].map((x) => (
+                  <div key={x.label} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${x.color}`} /><span className="text-[10px] text-gray-600">{x.label}</span></div>
+                    <span className="text-xs font-bold text-gray-800">{x.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="By Department" subtitle={`${(d.departments || []).length} departments`}>
+            <div className="space-y-2">
+              {(d.departments || []).map((dept, i) => (
+                <div key={dept.department}>
+                  <div className="flex items-center justify-between text-[10px] mb-1">
+                    <span className="text-gray-600 truncate">{dept.department}</span>
+                    <span className="font-bold text-gray-800">{dept.count}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full ${deptColors[i % deptColors.length]} rounded-full`} style={{ width: `${(dept.count / totalStaff) * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+              {(d.departments || []).length === 0 && <p className="text-xs text-gray-400 italic">No department data</p>}
+            </div>
+          </Section>
+
+          <Section title="Contracts" subtitle={Number(c.expiring_soon) > 0 ? `${c.expiring_soon} expiring soon` : "All up to date"} action="View" onAction={() => navigate("/hr/contracts")}>
+            <BarChart data={[
+              { label: "Active", value: Number(c.active) || 0, color: "bg-emerald-500" },
+              { label: "Draft", value: Number(c.draft) || 0, color: "bg-amber-500" },
+              { label: "Expiring", value: Number(c.expiring_soon) || 0, color: "bg-orange-500" },
+              { label: "Expired", value: Number(c.expired) || 0, color: "bg-red-400" },
+            ]} />
+          </Section>
+        </div>
+
+        {/* Leave, Attendance, Tasks */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Section title="Leave Requests" subtitle={`${Number(l.total) || 0} total`} action="View" onAction={() => navigate("/hr/leave-request")}>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                {[{ label: "Pending", value: Number(l.pending) || 0, color: "bg-amber-100 text-amber-700" }, { label: "Approved", value: Number(l.approved) || 0, color: "bg-emerald-100 text-emerald-700" }, { label: "Rejected", value: Number(l.rejected) || 0, color: "bg-red-100 text-red-700" }].map((x) => (
+                  <div key={x.label} className={`flex-1 ${x.color} rounded-xl p-2.5 text-center`}>
+                    <p className="text-lg font-black">{x.value}</p>
+                    <p className="text-[9px] font-semibold uppercase">{x.label}</p>
+                  </div>
+                ))}
+              </div>
+              {(d.leave_by_type || []).length > 0 && (
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">By Type</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(d.leave_by_type || []).map((lt) => (
+                      <span key={lt.leave_type} className="px-2 py-0.5 bg-gray-50 border border-gray-100 rounded-full text-[9px] font-medium text-gray-600 capitalize">{lt.leave_type} ({lt.count})</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Section>
+
+          <Section title="Today's Attendance" subtitle={`${Number(a.total) || 0} records`} action="View" onAction={() => navigate("/hr/attendance")}>
+            <div className="flex items-center gap-5">
+              <CircularProgress percentage={attRate} color={attRate >= 80 ? "text-emerald-500" : attRate >= 50 ? "text-amber-500" : "text-red-500"} />
+              <div className="flex-1 space-y-2">
+                {[{ label: "Present", value: Number(a.present) || 0, color: "bg-emerald-500" }, { label: "Late", value: Number(a.late) || 0, color: "bg-amber-500" }, { label: "Absent", value: Number(a.absent) || 0, color: "bg-red-500" }, { label: "Not Recorded", value: Math.max(0, totalStaff - (Number(a.total) || 0)), color: "bg-gray-300" }].map((x) => (
+                  <div key={x.label} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${x.color}`} /><span className="text-[10px] text-gray-600">{x.label}</span></div>
+                    <span className="text-xs font-bold text-gray-800">{x.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Staff Tasks" subtitle={Number(t.overdue) > 0 ? `${t.overdue} overdue` : "On track"} action="View" onAction={() => navigate("/hr/staff-task")}>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 mb-2">
+                <CircularProgress percentage={taskRate} />
+                <div><p className="text-xs font-bold text-gray-800">{taskRate}% Complete</p><p className="text-[10px] text-gray-400">{Number(t.completed) || 0} of {totalTasks} done</p></div>
+              </div>
+              {[{ label: "Completed", value: Number(t.completed) || 0, color: "bg-emerald-500" }, { label: "In Progress", value: Number(t.pending) || 0, color: "bg-blue-500" }, { label: "Overdue", value: Number(t.overdue) || 0, color: "bg-red-500" }].map((x) => (
+                <div key={x.label}>
+                  <div className="flex items-center justify-between text-[10px] mb-0.5"><span className="text-gray-600">{x.label}</span><span className="font-bold text-gray-800">{x.value}</span></div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full ${x.color} rounded-full`} style={{ width: `${totalTasks > 0 ? (x.value / totalTasks) * 100 : 0}%` }} /></div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+
+        {/* Visitors, Meetings, Events */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Section title="Visitor Log" subtitle={`${Number(v.today) || 0} today`} action="View" onAction={() => navigate("/hr/visitor-log")}>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="bg-teal-50 rounded-xl p-3 text-center"><p className="text-lg font-black text-teal-700">{Number(v.total) || 0}</p><p className="text-[9px] font-semibold text-teal-600 uppercase">Total</p></div>
+              <div className="bg-emerald-50 rounded-xl p-3 text-center"><p className="text-lg font-black text-emerald-700">{Number(v.inside) || 0}</p><p className="text-[9px] font-semibold text-emerald-600 uppercase">Inside</p></div>
+              <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-lg font-black text-gray-600">{Number(v.today) || 0}</p><p className="text-[9px] font-semibold text-gray-500 uppercase">Today</p></div>
+            </div>
+            {(d.recent_visitors || []).length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                {d.recent_visitors.map((rv) => (
+                  <div key={rv.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${rv.status === "in" || (!rv.time_out && rv.time_in) ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`} />
+                      <span className="text-[10px] text-gray-700 font-medium">{rv.visitor_name}</span>
+                    </div>
+                    <span className="text-[9px] text-gray-400">{rv.purpose}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Meetings" subtitle={`${Number(m.scheduled) || 0} upcoming`} action="View" onAction={() => navigate("/hr/meetings")}>
+            <BarChart data={[
+              { label: "Scheduled", value: Number(m.scheduled) || 0, color: "bg-blue-500" },
+              { label: "Active", value: Number(m.in_progress) || 0, color: "bg-amber-500" },
+              { label: "Done", value: Number(m.completed) || 0, color: "bg-emerald-500" },
+              { label: "Cancelled", value: Number(m.cancelled) || 0, color: "bg-red-400" },
+            ]} />
+            {d.next_meeting && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-[9px] font-bold text-gray-400 uppercase mb-2">Next Meeting</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-teal-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-black text-teal-700">{new Date(d.next_meeting.start_time).getDate()}</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-800 truncate">{d.next_meeting.title}</p>
+                    <p className="text-[9px] text-gray-400">{new Date(d.next_meeting.start_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Section>
+
+          <Section title="Events" subtitle={`${Number(e.upcoming) || 0} upcoming`} action="View" onAction={() => navigate("/hr/events")}>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {[{ label: "Upcoming", value: Number(e.upcoming) || 0, color: "bg-blue-50 text-blue-700" }, { label: "Ongoing", value: Number(e.ongoing) || 0, color: "bg-amber-50 text-amber-700" }, { label: "Completed", value: Number(e.completed) || 0, color: "bg-emerald-50 text-emerald-700" }, { label: "Cancelled", value: Number(e.cancelled) || 0, color: "bg-red-50 text-red-700" }].map((x) => (
+                <div key={x.label} className={`${x.color} rounded-xl p-2.5 text-center`}><p className="text-lg font-black">{x.value}</p><p className="text-[9px] font-semibold uppercase">{x.label}</p></div>
+              ))}
+            </div>
+            {(d.upcoming_events || []).length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                {d.upcoming_events.map((ev) => (
+                  <div key={ev.id} className="flex items-center gap-2">
+                    <div className={`w-1.5 h-8 rounded-full ${ev.status === "ongoing" ? "bg-amber-500" : "bg-blue-500"}`} />
+                    <div><p className="text-[10px] font-semibold text-gray-800 truncate">{ev.title}</p><p className="text-[9px] text-gray-400">{new Date(ev.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{ev.location ? ` · ${ev.location}` : ""}</p></div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+        </div>
+
+        {/* Alerts */}
+        {(Number(c.expiring_soon) > 0 || Number(l.pending) > 0 || Number(t.overdue) > 0 || Number(v.inside) > 0) && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+              Alerts & Action Items
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              {Number(c.expiring_soon) > 0 && <AlertCard onClick={() => navigate("/hr/contracts")} color="orange" title={`${c.expiring_soon} contracts expiring`} sub="Within 30 days" icon="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
+              {Number(l.pending) > 0 && <AlertCard onClick={() => navigate("/hr/leave-request")} color="amber" title={`${l.pending} leave requests`} sub="Awaiting approval" icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
+              {Number(t.overdue) > 0 && <AlertCard onClick={() => navigate("/hr/staff-task")} color="red" title={`${t.overdue} overdue tasks`} sub="Need attention" icon="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
+              {Number(v.inside) > 0 && <AlertCard onClick={() => navigate("/hr/visitor-log")} color="emerald" title={`${v.inside} visitors inside`} sub="Currently on premises" icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Staff */}
+        <Section title="Recent Staff Members" subtitle="Latest additions" action="View All" onAction={() => navigate("/hr/staff")}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {(d.recent_staff || []).map((rs) => (
+              <div key={rs.id} className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl">
+                <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                  {rs.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-semibold text-gray-800 truncate">{rs.name}</p>
+                  <p className="text-[9px] text-gray-400 truncate">{rs.department || "No dept"} · {rs.employee_id}</p>
+                </div>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${rs.status === "active" ? "bg-emerald-500" : rs.status === "on_leave" ? "bg-amber-500" : "bg-gray-400"}`} />
+              </div>
+            ))}
+          </div>
+          {(d.recent_staff || []).length === 0 && <p className="text-xs text-gray-400 italic text-center py-4">No staff found</p>}
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+function AlertCard({ onClick, color, title, sub, icon }) {
+  const colors = { orange: "bg-orange-50 border-orange-200", amber: "bg-amber-50 border-amber-200", red: "bg-red-50 border-red-200", emerald: "bg-emerald-50 border-emerald-200" };
+  const iconColors = { orange: "bg-orange-100 text-orange-600", amber: "bg-amber-100 text-amber-600", red: "bg-red-100 text-red-600", emerald: "bg-emerald-100 text-emerald-600" };
+  const textColors = { orange: "text-orange-800", amber: "text-amber-800", red: "text-red-800", emerald: "text-emerald-800" };
+  const subColors = { orange: "text-orange-600", amber: "text-amber-600", red: "text-red-600", emerald: "text-emerald-600" };
+  return (
+    <button onClick={onClick} className={`flex items-center gap-3 p-3 ${colors[color]} border rounded-xl hover:shadow-sm transition-all text-left`}>
+      <div className={`w-8 h-8 ${iconColors[color]} rounded-lg flex items-center justify-center flex-shrink-0`}>
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} /></svg>
+      </div>
+      <div><p className={`text-xs font-bold ${textColors[color]}`}>{title}</p><p className={`text-[9px] ${subColors[color]}`}>{sub}</p></div>
+    </button>
   );
 }

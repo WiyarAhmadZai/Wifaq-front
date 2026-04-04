@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, post, put } from '../api/axios';
 import Swal from 'sweetalert2';
+import { handleValidationErrors } from '../utils/formErrors';
 
 export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, storeEndpoint = null, editEndpoint = null }) {
   const { id } = useParams();
@@ -134,19 +135,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
       }
       navigate(listRoute);
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        const errs = error.response.data.errors;
-        setErrors(errs);
-        // Scroll to the first error field
-        const firstErrorField = Object.keys(errs)[0];
-        setTimeout(() => {
-          const el = document.querySelector(`[name="${firstErrorField}"]`);
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            el.focus();
-          }
-        }, 100);
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire('Error', error.response?.data?.message || 'Failed to save', 'error');
       }
     } finally {

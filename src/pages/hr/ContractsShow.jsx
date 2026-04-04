@@ -172,19 +172,6 @@ export default function ContractsShow() {
             </div>
           </div>
 
-          {data.job_description && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Job Description</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{data.job_description}</p>
-            </div>
-          )}
-
-          {data.terms_conditions && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Terms & Conditions</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{data.terms_conditions}</p>
-            </div>
-          )}
         </div>
 
         <div className="space-y-5">

@@ -94,12 +94,22 @@ export default function SubjectsForm() {
       } else {
         await post('/class-management/subjects/store', form);
       }
-      Swal.fire({ icon: 'success', title: isEdit ? 'Subject Updated!' : 'Subject Created!', timer: 2000, showConfirmButton: false });
+      await Swal.fire({ icon: 'success', title: isEdit ? 'Subject Updated!' : 'Subject Created!', timer: 2000, showConfirmButton: false });
       navigate('/class-management/subjects');
     } catch (error) {
       if (error.response?.status === 422) {
-        setErrors(error.response.data.errors || {});
-        Swal.fire('Validation Error', 'Please check the form fields.', 'error');
+        const errs = error.response.data.errors || {};
+        setErrors(errs);
+        const firstField = Object.keys(errs)[0];
+        // Find which step has this field and go to it
+        const stepFields = { 1: ['subject_name','subject_code','category'], 2: ['specialization'], 3: ['textbook_title','textbook_author','textbook_isbn'], 4: ['sessions_per_week','duration_minutes'] };
+        for (const [s, flds] of Object.entries(stepFields)) {
+          if (flds.includes(firstField)) { setStep(Number(s)); break; }
+        }
+        setTimeout(() => {
+          const el = document.querySelector(`[name="${firstField}"]`);
+          if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); }
+        }, 200);
       } else {
         Swal.fire('Error', error.response?.data?.message || 'Failed to save subject', 'error');
       }

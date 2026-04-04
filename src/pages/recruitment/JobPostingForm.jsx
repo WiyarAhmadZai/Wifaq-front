@@ -236,6 +236,7 @@ export default function JobPostingForm() {
               placeholder="Select Requisition"
               isSearchable
               isClearable
+              isDisabled={isEdit}
               className={`react-select-container ${err("requisition_id") ? "react-select-error" : ""}`}
               classNamePrefix="react-select"
               menuPortalTarget={document.body}

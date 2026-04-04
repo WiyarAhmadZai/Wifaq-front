@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { handleValidationErrors } from "../../utils/formErrors";
 
 export default function PlannerForm() {
   const { id } = useParams();
@@ -132,11 +133,7 @@ export default function PlannerForm() {
       }
       navigate('/hr/planner');
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-        const firstError = Object.values(error.response.data.errors)[0][0];
-        Swal.fire('Validation Error', firstError, 'warning');
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire('Error', error.response?.data?.message || 'Failed to save', 'error');
       }
     } finally {

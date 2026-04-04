@@ -139,12 +139,19 @@ export default function EventForm() {
             {isEdit && (
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Status</label>
-                <select name="status" value={form.status} onChange={handle} className={ic("status")}>
-                  <option value="upcoming">Upcoming</option>
-                  <option value="ongoing">Ongoing</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+                <div className={`px-3 py-2.5 border border-gray-200 rounded-xl text-xs bg-gray-50 flex items-center justify-between`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${
+                      form.status === "upcoming" ? "bg-blue-500" : form.status === "ongoing" ? "bg-amber-500" : form.status === "completed" ? "bg-emerald-500" : "bg-red-500"
+                    }`} />
+                    <span className="capitalize font-medium text-gray-700">{form.status}</span>
+                  </div>
+                  {form.status !== "cancelled" && form.status !== "completed" && (
+                    <button type="button" onClick={() => setForm((p) => ({ ...p, status: "cancelled" }))}
+                      className="text-[10px] text-red-500 hover:text-red-700 font-semibold">Cancel Event</button>
+                  )}
+                </div>
+                <p className="text-[9px] text-gray-400 mt-1">Status updates automatically based on dates</p>
               </div>
             )}
             <div className={isEdit ? "" : "sm:col-span-2"}>

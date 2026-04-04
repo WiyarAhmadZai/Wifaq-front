@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
@@ -15,10 +15,27 @@ export default function EventShow() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const statusRef = useRef(null);
 
   useEffect(() => {
     get(`/events/${id}`).then((r) => setData(r.data?.data || r.data)).catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    const close = (e) => { if (statusRef.current && !statusRef.current.contains(e.target)) setShowStatusMenu(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const changeStatus = async (newStatus) => {
+    try {
+      await put(`/events/${id}`, { status: newStatus });
+      setData((p) => ({ ...p, status: newStatus }));
+      setShowStatusMenu(false);
+      Swal.fire({ icon: "success", title: `Status changed to ${newStatus}`, timer: 1500, showConfirmButton: false });
+    } catch { Swal.fire("Error", "Failed to update status", "error"); }
+  };
 
   const handleDelete = async () => {
     const r = await Swal.fire({ title: "Delete event?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
@@ -60,9 +77,28 @@ export default function EventShow() {
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
         <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>{sc.label}
-          </span>
+          <div className="relative" ref={statusRef}>
+            <button onClick={() => setShowStatusMenu(!showStatusMenu)}
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+              {sc.label}
+              <svg className={`w-3 h-3 transition-transform ${showStatusMenu ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {showStatusMenu && (
+              <div className="absolute left-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 min-w-[150px]">
+                {Object.entries(statusConf).map(([key, conf]) => (
+                  <button key={key} onClick={() => changeStatus(key)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${data.status === key ? "font-bold" : ""}`}>
+                    <span className={`w-2 h-2 rounded-full ${conf.dot}`}></span>
+                    <span className={`${conf.text}`}>{conf.label}</span>
+                    {data.status === key && (
+                      <svg className="w-3 h-3 ml-auto text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">
             {formatDate(data.start_date)}{isMultiDay ? ` - ${formatDate(data.end_date)}` : ""}
           </span>

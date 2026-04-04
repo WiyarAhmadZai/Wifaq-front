@@ -1831,6 +1831,74 @@ export default function ApplicationShow() {
               </div>
             </div>
 
+            {/* Match Analysis */}
+            {(() => {
+              const posting = data.job_posting || data.jobPosting;
+              const reqs = posting?.requirements || [];
+              const reqExp = posting?.requisition?.experience_years;
+              const metReqs = data.met_requirements || [];
+              if (reqs.length === 0 && !reqExp) return null;
+
+              const totalItems = reqs.length + (reqExp ? 1 : 0);
+              const expMet = reqExp ? (data.total_experience_years || 0) >= reqExp : false;
+              const metCount = metReqs.length + (expMet ? 1 : 0);
+              const matchPct = totalItems > 0 ? Math.round((metCount / totalItems) * 100) : 0;
+              const pctColor = matchPct >= 80 ? "text-emerald-600" : matchPct >= 50 ? "text-amber-600" : "text-red-600";
+              const barColor = matchPct >= 80 ? "bg-emerald-500" : matchPct >= 50 ? "bg-amber-500" : "bg-red-400";
+
+              return (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">Match Analysis</h3>
+                    <span className={`text-lg font-black ${pctColor}`}>{matchPct}%</span>
+                  </div>
+
+                  {/* Progress ring */}
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="relative w-14 h-14">
+                      <svg className="transform -rotate-90" width={56} height={56}>
+                        <circle cx={28} cy={28} r={23} stroke="currentColor" strokeWidth={5} fill="transparent" className="text-gray-100" />
+                        <circle cx={28} cy={28} r={23} stroke="currentColor" strokeWidth={5} fill="transparent"
+                          strokeDasharray={23 * 2 * Math.PI} strokeDashoffset={23 * 2 * Math.PI - (matchPct / 100) * 23 * 2 * Math.PI}
+                          className={pctColor} strokeLinecap="round" />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[10px] font-black text-gray-800">{metCount}/{totalItems}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className={`text-xs font-bold ${pctColor}`}>{matchPct >= 80 ? "Strong Match" : matchPct >= 50 ? "Partial Match" : "Low Match"}</p>
+                      <p className="text-[10px] text-gray-400">{metCount} of {totalItems} requirements met</p>
+                    </div>
+                  </div>
+
+                  {/* Requirement items */}
+                  <div className="space-y-1.5">
+                    {reqExp > 0 && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${expMet ? "bg-emerald-500" : "bg-gray-200"}`}>
+                          {expMet && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        </div>
+                        <span className={expMet ? "text-emerald-700" : "text-gray-500"}>{reqExp}+ years experience</span>
+                        <span className="text-[9px] text-gray-400 ml-auto">({data.total_experience_years || 0}yr)</span>
+                      </div>
+                    )}
+                    {reqs.map((req, i) => {
+                      const met = metReqs.includes(req);
+                      return (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${met ? "bg-emerald-500" : "bg-gray-200"}`}>
+                            {met && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                          </div>
+                          <span className={met ? "text-emerald-700" : "text-gray-500"}>{req}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Timeline */}
             <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl shadow-sm p-5 text-white">
               <h3 className="text-sm font-semibold mb-4">Timeline</h3>

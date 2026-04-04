@@ -92,6 +92,8 @@ export default function ApplicationForm() {
     { company_name: "", job_title: "", duration: "", responsibilities: "" },
   ]);
 
+  const [metRequirements, setMetRequirements] = useState([]);
+
   const [documents, setDocuments] = useState({
     work_samples: null,
     identity_document: null,
@@ -149,6 +151,9 @@ export default function ApplicationForm() {
         unique_skill: d.unique_skill?.length > 0 ? d.unique_skill : [""],
       });
 
+      if (d.met_requirements && Array.isArray(d.met_requirements)) {
+        setMetRequirements(d.met_requirements);
+      }
       if (d.work_experiences && d.work_experiences.length > 0) {
         setWorkExperiences(d.work_experiences);
       }
@@ -264,6 +269,7 @@ export default function ApplicationForm() {
       const dataToSend = {
         ...formData,
         unique_skill: formData.unique_skill.filter((s) => s.trim() !== ""),
+        met_requirements: metRequirements,
         work_experiences: workExperiences.filter((exp) => exp.company_name.trim() !== "" || exp.job_title.trim() !== ""),
         status: "received",
       };
@@ -410,6 +416,7 @@ export default function ApplicationForm() {
                   </div>
                 );
               })()}
+
             </div>
           </StepCard>
         )}
@@ -556,6 +563,43 @@ export default function ApplicationForm() {
               <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">
                 + Add Work Experience
               </button>
+
+              {/* Job Requirements Checklist */}
+              {(() => {
+                const selected = jobPostings.find(jp => jp.id === parseInt(formData.job_posting_id));
+                if (!selected || !selected.requirements || selected.requirements.length === 0) return null;
+                const reqs = selected.requirements;
+                const toggleReq = (req) => {
+                  setMetRequirements((prev) => prev.includes(req) ? prev.filter((r) => r !== req) : [...prev, req]);
+                };
+                return (
+                  <div className="mt-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      <p className="text-xs font-bold text-gray-800">Job Requirements</p>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-[10px] text-gray-500 mb-3">Please check the requirements that you meet for this position.</p>
+                      <div className="space-y-1.5">
+                        {reqs.map((req, i) => {
+                          const checked = metRequirements.includes(req);
+                          return (
+                            <button key={i} type="button" onClick={() => toggleReq(req)}
+                              className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${checked ? "bg-teal-50 border-teal-200" : "bg-white border-gray-200 hover:border-teal-300"}`}>
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? "bg-teal-600 border-teal-600" : "border-gray-300"}`}>
+                                {checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                              </div>
+                              <span className={`text-xs ${checked ? "text-teal-700 font-medium" : "text-gray-700"}`}>{req}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </StepCard>
         )}

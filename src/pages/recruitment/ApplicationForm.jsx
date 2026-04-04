@@ -297,7 +297,15 @@ export default function ApplicationForm() {
       }
       navigate("/recruitment/applications");
     } catch (error) {
-      if (!handleValidationErrors(error.response, setErrors)) {
+      const stepMap = {
+        1: ['job_posting_id'],
+        2: ['full_name','contact_number','email','date_of_birth','current_address','place_of_origin','introduction'],
+        3: ['facebook','instagram','twitter_x','youtube'],
+        4: ['motivation'],
+        5: ['education_level','field_of_study','institution_name'],
+        6: ['total_experience_years'],
+      };
+      if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save application", "error");
       }
     } finally {

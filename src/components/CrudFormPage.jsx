@@ -283,7 +283,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
           </div>
         )}
         <input type="hidden" name={field.name} value={value} />
-        {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
       </div>
     );
   };
@@ -318,7 +318,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
                 </option>
               ))}
             </select>
-            {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+            {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
           </div>
         );
       } else {
@@ -337,7 +337,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+            {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
           </div>
         );
       }
@@ -354,7 +354,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             rows={4}
             className={getFieldClass(field.name)}
           />
-          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+          {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );
     }
@@ -369,7 +369,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             onChange={handleChange}
             className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"
           />
-          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+          {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );
     }
@@ -385,7 +385,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             required={field.required}
             className={getFieldClass(field.name)}
           />
-          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+          {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );
     }
@@ -400,7 +400,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
           required={field.required}
           className={getFieldClass(field.name)}
         />
-        {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
       </div>
     );
   };

@@ -656,7 +656,7 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
-
+          <MenuSection title="HR Management" />
           <ParentMenu
             icon={Icons.Departments}
             label="Branches"
@@ -671,6 +671,71 @@ export default function Layout() {
             />
           </ParentMenu>
 
+          <ParentMenu
+            icon={Icons.HR}
+            label="HR Management"
+            isOpen={openMenu.includes("hr")}
+            onClick={() => toggleMenu("hr")}
+          >
+            {hrSubMenus.map((item) =>
+              item.children ? (
+                <div key={item.key}>
+                  <button
+                    onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
+                      openSubMenu.includes(item.key)
+                        ? "bg-teal-700 text-white"
+                        : "text-teal-200 hover:bg-teal-800 hover:text-white"
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <svg className={`w-3 h-3 transition-transform ${openSubMenu.includes(item.key) ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {openSubMenu.includes(item.key) && (
+                    <div className="mt-0.5 space-y-0.5">
+                      {item.children.map((child) => (
+                        <Link key={child.path} to={child.path} onClick={closeSidebar}
+                          className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
+                            isActive(child.path) ? "bg-teal-700 text-white" : "text-teal-300 hover:bg-teal-800 hover:text-white"
+                          }`}>
+                          <span>{child.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <SubMenuItem
+                  key={item.path}
+                  label={item.label}
+                  to={item.path}
+                  active={isActive(item.path)}
+                  onClick={closeSidebar}
+                />
+              )
+            )}
+          </ParentMenu>
+          
+          <ParentMenu
+            icon={Icons.Departments}
+            label="Job Applications"
+            isOpen={openMenu.includes("recruitment")}
+            onClick={() => toggleMenu("recruitment")}
+          >
+            {recruitmentMenus.map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+
+          <MenuSection title="Academic" />
           <ParentMenu
             icon={Icons.Teacher}
             label="Teacher"
@@ -735,52 +800,7 @@ export default function Layout() {
             />
           </ParentMenu>
 
-          <ParentMenu
-            icon={Icons.HR}
-            label="HR Management"
-            isOpen={openMenu.includes("hr")}
-            onClick={() => toggleMenu("hr")}
-          >
-            {hrSubMenus.map((item) =>
-              item.children ? (
-                <div key={item.key}>
-                  <button
-                    onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
-                      openSubMenu.includes(item.key)
-                        ? "bg-teal-700 text-white"
-                        : "text-teal-200 hover:bg-teal-800 hover:text-white"
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    <svg className={`w-3 h-3 transition-transform ${openSubMenu.includes(item.key) ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {openSubMenu.includes(item.key) && (
-                    <div className="mt-0.5 space-y-0.5">
-                      {item.children.map((child) => (
-                        <Link key={child.path} to={child.path} onClick={closeSidebar}
-                          className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
-                            isActive(child.path) ? "bg-teal-700 text-white" : "text-teal-300 hover:bg-teal-800 hover:text-white"
-                          }`}>
-                          <span>{child.label}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <SubMenuItem
-                  key={item.path}
-                  label={item.label}
-                  to={item.path}
-                  active={isActive(item.path)}
-                  onClick={closeSidebar}
-                />
-              )
-            )}
-          </ParentMenu>
+        
 
           <ParentMenu
             icon={Icons.HR}
@@ -808,22 +828,7 @@ export default function Layout() {
             />
           </ParentMenu>
 
-          <ParentMenu
-            icon={Icons.Departments}
-            label="Job Applications"
-            isOpen={openMenu.includes("recruitment")}
-            onClick={() => toggleMenu("recruitment")}
-          >
-            {recruitmentMenus.map((item) => (
-              <SubMenuItem
-                key={item.path}
-                label={item.label}
-                to={item.path}
-                active={isActive(item.path)}
-                onClick={closeSidebar}
-              />
-            ))}
-          </ParentMenu>
+        
 
           <ParentMenu
             icon={Icons.HR}

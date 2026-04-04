@@ -66,7 +66,7 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
         </svg>
       </div>
       {open && (
-        <div className="absolute z-[999] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
           <div className="max-h-52 overflow-y-auto">
             {filtered.length === 0 ? (
               <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
@@ -138,7 +138,14 @@ export default function StaffForm() {
   }, [id]);
 
   const fetchHiredApplicants = async () => {
-    try { const res = await get('/hr/staff/hired-applicants/list'); setHiredApplicants(res.data?.data || []); } catch { setHiredApplicants([]); }
+    try {
+      const res = await get('/hr/staff/hired-applicants/list');
+      const data = res.data?.data || res.data || [];
+      setHiredApplicants(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch hired applicants:", err);
+      setHiredApplicants([]);
+    }
   };
 
   const fetchBranches = async () => {

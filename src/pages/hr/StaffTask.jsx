@@ -1,54 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del, put, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
-
-export const staffTaskFields = [
-  { name: 'staff_name', label: 'Staff Name', type: 'text', required: true },
-  { name: 'task', label: 'Task', type: 'textarea', required: true },
-  { name: 'notes', label: 'Notes', type: 'textarea' },
-];
-
-export const staffTaskColumns = [
-  { key: 'created_at', label: 'Assigned Date', render: (val) => val ? new Date(val).toLocaleDateString() : '-' },
-  { key: 'staff_name', label: 'Staff Name' },
-  { key: 'task', label: 'Task', render: (val) => val?.length > 30 ? val.substring(0, 30) + '...' : val },
-  { key: 'assigner', label: 'Assigned By', render: (val) => val?.name || '-' },
-];
-
-const DEMO = [
-  { id: 1, created_at: "2026-03-14T08:00:00", staff_name: "Ahmad Karimi", task: "Prepare quarterly attendance report for all branches", assigner: { name: "Admin" }, status: "in_progress", quality: null, notes: "Due by end of month" },
-  { id: 2, created_at: "2026-03-12T09:30:00", staff_name: "Fatima Ahmadi", task: "Update student enrollment records for Spring semester", assigner: { name: "Admin" }, status: "completed", quality: "excellent", notes: "" },
-  { id: 3, created_at: "2026-03-10T10:00:00", staff_name: "Noor Rahman", task: "Organize parent-teacher conference schedule", assigner: { name: "HR Manager" }, status: "pending", quality: null, notes: "Coordinate with class supervisors" },
-  { id: 4, created_at: "2026-03-08T14:00:00", staff_name: "Maryam Sultani", task: "Review and approve leave requests for March", assigner: { name: "Admin" }, status: "completed", quality: "good", notes: "" },
-  { id: 5, created_at: "2026-03-06T11:00:00", staff_name: "Khalid Noori", task: "Inventory check of science lab equipment", assigner: { name: "HR Manager" }, status: "pending", quality: null, notes: "Report any damaged items" },
-];
+const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const statusStyle = { pending: "bg-yellow-50 text-yellow-700", in_progress: "bg-teal-50 text-teal-700", completed: "bg-teal-50 text-teal-700" };
 const statusDot = { pending: "bg-yellow-500", in_progress: "bg-teal-500", completed: "bg-teal-600" };
 const statusLabel = { pending: "Pending", in_progress: "In Progress", completed: "Completed" };
 const qualityStyle = { excellent: "bg-teal-50 text-teal-700", good: "bg-teal-50 text-teal-600", average: "bg-yellow-50 text-yellow-700", poor: "bg-red-50 text-red-700" };
+const taskTypeStyle = { urgent: "bg-red-100 text-red-700", high: "bg-orange-100 text-orange-700", normal: "bg-blue-100 text-blue-700", low: "bg-gray-100 text-gray-600" };
 
 export default function StaffTask() {
   const navigate = useNavigate();
-  const [items, setItems] = useState(DEMO);
+  const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
+  useEffect(() => { fetchItems(); }, []);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
       const response = await get('/hr/staff-tasks');
       const data = response.data?.data || response.data || [];
-      if (data.length) setItems(data);
+      setItems(Array.isArray(data) ? data : []);
     } catch {
-      // keep demo data
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -58,7 +37,8 @@ export default function StaffTask() {
 
   const filtered = items.filter(it => {
     const q = search.toLowerCase();
-    if (q && !it.staff_name?.toLowerCase().includes(q) && !it.task?.toLowerCase().includes(q)) return false;
+    const name = it.staff?.application?.full_name || it.staff_name || '';
+    if (q && !name.toLowerCase().includes(q) && !it.task?.toLowerCase().includes(q)) return false;
     if (filterStatus && it.status !== filterStatus) return false;
     return true;
   });
@@ -74,12 +54,8 @@ export default function StaffTask() {
     e.stopPropagation();
     const result = await Swal.fire({ title: "Delete this task?", text: "This action cannot be undone.", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", cancelButtonColor: "#6b7280", confirmButtonText: "Delete" });
     if (result.isConfirmed) {
-      try {
-        await del(`/hr/staff-tasks/${id}`);
-        fetchItems();
-      } catch {
-        setItems(prev => prev.filter(i => i.id !== id));
-      }
+      try { await del(`/hr/staff-tasks/${id}`); } catch {}
+      fetchItems();
       Swal.fire({ icon: "success", title: "Deleted", timer: 1500, showConfirmButton: false });
     }
   };
@@ -93,16 +69,12 @@ export default function StaffTask() {
       inputValue: item.status,
       showCancelButton: true,
       confirmButtonColor: '#0d9488',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Update',
     });
     if (newStatus && newStatus !== item.status) {
       try {
-        await put(`/hr/staff-tasks/${item.id}`, { staff_name: item.staff_name, task: item.task, status: newStatus, notes: item.notes });
+        await put(`/hr/staff-tasks/${item.id}`, { status: newStatus });
         fetchItems();
-      } catch {
-        setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: newStatus } : i));
-      }
+      } catch {}
       Swal.fire({ icon: "success", title: `Status: ${statusLabel[newStatus]}`, timer: 1500, showConfirmButton: false });
     }
   };
@@ -119,18 +91,17 @@ export default function StaffTask() {
       inputOptions: { excellent: 'Excellent', good: 'Good', average: 'Average', poor: 'Poor' },
       showCancelButton: true,
       confirmButtonColor: '#0d9488',
-      cancelButtonColor: '#6b7280',
     });
     if (quality) {
       try {
-        await put(`/hr/staff-tasks/${item.id}`, { staff_name: item.staff_name, task: item.task, status: item.status, quality, notes: item.notes });
+        await put(`/hr/staff-tasks/${item.id}`, { quality });
         fetchItems();
-      } catch {
-        setItems(prev => prev.map(i => i.id === item.id ? { ...i, quality } : i));
-      }
+      } catch {}
       Swal.fire({ icon: "success", title: `Quality: ${quality}`, timer: 1500, showConfirmButton: false });
     }
   };
+
+  const getStaffName = (item) => item.staff?.application?.full_name || item.staff_name || '—';
 
   return (
     <div className="px-4 py-5 space-y-5">
@@ -167,21 +138,17 @@ export default function StaffTask() {
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by staff name or task..."
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by staff name or task..."
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
           </div>
           <button onClick={() => setFilterOpen(!filterOpen)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${filterOpen || activeFilters ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
             Filters
-            {activeFilters > 0 && <span className="w-4.5 h-4.5 rounded-full bg-white text-teal-700 text-[10px] font-bold flex items-center justify-center">{activeFilters}</span>}
           </button>
           {(activeFilters > 0 || search) && (
             <button onClick={() => { setSearch(""); setFilterStatus(""); }}
-              className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
-              Clear
-            </button>
+              className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">Clear</button>
           )}
         </div>
         {filterOpen && (
@@ -202,17 +169,17 @@ export default function StaffTask() {
       {loading ? (
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
-          <p className="mt-2 text-gray-400 text-xs">Loading...</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Staff</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Task</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Assigned</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Dates</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quality</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
@@ -221,57 +188,59 @@ export default function StaffTask() {
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
-                    {/* Staff */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-white">{item.staff_name?.charAt(0)}</span>
-                        </div>
+                        {item.staff?.profile_photo ? (
+                          <img src={`${STORAGE}/storage/${item.staff.profile_photo}`} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-white">{getStaffName(item).charAt(0)}</span>
+                          </div>
+                        )}
                         <div>
-                          <p className="text-sm font-semibold text-gray-800">{item.staff_name}</p>
+                          <p className="text-sm font-semibold text-gray-800">{getStaffName(item)}</p>
                           <p className="text-[11px] text-gray-400">by {item.assigner?.name || "Admin"}</p>
                         </div>
                       </div>
                     </td>
-                    {/* Task */}
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-700 max-w-xs truncate">{item.task}</p>
                       {item.notes && <p className="text-[11px] text-gray-400 truncate max-w-xs">{item.notes}</p>}
                     </td>
-                    {/* Assigned */}
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-700">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "—"}</p>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${taskTypeStyle[item.task_type] || "bg-gray-100 text-gray-600"}`}>
+                        {item.task_type || "normal"}
+                      </span>
                     </td>
-                    {/* Status */}
+                    <td className="px-4 py-3">
+                      <p className="text-xs text-gray-700">{item.start_date ? new Date(item.start_date).toLocaleDateString() : "—"}</p>
+                      {item.deadline && (
+                        <p className="text-[10px] text-red-500 font-medium">Due: {new Date(item.deadline).toLocaleDateString()}</p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${statusStyle[item.status] || "bg-gray-100 text-gray-600"}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${statusDot[item.status] || "bg-gray-400"}`} />
                         {statusLabel[item.status] || item.status}
                       </span>
                     </td>
-                    {/* Quality */}
                     <td className="px-4 py-3 text-center">
                       {item.quality ? (
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${qualityStyle[item.quality] || "bg-gray-100 text-gray-600"}`}>
-                          {item.quality.charAt(0).toUpperCase() + item.quality.slice(1)}
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${qualityStyle[item.quality]}`}>
+                          {item.quality}
                         </span>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
+                      ) : <span className="text-xs text-gray-300">—</span>}
                     </td>
-                    {/* Actions — always visible */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={(e) => handleStatusUpdate(e, item)}
                           className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         </button>
-                        {item.status === 'completed' && (
-                          <button onClick={(e) => handleQualityUpdate(e, item)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Rate Quality">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                          </button>
-                        )}
+                        <button onClick={(e) => handleQualityUpdate(e, item)}
+                          className={`p-1.5 rounded-lg transition-colors ${item.status === 'completed' ? 'text-teal-600 hover:bg-teal-50' : 'text-gray-300 cursor-not-allowed'}`} title={item.status === 'completed' ? "Rate Quality" : "Complete task first to rate quality"}>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                        </button>
                         <button onClick={() => navigate(`/hr/staff-task/show/${item.id}`)}
                           className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -308,7 +277,7 @@ export default function StaffTask() {
           )}
 
           {filtered.length > 0 && (
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
               <p className="text-xs text-gray-400">Showing {filtered.length} of {items.length} tasks</p>
             </div>
           )}

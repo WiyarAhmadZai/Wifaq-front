@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
+const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const Icons = {
   User: () => (
@@ -254,9 +255,26 @@ export default function StaffTaskShow() {
               <Icons.Task />
               Task Information
             </h3>
+            {/* Staff Card */}
+            <div className="flex items-center gap-4 p-4 bg-teal-50 rounded-xl border border-teal-100 mb-4">
+              {data.staff?.profile_photo ? (
+                <img src={`${STORAGE}/storage/${data.staff.profile_photo}`} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-teal-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+                  {(data.staff?.application?.full_name || data.staff_name || '?').charAt(0)}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-800">{data.staff?.application?.full_name || data.staff_name}</p>
+                <p className="text-xs text-teal-600">{data.staff?.employee_id} {data.staff?.department ? `· ${data.staff.department}` : ''} {data.staff?.role_title_en ? `· ${data.staff.role_title_en}` : ''}</p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              <InfoCard icon={Icons.User} label="Staff Name" value={data.staff_name} highlight />
               <InfoCard icon={Icons.User} label="Assigned By" value={data.assigner?.name || '-'} />
+              <InfoCard icon={Icons.Calendar} label="Task Type" value={data.task_type ? data.task_type.charAt(0).toUpperCase() + data.task_type.slice(1) : 'Normal'} />
+              <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date ? new Date(data.start_date).toLocaleDateString() : '-'} />
+              {data.deadline && <InfoCard icon={Icons.Clock} label="Deadline" value={new Date(data.deadline).toLocaleDateString()} />}
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center gap-2 text-teal-600 mb-2">

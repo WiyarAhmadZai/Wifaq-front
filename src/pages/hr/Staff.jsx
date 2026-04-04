@@ -208,7 +208,7 @@ export default function Staff() {
                     const code = item.employee_id || '';
                     const role = item.role_title_en || '';
                     const branchName = item.branch?.name || '—';
-                    const dept = item.department || '';
+                    const dept = item.job_requisition?.department || '';
                     const contract = item.contract_type || '';
                     const status = item.status || '';
                     const phone = item.application?.contact_number || '';

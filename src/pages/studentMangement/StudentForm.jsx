@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 
 const steps = [
   {
@@ -262,28 +263,7 @@ export default function StudentForm() {
       }
       navigate("/student-management/students");
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-        // Jump to step with first error
-        const errorFields = Object.keys(error.response.data.errors);
-        const step1Fields = [
-          "family_id",
-          "first_name",
-          "last_name",
-          "date_of_birth",
-          "child_order_in_family",
-        ];
-        const step2Fields = [
-          "class_id",
-          "academic_term_id",
-          "enrollment_type",
-          "enrollment_date",
-        ];
-        if (errorFields.some((f) => step1Fields.includes(f))) setCurrentStep(1);
-        else if (errorFields.some((f) => step2Fields.includes(f)))
-          setCurrentStep(2);
-        else setCurrentStep(3);
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire(
           "Error",
           error.response?.data?.message || "Failed to save student",

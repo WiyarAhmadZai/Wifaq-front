@@ -62,6 +62,7 @@ export default function ContractsShow() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showRenewModal, setShowRenewModal] = useState(false);
 
   useEffect(() => {
     fetchItem();
@@ -134,6 +135,19 @@ export default function ContractsShow() {
           </div>
         </div>
         <div className="flex gap-2">
+          {data.has_probation && data.probation_end_date && (() => {
+            const end = new Date(data.probation_end_date);
+            const now = new Date(); now.setHours(0,0,0,0); end.setHours(0,0,0,0);
+            const dl = Math.ceil((end - now) / (1000*60*60*24));
+            if (dl > 3) return null;
+            return (
+              <button onClick={() => setShowRenewModal(true)}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-xs font-medium animate-pulse">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {dl <= 0 ? 'Expired — Renew' : `${dl}d left — Renew`}
+              </button>
+            );
+          })()}
           <button onClick={() => navigate(`/hr/contracts/edit/${id}`)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium">
             <Icons.Edit /> Edit
           </button>
@@ -210,6 +224,44 @@ export default function ContractsShow() {
           </div>
         </div>
       </div>
+
+      {/* Renew Modal */}
+      {showRenewModal && data && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 bg-orange-50 border-b border-orange-200">
+              <h3 className="text-sm font-bold text-gray-800">Contract Action Required</h3>
+              <p className="text-[11px] text-orange-600 mt-0.5">{data.staff?.application?.full_name || data.staff?.full_name} — {data.contract_number}</p>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-500">What would you like to do?</p>
+              <button onClick={() => { setShowRenewModal(false); navigate(`/hr/contracts/edit/${id}`); }}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:bg-teal-50 transition-all text-left group">
+                <div className="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-colors">
+                  <Icons.Edit />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Edit Current Contract</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Update dates, salary, or probation details</p>
+                </div>
+              </button>
+              <button onClick={() => { setShowRenewModal(false); navigate(`/hr/contracts/create?staff_id=${data.staff_id}`); }}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-left group">
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Create New Contract</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Start a fresh contract for this staff member</p>
+                </div>
+              </button>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-200">
+              <button onClick={() => setShowRenewModal(false)} className="w-full py-2 text-xs font-medium text-gray-600 hover:text-gray-800">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

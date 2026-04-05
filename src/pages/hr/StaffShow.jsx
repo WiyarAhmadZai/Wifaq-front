@@ -110,7 +110,7 @@ export default function StaffShow() {
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.employee_id}</span>
                 <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{branchName}</span>
-                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : status === 'probation' ? 'bg-amber-300/30 text-white' : 'bg-red-400/30 text-white'}`}>
+                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : 'bg-red-400/30 text-white'}`}>
                   {status}
                 </span>
               </div>

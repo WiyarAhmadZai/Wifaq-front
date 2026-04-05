@@ -165,7 +165,7 @@ export default function Contracts() {
               <tbody className="divide-y divide-gray-100">
                 {items.map((item) => {
                   const daysLeft = getProbationDaysLeft(item);
-                  const showRenewBtn = daysLeft !== null && daysLeft <= 3;
+                  const showRenewBtn = (daysLeft !== null && daysLeft <= 3) || item.status === 'expired';
 
                   return (
                     <tr key={item.id} className="hover:bg-gray-50">

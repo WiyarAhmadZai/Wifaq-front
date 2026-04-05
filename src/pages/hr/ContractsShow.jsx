@@ -135,16 +135,20 @@ export default function ContractsShow() {
           </div>
         </div>
         <div className="flex gap-2">
-          {data.has_probation && data.probation_end_date && (() => {
-            const end = new Date(data.probation_end_date);
-            const now = new Date(); now.setHours(0,0,0,0); end.setHours(0,0,0,0);
-            const dl = Math.ceil((end - now) / (1000*60*60*24));
-            if (dl > 3) return null;
+          {(() => {
+            let dl = null;
+            if (data.has_probation && data.probation_end_date) {
+              const end = new Date(data.probation_end_date);
+              const now = new Date(); now.setHours(0,0,0,0); end.setHours(0,0,0,0);
+              dl = Math.ceil((end - now) / (1000*60*60*24));
+            }
+            const show = (dl !== null && dl <= 3) || data.status === 'expired';
+            if (!show) return null;
             return (
               <button onClick={() => setShowRenewModal(true)}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-xs font-medium animate-pulse">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                {dl <= 0 ? 'Expired — Renew' : `${dl}d left — Renew`}
+                {data.status === 'expired' ? 'Expired — Renew' : dl <= 0 ? 'Expired — Renew' : `${dl}d left — Renew`}
               </button>
             );
           })()}

@@ -136,15 +136,6 @@ export default function StaffShow() {
                 <Field label="Father's Name" value={data.father_name} />
                 <Field label="Blood Type" value={data.blood_type} />
               </div>
-              {(data.emergency_contact_name || data.emergency_contact_phone) && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-3">Emergency Contact</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Name" value={data.emergency_contact_name} />
-                    <Field label="Phone" value={data.emergency_contact_phone} />
-                  </div>
-                </div>
-              )}
             </Section>
 
             {/* Education & Experience (from application) */}
@@ -178,7 +169,6 @@ export default function StaffShow() {
                 <Field label="Department" value={data.job_requisition?.department} />
                 <Field label="Position Title" value={role} />
                 <Field label="Contract Type" value={CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || app?.job_posting?.requisition?.employment_type || '—'} />
-                {data.has_probation && <Field label="Probation End" value={data.probation_end_date?.split('T')[0]} />}
               </div>
             </Section>
 

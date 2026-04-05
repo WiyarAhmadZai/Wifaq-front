@@ -20,13 +20,10 @@ export default function CandidatePoolForm() {
   const isEdit = Boolean(id);
 
   const [formData, setFormData] = useState({
-    candidate_name: "",
-    email: "",
-    phone: "",
-    pool_category: "",
-    qualifications: "",
-    experience_years: "",
-    notes: "",
+    name: "",
+    category: "",
+    description: "",
+    is_active: true,
   });
 
   const [errors, setErrors] = useState({});
@@ -34,25 +31,22 @@ export default function CandidatePoolForm() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (isEdit) fetchCandidate();
+    if (isEdit) fetchPool();
   }, [id]);
 
-  const fetchCandidate = async () => {
+  const fetchPool = async () => {
     setLoading(true);
     try {
       const response = await get(`/recruitment/candidate-pool/${id}`);
       const d = response.data?.data || response.data;
       setFormData({
-        candidate_name: d.candidate_name || "",
-        email: d.email || "",
-        phone: d.phone || "",
-        pool_category: d.pool_category || "",
-        qualifications: d.qualifications || "",
-        experience_years: d.experience_years || "",
-        notes: d.notes || "",
+        name: d.name || "",
+        category: d.category || "",
+        description: d.description || "",
+        is_active: d.is_active ?? true,
       });
-    } catch (error) {
-      Swal.fire("Error", "Failed to load candidate data", "error");
+    } catch {
+      Swal.fire("Error", "Failed to load pool data", "error");
       navigate("/recruitment/candidate-pool");
     } finally {
       setLoading(false);
@@ -60,8 +54,8 @@ export default function CandidatePoolForm() {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
   };
 
@@ -72,17 +66,17 @@ export default function CandidatePoolForm() {
     try {
       if (isEdit) {
         await put(`/recruitment/candidate-pool/${id}`, formData);
-        Swal.fire("Success", "Candidate updated successfully", "success");
+        Swal.fire({ icon: "success", title: "Pool updated successfully", timer: 1500, showConfirmButton: false });
       } else {
         await post("/recruitment/candidate-pool", formData);
-        Swal.fire("Success", "Candidate added to pool successfully", "success");
+        Swal.fire({ icon: "success", title: "Pool created successfully", timer: 1500, showConfirmButton: false });
       }
       navigate("/recruitment/candidate-pool");
     } catch (error) {
       if (error.response?.status === 422 && error.response?.data?.errors) {
         setErrors(error.response.data.errors);
       } else {
-        Swal.fire("Error", error.response?.data?.message || "Failed to save candidate", "error");
+        Swal.fire("Error", error.response?.data?.message || "Failed to save pool", "error");
       }
     } finally {
       setSaving(false);
@@ -100,7 +94,7 @@ export default function CandidatePoolForm() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div>
-          <span className="text-gray-500 text-sm">Loading candidate data...</span>
+          <span className="text-gray-500 text-sm">Loading...</span>
         </div>
       </div>
     );
@@ -109,163 +103,70 @@ export default function CandidatePoolForm() {
   return (
     <div className="px-4 py-4 mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => navigate("/recruitment/candidate-pool")}
-          className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
-        >
+        <button onClick={() => navigate("/recruitment/candidate-pool")}
+          className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
         </button>
         <div>
-          <h2 className="text-lg font-bold text-gray-800">
-            {isEdit ? "Edit Candidate" : "Add Candidate to Pool"}
-          </h2>
-          <p className="text-[11px] text-gray-400">
-            {isEdit ? "Update candidate information" : "Add a new candidate to the recruitment pool"}
-          </p>
+          <h2 className="text-lg font-bold text-gray-800">{isEdit ? "Edit Pool" : "Create Candidate Pool"}</h2>
+          <p className="text-[11px] text-gray-400">{isEdit ? "Update pool details" : "Create a new talent pool for organizing candidates"}</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-2xl">
         <div className="px-5 py-4 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100">
-          <h3 className="text-sm font-bold text-gray-800">Candidate Information</h3>
+          <h3 className="text-sm font-bold text-gray-800">Pool Details</h3>
         </div>
-        
-        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Candidate Name *
-            </label>
-            <input
-              type="text"
-              name="candidate_name"
-              value={formData.candidate_name}
-              onChange={handleChange}
-              required
-              placeholder="Full name"
-              className={inputClass("candidate_name")}
-            />
-            {err("candidate_name") && <p className="text-red-500 text-[10px] mt-1">{err("candidate_name")}</p>}
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pool Name *</label>
+            <input type="text" name="name" value={formData.name} onChange={handleChange} required
+              placeholder="e.g. Math Teachers 2026, Admin Staff Reserve"
+              className={inputClass("name")} />
+            {err("name") && <p className="text-red-500 text-[10px] mt-1">{err("name")}</p>}
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Email *
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              placeholder="candidate@example.com"
-              className={inputClass("email")}
-            />
-            {err("email") && <p className="text-red-500 text-[10px] mt-1">{err("email")}</p>}
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Phone
-            </label>
-            <input
-              type="text"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="+93 7xx xxx xxxx"
-              className={inputClass("phone")}
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Pool Category *
-            </label>
-            <select
-              name="pool_category"
-              value={formData.pool_category}
-              onChange={handleChange}
-              required
-              className={inputClass("pool_category")}
-            >
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Category *</label>
+            <select name="category" value={formData.category} onChange={handleChange} required
+              className={inputClass("category")}>
               {POOL_CATEGORIES.map((cat) => (
                 <option key={cat.value} value={cat.value}>{cat.label}</option>
               ))}
             </select>
-            {err("pool_category") && <p className="text-red-500 text-[10px] mt-1">{err("pool_category")}</p>}
+            {err("category") && <p className="text-red-500 text-[10px] mt-1">{err("category")}</p>}
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Experience (Years)
-            </label>
-            <input
-              type="number"
-              name="experience_years"
-              value={formData.experience_years}
-              onChange={handleChange}
-              placeholder="e.g. 5"
-              min="0"
-              className={inputClass("experience_years")}
-            />
+            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
+            <textarea name="description" value={formData.description} onChange={handleChange} rows={3}
+              placeholder="Brief description of this pool's purpose..."
+              className={inputClass("description")} />
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Qualifications
-            </label>
-            <input
-              type="text"
-              name="qualifications"
-              value={formData.qualifications}
-              onChange={handleChange}
-              placeholder="e.g. Bachelor's in Education, Teaching Certificate"
-              className={inputClass("qualifications")}
-            />
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Notes
-            </label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              rows={3}
-              placeholder="Additional notes about the candidate..."
-              className={inputClass("notes")}
-            />
-          </div>
+          {isEdit && (
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+              <input type="checkbox" id="is_active" name="is_active" checked={formData.is_active} onChange={handleChange}
+                className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500" />
+              <label htmlFor="is_active" className="text-xs font-medium text-gray-700">Pool is active and accepting candidates</label>
+            </div>
+          )}
         </div>
 
         <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/recruitment/candidate-pool")}
-            className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all"
-          >
+          <button type="button" onClick={() => navigate("/recruitment/candidate-pool")}
+            className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all">
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-6 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 transition-all shadow-sm disabled:opacity-50 flex items-center gap-2"
-          >
+          <button type="submit" disabled={saving}
+            className="px-6 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 transition-all shadow-sm disabled:opacity-50 flex items-center gap-2">
             {saving ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Saving...
-              </>
+              <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
             ) : (
-              <>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                {isEdit ? "Update Candidate" : "Add to Pool"}
-              </>
+              <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Pool" : "Create Pool"}</>
             )}
           </button>
         </div>

@@ -73,6 +73,7 @@ export default function ApplicationShow() {
     salary_amount: "",
     salary_currency: "AFN",
     start_date: "",
+    daily_hours: "",
     additional_terms: "",
     job_responsibilities: "",
   });
@@ -323,6 +324,7 @@ export default function ApplicationShow() {
           salary_amount: offer.salary_amount || "",
           salary_currency: offer.salary_currency || "AFN",
           start_date: offer.start_date?.split("T")[0] || "",
+          daily_hours: offer.daily_hours || "",
           additional_terms: offer.additional_terms || "",
           job_responsibilities: offer.job_responsibilities || "",
         });
@@ -1360,6 +1362,10 @@ export default function ApplicationShow() {
                             <p className="text-xs text-teal-600 mb-1">Start Date</p>
                             <p className="text-sm font-medium text-gray-800">{formatDate(existingOffer.start_date)}</p>
                           </div>
+                          <div>
+                            <p className="text-xs text-teal-600 mb-1">Daily Hours</p>
+                            <p className="text-sm font-medium text-gray-800">{existingOffer.daily_hours ? `${existingOffer.daily_hours} hours/day` : "—"}</p>
+                          </div>
                         </div>
 
                         {/* Job Responsibilities */}
@@ -1545,6 +1551,21 @@ export default function ApplicationShow() {
                             type="date"
                             value={offerData.start_date}
                             onChange={(e) => setOfferData({ ...offerData, start_date: e.target.value })}
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                          />
+                        </div>
+
+                        {/* Daily Hours */}
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1.5 block">Daily Hours</label>
+                          <input
+                            type="number"
+                            value={offerData.daily_hours}
+                            onChange={(e) => setOfferData({ ...offerData, daily_hours: e.target.value })}
+                            placeholder="e.g. 5"
+                            min="1"
+                            max="24"
+                            step="0.5"
                             className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                           />
                         </div>
@@ -1776,6 +1797,10 @@ export default function ApplicationShow() {
                         <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                           <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Start Date</p>
                           <p className="text-sm font-bold text-gray-800">{formatDate(existingOffer.start_date)}</p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Daily Hours</p>
+                          <p className="text-sm font-bold text-gray-800">{existingOffer.daily_hours ? `${existingOffer.daily_hours} hrs/day` : "—"}</p>
                         </div>
                         <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                           <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Department</p>

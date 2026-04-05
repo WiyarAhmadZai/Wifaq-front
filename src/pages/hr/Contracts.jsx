@@ -29,14 +29,59 @@ const formatDateYDM = (dateString) => {
   return `${date.getFullYear()}/${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const getProbationDaysLeft = (item) => {
-  if (!item.has_probation || !item.probation_end_date) return null;
-  const parts = item.probation_end_date.split('T')[0].split('-');
-  const end = new Date(parts[0], parts[1] - 1, parts[2]);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
-  return Math.round((end - now) / (1000 * 60 * 60 * 24));
+const parseDate = (str) => {
+  if (!str) return null;
+  const p = str.split('T')[0].split('-');
+  const d = new Date(p[0], p[1] - 1, p[2]);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const daysBetween = (from, to) => Math.round((to - from) / (1000 * 60 * 60 * 24));
+
+const formatDuration = (days) => {
+  if (days <= 0) return null;
+  if (days > 365) { const y = Math.floor(days / 365); const m = Math.floor((days % 365) / 30); return m > 0 ? `${y}y ${m}m` : `${y}y`; }
+  if (days > 60) return `${Math.floor(days / 30)}m`;
+  return `${days}d`;
+};
+
+// Returns { text, color, type } or null
+const getContractTimeInfo = (item) => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const start = parseDate(item.start_date);
+
+  // Phase 1: Before start date — show days to start
+  if (start && start > today) {
+    const d = daysBetween(today, start);
+    return { text: `Starts in ${d}d`, color: 'bg-blue-100 text-blue-700', type: 'start' };
+  }
+
+  // Phase 2: Has probation — show probation countdown from start_date
+  if (item.has_probation && item.probation_end_date) {
+    const probEnd = parseDate(item.probation_end_date);
+    if (start && probEnd) {
+      const left = daysBetween(today, probEnd);
+      if (left <= 0) return { text: 'Probation expired', color: 'bg-red-500 text-white', type: 'probation' };
+      if (left <= 3) return { text: `${left}d probation`, color: 'bg-red-100 text-red-700 animate-pulse', type: 'probation' };
+      if (left <= 7) return { text: `${left}d probation`, color: 'bg-amber-100 text-amber-700', type: 'probation' };
+      return { text: `${left}d probation`, color: 'bg-gray-100 text-gray-600', type: 'probation' };
+    }
+  }
+
+  // Phase 3: Has end date — show contract time left
+  if (item.end_date) {
+    const end = parseDate(item.end_date);
+    if (end) {
+      const left = daysBetween(today, end);
+      if (left <= 0) return { text: 'Contract ended', color: 'bg-red-100 text-red-700', type: 'end' };
+      const dur = formatDuration(left);
+      if (left <= 30) return { text: `${dur} left`, color: 'bg-amber-100 text-amber-700', type: 'end' };
+      return { text: `${dur} left`, color: 'bg-gray-100 text-gray-600', type: 'end' };
+    }
+  }
+
+  return null;
 };
 
 export default function Contracts() {
@@ -164,8 +209,13 @@ export default function Contracts() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {items.map((item) => {
-                  const daysLeft = getProbationDaysLeft(item);
-                  const showRenewBtn = (daysLeft !== null && daysLeft <= 3) || item.status === 'expired';
+                  const timeInfo = getContractTimeInfo(item);
+                  const probDaysLeft = (() => {
+                    if (!item.has_probation || !item.probation_end_date) return null;
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    return daysBetween(today, parseDate(item.probation_end_date));
+                  })();
+                  const showRenewBtn = (probDaysLeft !== null && probDaysLeft <= 3) || item.status === 'expired';
 
                   return (
                     <tr key={item.id} className="hover:bg-gray-50">
@@ -174,18 +224,13 @@ export default function Contracts() {
                         {item.staff?.application?.full_name || item.staff?.full_name || "-"}
                       </td>
                       <td className="px-3 py-2 text-xs">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${getContractTypeBadge(item.contract_type)}`}>
                             {item.contract_type?.replace("_", " ")}
                           </span>
-                          {item.has_probation && daysLeft !== null && (
-                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                              daysLeft <= 0 ? 'bg-red-500 text-white' :
-                              daysLeft <= 3 ? 'bg-red-100 text-red-700 animate-pulse' :
-                              daysLeft <= 7 ? 'bg-amber-100 text-amber-700' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {daysLeft <= 0 ? 'Expired' : `${daysLeft}d left`}
+                          {timeInfo && (
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold ${timeInfo.color}`}>
+                              {timeInfo.text}
                             </span>
                           )}
                         </div>

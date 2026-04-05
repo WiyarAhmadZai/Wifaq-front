@@ -83,7 +83,6 @@ export default function Staff() {
   };
 
   const activeCount = items.filter(i => i.status === 'active').length;
-  const probationCount = items.filter(i => i.status === 'probation').length;
   const inactiveCount = items.filter(i => i.status === 'inactive').length;
 
   const clearFilters = () => {
@@ -118,11 +117,10 @@ export default function Staff() {
 
       <div className="max-w-full mx-auto px-4 py-6 space-y-4">
         {/* Stat Cards */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Total', value: pagination.total, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
             { label: 'Active', value: activeCount, icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-            { label: 'Probation', value: probationCount, icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
             { label: 'Inactive', value: inactiveCount, icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -149,7 +147,7 @@ export default function Staff() {
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none placeholder-gray-400" />
             </div>
             <div className="flex gap-2 flex-wrap">
-              {['all', 'active', 'probation', 'inactive'].map(f => (
+              {['all', 'active', 'inactive'].map(f => (
                 <button key={f} onClick={() => setStatusFilter(f)}
                   className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all capitalize ${statusFilter === f ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
                   {f}
@@ -242,7 +240,6 @@ export default function Staff() {
                         <td className="px-4 py-3 text-center">
                           <span className={`px-2.5 py-1 text-[11px] font-semibold rounded-full capitalize ${
                             status === 'active' ? 'bg-teal-100 text-teal-700' :
-                            status === 'probation' ? 'bg-amber-100 text-amber-700' :
                             'bg-gray-100 text-gray-500'
                           }`}>
                             {status}
@@ -312,7 +309,7 @@ export default function Staff() {
             <div className="p-5">
               <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">New Status</p>
               <div className="flex gap-3">
-                {['active', 'probation', 'inactive'].map(s => (
+                {['active', 'inactive'].map(s => (
                   <button key={s} type="button" onClick={() => setStatusUpdate(s)}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${statusUpdate === s ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
                     {s}

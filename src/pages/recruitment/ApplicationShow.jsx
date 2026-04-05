@@ -1904,103 +1904,6 @@ export default function ApplicationShow() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Documents Quick Access */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-700">Documents</h3>
-                <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-medium">
-                  {documents?.length || 0}
-                </span>
-              </div>
-              {documents && documents.length > 0 ? (
-                <div className="space-y-2">
-                  {documents.slice(0, 3).map((doc) => {
-                    const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, color: "gray" };
-                    const docColors = COLOR_STYLES[docType.color];
-                    return (
-                      <button
-                        key={doc.id}
-                        onClick={() => openDocument(doc)}
-                        className="w-full p-2 bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 transition-all text-left"
-                      >
-                        <div className={`w-8 h-8 rounded-lg ${docColors.icon} flex items-center justify-center flex-shrink-0`}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon || "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"} />
-                          </svg>
-                        </div>
-                        <span className="text-sm text-gray-700 truncate flex-1">{docType.label}</span>
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </button>
-                    );
-                  })}
-                  {documents.length > 3 && (
-                    <button
-                      onClick={() => setActiveTab("documents")}
-                      className="w-full py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
-                    >
-                      View all {documents.length} documents →
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-sm text-gray-500">No documents uploaded</p>
-                </div>
-              )}
-            </div>
-
-            {/* Candidate Info */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4">Candidate Info</h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Full Name</p>
-                  <p className="text-sm font-medium text-gray-800">{data.full_name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Contact</p>
-                  <p className="text-sm font-medium text-gray-800">{data.contact_number || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Email</p>
-                  <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Address</p>
-                  <p className="text-sm text-gray-700">{data.current_address || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Origin</p>
-                  <p className="text-sm text-gray-700">{data.place_of_origin || "—"}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Education */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4">Education</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Level</p>
-                  <p className="text-sm font-medium text-gray-800 capitalize">{data.education_level?.replace(/_/g, " ") || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Field of Study</p>
-                  <p className="text-sm text-gray-700">{data.field_of_study || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Institution</p>
-                  <p className="text-sm text-gray-700">{data.institution_name || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Experience</p>
-                  <p className="text-sm font-medium text-gray-800">{data.total_experience_years || 0} years</p>
-                </div>
-              </div>
-            </div>
 
             {/* Match Analysis */}
             {(() => {
@@ -2070,7 +1973,34 @@ export default function ApplicationShow() {
               );
             })()}
 
-            {/* Candidate Pools */}
+            {/* Candidate Info */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Candidate Info</h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Full Name</p>
+                  <p className="text-sm font-medium text-gray-800">{data.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Contact</p>
+                  <p className="text-sm font-medium text-gray-800">{data.contact_number || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Email</p>
+                  <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Address</p>
+                  <p className="text-sm text-gray-700">{data.current_address || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Origin</p>
+                  <p className="text-sm text-gray-700">{data.place_of_origin || "—"}</p>
+                </div>
+              </div>
+            </div>
+
+             {/* Candidate Pools */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-700">Candidate Pools</h3>
@@ -2146,22 +2076,26 @@ export default function ApplicationShow() {
                 </div>
               </div>
             )}
-
-            {/* Timeline */}
-            <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl shadow-sm p-5 text-white">
-              <h3 className="text-sm font-semibold mb-4">Timeline</h3>
+            
+            {/* Education */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Education</h3>
               <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-xs text-teal-100">Applied</span>
-                  <span className="text-xs font-medium">{formatDate(data.created_at)}</span>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Level</p>
+                  <p className="text-sm font-medium text-gray-800 capitalize">{data.education_level?.replace(/_/g, " ") || "—"}</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-xs text-teal-100">Last Updated</span>
-                  <span className="text-xs font-medium">{formatDate(data.updated_at)}</span>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Field of Study</p>
+                  <p className="text-sm text-gray-700">{data.field_of_study || "—"}</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-xs text-teal-100">Application ID</span>
-                  <span className="text-xs font-medium">#{String(data.id).padStart(4, "0")}</span>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Institution</p>
+                  <p className="text-sm text-gray-700">{data.institution_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Experience</p>
+                  <p className="text-sm font-medium text-gray-800">{data.total_experience_years || 0} years</p>
                 </div>
               </div>
             </div>
@@ -2228,6 +2162,73 @@ export default function ApplicationShow() {
                   <p className="text-xs text-gray-400">No emails sent yet</p>
                 </div>
               )}
+            </div>
+
+             {/* Documents Quick Access */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700">Documents</h3>
+                <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-medium">
+                  {documents?.length || 0}
+                </span>
+              </div>
+              {documents && documents.length > 0 ? (
+                <div className="space-y-2">
+                  {documents.slice(0, 3).map((doc) => {
+                    const docType = DOCUMENT_TYPES[doc.document_type] || { label: doc.document_type, color: "gray" };
+                    const docColors = COLOR_STYLES[docType.color];
+                    return (
+                      <button
+                        key={doc.id}
+                        onClick={() => openDocument(doc)}
+                        className="w-full p-2 bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 transition-all text-left"
+                      >
+                        <div className={`w-8 h-8 rounded-lg ${docColors.icon} flex items-center justify-center flex-shrink-0`}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={docType.icon || "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"} />
+                          </svg>
+                        </div>
+                        <span className="text-sm text-gray-700 truncate flex-1">{docType.label}</span>
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                    );
+                  })}
+                  {documents.length > 3 && (
+                    <button
+                      onClick={() => setActiveTab("documents")}
+                      className="w-full py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                    >
+                      View all {documents.length} documents →
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">No documents uploaded</p>
+                </div>
+              )}
+            </div>
+
+            {/* Timeline */}
+            <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl shadow-sm p-5 text-white">
+              <h3 className="text-sm font-semibold mb-4">Timeline</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-xs text-teal-100">Applied</span>
+                  <span className="text-xs font-medium">{formatDate(data.created_at)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-teal-100">Last Updated</span>
+                  <span className="text-xs font-medium">{formatDate(data.updated_at)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-teal-100">Application ID</span>
+                  <span className="text-xs font-medium">#{String(data.id).padStart(4, "0")}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

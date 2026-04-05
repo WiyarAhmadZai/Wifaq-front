@@ -15,7 +15,6 @@ export default function ContractsForm() {
     start_date: "",
     end_date: "",
     has_probation: false,
-    probation_period_days: 90,
     probation_end_date: "",
     salary: "",
     salary_currency: "AFN",
@@ -101,7 +100,6 @@ export default function ContractsForm() {
         start_date: formatDateForInput(data.start_date),
         end_date: formatDateForInput(data.end_date),
         has_probation: data.has_probation || false,
-        probation_period_days: data.probation_period_days || 90,
         probation_end_date: formatDateForInput(data.probation_end_date),
         salary: data.salary || "",
         salary_currency: data.salary_currency || "AFN",
@@ -326,18 +324,11 @@ export default function ContractsForm() {
             </label>
 
             {formData.has_probation && (
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Probation Period (Days)</label>
-                  <input type="number" name="probation_period_days" value={formData.probation_period_days} onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Probation End Date</label>
-                  <input type="date" name="probation_end_date" value={formData.probation_end_date} onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
-                  <p className="text-[10px] text-gray-400 mt-1">Default: 1 month from start date. You can adjust.</p>
-                </div>
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Probation End Date</label>
+                <input type="date" name="probation_end_date" value={formData.probation_end_date} onChange={handleChange}
+                  className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
+                <p className="text-[10px] text-gray-400 mt-1">Default: 1 month from start date. You can adjust.</p>
               </div>
             )}
           </div>

@@ -139,6 +139,7 @@ const ApplicationForm = lazy(() => import("./pages/recruitment/ApplicationForm")
 const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
+const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolShow"));
 
 // Finance
 const FeePayments = lazy(() => import("./pages/finance/FeePayments"));
@@ -394,6 +395,7 @@ function App() {
             <Route path="recruitment/candidate-pool" element={<Suspense fallback={<PageLoader />}><CandidatePool /></Suspense>} />
             <Route path="recruitment/candidate-pool/create" element={<Suspense fallback={<PageLoader />}><CandidatePoolForm /></Suspense>} />
             <Route path="recruitment/candidate-pool/edit/:id" element={<Suspense fallback={<PageLoader />}><CandidatePoolForm /></Suspense>} />
+            <Route path="recruitment/candidate-pool/show/:id" element={<Suspense fallback={<PageLoader />}><CandidatePoolShow /></Suspense>} />
 
             {/* Purchase */}
             <Route path="purchase/purchase-requests" element={<Suspense fallback={<PageLoader />}><PurchaseRequests /></Suspense>} />

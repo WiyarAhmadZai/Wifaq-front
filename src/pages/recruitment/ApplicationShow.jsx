@@ -84,10 +84,18 @@ export default function ApplicationShow() {
   // Email logs state
   const [emailLogs, setEmailLogs] = useState([]);
 
+  // Candidate pools state
+  const [candidatePools, setCandidatePools] = useState([]);
+  const [availablePools, setAvailablePools] = useState([]);
+  const [showPoolModal, setShowPoolModal] = useState(false);
+  const [selectedPoolId, setSelectedPoolId] = useState("");
+  const [poolNotes, setPoolNotes] = useState("");
+
   useEffect(() => {
     fetchData();
     fetchDocuments();
     fetchEmailLogs();
+    fetchCandidatePools();
     if (data?.status === "interview") {
       fetchInterviewSchedule();
     }
@@ -140,6 +148,46 @@ export default function ApplicationShow() {
     } catch (error) {
       console.error("Error fetching email logs:", error);
     }
+  };
+
+  const fetchCandidatePools = async () => {
+    try {
+      const res = await get(`/recruitment/applications/${id}/pools`);
+      setCandidatePools(res.data?.data || []);
+    } catch {}
+  };
+
+  const fetchAvailablePools = async () => {
+    try {
+      const res = await get("/recruitment/candidate-pool/active");
+      setAvailablePools(res.data?.data || []);
+    } catch {}
+  };
+
+  const handleAddToPool = async () => {
+    if (!selectedPoolId) return;
+    try {
+      await post(`/recruitment/applications/${id}/pools`, {
+        candidate_pool_id: selectedPoolId,
+        notes: poolNotes,
+      });
+      setShowPoolModal(false);
+      setSelectedPoolId("");
+      setPoolNotes("");
+      fetchCandidatePools();
+      Swal.fire({ icon: "success", title: "Added to pool", timer: 1500, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to add to pool", "error");
+    }
+  };
+
+  const handleRemoveFromPool = async (memberId) => {
+    const pool = candidatePools.find((p) => p.member_id === memberId);
+    if (!pool) return;
+    try {
+      await del(`/recruitment/candidate-pool/${pool.id}/members/${memberId}`);
+      setCandidatePools((prev) => prev.filter((p) => p.member_id !== memberId));
+    } catch {}
   };
 
   const handleStatusChange = async (newStatus) => {
@@ -2021,6 +2069,83 @@ export default function ApplicationShow() {
                 </div>
               );
             })()}
+
+            {/* Candidate Pools */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700">Candidate Pools</h3>
+                <button onClick={() => { setShowPoolModal(true); fetchAvailablePools(); }}
+                  className="p-1 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Add to Pool">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+              {candidatePools.length > 0 ? (
+                <div className="space-y-2">
+                  {candidatePools.map((pool) => (
+                    <div key={pool.member_id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg group">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-md bg-teal-100 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate">{pool.name}</p>
+                          <p className="text-[10px] text-gray-400 capitalize">{pool.category}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => handleRemoveFromPool(pool.member_id)}
+                        className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all" title="Remove">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 text-center py-2">Not in any pool</p>
+              )}
+            </div>
+
+            {/* Add to Pool Modal */}
+            {showPoolModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+                  <div className="px-5 py-4 bg-teal-50 border-b border-teal-100">
+                    <h3 className="text-sm font-bold text-gray-800">Add to Candidate Pool</h3>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Select Pool</label>
+                      <select value={selectedPoolId} onChange={(e) => setSelectedPoolId(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none">
+                        <option value="">Choose a pool...</option>
+                        {availablePools
+                          .filter((p) => !candidatePools.some((cp) => cp.id === p.id))
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Notes (Optional)</label>
+                      <textarea value={poolNotes} onChange={(e) => setPoolNotes(e.target.value)} rows={2}
+                        placeholder="Why add this candidate to the pool?"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
+                    </div>
+                  </div>
+                  <div className="px-5 py-4 bg-gray-50 flex justify-end gap-2 border-t border-gray-100">
+                    <button onClick={() => { setShowPoolModal(false); setSelectedPoolId(""); setPoolNotes(""); }}
+                      className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleAddToPool} disabled={!selectedPoolId}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50">Add to Pool</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Timeline */}
             <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl shadow-sm p-5 text-white">

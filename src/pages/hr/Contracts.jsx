@@ -31,12 +31,12 @@ const formatDateYDM = (dateString) => {
 
 const getProbationDaysLeft = (item) => {
   if (!item.has_probation || !item.probation_end_date) return null;
-  const end = new Date(item.probation_end_date);
+  const parts = item.probation_end_date.split('T')[0].split('-');
+  const end = new Date(parts[0], parts[1] - 1, parts[2]);
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-  return diff;
+  return Math.round((end - now) / (1000 * 60 * 60 * 24));
 };
 
 export default function Contracts() {

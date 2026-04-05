@@ -176,6 +176,37 @@ export default function ApplicationShow() {
     }
   };
 
+  const handleWaitingList = async () => {
+    const result = await Swal.fire({
+      title: "Move to Waiting List?",
+      text: `This will place ${data.full_name} on the priority waiting list and send them a notification email.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#d97706",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Move to Waiting List",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+
+    setIsUpdating(true);
+    try {
+      await put(`/recruitment/applications/${id}/waiting-list`);
+      setData((prev) => ({ ...prev, status: "waiting_list" }));
+      Swal.fire({
+        title: "Moved to Waiting List!",
+        text: "A notification email has been sent to the applicant.",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire("Error", "Failed to move to waiting list", "error");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleScheduleInterview = async () => {
     // Validate required fields
     if (!interviewData.interview_date || !interviewData.interview_time) {
@@ -610,6 +641,8 @@ export default function ApplicationShow() {
   const isInterview = data.status === "interview";
   const isOffer = data.status === "offer";
   const isHired = data.status === "hired";
+  const isWaitingList = data.status === "waiting_list";
+  const isRejected = data.status === "rejected";
 
   // Tab Navigation Component
   const TabButton = ({ tab, label, icon }) => (
@@ -647,7 +680,11 @@ export default function ApplicationShow() {
           </div>
         </div>
         <div className="ml-auto flex gap-2">
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${colors.light}`}>
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+            isWaitingList ? "bg-amber-100 text-amber-700" :
+            isRejected ? "bg-red-100 text-red-700" :
+            colors.light
+          }`}>
             {data.status?.replace(/_/g, " ")}
           </span>
         </div>
@@ -760,6 +797,13 @@ export default function ApplicationShow() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                       </svg>
                       {isUpdating ? "Processing..." : "Start Screening"}
+                    </button>
+                    <button
+                      onClick={handleWaitingList}
+                      disabled={isUpdating}
+                      className="px-4 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all disabled:opacity-50"
+                    >
+                      Waiting List
                     </button>
                     <button
                       onClick={() => handleStatusChange("rejected")}
@@ -883,6 +927,13 @@ export default function ApplicationShow() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       {isUpdating ? "Processing..." : "Shortlist Candidate"}
+                    </button>
+                    <button
+                      onClick={handleWaitingList}
+                      disabled={isUpdating}
+                      className="px-4 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all disabled:opacity-50"
+                    >
+                      Waiting List
                     </button>
                     <button
                       onClick={() => handleStatusChange("rejected")}
@@ -1026,6 +1077,13 @@ export default function ApplicationShow() {
                       Back to Screening
                     </button>
                     <button
+                      onClick={handleWaitingList}
+                      disabled={isUpdating}
+                      className="px-4 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all disabled:opacity-50"
+                    >
+                      Waiting List
+                    </button>
+                    <button
                       onClick={() => handleStatusChange("rejected")}
                       disabled={isUpdating}
                       className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
@@ -1153,6 +1211,16 @@ export default function ApplicationShow() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                         {isSubmittingFeedback ? "Saving..." : "Fail - Reject"}
+                      </button>
+                      <button
+                        onClick={handleWaitingList}
+                        disabled={isSubmittingFeedback || isUpdating}
+                        className="flex-1 min-w-[140px] py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Waiting List
                       </button>
                       {/* <button
                         onClick={() => handleInterviewFeedback("no_show")}
@@ -1717,15 +1785,70 @@ export default function ApplicationShow() {
               </div>
             )}
 
+            {/* WAITING LIST STAGE */}
+            {isWaitingList && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden">
+                <div className="px-6 py-4 border-b border-amber-100 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Priority Waiting List</h2>
+                    <p className="text-xs text-amber-600">Candidate is on the waiting list for future opportunities</p>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="bg-white rounded-xl p-4 border border-amber-100 mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-700 mb-1">What this means</p>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>• Application remains active in the system</li>
+                          <li>• Candidate will be contacted when a suitable position opens</li>
+                          <li>• A notification email has been sent to the applicant</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-4 border-t border-amber-100">
+                    <button
+                      onClick={() => handleStatusChange("screening")}
+                      disabled={isUpdating}
+                      className="flex-1 py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {isUpdating ? "Processing..." : "Reactivate Application"}
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange("rejected")}
+                      disabled={isUpdating}
+                      className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Other Stages */}
-            {!isReceived && !isScreening && !isShortlisted && !isInterview && !isOffer && !isHired && (
+            {!isReceived && !isScreening && !isShortlisted && !isInterview && !isOffer && !isHired && !isWaitingList && !isRejected && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h2 className="text-lg font-bold text-gray-800 mb-2">{currentStep.label} Stage</h2>
+                <h2 className="text-lg font-bold text-gray-800 mb-2">{data.status?.replace(/_/g, " ")} Stage</h2>
                 <p className="text-sm text-gray-500">Application is in {data.status?.replace(/_/g, " ")} stage</p>
               </div>
             )}

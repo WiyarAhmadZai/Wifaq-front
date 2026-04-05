@@ -349,12 +349,13 @@ export default function Contracts() {
 
             <div className="p-5 space-y-3">
               {(() => {
-                const dl = getProbationDaysLeft(selectedContract);
+                const info = getContractTimeInfo(selectedContract);
+                const isExpired = info?.text?.includes('expired') || info?.text?.includes('ended') || selectedContract.status === 'expired';
                 return (
-                  <div className={`p-3 rounded-lg text-xs font-medium ${dl <= 0 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                    {dl <= 0
-                      ? 'Probation period has expired. Please renew or update this contract.'
-                      : `Probation period ends in ${dl} day${dl !== 1 ? 's' : ''}. Take action now.`}
+                  <div className={`p-3 rounded-lg text-xs font-medium ${isExpired ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                    {isExpired
+                      ? 'Contract/probation has expired. Please renew or update this contract.'
+                      : `${info?.text || 'Action needed'}. Take action now.`}
                   </div>
                 );
               })()}

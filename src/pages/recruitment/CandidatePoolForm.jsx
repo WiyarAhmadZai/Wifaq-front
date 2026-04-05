@@ -115,29 +115,32 @@ export default function CandidatePoolForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-2xl">
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100">
           <h3 className="text-sm font-bold text-gray-800">Pool Details</h3>
         </div>
 
         <div className="p-5 space-y-4">
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pool Name *</label>
-            <input type="text" name="name" value={formData.name} onChange={handleChange} required
-              placeholder="e.g. Math Teachers 2026, Admin Staff Reserve"
-              className={inputClass("name")} />
-            {err("name") && <p className="text-red-500 text-[10px] mt-1">{err("name")}</p>}
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Category *</label>
-            <select name="category" value={formData.category} onChange={handleChange} required
-              className={inputClass("category")}>
-              {POOL_CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>{cat.label}</option>
-              ))}
-            </select>
-            {err("category") && <p className="text-red-500 text-[10px] mt-1">{err("category")}</p>}
+          
+          {/* Row for Name + Category */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pool Name *</label>
+              <input type="text" name="name" value={formData.name} onChange={handleChange} required
+                placeholder="e.g. Math Teachers 2026, Admin Staff Reserve"
+                className={inputClass("name")} />
+              {err("name") && <p className="text-red-500 text-[10px] mt-1">{err("name")}</p>}
+            </div>
+            <div className="flex-1">
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Category *</label>
+              <select name="category" value={formData.category} onChange={handleChange} required
+                className={inputClass("category")}>
+                {POOL_CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>{cat.label}</option>
+                ))}
+              </select>
+              {err("category") && <p className="text-red-500 text-[10px] mt-1">{err("category")}</p>}
+            </div>
           </div>
 
           <div>

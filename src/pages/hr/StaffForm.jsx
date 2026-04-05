@@ -125,10 +125,8 @@ export default function StaffForm() {
     application_id: "",
     father_name: "", blood_type: "",
     profile_photo: null,
-    emergency_contact_name: "", emergency_contact_phone: "",
     branch_id: "", job_requisition_id: "",
     role_title_en: "", status: "active",
-    has_probation: false, probation_end_date: "",
   });
 
   useEffect(() => {
@@ -162,13 +160,9 @@ export default function StaffForm() {
         application_id: d.application_id || "",
         father_name: d.father_name || "",
         blood_type: d.blood_type || "",
-        emergency_contact_name: d.emergency_contact_name || "",
-        emergency_contact_phone: d.emergency_contact_phone || "",
         branch_id: d.branch_id || "", job_requisition_id: d.job_requisition_id || "",
         role_title_en: d.role_title_en || "",
         status: d.status || "active",
-        has_probation: d.has_probation || false,
-        probation_end_date: d.probation_end_date?.split("T")[0] || "",
       }));
       if (d.profile_photo) {
         setPhotoPreview(`${API_BASE_URL.replace(/\/api\/?$/, '')}/storage/${d.profile_photo}`);
@@ -248,7 +242,6 @@ export default function StaffForm() {
     if (step === 1) return form.application_id || isEdit;
     if (step === 3) {
       if (!form.branch_id) return false;
-      if (form.has_probation && !form.probation_end_date) return false;
     }
     return true;
   };
@@ -472,8 +465,6 @@ export default function StaffForm() {
                   Emergency Contact
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label>Contact Name</Label><input type="text" name="emergency_contact_name" value={form.emergency_contact_name} onChange={handle} className={inp} placeholder="Contact person name" /></div>
-                  <div><Label>Contact Phone</Label><input type="tel" name="emergency_contact_phone" value={form.emergency_contact_phone} onChange={handle} className={inp} placeholder="07X XXX XXXX" /></div>
                 </div>
               </div>
             </StepCard>
@@ -506,41 +497,6 @@ export default function StaffForm() {
                 </div>
               </div>
 
-              {/* Probation */}
-              <div className="pt-4 border-t border-gray-100">
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <div className={`relative w-10 h-5 rounded-full transition-colors ${form.has_probation ? 'bg-teal-600' : 'bg-gray-300'}`}
-                    onClick={() => {
-                      const newVal = !form.has_probation;
-                      set('has_probation', newVal);
-                      if (newVal) {
-                        const startDate = selectedApplicant?.offer?.start_date?.split("T")[0];
-                        const base = startDate ? new Date(startDate) : new Date();
-                        base.setMonth(base.getMonth() + 1);
-                        set('probation_end_date', base.toISOString().split("T")[0]);
-                      } else { set('probation_end_date', ''); }
-                    }}>
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.has_probation ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700 group-hover:text-teal-600 transition-colors">Has Probation Period</span>
-                </label>
-
-                {form.has_probation && (
-                  <div className="mt-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <Label>Start Date (from offer)</Label>
-                        <input type="text" value={selectedApplicant?.offer?.start_date?.split("T")[0] || new Date().toISOString().split("T")[0]} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
-                      </div>
-                      <div>
-                        <Label required>Probation End Date</Label>
-                        <input type="date" name="probation_end_date" value={form.probation_end_date} onChange={handle} className={inp} />
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-2">Default: 1 month from start date. You can adjust.</p>
-                  </div>
-                )}
-              </div>
             </StepCard>
           )}
 
@@ -559,8 +515,6 @@ export default function StaffForm() {
                   { label: "Contract Type", value: CONTRACT_LABELS[selectedApplicant?.employment_type] || selectedApplicant?.employment_type },
                   { label: "Father's Name", value: form.father_name },
                   { label: "Blood Type", value: form.blood_type },
-                  { label: "Emergency Contact", value: form.emergency_contact_name ? `${form.emergency_contact_name} (${form.emergency_contact_phone})` : null },
-                  { label: "Probation", value: form.has_probation ? `Yes — until ${form.probation_end_date}` : "No" },
                   { label: "Photo", value: photoPreview ? "Uploaded" : "None" },
                 ].map(r => (
                   <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">

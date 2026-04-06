@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 
 const POOL_CATEGORIES = [
   { value: "", label: "Select Category" },
@@ -73,10 +74,8 @@ export default function CandidatePoolForm() {
       }
       navigate("/recruitment/candidate-pool");
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else {
-        Swal.fire("Error", error.response?.data?.message || "Failed to save pool", "error");
+      if (!handleValidationErrors(error.response, setErrors)) {
+        Swal.fire("Error", error.response?.data?.message || "Failed to save candidate", "error");
       }
     } finally {
       setSaving(false);

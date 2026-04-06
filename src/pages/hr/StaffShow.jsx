@@ -110,7 +110,7 @@ export default function StaffShow() {
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.employee_id}</span>
                 <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{branchName}</span>
-                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : status === 'probation' ? 'bg-amber-300/30 text-white' : 'bg-red-400/30 text-white'}`}>
+                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : 'bg-red-400/30 text-white'}`}>
                   {status}
                 </span>
               </div>
@@ -136,15 +136,6 @@ export default function StaffShow() {
                 <Field label="Father's Name" value={data.father_name} />
                 <Field label="Blood Type" value={data.blood_type} />
               </div>
-              {(data.emergency_contact_name || data.emergency_contact_phone) && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-3">Emergency Contact</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Name" value={data.emergency_contact_name} />
-                    <Field label="Phone" value={data.emergency_contact_phone} />
-                  </div>
-                </div>
-              )}
             </Section>
 
             {/* Education & Experience (from application) */}
@@ -178,7 +169,6 @@ export default function StaffShow() {
                 <Field label="Department" value={data.job_requisition?.department} />
                 <Field label="Position Title" value={role} />
                 <Field label="Contract Type" value={CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || app?.job_posting?.requisition?.employment_type || '—'} />
-                {data.has_probation && <Field label="Probation End" value={data.probation_end_date?.split('T')[0]} />}
               </div>
             </Section>
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { handleValidationErrors } from '../../utils/formErrors';
 
 const CATEGORIES = ['Maarif Subjects', 'Taqwayati Mayari', 'Taqwayati Takhasosi'];
 const FIELDS = ['Mathematics & Engineering', 'Religious Studies', 'Social Sciences', 'Natural Sciences'];
@@ -94,13 +95,11 @@ export default function SubjectsForm() {
       } else {
         await post('/class-management/subjects/store', form);
       }
-      Swal.fire({ icon: 'success', title: isEdit ? 'Subject Updated!' : 'Subject Created!', timer: 2000, showConfirmButton: false });
+      await Swal.fire({ icon: 'success', title: isEdit ? 'Subject Updated!' : 'Subject Created!', timer: 2000, showConfirmButton: false });
       navigate('/class-management/subjects');
     } catch (error) {
-      if (error.response?.status === 422) {
-        setErrors(error.response.data.errors || {});
-        Swal.fire('Validation Error', 'Please check the form fields.', 'error');
-      } else {
+      const stepMap = { 1: ['subject_name','subject_code','category'], 2: ['specialization'], 3: ['textbook_title','textbook_author','textbook_isbn'], 4: ['sessions_per_week','duration_minutes'] };
+      if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
         Swal.fire('Error', error.response?.data?.message || 'Failed to save subject', 'error');
       }
     } finally { setSaving(false); }

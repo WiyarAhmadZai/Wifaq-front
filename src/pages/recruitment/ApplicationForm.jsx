@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 
 const STEPS = [
   { num: 1, label: "Job Selection", desc: "Select job posting", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
@@ -302,10 +303,15 @@ export default function ApplicationForm() {
       }
       navigate("/recruitment/applications");
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-        Swal.fire("Validation Error", "Please check the form for errors", "error");
-      } else {
+      const stepMap = {
+        1: ['job_posting_id'],
+        2: ['full_name','contact_number','email','date_of_birth','current_address','place_of_origin','introduction'],
+        3: ['facebook','instagram','twitter_x','youtube'],
+        4: ['motivation'],
+        5: ['education_level','field_of_study','institution_name'],
+        6: ['total_experience_years'],
+      };
+      if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save application", "error");
       }
     } finally {

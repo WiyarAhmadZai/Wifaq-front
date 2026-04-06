@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Select from "react-select";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 
 // Department options from backend enum
 const DEPARTMENTS = [
@@ -209,9 +210,7 @@ export default function JobRequisitionForm() {
     } catch (error) {
       console.error("Submit error:", error);
       console.error("Error response:", error.response);
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         let errorMessage = "Failed to save job requisition";
         if (error.code === "ERR_NETWORK" || !error.response) {
           errorMessage = "Cannot connect to server. Please make sure the backend is running.";

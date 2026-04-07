@@ -509,6 +509,7 @@ export default function Layout() {
 
   const hrSubMenus = [
     { label: "Staff", path: "/hr/staff" },
+    { label: "Staff Logs", path: "/hr/staff-logs" },
     { label: "Salary Snapshot", path: "/hr/salary-snapshot" },
     { label: "Contracts", path: "/hr/contracts" },
     { label: "Attendance", path: "/hr/attendance" },

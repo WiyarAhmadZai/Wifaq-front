@@ -21,16 +21,6 @@ const steps = [
     icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
 ];
-const CHILDORDER = [
-  { value: "", label: "Select Child Order" },
-  { value: "1th", label: "1th" },
-  { value: "2th", label: "2th" },
-  { value: "3th", label: "3th" },
-  { value: "4th", label: "4th Free" },
-  { value: "5th", label: "5th Free" },
-  { value: "6th", label: "6th Free" },
-  { value: "7th", label: "7th Free" },
-];
 
 function Toggle({ name, id, checked, onChange, label }) {
   return (
@@ -111,23 +101,6 @@ export default function StudentForm() {
     },
   ];
   const discountOptions = [15, 20, 25, 30, 35, 40, 45, 50];
-  const enrollmentTypeOptions = [
-    {
-      value: "new",
-      label: "New",
-      color: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    },
-    {
-      value: "promotion",
-      label: "Promotion",
-      color: "bg-blue-50 text-blue-700 border-blue-200",
-    },
-    {
-      value: "repeat",
-      label: "Repeat",
-      color: "bg-orange-50 text-orange-700 border-orange-200",
-    },
-  ];
 
   useEffect(() => {
     fetchClasses();
@@ -434,23 +407,6 @@ export default function StudentForm() {
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Which child in the family are you
-                </label>
-                <select
-                  name="child_order_in_family"
-                  value={formData.child_order_in_family}
-                  onChange={handleChange}
-                  className={inputClass("child_order_in_family")}
-                >
-                  {CHILDORDER.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
-                    </option>
-                  ))}
-                </select> 
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                   First Name *
                 </label>
                 <input
@@ -567,30 +523,6 @@ export default function StudentForm() {
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Academic Term *
-                </label>
-                <select
-                  name="academic_term_id"
-                  value={formData.academic_term_id}
-                  onChange={handleChange}
-                  required
-                  className={inputClass("academic_term_id")}
-                >
-                  <option value="">Select Term</option>
-                  {academicTerms.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.is_current ? "(Current)" : ""}
-                    </option>
-                  ))}
-                </select>
-                {getFieldError("academic_term_id") && (
-                  <p className="text-red-500 text-[10px] mt-1">
-                    {getFieldError("academic_term_id")}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                   Enrollment Date *
                 </label>
                 <input
@@ -606,32 +538,6 @@ export default function StudentForm() {
                     {getFieldError("enrollment_date")}
                   </p>
                 )}
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Enrollment Type
-                </label>
-                <div className="flex gap-2">
-                  {enrollmentTypeOptions.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          enrollment_type: opt.value,
-                        }))
-                      }
-                      className={`flex-1 px-2 py-2.5 rounded-lg text-[11px] font-semibold border transition-all ${
-                        formData.enrollment_type === opt.value
-                          ? `${opt.color} ring-2 ring-offset-1 ring-teal-400`
-                          : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
               </div>
               <div className="sm:col-span-2 pt-2 border-t border-gray-100 mt-1">
                 <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
@@ -717,32 +623,6 @@ export default function StudentForm() {
                     ))}
                   </div>
                 </div>
-                {formData.special_status === "employee" && (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                      Employee (Parent) *
-                    </label>
-                    <select
-                      name="employee_duration_id"
-                      value={formData.employee_duration_id}
-                      onChange={handleChange}
-                      required
-                      className={inputClass("employee_duration_id")}
-                    >
-                      <option value="">Select Employee</option>
-                      {employmentDurations.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.full_name}
-                        </option>
-                      ))}
-                    </select>
-                    {getFieldError("employee_duration_id") && (
-                      <p className="text-red-500 text-[10px] mt-1">
-                        {getFieldError("employee_duration_id")}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Toggles row */}

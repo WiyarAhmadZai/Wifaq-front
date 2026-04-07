@@ -18,6 +18,7 @@ export default function StaffLogs() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('');
+  const [viewLog, setViewLog] = useState(null);
 
   useEffect(() => { fetchLogs(); }, []);
 
@@ -83,6 +84,7 @@ export default function StaffLogs() {
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Notes</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Changed By</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -109,6 +111,12 @@ export default function StaffLogs() {
                     <td className="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">{log.notes || '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-700">{log.changed_by_user?.name || '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-500">{log.created_at ? new Date(log.created_at).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => setViewLog(log)}
+                        className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View Details">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -124,6 +132,82 @@ export default function StaffLogs() {
               <p className="text-xs text-gray-400 mt-1">Logs will appear when staff are transferred or updated</p>
             </div>
           )}
+        </div>
+      )}
+      {/* View Log Detail Modal */}
+      {viewLog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className={`px-5 py-4 border-b ${viewLog.action === 'transfer' ? 'bg-blue-50 border-blue-200' : 'bg-teal-50 border-teal-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0 ${viewLog.action === 'transfer' ? 'bg-blue-600' : 'bg-teal-600'}`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {viewLog.action === 'transfer'
+                      ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    }
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800 capitalize">{viewLog.action} Log Detail</h3>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{viewLog.created_at ? new Date(viewLog.created_at).toLocaleString() : ''}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Staff Info */}
+              <div className="p-3 bg-gray-50 rounded-xl">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Staff Member</p>
+                <p className="text-sm font-bold text-gray-800">{viewLog.staff?.application?.full_name || `Staff #${viewLog.staff?.employee_id || viewLog.staff_id}`}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{viewLog.staff?.employee_id} {viewLog.staff?.branch?.name ? `· ${viewLog.staff.branch.name}` : ''}</p>
+              </div>
+
+              {/* Change Details */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Action</p>
+                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${actionStyle[viewLog.action] || 'bg-gray-100 text-gray-600'}`}>{viewLog.action}</span>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Field Changed</p>
+                  <p className="text-sm font-medium text-gray-800">{fieldLabels[viewLog.field_changed] || viewLog.field_changed}</p>
+                </div>
+              </div>
+
+              {/* Old → New */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 p-3 bg-red-50 rounded-xl border border-red-100">
+                  <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1">Old Value</p>
+                  <p className="text-sm font-medium text-red-700">{viewLog.old_value || '—'}</p>
+                </div>
+                <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                <div className="flex-1 p-3 bg-teal-50 rounded-xl border border-teal-100">
+                  <p className="text-[10px] font-semibold text-teal-400 uppercase tracking-wider mb-1">New Value</p>
+                  <p className="text-sm font-medium text-teal-700">{viewLog.new_value}</p>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {viewLog.notes && (
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</p>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{viewLog.notes}</p>
+                </div>
+              )}
+
+              {/* Changed By */}
+              <div className="p-3 bg-gray-50 rounded-xl">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Changed By</p>
+                <p className="text-sm font-medium text-gray-800">{viewLog.changed_by_user?.name || '—'}</p>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-200">
+              <button onClick={() => setViewLog(null)}
+                className="w-full py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors">Close</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

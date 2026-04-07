@@ -185,7 +185,10 @@ export default function ContractsShow() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <InfoCard icon={Icons.Document} label="Contract Type" value={data.contract_type?.replace('_', ' ')} />
               <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date} />
-              <InfoCard icon={Icons.Calendar} label="End Date" value={data.end_date || 'No end date'} />
+              <InfoCard icon={Icons.Calendar} label="End Date" value={data.end_date || data.probation_end_date || 'No end date'} />
+              {data.has_probation && data.probation_end_date && (
+                <InfoCard icon={Icons.Calendar} label="Probation End" value={data.probation_end_date} />
+              )}
               <InfoCard icon={Icons.Currency} label="Salary" value={`${data.salary_currency || 'AFN'} ${parseFloat(data.salary).toLocaleString()}`} />
             </div>
           </div>
@@ -229,7 +232,7 @@ export default function ContractsShow() {
                       <div className="flex items-center gap-3 text-[10px] text-gray-500">
                         <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
                         <span>•</span>
-                        <span>{c.start_date} → {c.end_date || 'No end'}</span>
+                        <span>{c.start_date} → {c.end_date || c.probation_end_date || 'No end'}</span>
                         <span>•</span>
                         <span>{c.salary_currency || 'AFN'} {parseFloat(c.salary).toLocaleString()}</span>
                       </div>

@@ -160,8 +160,10 @@ export default function StaffForm() {
         application_id: d.application_id || "",
         father_name: d.father_name || "",
         blood_type: d.blood_type || "",
-        branch_id: d.branch_id || "", job_requisition_id: d.job_requisition_id || "",
+        branch_id: d.branch_id || "",
+        department: d.department || "",
         role_title_en: d.role_title_en || "",
+        contract_type: d.contract_type || "",
         status: d.status || "active",
       }));
       if (d.profile_photo) {
@@ -170,9 +172,9 @@ export default function StaffForm() {
       if (d.application) {
         setSelectedApplicant({
           ...d.application,
-          position: d.application.job_posting?.requisition?.position_title || d.application.job_posting?.title || d.role_title_en || '',
-          department: d.job_requisition?.department || '',
-          employment_type: d.application.job_posting?.requisition?.employment_type || '',
+          position: d.role_title_en || d.application.job_posting?.requisition?.position_title || d.application.job_posting?.title || '',
+          department: d.department || d.application.job_posting?.requisition?.department || '',
+          employment_type: d.contract_type || d.application.job_posting?.requisition?.employment_type || '',
           documents: d.application.documents || [],
           offer: d.application.offer,
         });
@@ -234,6 +236,7 @@ export default function StaffForm() {
         job_requisition_id: applicant.job_requisition_id || prev.job_requisition_id,
         department: applicant.department || prev.department,
         role_title_en: applicant.position || prev.role_title_en,
+        contract_type: applicant.employment_type || prev.contract_type,
       }));
     } else { setSelectedApplicant(null); }
   };

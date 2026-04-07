@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
@@ -10,80 +10,86 @@ const pipelineStages = [
   { key: "interview", label: "Interview", color: "bg-cyan-500", light: "bg-cyan-50 text-cyan-700 border-cyan-200" },
   { key: "offer", label: "Offer", color: "bg-indigo-500", light: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   { key: "hired", label: "Hired", color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  { key: "waiting_list", label: "Waiting List", color: "bg-orange-500", light: "bg-orange-50 text-orange-700 border-orange-200" },
   { key: "rejected", label: "Rejected", color: "bg-red-500", light: "bg-red-50 text-red-700 border-red-200" },
   { key: "withdrawn", label: "Withdrawn", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
 ];
-const dummyData = [
-  { id: 1, full_name: "Ahmad Rahimi", contact_number: "+93 770 123 456", status: "interview", source: "website", job_posting: { title: "Mathematics Teacher" }, created_at: "2026-02-15" },
-  { id: 2, full_name: "Fatima Noori", contact_number: "+93 772 456 789", status: "screening", source: "referral", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-01" },
-  { id: 3, full_name: "Mohammad Karimi", contact_number: "+93 775 789 012", status: "offer", source: "job_board", job_posting: { title: "Science Teacher" }, created_at: "2026-01-20" },
-  { id: 4, full_name: "Zahra Ahmadi", contact_number: "+93 773 321 654", status: "hired", source: "internal", job_posting: { title: "Administrative Assistant" }, created_at: "2026-01-05" },
-  { id: 5, full_name: "Ali Mohammadi", contact_number: "+93 774 654 987", status: "received", source: "website", job_posting: { title: "Quran Teacher" }, created_at: "2026-03-14" },
-];
 
-const statusBadge = (val, item, onClick) => {
+const statusBadge = (val) => {
   const stage = pipelineStages.find((s) => s.key === val);
   return (
-    <button onClick={() => onClick && onClick(item)}
-      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${stage?.light || "bg-gray-100 text-gray-700 border-gray-200"}`}>
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${stage?.light || "bg-gray-100 text-gray-700 border-gray-200"}`}>
       {val?.replace(/_/g, " ")}
-    </button>
+    </span>
   );
 };
 
 export default function Applications() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
-  const [filteredItems, setFilteredItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
+  const [stageCounts, setStageCounts] = useState({});
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
-
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async (page = 1, status = activeFilter, search = searchQuery) => {
     setLoading(true);
     try {
-      const response = await get("/recruitment/applications");
-      const data = response.data?.data || response.data || [];
-      const arr = Array.isArray(data) ? data : [];
-      setItems(arr);
-      setFilteredItems(arr);
+      const params = new URLSearchParams();
+      params.append("page", page);
+      if (status !== "all") params.append("status", status);
+      if (search) params.append("search", search);
+
+      const response = await get(`/recruitment/applications?${params.toString()}`);
+      const data = response.data?.data || [];
+      setItems(Array.isArray(data) ? data : []);
+      if (response.data?.meta) setMeta(response.data.meta);
     } catch {
-      // Demo mode — use dummy data
-      setItems(dummyData);
-      setFilteredItems(dummyData);
+      setItems([]);
     } finally {
       setLoading(false);
     }
+  }, [activeFilter, searchQuery]);
+
+  const fetchCounts = async () => {
+    try {
+      const response = await get("/recruitment/applications?per_page=9999");
+      const all = response.data?.data || [];
+      const counts = {};
+      pipelineStages.forEach((s) => { counts[s.key] = 0; });
+      all.forEach((item) => { if (counts[item.status] !== undefined) counts[item.status]++; });
+      setStageCounts(counts);
+    } catch {
+      setStageCounts({});
+    }
   };
+
+  useEffect(() => {
+    fetchItems(1, "all", "");
+    fetchCounts();
+  }, []);
 
   const handleSearch = (e) => {
-    const query = e.target.value.toLowerCase();
+    const query = e.target.value;
     setSearchQuery(query);
-    applyFilters(query, activeFilter);
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchItems(1, activeFilter, searchQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleFilter = (status) => {
-    setActiveFilter(status);
-    applyFilters(searchQuery, status);
+    const newFilter = activeFilter === status ? "all" : status;
+    setActiveFilter(newFilter);
+    fetchItems(1, newFilter, searchQuery);
   };
 
-  const applyFilters = (query, status) => {
-    let result = items;
-    if (status !== "all") {
-      result = result.filter((item) => item.status === status);
-    }
-    if (query) {
-      result = result.filter((item) =>
-        ["full_name", "contact_number"].some((field) =>
-          String(item[field] || "").toLowerCase().includes(query)
-        )
-      );
-    }
-    setFilteredItems(result);
+  const handlePageChange = (page) => {
+    fetchItems(page, activeFilter, searchQuery);
   };
 
   const handleDelete = async (id) => {
@@ -92,14 +98,12 @@ export default function Applications() {
       icon: "warning", showCancelButton: true, confirmButtonColor: "#0d9488", cancelButtonColor: "#ef4444", confirmButtonText: "Yes, delete it!",
     });
     if (result.isConfirmed) {
-      try { await del(`/recruitment/applications/${id}`); } catch { /* demo */ }
-      setItems((prev) => prev.filter((i) => i.id !== id));
-      setFilteredItems((prev) => prev.filter((i) => i.id !== id));
+      try { await del(`/recruitment/applications/${id}`); } catch { /* */ }
+      fetchItems(meta.current_page, activeFilter, searchQuery);
+      fetchCounts();
       Swal.fire("Deleted!", "Application has been deleted.", "success");
     }
   };
-
-  const getStageCount = (status) => items.filter((item) => item.status === status).length;
 
   return (
     <div className="px-4 py-4">
@@ -130,12 +134,12 @@ export default function Applications() {
       </div>
 
       {/* Pipeline Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5">
+      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2 mb-5">
         {pipelineStages.map((stage) => {
-          const count = getStageCount(stage.key);
+          const count = stageCounts[stage.key] || 0;
           const isActive = activeFilter === stage.key;
           return (
-            <button key={stage.key} onClick={() => handleFilter(isActive ? "all" : stage.key)}
+            <button key={stage.key} onClick={() => handleFilter(stage.key)}
               className={`relative p-3 rounded-xl border-2 transition-all text-left ${
                 isActive ? `${stage.light} border-current ring-2 ring-current/20` : "bg-white border-gray-100 hover:border-gray-200"
               }`}>
@@ -150,8 +154,8 @@ export default function Applications() {
       {/* Active Filter */}
       {activeFilter !== "all" && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-gray-500">Filtering by: <strong className="capitalize">{activeFilter}</strong></span>
-          <button onClick={() => handleFilter("all")} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Clear filter</button>
+          <span className="text-xs text-gray-500">Filtering by: <strong className="capitalize">{activeFilter.replace(/_/g, " ")}</strong></span>
+          <button onClick={() => handleFilter(activeFilter)} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Clear filter</button>
         </div>
       )}
 
@@ -177,7 +181,7 @@ export default function Applications() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredItems.map((item) => (
+                {items.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recruitment/applications/show/${item.id}`)}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -190,7 +194,7 @@ export default function Applications() {
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_posting?.title || "-"}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.contact_number}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.source?.replace(/_/g, " ")}</td>
-                    <td className="px-3 py-2.5 text-xs">{statusBadge(item.status, item)}</td>
+                    <td className="px-3 py-2.5 text-xs">{statusBadge(item.status)}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "-"}</td>
                     <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
@@ -217,9 +221,58 @@ export default function Applications() {
               </tbody>
             </table>
           </div>
-          {filteredItems.length === 0 && (
+          {items.length === 0 && (
             <div className="text-center py-8">
               <p className="text-gray-500 text-xs">No applications found</p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {meta.last_page > 1 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs text-gray-500">
+                Showing {(meta.current_page - 1) * meta.per_page + 1}-{Math.min(meta.current_page * meta.per_page, meta.total)} of {meta.total}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handlePageChange(meta.current_page - 1)}
+                  disabled={meta.current_page <= 1}
+                  className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: meta.last_page }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === meta.last_page || Math.abs(p - meta.current_page) <= 1)
+                  .reduce((acc, p, i, arr) => {
+                    if (i > 0 && p - arr[i - 1] > 1) acc.push("...");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) =>
+                    p === "..." ? (
+                      <span key={`dots-${i}`} className="px-1.5 text-xs text-gray-400">...</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => handlePageChange(p)}
+                        className={`w-8 h-8 text-xs font-medium rounded-lg transition-colors ${
+                          p === meta.current_page
+                            ? "bg-teal-600 text-white"
+                            : "text-gray-600 bg-white border border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                <button
+                  onClick={() => handlePageChange(meta.current_page + 1)}
+                  disabled={meta.current_page >= meta.last_page}
+                  className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>

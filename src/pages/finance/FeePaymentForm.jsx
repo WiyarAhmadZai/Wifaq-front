@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 
 export default function FeePaymentForm() {
   const navigate = useNavigate();
@@ -97,9 +98,7 @@ export default function FeePaymentForm() {
       }
       navigate("/finance/fee-payments");
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire(
           "Error",
           error.response?.data?.message || "Failed to save payment",

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, post, put } from '../api/axios';
 import Swal from 'sweetalert2';
+import { handleValidationErrors } from '../utils/formErrors';
 
 export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, storeEndpoint = null, editEndpoint = null }) {
   const { id } = useParams();
@@ -126,19 +127,15 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
       if (isEdit) {
         const updateUrl = editEndpoint ? `${editEndpoint}/${id}` : `${apiEndpoint}/${id}`;
         await put(updateUrl, formData);
-        Swal.fire('Success', 'Updated successfully', 'success');
+        await Swal.fire({ icon: 'success', title: `${title} Updated!`, text: `${title} has been updated successfully.`, timer: 2000, showConfirmButton: false });
       } else {
         const createUrl = storeEndpoint || apiEndpoint;
         await post(createUrl, formData);
-        Swal.fire('Success', 'Created successfully', 'success');
+        await Swal.fire({ icon: 'success', title: `${title} Created!`, text: `${title} has been created successfully.`, timer: 2000, showConfirmButton: false });
       }
       navigate(listRoute);
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-        const firstError = Object.values(error.response.data.errors)[0][0];
-        Swal.fire('Validation Error', firstError, 'warning');
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire('Error', error.response?.data?.message || 'Failed to save', 'error');
       }
     } finally {
@@ -147,9 +144,11 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
   };
 
   const getFieldClass = (fieldName) => {
-    const baseClass = "w-full px-2.5 py-1.5 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs transition-colors";
-    const errorClass = errors[fieldName] ? "border-red-500 bg-red-50" : "border-gray-300";
-    return `${baseClass} ${errorClass}`;
+    const baseClass = "w-full px-2.5 py-1.5 border rounded-lg focus:ring-2 text-xs transition-colors outline-none";
+    if (errors[fieldName]) {
+      return `${baseClass} border-red-400 bg-red-50 focus:ring-red-300 focus:border-red-400`;
+    }
+    return `${baseClass} border-gray-300 focus:ring-teal-500 focus:border-teal-500`;
   };
 
   const shouldRenderField = (field) => {
@@ -273,7 +272,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
           </div>
         )}
         <input type="hidden" name={field.name} value={value} />
-        {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
       </div>
     );
   };
@@ -308,7 +307,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
                 </option>
               ))}
             </select>
-            {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+            {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
           </div>
         );
       } else {
@@ -327,7 +326,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+            {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
           </div>
         );
       }
@@ -344,7 +343,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             rows={4}
             className={getFieldClass(field.name)}
           />
-          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+          {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );
     }
@@ -359,7 +358,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             onChange={handleChange}
             className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"
           />
-          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+          {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );
     }
@@ -375,7 +374,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             required={field.required}
             className={getFieldClass(field.name)}
           />
-          {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+          {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );
     }
@@ -390,7 +389,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
           required={field.required}
           className={getFieldClass(field.name)}
         />
-        {hasError && <p className="mt-1 text-sm text-red-600">{hasError[0]}</p>}
+        {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
       </div>
     );
   };

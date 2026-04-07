@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del, put, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
+const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
 const DEPARTMENTS = ["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations", "Science", "Languages"];
@@ -16,13 +17,16 @@ export default function Staff() {
   const [branchFilter, setBranchFilter] = useState('');
   const [contractFilter, setContractFilter] = useState('');
   const [branches, setBranches] = useState([]);
+  const [positionTitles, setPositionTitles] = useState({});
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
+  const [transferData, setTransferData] = useState({ branch_id: '', department: '', role_title_en: '', contract_type: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
 
-  useEffect(() => { fetchBranches(); }, []);
+  useEffect(() => { fetchBranches(); fetchPositionTitles(); }, []);
   useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
 
   const fetchBranches = async () => {
@@ -30,6 +34,13 @@ export default function Staff() {
       const res = await get('/branches/list');
       setBranches(res.data?.data || res.data || []);
     } catch { setBranches([]); }
+  };
+
+  const fetchPositionTitles = async () => {
+    try {
+      const res = await get('/hr/staff/position-titles/list');
+      setPositionTitles(res.data || {});
+    } catch { setPositionTitles({}); }
   };
 
   const fetchItems = async (page = 1) => {
@@ -81,8 +92,32 @@ export default function Staff() {
     setSaving(false);
   };
 
+  const openTransferModal = (staff) => {
+    const name = staff.application?.full_name || `Staff #${staff.employee_id}`;
+    setSelectedStaff({ ...staff, display_name: name });
+    setTransferData({
+      branch_id: staff.branch_id || '',
+      department: staff.department || '',
+      role_title_en: staff.role_title_en || '',
+      contract_type: staff.contract_type || '',
+      notes: '',
+    });
+    setShowTransferModal(true);
+  };
+
+  const handleTransfer = async () => {
+    setSaving(true);
+    try {
+      await put(`/hr/staff/transfer/${selectedStaff.id}`, transferData);
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Transfer Saved!', text: 'Staff record updated and logged.', timer: 2000, showConfirmButton: false });
+      setShowTransferModal(false);
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to save transfer', 'error');
+    } finally { setSaving(false); }
+  };
+
   const activeCount = items.filter(i => i.status === 'active').length;
-  const probationCount = items.filter(i => i.status === 'probation').length;
   const inactiveCount = items.filter(i => i.status === 'inactive').length;
 
   const clearFilters = () => {
@@ -117,11 +152,10 @@ export default function Staff() {
 
       <div className="max-w-full mx-auto px-4 py-6 space-y-4">
         {/* Stat Cards */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Total', value: pagination.total, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
             { label: 'Active', value: activeCount, icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-            { label: 'Probation', value: probationCount, icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
             { label: 'Inactive', value: inactiveCount, icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z' },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -148,7 +182,7 @@ export default function Staff() {
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none placeholder-gray-400" />
             </div>
             <div className="flex gap-2 flex-wrap">
-              {['all', 'active', 'probation', 'inactive'].map(f => (
+              {['all', 'active', 'inactive'].map(f => (
                 <button key={f} onClick={() => setStatusFilter(f)}
                   className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all capitalize ${statusFilter === f ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
                   {f}
@@ -205,7 +239,7 @@ export default function Staff() {
                   {items.map(item => {
                     const name = getName(item);
                     const code = item.employee_id || '';
-                    const role = item.role_title_en || '';
+                    const role = positionTitles[item.role_title_en] || item.role_title_en || '';
                     const branchName = item.branch?.name || '—';
                     const dept = item.department || '';
                     const contract = item.contract_type || '';
@@ -217,9 +251,13 @@ export default function Staff() {
                         className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold flex-shrink-0">
-                              {name.charAt(0)}
-                            </div>
+                            {item.profile_photo ? (
+                              <img src={`${STORAGE}/storage/${item.profile_photo}`} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold flex-shrink-0">
+                                {name.charAt(0)}
+                              </div>
+                            )}
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
                               <p className="text-[11px] text-gray-400 truncate">{code} {role && `· ${role}`}</p>
@@ -237,7 +275,6 @@ export default function Staff() {
                         <td className="px-4 py-3 text-center">
                           <span className={`px-2.5 py-1 text-[11px] font-semibold rounded-full capitalize ${
                             status === 'active' ? 'bg-teal-100 text-teal-700' :
-                            status === 'probation' ? 'bg-amber-100 text-amber-700' :
                             'bg-gray-100 text-gray-500'
                           }`}>
                             {status}
@@ -252,6 +289,10 @@ export default function Staff() {
                             <button onClick={() => navigate(`/hr/staff/edit/${item.id}`)}
                               className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onClick={() => openTransferModal(item)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Transfer / Update">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                             </button>
                             <button onClick={() => openStatusModal(item)}
                               className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
@@ -307,7 +348,7 @@ export default function Staff() {
             <div className="p-5">
               <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">New Status</p>
               <div className="flex gap-3">
-                {['active', 'probation', 'inactive'].map(s => (
+                {['active', 'inactive'].map(s => (
                   <button key={s} type="button" onClick={() => setStatusUpdate(s)}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${statusUpdate === s ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
                     {s}
@@ -322,6 +363,78 @@ export default function Staff() {
                 className="px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-xs font-semibold disabled:opacity-50">
                 {saving ? 'Saving...' : 'Update'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Modal */}
+      {showTransferModal && selectedStaff && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 bg-blue-50 border-b border-blue-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white flex-shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800">Transfer / Update Staff</h3>
+                  <p className="text-[11px] text-blue-600 mt-0.5">{selectedStaff.display_name} — {selectedStaff.employee_id}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Branch</label>
+                <select value={transferData.branch_id} onChange={e => setTransferData(p => ({ ...p, branch_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Branch</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
+                <select value={transferData.department} onChange={e => setTransferData(p => ({ ...p, department: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Department</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Position Title</label>
+                <select value={transferData.role_title_en} onChange={e => setTransferData(p => ({ ...p, role_title_en: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Position</option>
+                  {Object.entries(positionTitles).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Contract Type</label>
+                <select value={transferData.contract_type} onChange={e => setTransferData(p => ({ ...p, contract_type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Type</option>
+                  <option value="permanent">Permanent</option>
+                  <option value="fixed_term">Fixed Term</option>
+                  <option value="probation">Probation</option>
+                  <option value="consultancy">Consultancy</option>
+                  <option value="internship">Internship</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+                <textarea value={transferData.notes} onChange={e => setTransferData(p => ({ ...p, notes: e.target.value }))} rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Reason for transfer or update..." />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowTransferModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-xs font-medium">Cancel</button>
+                <button onClick={handleTransfer} disabled={saving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium disabled:opacity-50">
+                  {saving ? 'Saving...' : 'Save & Log Changes'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

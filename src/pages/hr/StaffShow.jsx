@@ -98,17 +98,19 @@ export default function StaffShow() {
 
           {/* Profile banner */}
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0 overflow-hidden">
-              {data.profile_photo ? (
-                <img src={`${STORAGE_URL}/storage/${data.profile_photo}`} alt={name} className="w-full h-full object-cover" />
-              ) : name.charAt(0)}
-            </div>
+            {data.profile_photo ? (
+              <img src={`${STORAGE_URL}/storage/${data.profile_photo}`} alt={name} className="w-14 h-14 rounded-2xl object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0">
+                {name.charAt(0)}
+              </div>
+            )}
             <div className="flex-1">
               <h2 className="text-lg font-black text-white">{name}</h2>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.employee_id}</span>
                 <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{branchName}</span>
-                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : status === 'probation' ? 'bg-amber-300/30 text-white' : 'bg-red-400/30 text-white'}`}>
+                <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : 'bg-red-400/30 text-white'}`}>
                   {status}
                 </span>
               </div>
@@ -134,15 +136,6 @@ export default function StaffShow() {
                 <Field label="Father's Name" value={data.father_name} />
                 <Field label="Blood Type" value={data.blood_type} />
               </div>
-              {(data.emergency_contact_name || data.emergency_contact_phone) && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-3">Emergency Contact</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Name" value={data.emergency_contact_name} />
-                    <Field label="Phone" value={data.emergency_contact_phone} />
-                  </div>
-                </div>
-              )}
             </Section>
 
             {/* Education & Experience (from application) */}
@@ -173,64 +166,17 @@ export default function StaffShow() {
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <Field label="Hire Date" value={data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
                 <Field label="Branch" value={branchName} />
-                <Field label="Department" value={data.department} />
-                <Field label="Position Title" value={role} />
-                <Field label="Contract Type" value={CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || app?.job_posting?.requisition?.employment_type || '—'} />
-                {data.has_probation && <Field label="Probation End" value={data.probation_end_date?.split('T')[0]} />}
+                <Field label="Department" value={data.department || data.job_requisition?.department} />
+                <Field label="Position Title" value={data.role_title_en?.replace(/_/g, ' ')} />
+                <Field label="Contract Type" value={data.contract_type?.replace('_', ' ') || CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || '—'} />
               </div>
             </Section>
 
             {/* Documents */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-              {/* Staff documents */}
-              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Staff Documents</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { label: "Tazkira / National ID", file: data.tazkira_scan, color: "teal", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" },
-                  { label: "Signed Contract", file: data.signed_contract, color: "emerald", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-                ].map((doc, i) => {
-                  const colors = DOC_COLORS[doc.color];
-                  return doc.file ? (
-                    <button key={i} onClick={() => setViewingDoc({ file_url: doc.file, label: doc.label })}
-                      className={`p-4 rounded-xl border ${colors.border} ${colors.bg} hover:shadow-md transition-all text-left`}>
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-xl ${colors.icon} flex items-center justify-center flex-shrink-0`}>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={doc.icon} />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800">{doc.label}</p>
-                          <p className="text-[10px] text-gray-500 truncate mt-0.5">{doc.file?.split('/').pop()}</p>
-                          <div className={`mt-2 w-full py-1.5 px-3 ${colors.btn} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all`}>
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            View Document
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  ) : (
-                    <div key={i} className="p-4 rounded-xl border border-gray-100 bg-gray-50 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gray-200 text-gray-400 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={doc.icon} />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-400">{doc.label}</p>
-                        <p className="text-[10px] text-gray-300">Not uploaded</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
               {/* Application documents */}
-              {app?.documents?.length > 0 && (
-                <div className="mt-5 pt-5 border-t border-gray-100">
+              {app?.documents?.length > 0 ? (
+                <div>
                   <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-3">Application Documents ({app.documents.length})</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {app.documents.map((doc, i) => {
@@ -263,6 +209,10 @@ export default function StaffShow() {
                     })}
                   </div>
                 </div>
+              ) : (
+                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                  <p className="text-sm text-gray-400">No documents available</p>
+                </div>
               )}
             </Section>
           </div>
@@ -276,7 +226,7 @@ export default function StaffShow() {
                 {[
                   ['Staff Code', data.employee_id],
                   ['Branch', branchName],
-                  ['Department', data.department || '—'],
+                  ['Department', data.department || data.job_requisition?.department || '—'],
                   ['Position', role],
                 ].map(([l, v]) => (
                   <div key={l} className="flex justify-between items-center">

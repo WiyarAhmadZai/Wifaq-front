@@ -62,6 +62,7 @@ export default function ContractsShow() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showRenewModal, setShowRenewModal] = useState(false);
 
   useEffect(() => {
     fetchItem();
@@ -134,6 +135,23 @@ export default function ContractsShow() {
           </div>
         </div>
         <div className="flex gap-2">
+          {(() => {
+            let dl = null;
+            if (data.has_probation && data.probation_end_date) {
+              const end = new Date(data.probation_end_date);
+              const now = new Date(); now.setHours(0,0,0,0); end.setHours(0,0,0,0);
+              dl = Math.ceil((end - now) / (1000*60*60*24));
+            }
+            const show = (dl !== null && dl <= 3) || data.status === 'expired';
+            if (!show) return null;
+            return (
+              <button onClick={() => setShowRenewModal(true)}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-xs font-medium animate-pulse">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {data.status === 'expired' ? 'Expired — Renew' : dl <= 0 ? 'Expired — Renew' : `${dl}d left — Renew`}
+              </button>
+            );
+          })()}
           <button onClick={() => navigate(`/hr/contracts/edit/${id}`)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium">
             <Icons.Edit /> Edit
           </button>
@@ -152,7 +170,7 @@ export default function ContractsShow() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-800">{data.contract_number}</h3>
-                <p className="text-sm text-gray-500">{data.staff?.full_name || 'Unknown Staff'}</p>
+                <p className="text-sm text-gray-500">{data.staff?.application?.full_name || data.staff?.full_name || 'Unknown Staff'}</p>
                 <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border mt-1 ${getStatusBadge(data.status)}`}>
                   {data.status}
                 </span>
@@ -167,22 +185,64 @@ export default function ContractsShow() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <InfoCard icon={Icons.Document} label="Contract Type" value={data.contract_type?.replace('_', ' ')} />
               <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date} />
-              <InfoCard icon={Icons.Calendar} label="End Date" value={data.end_date || 'No end date'} />
-              <InfoCard icon={Icons.Currency} label="Salary" value={`AFN ${parseFloat(data.salary).toLocaleString()}`} />
+              <InfoCard icon={Icons.Calendar} label="End Date" value={data.end_date || data.probation_end_date || 'No end date'} />
+              {data.has_probation && data.probation_end_date && (
+                <InfoCard icon={Icons.Calendar} label="Probation End" value={data.probation_end_date} />
+              )}
+              <InfoCard icon={Icons.Currency} label="Salary" value={`${data.salary_currency || 'AFN'} ${parseFloat(data.salary).toLocaleString()}`} />
             </div>
           </div>
 
-          {data.job_description && (
+          {/* Probation Feedback */}
+          {data.probation_feedback && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Job Description</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{data.job_description}</p>
+              <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+                Probation Feedback
+              </h3>
+              <p className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">{data.probation_feedback}</p>
+              {data.probation_feedback_at && (
+                <p className="text-[10px] text-gray-400 mt-2">Submitted: {new Date(data.probation_feedback_at).toLocaleString()}</p>
+              )}
             </div>
           )}
 
-          {data.terms_conditions && (
+          {/* Contract History */}
+          {data.staff_contracts?.length > 1 && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">Terms & Conditions</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{data.terms_conditions}</p>
+              <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Contract History
+                <span className="ml-auto text-[10px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{data.staff_contracts.length} contracts</span>
+              </h3>
+              <div className="space-y-2.5">
+                {data.staff_contracts.map((c) => {
+                  const isCurrent = c.id === data.id;
+                  return (
+                    <div key={c.id}
+                      onClick={() => !isCurrent && navigate(`/hr/contracts/show/${c.id}`)}
+                      className={`p-3 rounded-lg border transition-all ${isCurrent ? 'bg-teal-50 border-teal-300' : 'bg-gray-50 border-gray-200 hover:border-teal-300 hover:bg-teal-50/50 cursor-pointer'}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold text-gray-800">{c.contract_number}</p>
+                          {isCurrent && <span className="text-[9px] font-bold text-teal-600 bg-teal-100 px-1.5 py-0.5 rounded">Current</span>}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold capitalize ${getStatusBadge(c.status)}`}>{c.status}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                        <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
+                        <span>•</span>
+                        <span>{c.start_date} → {c.end_date || c.probation_end_date || 'No end'}</span>
+                        <span>•</span>
+                        <span>{c.salary_currency || 'AFN'} {parseFloat(c.salary).toLocaleString()}</span>
+                      </div>
+                      {c.probation_feedback && (
+                        <p className="text-[10px] text-gray-400 mt-1.5 truncate">Feedback: {c.probation_feedback}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -223,6 +283,44 @@ export default function ContractsShow() {
           </div>
         </div>
       </div>
+
+      {/* Renew Modal */}
+      {showRenewModal && data && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 bg-orange-50 border-b border-orange-200">
+              <h3 className="text-sm font-bold text-gray-800">Contract Action Required</h3>
+              <p className="text-[11px] text-orange-600 mt-0.5">{data.staff?.application?.full_name || data.staff?.full_name} — {data.contract_number}</p>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-500">What would you like to do?</p>
+              <button onClick={() => { setShowRenewModal(false); navigate(`/hr/contracts/edit/${id}`); }}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:bg-teal-50 transition-all text-left group">
+                <div className="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-colors">
+                  <Icons.Edit />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Edit Current Contract</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Update dates, salary, or probation details</p>
+                </div>
+              </button>
+              <button onClick={() => { setShowRenewModal(false); navigate(`/hr/contracts/create?staff_id=${data.staff_id}`); }}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-left group">
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Create New Contract</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Start a fresh contract for this staff member</p>
+                </div>
+              </button>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-200">
+              <button onClick={() => setShowRenewModal(false)} className="w-full py-2 text-xs font-medium text-gray-600 hover:text-gray-800">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

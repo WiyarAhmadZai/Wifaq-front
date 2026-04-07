@@ -203,7 +203,7 @@ export default function Dashboard() {
           <div className="space-y-1">
             <LeaveRequestItem name="Dr. Arham..." type="Medical" days="2 Days" status="approved" />
             <LeaveRequestItem name="Sarah Ahm..." type="Personal" days="1 Day" status="approved" />
-            <LeaveRequestItem name="Prof. Uzair" type="Academic" days="5 Days" status="pending" />
+            <LeaveRequestItem name="Prof. Ozair" type="Academic" days="5 Days" status="pending" />
           </div>
 
           <button className="w-full mt-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors uppercase tracking-wide">

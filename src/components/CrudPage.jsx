@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, del, put } from "../api/axios";
 import Swal from "sweetalert2";
@@ -18,26 +18,29 @@ export default function CrudPage({
   statusEndpoint = null,
   statusField = "status",
   statusOptions = [],
+  statusSuffix = "",
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
-  const [filteredItems, setFilteredItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [newStatus, setNewStatus] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
 
-  useEffect(() => { fetchItems(); }, []);
-
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async (page = 1, search = searchQuery) => {
     setLoading(true);
     try {
-      const response = await get(apiEndpoint);
+      const params = new URLSearchParams();
+      params.append("page", page);
+      if (search) params.append("search", search);
+
+      const response = await get(`${apiEndpoint}?${params.toString()}`);
       const data = response.data?.data || response.data || [];
       setItems(Array.isArray(data) ? data : []);
-      setFilteredItems(Array.isArray(data) ? data : []);
+      if (response.data?.meta) setMeta(response.data.meta);
     } catch (error) {
       console.error("Fetch error:", error);
       let errorMessage = "An unexpected error occurred";
@@ -53,20 +56,26 @@ export default function CrudPage({
         else { errorTitle = `Error (${status})`; errorMessage = data?.message || `HTTP ${status} error`; }
       } else if (error.request) { errorTitle = "Network Error"; errorMessage = "Cannot connect to server."; }
       Swal.fire({ title: errorTitle, text: errorMessage, icon: "error", confirmButtonColor: "#0d9488" });
-      setItems([]); setFilteredItems([]);
+      setItems([]);
     } finally { setLoading(false); }
-  };
+  }, [apiEndpoint, searchQuery]);
+
+  useEffect(() => { fetchItems(1, ""); }, []);
 
   const handleSearch = (e) => {
-    const query = e.target.value.toLowerCase();
+    const query = e.target.value;
     setSearchQuery(query);
-    if (!query) { setFilteredItems(items); return; }
-    const fieldsToSearch = searchFields.length > 0 ? searchFields : listColumns.map(col => col.key);
-    setFilteredItems(items.filter(item => fieldsToSearch.some(field => {
-      const value = item[field];
-      if (value === null || value === undefined) return false;
-      return String(value).toLowerCase().includes(query);
-    })));
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchItems(1, searchQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handlePageChange = (page) => {
+    fetchItems(page, searchQuery);
   };
 
   const handleDelete = async (id) => {
@@ -75,7 +84,7 @@ export default function CrudPage({
       try {
         await del(`${deleteEndpoint ?? apiEndpoint}/${id}`);
         Swal.fire({ icon: "success", title: "Deleted", timer: 1500, showConfirmButton: false });
-        fetchItems();
+        fetchItems(meta.current_page, searchQuery);
       } catch { Swal.fire("Error", "Failed to delete record.", "error"); }
     }
   };
@@ -86,15 +95,15 @@ export default function CrudPage({
     if (!newStatus) { Swal.fire("Error", "Please select a status", "error"); return; }
     setSavingStatus(true);
     try {
-      await put(`${statusEndpoint}/${selectedItem[idField]}`, { [statusField]: newStatus });
+      await put(`${statusEndpoint}/${selectedItem[idField]}${statusSuffix}`, { [statusField]: newStatus });
       Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
-      handleCloseStatusModal(); fetchItems();
+      handleCloseStatusModal(); fetchItems(meta.current_page, searchQuery);
     } catch (error) { Swal.fire("Error", error.response?.data?.message || "Failed to update status", "error"); }
     finally { setSavingStatus(false); }
   };
 
   const stats = [
-    { label: `Total ${title}`, value: items.length, icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+    { label: `Total ${title}`, value: meta.total, icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   ];
 
   return (
@@ -142,7 +151,7 @@ export default function CrudPage({
                 className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
             </div>
             {searchQuery && (
-              <button onClick={() => { setSearchQuery(""); setFilteredItems(items); }}
+              <button onClick={() => { setSearchQuery(""); }}
                 className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
                 Clear
               </button>
@@ -171,9 +180,9 @@ export default function CrudPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredItems.map((item, index) => (
+                {items.map((item, index) => (
                   <tr key={item[idField]} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-4 py-3 text-xs font-medium text-teal-600">#{String(index + 1).padStart(4, "0")}</td>
+                    <td className="px-4 py-3 text-xs font-medium text-teal-600">#{String((meta.current_page - 1) * meta.per_page + index + 1).padStart(4, "0")}</td>
                     {listColumns.map(col => (
                       <td key={col.key} className="px-4 py-3 text-sm text-gray-700">
                         {col.render ? col.render(item[col.key], item, col.isStatus ? handleOpenStatusModal : null) : item[col.key]}
@@ -182,7 +191,7 @@ export default function CrudPage({
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => navigate(`${showRoute}/${item[idField]}`)}
-                          className="p-1.5 text-teal-600 hover:bg-teal-50 ed-lg transition-colors" title="View">
+                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                         </button>
                         <button onClick={() => navigate(`${editRoute}/${item[idField]}`)}
@@ -207,7 +216,7 @@ export default function CrudPage({
             </table>
           </div>
 
-          {filteredItems.length === 0 && (
+          {items.length === 0 && (
             <div className="text-center py-16 px-4">
               <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -215,7 +224,7 @@ export default function CrudPage({
               <p className="text-sm font-medium text-gray-600">{searchQuery ? "No matching records" : "No records found"}</p>
               <p className="text-xs text-gray-400 mt-1">{searchQuery ? "Try adjusting your search" : `Create your first ${title.toLowerCase()} entry`}</p>
               {searchQuery ? (
-                <button onClick={() => { setSearchQuery(""); setFilteredItems(items); }}
+                <button onClick={() => { setSearchQuery(""); }}
                   className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">Clear Search</button>
               ) : (
                 <button onClick={() => navigate(createRoute)}
@@ -227,9 +236,58 @@ export default function CrudPage({
             </div>
           )}
 
-          {filteredItems.length > 0 && (
+          {/* Pagination */}
+          {meta.last_page > 1 && (
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-              <p className="text-xs text-gray-400">Showing {filteredItems.length} of {items.length} records</p>
+              <p className="text-xs text-gray-400">
+                Showing {(meta.current_page - 1) * meta.per_page + 1}-{Math.min(meta.current_page * meta.per_page, meta.total)} of {meta.total} records
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handlePageChange(meta.current_page - 1)}
+                  disabled={meta.current_page <= 1}
+                  className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: meta.last_page }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === meta.last_page || Math.abs(p - meta.current_page) <= 1)
+                  .reduce((acc, p, i, arr) => {
+                    if (i > 0 && p - arr[i - 1] > 1) acc.push("...");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) =>
+                    p === "..." ? (
+                      <span key={`dots-${i}`} className="px-1.5 text-xs text-gray-400">...</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => handlePageChange(p)}
+                        className={`w-8 h-8 text-xs font-medium rounded-lg transition-colors ${
+                          p === meta.current_page
+                            ? "bg-teal-600 text-white"
+                            : "text-gray-600 bg-white border border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                <button
+                  onClick={() => handlePageChange(meta.current_page + 1)}
+                  disabled={meta.current_page >= meta.last_page}
+                  className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+
+          {items.length > 0 && meta.last_page <= 1 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs text-gray-400">Showing {meta.total} records</p>
             </div>
           )}
         </div>

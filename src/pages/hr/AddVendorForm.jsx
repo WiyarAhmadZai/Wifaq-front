@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { handleValidationErrors } from "../../utils/formErrors";
 
 const CATEGORIES = ['Supplier', 'Contractor', 'Consultant', 'Other'];
 const RATINGS = [1, 2, 3, 4, 5];
@@ -128,12 +129,8 @@ export default function AddVendorForm() {
       Swal.fire({ icon: 'success', title: isEdit ? 'Vendor Updated!' : 'Vendor Created!', timer: 2000, showConfirmButton: false });
       navigate('/hr/add-vendor');
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-        Swal.fire('Validation Error', Object.values(error.response.data.errors)[0][0], 'warning');
-      } else {
-        Swal.fire({ icon: 'success', title: isEdit ? 'Vendor Updated!' : 'Vendor Created!', timer: 2000, showConfirmButton: false });
-        navigate('/hr/add-vendor');
+      if (!handleValidationErrors(error.response, setErrors)) {
+        Swal.fire('Error', error.response?.data?.message || 'Failed to save vendor', 'error');
       }
     } finally { setSaving(false); }
   };

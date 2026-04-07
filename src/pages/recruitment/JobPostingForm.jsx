@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 import Select from "react-select";
 
 const STATUS_OPTIONS = [
@@ -158,9 +159,7 @@ export default function JobPostingForm() {
       }
       navigate("/recruitment/job-postings");
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else {
+      if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save job posting", "error");
       }
     } finally {
@@ -236,6 +235,7 @@ export default function JobPostingForm() {
               placeholder="Select Requisition"
               isSearchable
               isClearable
+              isDisabled={isEdit}
               className={`react-select-container ${err("requisition_id") ? "react-select-error" : ""}`}
               classNamePrefix="react-select"
               menuPortalTarget={document.body}

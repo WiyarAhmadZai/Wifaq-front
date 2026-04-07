@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { handleValidationErrors } from "../../utils/formErrors";
 
 const STEPS = [
   { num: 1, label: "Job Selection", desc: "Select job posting", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
@@ -92,6 +93,8 @@ export default function ApplicationForm() {
     { company_name: "", job_title: "", duration: "", responsibilities: "" },
   ]);
 
+  const [metRequirements, setMetRequirements] = useState([]);
+
   const [documents, setDocuments] = useState({
     work_samples: null,
     identity_document: null,
@@ -149,6 +152,9 @@ export default function ApplicationForm() {
         unique_skill: d.unique_skill?.length > 0 ? d.unique_skill : [""],
       });
 
+      if (d.met_requirements && Array.isArray(d.met_requirements)) {
+        setMetRequirements(d.met_requirements);
+      }
       if (d.work_experiences && d.work_experiences.length > 0) {
         setWorkExperiences(d.work_experiences);
       }
@@ -264,6 +270,7 @@ export default function ApplicationForm() {
       const dataToSend = {
         ...formData,
         unique_skill: formData.unique_skill.filter((s) => s.trim() !== ""),
+        met_requirements: metRequirements,
         work_experiences: workExperiences.filter((exp) => exp.company_name.trim() !== "" || exp.job_title.trim() !== ""),
         status: "received",
       };
@@ -296,10 +303,15 @@ export default function ApplicationForm() {
       }
       navigate("/recruitment/applications");
     } catch (error) {
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-        Swal.fire("Validation Error", "Please check the form for errors", "error");
-      } else {
+      const stepMap = {
+        1: ['job_posting_id'],
+        2: ['full_name','contact_number','email','date_of_birth','current_address','place_of_origin','introduction'],
+        3: ['facebook','instagram','twitter_x','youtube'],
+        4: ['motivation'],
+        5: ['education_level','field_of_study','institution_name'],
+        6: ['total_experience_years'],
+      };
+      if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save application", "error");
       }
     } finally {
@@ -410,6 +422,7 @@ export default function ApplicationForm() {
                   </div>
                 );
               })()}
+
             </div>
           </StepCard>
         )}
@@ -556,6 +569,43 @@ export default function ApplicationForm() {
               <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">
                 + Add Work Experience
               </button>
+
+              {/* Job Requirements Checklist */}
+              {(() => {
+                const selected = jobPostings.find(jp => jp.id === parseInt(formData.job_posting_id));
+                if (!selected || !selected.requirements || selected.requirements.length === 0) return null;
+                const reqs = selected.requirements;
+                const toggleReq = (req) => {
+                  setMetRequirements((prev) => prev.includes(req) ? prev.filter((r) => r !== req) : [...prev, req]);
+                };
+                return (
+                  <div className="mt-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      <p className="text-xs font-bold text-gray-800">Job Requirements</p>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-[10px] text-gray-500 mb-3">Please check the requirements that you meet for this position.</p>
+                      <div className="space-y-1.5">
+                        {reqs.map((req, i) => {
+                          const checked = metRequirements.includes(req);
+                          return (
+                            <button key={i} type="button" onClick={() => toggleReq(req)}
+                              className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${checked ? "bg-teal-50 border-teal-200" : "bg-white border-gray-200 hover:border-teal-300"}`}>
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? "bg-teal-600 border-teal-600" : "border-gray-300"}`}>
+                                {checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                              </div>
+                              <span className={`text-xs ${checked ? "text-teal-700 font-medium" : "text-gray-700"}`}>{req}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </StepCard>
         )}

@@ -17,6 +17,7 @@ export default function StaffLogs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [actionFilter, setActionFilter] = useState('');
 
   useEffect(() => { fetchLogs(); }, []);
 
@@ -31,12 +32,12 @@ export default function StaffLogs() {
   };
 
   const filtered = logs.filter(log => {
+    if (actionFilter && log.action !== actionFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     const name = log.staff?.application?.full_name || log.staff?.employee_id || '';
     return name.toLowerCase().includes(q) || log.field_changed?.toLowerCase().includes(q) ||
-      log.old_value?.toLowerCase().includes(q) || log.new_value?.toLowerCase().includes(q) ||
-      log.action?.toLowerCase().includes(q);
+      log.old_value?.toLowerCase().includes(q) || log.new_value?.toLowerCase().includes(q);
   });
 
   return (
@@ -46,10 +47,22 @@ export default function StaffLogs() {
         <p className="text-xs text-gray-400 mt-0.5">Track all staff transfers, department changes, and position updates</p>
       </div>
 
-      <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by staff name, action, field..."
-          className="w-full sm:w-80 pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
+      <div className="flex gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] sm:flex-none sm:w-80">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by staff name, field, value..."
+            className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
+        </div>
+        <select value={actionFilter} onChange={e => setActionFilter(e.target.value)}
+          className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
+          <option value="">All Actions</option>
+          <option value="transfer">Transfer</option>
+          <option value="update">Update</option>
+        </select>
+        {(search || actionFilter) && (
+          <button onClick={() => { setSearch(''); setActionFilter(''); }}
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50">Clear</button>
+        )}
       </div>
 
       {loading ? (

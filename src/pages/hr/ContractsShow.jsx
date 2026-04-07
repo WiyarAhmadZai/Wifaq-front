@@ -190,6 +190,58 @@ export default function ContractsShow() {
             </div>
           </div>
 
+          {/* Probation Feedback */}
+          {data.probation_feedback && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+                Probation Feedback
+              </h3>
+              <p className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">{data.probation_feedback}</p>
+              {data.probation_feedback_at && (
+                <p className="text-[10px] text-gray-400 mt-2">Submitted: {new Date(data.probation_feedback_at).toLocaleString()}</p>
+              )}
+            </div>
+          )}
+
+          {/* Contract History */}
+          {data.staff_contracts?.length > 1 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Contract History
+                <span className="ml-auto text-[10px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{data.staff_contracts.length} contracts</span>
+              </h3>
+              <div className="space-y-2.5">
+                {data.staff_contracts.map((c) => {
+                  const isCurrent = c.id === data.id;
+                  return (
+                    <div key={c.id}
+                      onClick={() => !isCurrent && navigate(`/hr/contracts/show/${c.id}`)}
+                      className={`p-3 rounded-lg border transition-all ${isCurrent ? 'bg-teal-50 border-teal-300' : 'bg-gray-50 border-gray-200 hover:border-teal-300 hover:bg-teal-50/50 cursor-pointer'}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold text-gray-800">{c.contract_number}</p>
+                          {isCurrent && <span className="text-[9px] font-bold text-teal-600 bg-teal-100 px-1.5 py-0.5 rounded">Current</span>}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold capitalize ${getStatusBadge(c.status)}`}>{c.status}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                        <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
+                        <span>•</span>
+                        <span>{c.start_date} → {c.end_date || 'No end'}</span>
+                        <span>•</span>
+                        <span>{c.salary_currency || 'AFN'} {parseFloat(c.salary).toLocaleString()}</span>
+                      </div>
+                      {c.probation_feedback && (
+                        <p className="text-[10px] text-gray-400 mt-1.5 truncate">Feedback: {c.probation_feedback}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-5">

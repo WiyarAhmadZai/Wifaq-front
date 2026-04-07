@@ -251,7 +251,7 @@ export default function Contracts() {
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-600">{formatDateYDM(item.start_date)}</td>
                       <td className="px-3 py-2 text-xs text-gray-600">{item.expected_time || "-"}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600">{item.end_date ? formatDateYDM(item.end_date) : "No end date"}</td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{item.end_date ? formatDateYDM(item.end_date) : item.probation_end_date ? formatDateYDM(item.probation_end_date) : "No end date"}</td>
                       <td className="px-3 py-2 text-xs text-gray-800">
                         {item.salary_currency || 'AFN'} {parseFloat(item.salary).toLocaleString()}
                       </td>

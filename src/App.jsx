@@ -55,6 +55,7 @@ const SalarySnapshot = lazy(() => import("./pages/hr/SalarySnapshot"));
 
 // HR Pages - Form
 const StaffForm = lazy(() => import("./pages/hr/StaffForm"));
+const StaffLogs = lazy(() => import("./pages/hr/StaffLogs"));
 const ContractsForm = lazy(() => import("./pages/hr/ContractsForm"));
 const AttendanceForm = lazy(() => import("./pages/hr/AttendanceForm"));
 const LeaveRequestForm = lazy(() => import("./pages/hr/LeaveRequestForm"));
@@ -268,6 +269,7 @@ function App() {
             <Route path="hr/staff/create" element={<Suspense fallback={<PageLoader />}><StaffForm /></Suspense>} />
             <Route path="hr/staff/edit/:id" element={<Suspense fallback={<PageLoader />}><StaffForm /></Suspense>} />
             <Route path="hr/staff/show/:id" element={<Suspense fallback={<PageLoader />}><StaffShow /></Suspense>} />
+            <Route path="hr/staff-logs" element={<Suspense fallback={<PageLoader />}><StaffLogs /></Suspense>} />
             <Route path="hr/contracts" element={<Suspense fallback={<PageLoader />}><Contracts /></Suspense>} />
             <Route path="hr/contracts/create" element={<Suspense fallback={<PageLoader />}><ContractsForm /></Suspense>} />
             <Route path="hr/contracts/edit/:id" element={<Suspense fallback={<PageLoader />}><ContractsForm /></Suspense>} />

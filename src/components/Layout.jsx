@@ -372,6 +372,7 @@ function NotificationBell() {
     if (!n.read_at) markAsRead(n.id);
     const d = n.data || {};
     if (d.meeting_id) navigate(`/hr/meetings/show/${d.meeting_id}`);
+    else if (d.staff_task_id) navigate(`/hr/staff-task/show/${d.staff_task_id}`);
     setOpen(false);
   };
 
@@ -389,6 +390,11 @@ function NotificationBell() {
     if (data?.type === "meeting_invite") {
       if (data.action === "cancelled") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
       return { bg: "bg-teal-100", color: "text-teal-600", path: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" };
+    }
+    if (data?.type === "staff_task") {
+      if (data.action === "completed") return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
+      if (data.action === "started") return { bg: "bg-blue-100", color: "text-blue-600", path: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" };
+      return { bg: "bg-teal-100", color: "text-teal-600", path: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" };
     }
     return { bg: "bg-blue-100", color: "text-blue-600", path: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" };
   };

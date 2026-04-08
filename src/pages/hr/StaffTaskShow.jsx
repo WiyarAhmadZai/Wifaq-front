@@ -307,9 +307,9 @@ export default function StaffTaskShow() {
               <div className="mt-4 bg-amber-50 rounded-lg p-4 border border-amber-100">
                 <div className="flex items-center gap-2 text-amber-600 mb-2">
                   <Icons.Notes />
-                  <span className="text-[10px] font-medium uppercase tracking-wider">Additional Notes</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Notes</span>
                 </div>
-                <p className="text-sm text-gray-800 leading-relaxed">{data.notes}</p>
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{data.notes}</p>
               </div>
             )}
           </div>

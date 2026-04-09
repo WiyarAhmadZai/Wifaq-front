@@ -26,6 +26,17 @@ const parseDate = (s) => {
   return d;
 };
 
+const formatDuration = (days) => {
+  if (days <= 0) return "0d";
+  if (days >= 365) {
+    const y = Math.floor(days / 365);
+    const m = Math.floor((days % 365) / 30);
+    return m > 0 ? `${y}y ${m}m` : `${y}y`;
+  }
+  if (days >= 60) return `${Math.floor(days / 30)}m`;
+  return `${days}d`;
+};
+
 const Field = ({ label, value, full = false }) => (
   <div className={full ? "sm:col-span-2" : ""}>
     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
@@ -93,11 +104,16 @@ export default function AgreementsShow() {
     }
   };
 
-  const getDaysLeft = () => {
-    if (!data?.end_date) return null;
+  const getPeriodInfo = () => {
+    if (!data?.start_date || !data?.end_date) return null;
+    const start = parseDate(data.start_date);
     const end = parseDate(data.end_date);
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    return Math.round((end - today) / (1000 * 60 * 60 * 24));
+    if (!start || !end) return null;
+    const totalDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    const daysLeft = Math.round((end - today) / (1000 * 60 * 60 * 24));
+    const startsIn = Math.round((start - today) / (1000 * 60 * 60 * 24));
+    return { totalDays, daysLeft, startsIn, totalLabel: formatDuration(totalDays) };
   };
 
   if (loading) return (
@@ -114,8 +130,11 @@ export default function AgreementsShow() {
     </div>
   );
 
-  const daysLeft = getDaysLeft();
-  const showRenewBtn = daysLeft !== null && (daysLeft <= 30 || daysLeft < 0) && data.status !== "terminated" && data.status !== "renewed";
+  const period = getPeriodInfo();
+  const daysLeft = period?.daysLeft ?? null;
+  // Renew button only when the contract has actually started and is near the end
+  const showRenewBtn = period && period.startsIn <= 0 && (daysLeft <= 30 || daysLeft < 0)
+    && data.status !== "terminated" && data.status !== "renewed";
 
   return (
     <div className="w-full px-4 sm:px-6 py-4">
@@ -155,7 +174,17 @@ export default function AgreementsShow() {
         <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-bold border capitalize ${statusBadge[data.status] || statusBadge.draft}`}>
           {data.status}
         </span>
-        {daysLeft !== null && (
+        {period && (
+          <span className="inline-flex px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+            Total: {period.totalLabel}
+          </span>
+        )}
+        {period && period.startsIn > 0 && (
+          <span className="inline-flex px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+            Starts in {period.startsIn} days
+          </span>
+        )}
+        {period && period.startsIn <= 0 && (
           <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold ${
             daysLeft < 0 ? "bg-red-100 text-red-700"
             : daysLeft <= 7 ? "bg-red-100 text-red-700 animate-pulse"

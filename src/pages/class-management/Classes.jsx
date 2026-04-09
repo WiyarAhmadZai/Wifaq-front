@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, post, del } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const statusStyle = { active: 'bg-teal-50 text-teal-700', inactive: 'bg-gray-100 text-gray-500' };
@@ -15,6 +15,14 @@ export default function Classes() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [grades, setGrades] = useState([]);
+  const [academicTerms, setAcademicTerms] = useState([]);
+
+  // Copy from term modal
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copySource, setCopySource] = useState('');
+  const [copyTarget, setCopyTarget] = useState('');
+  const [copyOpts, setCopyOpts] = useState({ supervisors: true, assistants: true, rooms: true });
+  const [isCopying, setIsCopying] = useState(false);
 
   const fetchItems = useCallback(async (page = 1) => {
     setLoading(true);
@@ -45,8 +53,39 @@ export default function Classes() {
         const res = await get('/grades/list');
         setGrades(res.data?.data || []);
       } catch {}
+      try {
+        const res = await get('/academic-terms/list');
+        setAcademicTerms(res.data?.data || []);
+      } catch {}
     })();
   }, []);
+
+  const handleCopyClasses = async () => {
+    if (!copySource || !copyTarget) return;
+    setIsCopying(true);
+    try {
+      const res = await post('/class-management/classes/copy-from-term', {
+        source_term_id: copySource,
+        target_term_id: copyTarget,
+        include_supervisors: copyOpts.supervisors,
+        include_assistants: copyOpts.assistants,
+        include_rooms: copyOpts.rooms,
+      });
+      setShowCopyModal(false);
+      setCopySource(''); setCopyTarget('');
+      fetchItems(1);
+      Swal.fire({
+        icon: 'success',
+        title: res.data?.message || 'Classes copied',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire('Error', error.response?.data?.message || 'Failed to copy', 'error');
+    } finally {
+      setIsCopying(false);
+    }
+  };
 
   const activeFilters = [filterGrade, filterStatus].filter(Boolean).length;
 
@@ -76,11 +115,18 @@ export default function Classes() {
           <h1 className="text-lg font-bold text-gray-800">Classes</h1>
           <p className="text-xs text-gray-400 mt-0.5">Manage all school classes and sections</p>
         </div>
-        <button onClick={() => navigate('/class-management/classes/create')}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          Add New Class
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowCopyModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-teal-200 text-teal-700 text-sm font-semibold rounded-xl hover:bg-teal-50 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            Copy from Previous Term
+          </button>
+          <button onClick={() => navigate('/class-management/classes/create')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Add New Class
+          </button>
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -263,6 +309,73 @@ export default function Classes() {
               <p className="text-xs text-gray-400">Showing {meta.total} classes</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Copy Classes Modal */}
+      {showCopyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800">Copy Classes from Previous Term</h3>
+                <p className="text-[10px] text-gray-500 mt-0.5">Quickly clone the entire class structure for a new academic year</p>
+              </div>
+              <button onClick={() => setShowCopyModal(false)} className="p-1 hover:bg-teal-100 rounded-lg">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Source Term</label>
+                  <select value={copySource} onChange={e => setCopySource(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
+                    <option value="">Choose...</option>
+                    {academicTerms.filter(t => t.id != copyTarget).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Target Term</label>
+                  <select value={copyTarget} onChange={e => setCopyTarget(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
+                    <option value="">Choose...</option>
+                    {academicTerms.filter(t => t.id != copySource).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Carry Over</p>
+                {[
+                  { key: 'supervisors', label: 'Class supervisors' },
+                  { key: 'assistants', label: 'Assistant teachers' },
+                  { key: 'rooms', label: 'Room assignments (building, floor, room number)' },
+                ].map(opt => (
+                  <label key={opt.key} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input type="checkbox" checked={copyOpts[opt.key]}
+                      onChange={e => setCopyOpts(p => ({ ...p, [opt.key]: e.target.checked }))}
+                      className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500" />
+                    <span className="text-xs text-gray-700">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-relaxed">
+                <strong>Note:</strong> Conflicts (same supervisor in same shift, or duplicate room) will be skipped automatically. Existing classes in the target term won't be touched.
+              </div>
+            </div>
+            <div className="px-5 py-4 bg-gray-50 flex justify-end gap-2 border-t border-gray-100">
+              <button onClick={() => setShowCopyModal(false)}
+                className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={handleCopyClasses} disabled={!copySource || !copyTarget || isCopying}
+                className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+                {isCopying ? (
+                  <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Copying...</>
+                ) : 'Copy Classes'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

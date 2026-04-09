@@ -330,7 +330,6 @@ function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
   const ref = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
@@ -372,6 +371,8 @@ function NotificationBell() {
     if (!n.read_at) markAsRead(n.id);
     const d = n.data || {};
     if (d.meeting_id) navigate(`/hr/meetings/show/${d.meeting_id}`);
+    else if (d.staff_task_id) navigate(`/hr/staff-task/show/${d.staff_task_id}`);
+    else if (d.vendor_contract_id) navigate(`/hr/vendor-contracts/show/${d.vendor_contract_id}`);
     setOpen(false);
   };
 
@@ -389,6 +390,15 @@ function NotificationBell() {
     if (data?.type === "meeting_invite") {
       if (data.action === "cancelled") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
       return { bg: "bg-teal-100", color: "text-teal-600", path: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" };
+    }
+    if (data?.type === "staff_task") {
+      if (data.action === "completed") return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
+      if (data.action === "started") return { bg: "bg-blue-100", color: "text-blue-600", path: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" };
+      if (data.action === "reminder") return { bg: "bg-amber-100", color: "text-amber-600", path: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" };
+      return { bg: "bg-teal-100", color: "text-teal-600", path: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" };
+    }
+    if (data?.type === "vendor_contract") {
+      return { bg: "bg-orange-100", color: "text-orange-600", path: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" };
     }
     return { bg: "bg-blue-100", color: "text-blue-600", path: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" };
   };
@@ -509,8 +519,10 @@ export default function Layout() {
 
   const hrSubMenus = [
     { label: "Staff", path: "/hr/staff" },
+    { label: "Staff Logs", path: "/hr/staff-logs" },
     { label: "Salary Snapshot", path: "/hr/salary-snapshot" },
-    { label: "Contracts", path: "/hr/contracts" },
+    { label: "Staff Contract", path: "/hr/contracts" },
+    { label: "Vendor Contract", path: "/hr/vendor-contracts" },
     { label: "Attendance", path: "/hr/attendance" },
     { label: "Leave Request", path: "/hr/leave-request" },
     { label: "Add Vendor", path: "/hr/add-vendor" },

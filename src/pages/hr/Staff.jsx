@@ -17,13 +17,16 @@ export default function Staff() {
   const [branchFilter, setBranchFilter] = useState('');
   const [contractFilter, setContractFilter] = useState('');
   const [branches, setBranches] = useState([]);
+  const [positionTitles, setPositionTitles] = useState({});
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
+  const [transferData, setTransferData] = useState({ branch_id: '', department: '', role_title_en: '', contract_type: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
 
-  useEffect(() => { fetchBranches(); }, []);
+  useEffect(() => { fetchBranches(); fetchPositionTitles(); }, []);
   useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
 
   const fetchBranches = async () => {
@@ -31,6 +34,13 @@ export default function Staff() {
       const res = await get('/branches/list');
       setBranches(res.data?.data || res.data || []);
     } catch { setBranches([]); }
+  };
+
+  const fetchPositionTitles = async () => {
+    try {
+      const res = await get('/hr/staff/position-titles/list');
+      setPositionTitles(res.data || {});
+    } catch { setPositionTitles({}); }
   };
 
   const fetchItems = async (page = 1) => {
@@ -80,6 +90,31 @@ export default function Staff() {
     Swal.fire({ icon: 'success', title: 'Status Updated!', timer: 1500, showConfirmButton: false });
     setShowStatusModal(false);
     setSaving(false);
+  };
+
+  const openTransferModal = (staff) => {
+    const name = staff.application?.full_name || `Staff #${staff.employee_id}`;
+    setSelectedStaff({ ...staff, display_name: name });
+    setTransferData({
+      branch_id: staff.branch_id || '',
+      department: staff.department || '',
+      role_title_en: staff.role_title_en || '',
+      contract_type: staff.contract_type || '',
+      notes: '',
+    });
+    setShowTransferModal(true);
+  };
+
+  const handleTransfer = async () => {
+    setSaving(true);
+    try {
+      await put(`/hr/staff/transfer/${selectedStaff.id}`, transferData);
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Transfer Saved!', text: 'Staff record updated and logged.', timer: 2000, showConfirmButton: false });
+      setShowTransferModal(false);
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to save transfer', 'error');
+    } finally { setSaving(false); }
   };
 
   const activeCount = items.filter(i => i.status === 'active').length;
@@ -204,9 +239,9 @@ export default function Staff() {
                   {items.map(item => {
                     const name = getName(item);
                     const code = item.employee_id || '';
-                    const role = item.role_title_en || '';
+                    const role = positionTitles[item.role_title_en] || item.role_title_en || '';
                     const branchName = item.branch?.name || '—';
-                    const dept = item.job_requisition?.department || '';
+                    const dept = item.department || '';
                     const contract = item.contract_type || '';
                     const status = item.status || '';
                     const phone = item.application?.contact_number || '';
@@ -254,6 +289,10 @@ export default function Staff() {
                             <button onClick={() => navigate(`/hr/staff/edit/${item.id}`)}
                               className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onClick={() => openTransferModal(item)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Transfer / Update">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                             </button>
                             <button onClick={() => openStatusModal(item)}
                               className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
@@ -324,6 +363,78 @@ export default function Staff() {
                 className="px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-xs font-semibold disabled:opacity-50">
                 {saving ? 'Saving...' : 'Update'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Modal */}
+      {showTransferModal && selectedStaff && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 bg-blue-50 border-b border-blue-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white flex-shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800">Transfer / Update Staff</h3>
+                  <p className="text-[11px] text-blue-600 mt-0.5">{selectedStaff.display_name} — {selectedStaff.employee_id}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Branch</label>
+                <select value={transferData.branch_id} onChange={e => setTransferData(p => ({ ...p, branch_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Branch</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
+                <select value={transferData.department} onChange={e => setTransferData(p => ({ ...p, department: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Department</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Position Title</label>
+                <select value={transferData.role_title_en} onChange={e => setTransferData(p => ({ ...p, role_title_en: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Position</option>
+                  {Object.entries(positionTitles).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Contract Type</label>
+                <select value={transferData.contract_type} onChange={e => setTransferData(p => ({ ...p, contract_type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                  <option value="">Select Type</option>
+                  <option value="permanent">Permanent</option>
+                  <option value="fixed_term">Fixed Term</option>
+                  <option value="probation">Probation</option>
+                  <option value="consultancy">Consultancy</option>
+                  <option value="internship">Internship</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+                <textarea value={transferData.notes} onChange={e => setTransferData(p => ({ ...p, notes: e.target.value }))} rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Reason for transfer or update..." />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowTransferModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-xs font-medium">Cancel</button>
+                <button onClick={handleTransfer} disabled={saving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium disabled:opacity-50">
+                  {saving ? 'Saving...' : 'Save & Log Changes'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

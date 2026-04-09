@@ -91,6 +91,9 @@ export default function Contracts() {
   const [filters, setFilters] = useState({ status: "", contract_type: "", search: "" });
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showRenewModal, setShowRenewModal] = useState(false);
+  const [renewStep, setRenewStep] = useState('feedback'); // 'feedback' | 'action'
+  const [feedbackText, setFeedbackText] = useState('');
+  const [savingFeedback, setSavingFeedback] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState({ status: "" });
   const [saving, setSaving] = useState(false);
@@ -136,8 +139,19 @@ export default function Contracts() {
     } catch { Swal.fire("Error", "Failed to update contract status", "error"); } finally { setSaving(false); }
   };
 
-  const handleOpenRenewModal = (contract) => { setSelectedContract(contract); setShowRenewModal(true); };
-  const handleCloseRenewModal = () => { setShowRenewModal(false); setSelectedContract(null); };
+  const handleOpenRenewModal = (contract) => { setSelectedContract(contract); setRenewStep('feedback'); setFeedbackText(''); setShowRenewModal(true); };
+  const handleCloseRenewModal = () => { setShowRenewModal(false); setSelectedContract(null); setRenewStep('feedback'); setFeedbackText(''); };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackText.trim()) { Swal.fire('Error', 'Please provide feedback before proceeding', 'warning'); return; }
+    setSavingFeedback(true);
+    try {
+      await put(`/hr/contracts/probation-feedback/${selectedContract.id}`, { probation_feedback: feedbackText });
+      setSelectedContract(prev => ({ ...prev, probation_feedback: feedbackText, probation_feedback_at: new Date().toISOString() }));
+      setRenewStep('action');
+    } catch { Swal.fire('Error', 'Failed to save feedback', 'error'); }
+    finally { setSavingFeedback(false); }
+  };
 
   return (
     <div className="px-4 py-4">
@@ -237,7 +251,7 @@ export default function Contracts() {
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-600">{formatDateYDM(item.start_date)}</td>
                       <td className="px-3 py-2 text-xs text-gray-600">{item.expected_time || "-"}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600">{item.end_date ? formatDateYDM(item.end_date) : "No end date"}</td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{item.end_date ? formatDateYDM(item.end_date) : item.probation_end_date ? formatDateYDM(item.probation_end_date) : "No end date"}</td>
                       <td className="px-3 py-2 text-xs text-gray-800">
                         {item.salary_currency || 'AFN'} {parseFloat(item.salary).toLocaleString()}
                       </td>
@@ -329,13 +343,13 @@ export default function Contracts() {
         </div>
       )}
 
-      {/* Renew / Update Contract Modal */}
+      {/* Renew / Update Contract Modal (2-step: feedback → action) */}
       {showRenewModal && selectedContract && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-5 py-4 bg-orange-50 border-b border-orange-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 text-white">
                   <Icons.Renew />
                 </div>
                 <div>
@@ -347,50 +361,95 @@ export default function Contracts() {
               </div>
             </div>
 
-            <div className="p-5 space-y-3">
-              {(() => {
-                const info = getContractTimeInfo(selectedContract);
-                const isExpired = info?.text?.includes('expired') || info?.text?.includes('ended') || selectedContract.status === 'expired';
-                return (
-                  <div className={`p-3 rounded-lg text-xs font-medium ${isExpired ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                    {isExpired
-                      ? 'Contract/probation has expired. Please renew or update this contract.'
-                      : `${info?.text || 'Action needed'}. Take action now.`}
+            {/* Step 1: Feedback */}
+            {renewStep === 'feedback' && (
+              <div className="p-5 space-y-3">
+                {(() => {
+                  const info = getContractTimeInfo(selectedContract);
+                  const isExpired = info?.text?.includes('expired') || info?.text?.includes('ended') || selectedContract.status === 'expired';
+                  return (
+                    <div className={`p-3 rounded-lg text-xs font-medium ${isExpired ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {isExpired
+                        ? 'Contract/probation has expired. Please provide feedback before proceeding.'
+                        : `${info?.text || 'Action needed'}. Please provide feedback before proceeding.`}
+                    </div>
+                  );
+                })()}
+
+                {/* Previous feedback history */}
+                {selectedContract.probation_feedback && (
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Previous Feedback</p>
+                    <p className="text-xs text-gray-700 whitespace-pre-wrap">{selectedContract.probation_feedback}</p>
+                    {selectedContract.probation_feedback_at && (
+                      <p className="text-[10px] text-gray-400 mt-1.5">{new Date(selectedContract.probation_feedback_at).toLocaleString()}</p>
+                    )}
                   </div>
-                );
-              })()}
+                )}
 
-              <p className="text-xs text-gray-500">What would you like to do?</p>
-
-              <button onClick={() => { handleCloseRenewModal(); navigate(`/hr/contracts/edit/${selectedContract.id}`); }}
-                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:bg-teal-50 transition-all text-left group">
-                <div className="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-colors">
-                  <Icons.Edit />
-                </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">Edit Current Contract</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Update dates, salary, or probation details</p>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Probation Feedback *</label>
+                  <textarea value={feedbackText} onChange={e => setFeedbackText(e.target.value)} rows={4}
+                    placeholder="Provide your feedback on the staff's performance during probation period..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs outline-none" />
                 </div>
-              </button>
 
-              <button onClick={() => { handleCloseRenewModal(); navigate(`/hr/contracts/create?staff_id=${selectedContract.staff_id}`); }}
-                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-left group">
-                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <Icons.Plus />
+                <div className="flex justify-end gap-3 pt-1">
+                  <button onClick={handleCloseRenewModal}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-xs font-medium">Cancel</button>
+                  <button onClick={handleSubmitFeedback} disabled={savingFeedback || !feedbackText.trim()}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium disabled:opacity-50 flex items-center gap-1.5">
+                    {savingFeedback ? 'Saving...' : 'Submit & Continue'}
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">Create New Contract</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Start a fresh contract for this staff member</p>
-                </div>
-              </button>
-            </div>
+              </div>
+            )}
 
-            <div className="px-5 py-3 bg-gray-50 border-t border-gray-200">
-              <button onClick={handleCloseRenewModal}
-                className="w-full py-2 text-xs font-medium text-gray-600 hover:text-gray-800 transition-colors">
-                Cancel
-              </button>
-            </div>
+            {/* Step 2: Action (after feedback submitted) */}
+            {renewStep === 'action' && (
+              <div className="p-5 space-y-3">
+                <div className="p-3 bg-teal-50 rounded-lg border border-teal-200 text-xs text-teal-700 font-medium flex items-center gap-2">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Feedback submitted. Now choose how to proceed.
+                </div>
+
+                {/* Show submitted feedback */}
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Your Feedback</p>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{feedbackText}</p>
+                </div>
+
+                <p className="text-xs text-gray-500">What would you like to do?</p>
+
+                <button onClick={() => { handleCloseRenewModal(); navigate(`/hr/contracts/edit/${selectedContract.id}`); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:bg-teal-50 transition-all text-left group">
+                  <div className="w-10 h-10 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-colors">
+                    <Icons.Edit />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Edit Current Contract</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Update dates, salary, or probation details</p>
+                  </div>
+                </button>
+
+                <button onClick={() => { handleCloseRenewModal(); navigate(`/hr/contracts/create?staff_id=${selectedContract.staff_id}`); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all text-left group">
+                  <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <Icons.Plus />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Create New Contract</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Start a fresh contract for this staff member</p>
+                  </div>
+                </button>
+
+                <button onClick={() => setRenewStep('feedback')}
+                  className="w-full py-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                  ← Back to feedback
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

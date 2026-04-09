@@ -19,7 +19,7 @@ export default function StaffTaskForm() {
   const dropdownRef = useRef(null);
 
   const [form, setForm] = useState({
-    staff_id: "",
+    staff_id: "",       // used in edit mode
     task: "",
     task_type: "normal",
     start_date: new Date().toISOString().split("T")[0],
@@ -31,6 +31,9 @@ export default function StaffTaskForm() {
   const [filteredStaff, setFilteredStaff] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  // Multi-staff (create mode)
+  const [selectedStaffList, setSelectedStaffList] = useState([]);
+  // Single staff (edit mode)
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,14 +50,13 @@ export default function StaffTaskForm() {
   }, []);
 
   useEffect(() => {
-    if (searchTerm) {
-      setFilteredStaff(staffList.filter(s =>
-        s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.employee_id?.toLowerCase().includes(searchTerm.toLowerCase())
-      ));
-    } else {
-      setFilteredStaff(staffList);
-    }
+    const q = searchTerm.toLowerCase();
+    const base = searchTerm
+      ? staffList.filter(s =>
+          s.full_name?.toLowerCase().includes(q) ||
+          s.employee_id?.toLowerCase().includes(q))
+      : staffList;
+    setFilteredStaff(base);
   }, [searchTerm, staffList]);
 
   const fetchStaffList = async () => {
@@ -99,10 +101,23 @@ export default function StaffTaskForm() {
   };
 
   const handleStaffSelect = (staff) => {
-    setSelectedStaff(staff);
-    setForm(prev => ({ ...prev, staff_id: staff.id }));
+    if (isEdit) {
+      setSelectedStaff(staff);
+      setForm(prev => ({ ...prev, staff_id: staff.id }));
+      setSearchTerm("");
+      setShowDropdown(false);
+      return;
+    }
+    // Multi-select toggle
+    setSelectedStaffList(prev => {
+      const exists = prev.some(s => s.id === staff.id);
+      return exists ? prev.filter(s => s.id !== staff.id) : [...prev, staff];
+    });
     setSearchTerm("");
-    setShowDropdown(false);
+  };
+
+  const removeStaffChip = (staffId) => {
+    setSelectedStaffList(prev => prev.filter(s => s.id !== staffId));
   };
 
   const handleChange = (e) => {
@@ -111,21 +126,35 @@ export default function StaffTaskForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.staff_id) {
-      Swal.fire("Error", "Please select a staff member", "error");
+
+    if (isEdit) {
+      if (!form.staff_id) {
+        Swal.fire("Error", "Please select a staff member", "error");
+        return;
+      }
+    } else if (selectedStaffList.length === 0) {
+      Swal.fire("Error", "Please select at least one staff member", "error");
       return;
     }
+
     setSaving(true);
     try {
-      const submitData = { ...form };
-      if (!submitData.deadline) delete submitData.deadline;
-
       if (isEdit) {
+        const submitData = { ...form };
+        if (!submitData.deadline) delete submitData.deadline;
         await put(`/hr/staff-tasks/${id}`, submitData);
         Swal.fire({ icon: "success", title: "Task Updated!", timer: 1500, showConfirmButton: false });
       } else {
+        const { staff_id: _ignored, ...rest } = form;
+        const submitData = { ...rest, staff_ids: selectedStaffList.map(s => s.id) };
+        if (!submitData.deadline) delete submitData.deadline;
         await post("/hr/staff-tasks", submitData);
-        Swal.fire({ icon: "success", title: "Task Assigned!", timer: 1500, showConfirmButton: false });
+        Swal.fire({
+          icon: "success",
+          title: `Task Assigned to ${selectedStaffList.length} staff!`,
+          timer: 1800,
+          showConfirmButton: false,
+        });
       }
       navigate("/hr/staff-task");
     } catch (err) {
@@ -137,6 +166,11 @@ export default function StaffTaskForm() {
       setSaving(false);
     }
   };
+
+  const isSelected = (staffId) =>
+    isEdit
+      ? form.staff_id === staffId
+      : selectedStaffList.some(s => s.id === staffId);
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
@@ -156,12 +190,12 @@ export default function StaffTaskForm() {
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-800">{isEdit ? "Edit Task" : "Assign New Task"}</h2>
-          <p className="text-xs text-gray-500">{isEdit ? "Update task details" : "Assign a task to a staff member"}</p>
+          <p className="text-xs text-gray-500">{isEdit ? "Update task details" : "Assign a task to one or more staff members"}</p>
         </div>
       </div>
 
-      {/* Selected Staff Info Card */}
-      {selectedStaff && (
+      {/* Selected Staff Info Card (edit mode - single) */}
+      {isEdit && selectedStaff && (
         <div className="mb-5 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
@@ -180,18 +214,58 @@ export default function StaffTaskForm() {
         </div>
       )}
 
+      {/* Selected Staff Chips (create mode - multi) */}
+      {!isEdit && selectedStaffList.length > 0 && (
+        <div className="mb-5 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-200">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-semibold text-teal-700 uppercase tracking-wider">
+              {selectedStaffList.length} Staff Selected
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedStaffList([])}
+              className="text-[11px] text-red-500 hover:text-red-700 font-medium"
+            >
+              Clear all
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selectedStaffList.map(s => (
+              <div key={s.id} className="inline-flex items-center gap-2 pl-1 pr-2 py-1 bg-white border border-teal-300 rounded-full shadow-sm">
+                <div className="w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                  {s.full_name?.charAt(0)}
+                </div>
+                <span className="text-xs font-medium text-gray-800">{s.full_name}</span>
+                <span className="text-[10px] text-gray-400">{s.employee_id}</span>
+                <button
+                  type="button"
+                  onClick={() => removeStaffChip(s.id)}
+                  className="ml-1 w-4 h-4 rounded-full bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4" autoComplete="off">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Staff Select */}
           <div className="relative" ref={dropdownRef}>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Staff Name *</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Staff Name * {!isEdit && <span className="text-gray-400 font-normal">(select multiple)</span>}
+            </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search staff by name or ID..."
-                value={searchTerm || (selectedStaff ? `${selectedStaff.full_name} (${selectedStaff.employee_id})` : "")}
+                placeholder={isEdit ? "Search staff by name or ID..." : "Search and click to add staff..."}
+                value={searchTerm || (isEdit && selectedStaff ? `${selectedStaff.full_name} (${selectedStaff.employee_id})` : "")}
                 onChange={(e) => { setSearchTerm(e.target.value); setShowDropdown(true); }}
-                onFocus={() => { setShowDropdown(true); if (selectedStaff) setSearchTerm(""); }}
+                onFocus={() => { setShowDropdown(true); if (isEdit && selectedStaff) setSearchTerm(""); }}
                 className={inp}
               />
               <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,20 +277,28 @@ export default function StaffTaskForm() {
                 {filteredStaff.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-gray-400">No staff found</div>
                 ) : (
-                  filteredStaff.map((staff) => (
-                    <div key={staff.id} onClick={() => handleStaffSelect(staff)}
-                      className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 border-b border-gray-50 last:border-0 ${form.staff_id === staff.id ? "bg-teal-50" : ""}`}>
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 text-xs font-bold flex-shrink-0">
-                          {staff.full_name?.charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{staff.full_name}</p>
-                          <p className="text-[10px] text-gray-500">{staff.employee_id} · {staff.department || "No Dept"} {staff.role_title ? `· ${staff.role_title}` : ""}</p>
+                  filteredStaff.map((staff) => {
+                    const selected = isSelected(staff.id);
+                    return (
+                      <div key={staff.id} onClick={() => handleStaffSelect(staff)}
+                        className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 border-b border-gray-50 last:border-0 ${selected ? "bg-teal-50" : ""}`}>
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 text-xs font-bold flex-shrink-0">
+                            {staff.full_name?.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{staff.full_name}</p>
+                            <p className="text-[10px] text-gray-500">{staff.employee_id} · {staff.department || "No Dept"} {staff.role_title ? `· ${staff.role_title}` : ""}</p>
+                          </div>
+                          {selected && (
+                            <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -278,7 +360,7 @@ export default function StaffTaskForm() {
             {saving ? (
               <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
             ) : (
-              <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> {isEdit ? "Update Task" : "Assign Task"}</>
+              <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> {isEdit ? "Update Task" : `Assign Task${!isEdit && selectedStaffList.length > 1 ? `s (${selectedStaffList.length})` : ""}`}</>
             )}
           </button>
         </div>

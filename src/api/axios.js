@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Create axios instance with base URL
+// Create axios instance with base URL and timeout
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -10,7 +11,7 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor to add auth token
+// Request interceptor: auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -19,12 +20,10 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle errors globally
+// Response interceptor: handle 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -42,7 +41,7 @@ export default api;
 // Export API base URL for constructing storage URLs
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Export common HTTP methods for direct use
+// Export common HTTP methods
 export const get = (url, config = {}) => api.get(url, config);
 export const post = (url, data = {}, config = {}) => api.post(url, data, config);
 export const put = (url, data = {}, config = {}) => api.put(url, data, config);

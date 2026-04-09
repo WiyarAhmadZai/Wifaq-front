@@ -89,7 +89,7 @@ export default function VendorContracts() {
     if (filters.contract_type && it.contract_type !== filters.contract_type) return false;
     if (filters.search) {
       const q = filters.search.toLowerCase();
-      const haystack = `${it.vendor_name || ""} ${it.contract_number || ""} ${it.description || ""}`.toLowerCase();
+      const haystack = `${it.vendor?.name || ""} ${it.vendor?.contact || ""} ${it.contract_number || ""} ${it.description || ""}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -272,11 +272,13 @@ export default function VendorContracts() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-bold text-white">{item.vendor_name?.charAt(0)?.toUpperCase()}</span>
+                            <span className="text-xs font-bold text-white">{item.vendor?.name?.charAt(0)?.toUpperCase() || "?"}</span>
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">{item.vendor_name}</p>
-                            {item.vendor_contact && <p className="text-[11px] text-gray-400">{item.vendor_contact}</p>}
+                            <p className="text-sm font-semibold text-gray-800">{item.vendor?.name || "—"}</p>
+                            <p className="text-[11px] text-gray-400">
+                              {item.vendor?.category || ""}{item.vendor?.contact ? ` · ${item.vendor.contact}` : ""}
+                            </p>
                           </div>
                         </div>
                       </td>
@@ -294,7 +296,11 @@ export default function VendorContracts() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className="text-sm font-semibold text-gray-800">{Number(item.amount).toLocaleString()} <span className="text-[10px] text-gray-400">{item.currency}</span></p>
+                        {item.amount != null ? (
+                          <p className="text-sm font-semibold text-gray-800">{Number(item.amount).toLocaleString()} <span className="text-[10px] text-gray-400">{item.currency}</span></p>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${statusBadge[item.status] || "bg-gray-100 text-gray-600"}`}>
@@ -362,7 +368,7 @@ export default function VendorContracts() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <h3 className="text-base font-bold text-gray-800 mb-1">Renew Vendor Contract</h3>
             <p className="text-xs text-gray-500 mb-4">
-              {renewModal.contract?.contract_number} — {renewModal.contract?.vendor_name}
+              {renewModal.contract?.contract_number} — {renewModal.contract?.vendor?.name}
             </p>
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-700 mb-1">New End Date *</label>

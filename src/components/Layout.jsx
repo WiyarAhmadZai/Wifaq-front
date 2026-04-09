@@ -755,27 +755,9 @@ export default function Layout() {
             onClick={() => toggleMenu("teacher-management")}
           >
             <SubMenuItem
-              label="Annual Plans"
-              to="/teacher-management/annual-plans"
-              active={isActive("/teacher-management/annual-plans")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Lesson Plans"
-              to="/teacher-management/lesson-plans"
-              active={isActive("/teacher-management/lesson-plans")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
               label="Teachers"
               to="/teacher-management/teachers"
               active={isActive("/teacher-management/teachers")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Teacher Subjects"
-              to="/teacher-management/teacher-subjects"
-              active={isActive("/teacher-management/teacher-subjects")}
               onClick={closeSidebar}
             />
           </ParentMenu>

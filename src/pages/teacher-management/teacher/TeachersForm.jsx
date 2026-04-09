@@ -1,103 +1,11 @@
-import { useState, useEffect, useRef } from "react"; // useRef kept for SearchMultiSelect
-import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put, API_BASE_URL } from "../../../api/axios";
-import Swal from "sweetalert2";
-const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { get, post, put } from '../../../api/axios';
+import Swal from 'sweetalert2';
 
-const ALL_SUBJECTS = ["Mathematics","English","Dari","Pashto","Science","Physics","Chemistry","Biology","Social Studies","Islamic Studies","Computer Science","Art","Physical Education","History","Geography"];
-const ALL_LEVELS   = ["Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
+const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
 
-const STEPS = [
-  { num: 1, label: "Staff Selection", desc: "Select staff member", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-  { num: 2, label: "Teaching Capability", desc: "Subjects & grade levels", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
-  { num: 3, label: "Teaching Load", desc: "Capacity & preferences", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-  { num: 4, label: "Summary", desc: "Review & confirm before submit", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
-];
-
-const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
-
-// ── Label ─────────────────────────────────────────────────────────────────────
-const Label = ({ children, required }) => (
-  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-    {children}{required && <span className="text-red-400 ml-0.5">*</span>}
-  </label>
-);
-
-// ── Step card ─────────────────────────────────────────────────────────────────
-const StepCard = ({ step, children }) => (
-  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-    <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 rounded-t-2xl flex items-center gap-3">
-      <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
-        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} />
-        </svg>
-      </div>
-      <div>
-        <p className="text-sm font-bold text-gray-800">{step.label}</p>
-        <p className="text-xs text-teal-600">{step.desc}</p>
-      </div>
-    </div>
-    <div className="p-6 space-y-5">{children}</div>
-  </div>
-);
-
-// ── Searchable multi-select ────────────────────────────────────────────────────
-function SearchMultiSelect({ options, selected, onChange, placeholder }) {
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
-  const filtered = options.filter(o => o.toLowerCase().includes(query.toLowerCase()));
-  const toggle = (v) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
-
-  return (
-    <div ref={ref} className="relative">
-      <div className={`flex items-center border rounded-xl bg-white transition-all ${open ? "border-teal-500 ring-2 ring-teal-500" : "border-gray-200"}`}>
-        <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-        <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)} onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
-          placeholder={selected.length ? `${selected.length} selected` : placeholder}
-          className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
-        <svg className={`w-4 h-4 text-gray-400 mr-3 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-      </div>
-      {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-          {filtered.length === 0 ? <p className="px-4 py-3 text-sm text-gray-400">No results</p>
-            : filtered.map(o => (
-              <div key={o} onMouseDown={e => { e.preventDefault(); toggle(o); }}
-                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors select-none ${selected.includes(o) ? "bg-teal-50" : "hover:bg-gray-50"}`}>
-                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${selected.includes(o) ? "bg-teal-600 border-teal-600" : "border-gray-300"}`}>
-                  {selected.includes(o) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                </div>
-                <span className={`text-sm ${selected.includes(o) ? "text-teal-800 font-medium" : "text-gray-700"}`}>{o}</span>
-              </div>
-            ))}
-        </div>
-      )}
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {selected.map(s => (
-            <span key={s} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-200 font-medium">
-              {s}
-              <button type="button" onClick={() => toggle(s)} className="opacity-60 hover:opacity-100">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Searchable single select ─────────────────────────────────────────────────
-function SearchSelect({ options, value, onChange, placeholder = 'Search or select...', getLabel = o => o, getValue = o => o }) {
+function SearchSelect({ options, value, onChange, placeholder = 'Select...', getLabel = o => o, getValue = o => o, error }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -113,34 +21,30 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
 
   return (
     <div ref={ref} className="relative">
-      <div className={`flex items-center border rounded-xl bg-white transition-all ${open ? 'border-teal-500 ring-2 ring-teal-500' : 'border-gray-200'}`}>
+      <div className={`flex items-center border rounded-xl bg-white transition-all ${open ? 'border-teal-500 ring-2 ring-teal-500' : error ? 'border-red-400' : 'border-gray-200'}`}>
         <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <input value={open ? query : (selected ? getLabel(selected) : '')}
+        <input
+          value={open ? query : (selected ? getLabel(selected) : '')}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => { setOpen(true); setQuery(''); }}
-          onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
           placeholder={selected ? getLabel(selected) : placeholder}
-          className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
+          className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400"
+        />
         {selected && !open && (
-          <button type="button" onClick={() => { onChange(''); setQuery(''); }}
-            className="mr-2 w-4 h-4 text-gray-400 hover:text-gray-600 flex-shrink-0">
+          <button type="button" onClick={() => { onChange(''); setQuery(''); }} className="mr-2 w-4 h-4 text-gray-400 hover:text-gray-600 flex-shrink-0">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         )}
-        <svg className={`w-4 h-4 text-gray-400 mr-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
       </div>
       {open && (
-        <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-          <div className="max-h-52 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-60 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
+              <p className="px-4 py-3 text-sm text-gray-400">No results</p>
             ) : filtered.map(o => (
-              <button key={getValue(o)} type="button"
-                onClick={() => { onChange(getValue(o)); setOpen(false); setQuery(''); }}
+              <button key={getValue(o)} type="button" onClick={() => { onChange(getValue(o)); setOpen(false); setQuery(''); }}
                 className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${getValue(o) == value ? 'bg-teal-600 text-white' : 'hover:bg-teal-50 text-gray-700'}`}>
                 {getLabel(o)}
               </button>
@@ -152,366 +56,197 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
 export default function TeachersForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = !!id;
-  const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [staffList, setStaffList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState({});
 
   const [form, setForm] = useState({
-    staffId: "",
-    subjectsAbleToTeach: [],
-    levelsAbleToTeach: [],
-    weeklyTeachingCapacity: "",
-    preferredSubjects: [],
-    status: "active",
+    staff_id: '',
+    weekly_hours: 20,
   });
+  const [availableStaff, setAvailableStaff] = useState([]);
+  const [currentStaff, setCurrentStaff] = useState(null);
 
   useEffect(() => {
-    fetchStaff();
-    if (isEdit) loadTeacher();
+    (async () => {
+      setLoading(true);
+      try {
+        if (isEdit) {
+          const res = await get(`/teacher-management/teachers/show/${id}`);
+          const d = res.data?.data;
+          if (d) {
+            setForm({ staff_id: d.staff_id, weekly_hours: d.weekly_hours || 20 });
+            setCurrentStaff({ id: d.staff_id, name: d.name, email: d.email, role: d.role });
+          }
+        } else {
+          const res = await get('/teacher-management/teachers/available-staff');
+          setAvailableStaff(res.data?.data || []);
+        }
+      } catch (error) {
+        Swal.fire('Error', 'Failed to load data', 'error');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [id]);
 
-  const fetchStaff = async () => {
-    try {
-      const res = await get('/hr/staff/list?per_page=1000&department=Academic');
-      const raw = res.data?.data || res.data || [];
-      const list = (Array.isArray(raw) ? raw : []).map(s => ({
-        id: s.id,
-        name: s.application?.full_name || `Staff #${s.employee_id}`,
-        staff_code: s.employee_id,
-        job_title: s.role_title_en || '—',
-        department: s.department || '—',
-        photo: s.profile_photo,
-      }));
-      setStaffList(list);
-    } catch (err) {
-      console.error('Failed to fetch staff', err);
-    }
+  const set = (name, value) => {
+    setForm(p => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors(prev => { const n = { ...prev }; delete n[name]; return n; });
   };
 
-  const loadTeacher = async () => {
-    setLoading(true);
-    try {
-      const res = await get(`/teacher-management/teachers/show/${id}`);
-      const d = res.data?.data || res.data;
-      setForm(prev => ({
-        ...prev,
-        staffId: d.staff_id || "",
-        subjectsAbleToTeach: d.subjects_can_teach || [],
-        levelsAbleToTeach: d.levels_can_teach || [],
-        weeklyTeachingCapacity: d.weekly_hours || "",
-        preferredSubjects: d.preferred_subjects || [],
-        status: d.status || "active",
-      }));
-    } catch {
-      Swal.fire("Error", "Failed to load teacher data", "error");
-      navigate("/teacher-management/teachers");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const set = (name, value) => setForm(p => ({ ...p, [name]: value }));
-  const handle = (e) => set(e.target.name, e.target.value);
-
-  const canNext = () => {
-    if (step === 1) return !!form.staffId;
-    if (step === 2) return form.subjectsAbleToTeach.length > 0 && form.levelsAbleToTeach.length > 0;
-    if (step === 3) return !!form.weeklyTeachingCapacity;
-    return true;
-  };
-
-  const submit = async () => {
-    if (step !== STEPS.length) return;
+  const submit = async (e) => {
+    e?.preventDefault();
     setSaving(true);
+    setErrors({});
     try {
       if (isEdit) {
-        await put(`/teacher-management/teachers/update/${id}`, form);
+        await put(`/teacher-management/teachers/update/${id}`, { weekly_hours: form.weekly_hours });
       } else {
-        await post("/teacher-management/teachers/store", form);
+        await post('/teacher-management/teachers/store', form);
       }
-      Swal.fire({ icon: "success", title: isEdit ? "Teacher Updated!" : "Teacher Created!", timer: 2000, showConfirmButton: false });
-      navigate("/teacher-management/teachers");
-    } catch {
-      Swal.fire({ icon: "success", title: isEdit ? "Teacher Updated!" : "Teacher Created!", text: "Teacher profile has been saved.", timer: 2000, showConfirmButton: false });
-      navigate("/teacher-management/teachers");
-    } finally { setSaving(false); }
+      Swal.fire({ icon: 'success', title: isEdit ? 'Teacher Updated!' : 'Teacher Added!', timer: 1500, showConfirmButton: false });
+      navigate('/teacher-management/teachers');
+    } catch (error) {
+      const responseErrors = error.response?.data?.errors;
+      if (responseErrors) {
+        setErrors(responseErrors);
+      }
+      Swal.fire('Error', error.response?.data?.message || (responseErrors ? Object.values(responseErrors).flat()[0] : 'Failed to save'), 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-24">
-      <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div>
+      </div>
+    );
+  }
 
-  const cur = STEPS[step - 1];
+  const selectedStaff = availableStaff.find(s => s.id == form.staff_id);
 
   return (
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
-        <div className="max-w-full mx-auto flex items-center gap-3">
-          <button onClick={() => navigate("/teacher-management/teachers")}
-            className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/teacher-management/teachers')} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Teacher Profile" : "New Teacher Profile"}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Step {step} of {STEPS.length} — {cur.label}: {cur.desc}</p>
+            <h1 className="text-sm font-bold text-white">{isEdit ? 'Edit Teacher' : 'Add New Teacher'}</h1>
+            <p className="text-xs text-teal-100 mt-0.5">Register an academic staff member as a teacher</p>
           </div>
         </div>
       </div>
 
-      {/* Step pills */}
-      <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-10">
-        <div className="max-w-full mx-auto px-4 py-3 flex items-center gap-1 overflow-x-auto">
-          {STEPS.map((s, i) => {
-            const done = step > s.num;
-            const active = step === s.num;
-            return (
-              <div key={s.num} className="flex items-center gap-1 flex-shrink-0">
-                <button type="button" onClick={() => done && setStep(s.num)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                    ${active ? "bg-teal-600 text-white shadow-sm" : done ? "bg-teal-50 text-teal-700 cursor-pointer" : "bg-gray-100 text-gray-400 cursor-default"}`}>
-                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0
-                    ${active ? "bg-white/25 text-white" : done ? "bg-teal-600 text-white" : "bg-gray-300 text-white"}`}>
-                    {done ? <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : s.num}
-                  </span>
-                  <span className="hidden sm:block">{s.label}</span>
-                </button>
-                {i < STEPS.length - 1 && <div className={`w-4 h-px ${done ? "bg-teal-400" : "bg-gray-200"}`} />}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Form body */}
-      <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
-        <div className="max-w-full mx-auto px-4 py-6 space-y-4">
-
-        {/* ── Step 1 ── */}
-        {step === 1 && (
-          <StepCard step={STEPS[0]}>
-            <div>
-              <Label required>Select Staff Member</Label>
-              <SearchSelect
-                options={staffList}
-                value={form.staffId}
-                onChange={v => set('staffId', v)}
-                placeholder="Search and select staff member..."
-                getLabel={s => `${s.name} (${s.staff_code})`}
-                getValue={s => s.id}
-              />
+      <form onSubmit={submit} className="mx-auto px-4 py-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 rounded-t-2xl flex items-center gap-3">
+            <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+              </svg>
             </div>
-
-            {form.staffId && (() => {
-              const s = staffList.find(x => x.id == form.staffId);
-              if (!s) return null;
-              return (
-                <div className="p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-200">
-                  <div className="flex items-center gap-3">
-                    {s.photo ? (
-                      <img src={`${STORAGE}/storage/${s.photo}`} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-                        {s.name.charAt(0)}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-800">{s.name}</p>
-                      <p className="text-xs text-teal-600">{s.staff_code} • {s.job_title} • {s.department}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </StepCard>
-        )}
-
-        {/* ── Step 2 ── */}
-        {step === 2 && (
-          <StepCard step={STEPS[1]}>
             <div>
-              <Label required>Subjects Able to Teach</Label>
-              <SearchMultiSelect 
-                options={ALL_SUBJECTS} 
-                selected={form.subjectsAbleToTeach} 
-                onChange={v => set('subjectsAbleToTeach', v)} 
-                placeholder="Search and select subjects..." 
-              />
+              <p className="text-sm font-bold text-gray-800">Teacher Details</p>
+              <p className="text-xs text-teal-600">Only academic staff members can be added</p>
             </div>
+          </div>
 
-            <div>
-              <Label required>Levels Able to Teach</Label>
-              <div className="space-y-2">
-                {ALL_LEVELS.slice(0, 6).map(grade => (
-                  <label key={grade} className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={form.levelsAbleToTeach.includes(grade)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          set('levelsAbleToTeach', [...form.levelsAbleToTeach, grade]);
-                        } else {
-                          set('levelsAbleToTeach', form.levelsAbleToTeach.filter(g => g !== grade));
-                        }
-                      }}
-                      className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">{grade}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </StepCard>
-        )}
-
-        {/* ── Step 3 ── */}
-        {step === 3 && (
-          <StepCard step={STEPS[2]}>
-            <div>
-              <Label required>Weekly Teaching Capacity (Hours)</Label>
-              <input type="number" name="weeklyTeachingCapacity" value={form.weeklyTeachingCapacity} onChange={handle} 
-                className={inp} placeholder="e.g. 30" min="1" max="40" required />
-              <div className="flex gap-2 mt-2.5">
-                {[20, 25, 30, 35, 40].map(hours => (
-                  <button key={hours} type="button" onClick={() => set('weeklyTeachingCapacity', hours)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${form.weeklyTeachingCapacity == hours ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-400'}`}>
-                    {hours}h
-                  </button>
-                ))}
-              </div>
-
+          <div className="p-5 space-y-5">
+            {/* Staff Selection (only for create mode) */}
+            {!isEdit ? (
               <div>
-                <Label>Preferred Subjects (Optional)</Label>
-                <SearchMultiSelect 
-                  options={ALL_SUBJECTS} 
-                  selected={form.preferredSubjects} 
-                  onChange={v => set('preferredSubjects', v)} 
-                  placeholder="Search and select preferred subjects..." 
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Select Staff Member <span className="text-red-400">*</span>
+                </label>
+                <SearchSelect
+                  options={availableStaff}
+                  value={form.staff_id}
+                  onChange={v => set('staff_id', v || '')}
+                  placeholder="Search academic staff..."
+                  getLabel={s => `${s.name}${s.role ? ' — ' + s.role : ''}`}
+                  getValue={s => s.id}
+                  error={errors.staff_id}
                 />
-              </div>
-            </div>
-            </StepCard>
-          )}
+                {errors.staff_id && <p className="text-red-500 text-[10px] mt-1">{errors.staff_id[0]}</p>}
+                {availableStaff.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                    No academic staff available. All academic staff are already registered as teachers, or you need to add staff with department = "academic" first.
+                  </p>
+                )}
 
-          {/* ── Step 4: Final Review ── */}
-          {step === 4 && (
-            <StepCard step={STEPS[3]}>
-              {/* Tip */}
-              <div className="flex items-center gap-2.5 p-3 bg-teal-50 border border-teal-200 rounded-xl">
-                <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-xs text-teal-700 font-medium">Review all information below. Click any step above to edit before submitting.</p>
-              </div>
-
-              {/* Staff banner */}
-              {(() => {
-                const staff = staffList.find(s => s.id == form.staffId);
-                return (
-                  <div className={`flex items-center gap-4 p-4 rounded-xl border-2 ${staff ? 'bg-teal-50 border-teal-300' : 'bg-red-50 border-red-200'}`}>
-                    {staff?.photo ? (
-                      <img src={`${STORAGE}/storage/${staff.photo}`} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                    ) : (
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base flex-shrink-0 ${staff ? 'bg-teal-600' : 'bg-red-400'}`}>
-                        {staff ? staff.name.charAt(0) : '?'}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-800">{staff?.name || 'No staff selected'}</p>
-                      {staff && <p className="text-xs text-teal-600 mt-0.5">{staff.staff_code} · {staff.job_title} · {staff.department}</p>}
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${staff ? 'bg-teal-600 text-white' : 'bg-red-100 text-red-600'}`}>
-                      {staff ? 'Linked' : 'Missing'}
-                    </span>
-                  </div>
-                );
-              })()}
-
-              {/* All fields in one grid */}
-              <div className="rounded-xl border border-gray-100 overflow-hidden">
-                {/* Section: Capability */}
-                <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teaching Capability</p>
-                </div>
-                <div className="p-4 space-y-3">
-                  <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Subjects</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {form.subjectsAbleToTeach.length > 0
-                        ? form.subjectsAbleToTeach.map(s => <span key={s} className="px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-100 font-medium">{s}</span>)
-                        : <span className="text-xs text-gray-300">—</span>}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Grade Levels</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {form.levelsAbleToTeach.length > 0
-                        ? form.levelsAbleToTeach.map(l => <span key={l} className="px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-100 font-medium">{l}</span>)
-                        : <span className="text-xs text-gray-300">—</span>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section: Teaching Load */}
-                <div className="px-4 py-2 bg-gray-50 border-t border-b border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teaching Load</p>
-                </div>
-                <div className="flex flex-col px-4 py-3">
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Weekly Capacity</span>
-                  <span className="text-sm font-semibold text-gray-800 mt-0.5">
-                    {form.weeklyTeachingCapacity ? `${form.weeklyTeachingCapacity} hours / week` : <span className="text-gray-300 font-normal">—</span>}
-                  </span>
-                </div>
-                {form.preferredSubjects.length > 0 && (
-                  <div className="flex flex-col px-4 pb-4">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Preferred Subjects</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {form.preferredSubjects.map(s => <span key={s} className="px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-100 font-medium">{s}</span>)}
-                    </div>
+                {selectedStaff && (
+                  <div className="mt-3 p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                    <p className="text-[10px] font-semibold text-teal-700 uppercase mb-1">Selected Staff</p>
+                    <p className="text-sm font-bold text-gray-800">{selectedStaff.name}</p>
+                    {selectedStaff.email && <p className="text-xs text-gray-500">{selectedStaff.email}</p>}
+                    {selectedStaff.role && <p className="text-xs text-teal-700 mt-1">{selectedStaff.role}</p>}
                   </div>
                 )}
               </div>
-            </StepCard>
-          )}
+            ) : (
+              currentStaff && (
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Staff Member</p>
+                  <p className="text-sm font-bold text-gray-800">{currentStaff.name}</p>
+                  {currentStaff.email && <p className="text-xs text-gray-500">{currentStaff.email}</p>}
+                  {currentStaff.role && <p className="text-xs text-teal-700 mt-1">{currentStaff.role}</p>}
+                </div>
+              )
+            )}
 
-          {/* Navigation */}
-          <div className="flex items-center justify-between">
-            <button type="button"
-              onClick={() => step > 1 ? setStep(s => s - 1) : navigate("/teacher-management/teachers")}
-              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-              {step === 1 ? "Cancel" : "Back"}
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1">
-                {STEPS.map(s => (
-                  <div key={s.num} className={`h-1.5 rounded-full transition-all ${s.num === step ? "w-6 bg-teal-600" : s.num < step ? "w-3 bg-teal-300" : "w-3 bg-gray-200"}`} />
+            {/* Weekly Hours */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Weekly Teaching Hours <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                value={form.weekly_hours}
+                onChange={e => set('weekly_hours', e.target.value)}
+                min="1"
+                max="60"
+                placeholder="e.g. 20"
+                className={`${inp} text-center text-xl font-bold ${errors.weekly_hours ? 'border-red-400' : ''}`}
+              />
+              <div className="flex gap-2 mt-2.5">
+                {[15, 20, 25, 30, 40].map(h => (
+                  <button key={h} type="button" onClick={() => set('weekly_hours', h)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${form.weekly_hours == h ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-400'}`}>
+                    {h}h
+                  </button>
                 ))}
               </div>
-              {step < STEPS.length ? (
-                <button type="button" disabled={!canNext()} onClick={() => setStep(s => s + 1)}
-                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                  Next
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                </button>
-              ) : (
-                <button type="button" onClick={submit} disabled={saving}
-                  className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  {saving ? "Saving..." : isEdit ? "Update Teacher" : "Create Teacher"}
-                </button>
-              )}
+              <p className="text-[10px] text-gray-400 mt-1.5">Maximum hours this teacher can teach per week</p>
+              {errors.weekly_hours && <p className="text-red-500 text-[10px] mt-1">{errors.weekly_hours[0]}</p>}
             </div>
           </div>
+
+          <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 rounded-b-2xl flex justify-end gap-3">
+            <button type="button" onClick={() => navigate('/teacher-management/teachers')}
+              className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving || (!isEdit && !form.staff_id) || !form.weekly_hours}
+              className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+              {saving ? (
+                <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+              ) : (
+                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? 'Update Teacher' : 'Add Teacher'}</>
+              )}
+            </button>
+          </div>
         </div>
-        </form>
+      </form>
     </div>
   );
 }

@@ -45,19 +45,37 @@ const parseDate = (s) => {
   return d;
 };
 
-const getEndInfo = (item) => {
-  if (!item.end_date) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+const formatDuration = (days) => {
+  if (days <= 0) return "0d";
+  if (days >= 365) {
+    const y = Math.floor(days / 365);
+    const m = Math.floor((days % 365) / 30);
+    return m > 0 ? `${y}y ${m}m` : `${y}y`;
+  }
+  if (days >= 60) return `${Math.floor(days / 30)}m`;
+  return `${days}d`;
+};
+
+// Total period length (start → end), with urgency color from days remaining
+const getPeriodInfo = (item) => {
+  if (!item.start_date || !item.end_date) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const start = parseDate(item.start_date);
   const end = parseDate(item.end_date);
-  if (!end) return null;
-  const days = Math.round((end - today) / (1000 * 60 * 60 * 24));
-  if (days < 0) return { text: "Ended", color: "bg-red-100 text-red-700" };
-  if (days === 0) return { text: "Ends today", color: "bg-red-500 text-white animate-pulse" };
-  if (days <= 7) return { text: `${days}d left`, color: "bg-red-100 text-red-700 animate-pulse" };
-  if (days <= 30) return { text: `${days}d left`, color: "bg-amber-100 text-amber-700" };
-  if (days <= 365) return { text: `${days}d left`, color: "bg-gray-100 text-gray-600" };
-  return { text: `${Math.floor(days / 365)}y left`, color: "bg-gray-100 text-gray-600" };
+  if (!start || !end) return null;
+
+  const totalDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+  const daysLeft = Math.round((end - today) / (1000 * 60 * 60 * 24));
+  const text = formatDuration(totalDays);
+
+  let color = "bg-gray-100 text-gray-600";
+  if (daysLeft < 0) color = "bg-red-100 text-red-700";
+  else if (daysLeft === 0) color = "bg-red-500 text-white animate-pulse";
+  else if (daysLeft <= 7) color = "bg-red-100 text-red-700 animate-pulse";
+  else if (daysLeft <= 30) color = "bg-amber-100 text-amber-700";
+
+  const expiringSoon = daysLeft <= 30;
+  return { text, color, daysLeft, expiringSoon };
 };
 
 export default function VendorContracts() {
@@ -98,7 +116,7 @@ export default function VendorContracts() {
   const stats = [
     { label: "Total Contracts", value: items.length, icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
     { label: "Active", value: items.filter((i) => i.status === "active").length, icon: "M5 13l4 4L19 7" },
-    { label: "Expiring Soon", value: items.filter((i) => { const info = getEndInfo(i); return info && /left|today/.test(info.text); }).length, icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { label: "Expiring Soon", value: items.filter((i) => { const info = getPeriodInfo(i); return info && info.expiringSoon && info.daysLeft >= 0; }).length, icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
     { label: "Expired", value: items.filter((i) => i.status === "expired").length, icon: "M6 18L18 6M6 6l12 12" },
   ];
 
@@ -262,8 +280,8 @@ export default function VendorContracts() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map((item) => {
-                  const endInfo = getEndInfo(item);
-                  const showRenew = endInfo && (/left|today|Ended/i.test(endInfo.text)) && (item.status === "active" || item.status === "expired");
+                  const periodInfo = getPeriodInfo(item);
+                  const showRenew = periodInfo && (periodInfo.expiringSoon || periodInfo.daysLeft < 0) && (item.status === "active" || item.status === "expired");
                   return (
                     <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
                       <td className="px-4 py-3">
@@ -289,9 +307,11 @@ export default function VendorContracts() {
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-xs text-gray-700">{formatDate(item.start_date)} → {formatDate(item.end_date)}</p>
-                        {endInfo && (
-                          <span className={`mt-1 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${endInfo.color}`}>
-                            {endInfo.text}
+                        {periodInfo && (
+                          <span className={`mt-1 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${periodInfo.color}`}>
+                            {periodInfo.daysLeft < 0
+                              ? `Ended (${periodInfo.text})`
+                              : `${periodInfo.text}${periodInfo.expiringSoon ? ` · ${periodInfo.daysLeft}d left` : ""}`}
                           </span>
                         )}
                       </td>

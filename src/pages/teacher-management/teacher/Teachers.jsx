@@ -121,7 +121,8 @@ export default function Teachers() {
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Teacher</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Role</th>
-                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Weekly Hours</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Capacity</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Workload</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -147,6 +148,25 @@ export default function Teachers() {
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-semibold">
                         {item.weekly_hours} h/week
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const used = item.used_hours || 0;
+                        const total = item.weekly_hours || 0;
+                        const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+                        const barColor = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-teal-500';
+                        return (
+                          <div className="min-w-[120px]">
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                              <span>{used}h / {total}h</span>
+                              <span className={item.is_full ? 'text-red-600 font-semibold' : 'text-gray-500'}>{pct}%</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className={`h-full ${barColor} rounded-full`} style={{ width: `${Math.min(100, pct)}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${item.status === 'active' ? 'bg-teal-50 text-teal-700' : 'bg-gray-100 text-gray-500'}`}>

@@ -66,12 +66,10 @@ export default function GradeSubjects() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editTeacher, setEditTeacher] = useState('');
-  const [editHours, setEditHours] = useState('');
 
   // Add form
   const [addSubjectId, setAddSubjectId] = useState('');
   const [addTeacherId, setAddTeacherId] = useState('');
-  const [addHours, setAddHours] = useState('');
 
   // Copy from term modal
   const [showCopyModal, setShowCopyModal] = useState(false);
@@ -80,18 +78,18 @@ export default function GradeSubjects() {
   const [isCopying, setIsCopying] = useState(false);
   const [isBulkAdding, setIsBulkAdding] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await get('/class-management/grade-subjects/form-data');
-        setGrades(res.data?.grades || []);
-        setAcademicTerms(res.data?.academic_terms || []);
-        setSubjects(res.data?.subjects || []);
-        setTeachers(res.data?.teachers || []);
-        if (res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
-      } catch {}
-    })();
-  }, []);
+  const fetchFormData = async () => {
+    try {
+      const res = await get('/class-management/grade-subjects/form-data');
+      setGrades(res.data?.grades || []);
+      setAcademicTerms(res.data?.academic_terms || []);
+      setSubjects(res.data?.subjects || []);
+      setTeachers(res.data?.teachers || []);
+      if (!selectedTerm && res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
+    } catch {}
+  };
+
+  useEffect(() => { fetchFormData(); }, []);
 
   useEffect(() => {
     if (selectedGrade && selectedTerm) fetchItems();
@@ -114,18 +112,20 @@ export default function GradeSubjects() {
     if (!addSubjectId) return;
     setIsAdding(true);
     try {
-      const res = await post('/class-management/grade-subjects', {
+      await post('/class-management/grade-subjects', {
         grade_id: selectedGrade,
         academic_term_id: selectedTerm,
         subject_id: addSubjectId,
         teacher_id: isPrimary ? null : (addTeacherId || null),
-        weekly_hours: addHours || null,
       });
-      if (res.data?.data) setItems(prev => [...prev, res.data.data]);
-      setAddSubjectId(''); setAddTeacherId(''); setAddHours('');
+      setAddSubjectId(''); setAddTeacherId('');
+      await fetchItems();
+      await fetchFormData();
       Swal.fire({ icon: 'success', title: 'Subject added', timer: 1200, showConfirmButton: false });
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to add', 'error');
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to add');
+      Swal.fire('Error', msg, 'error');
     } finally {
       setIsAdding(false);
     }
@@ -135,12 +135,16 @@ export default function GradeSubjects() {
     try {
       await put(`/class-management/grade-subjects/${id}`, {
         teacher_id: editTeacher || null,
-        weekly_hours: editHours || null,
       });
-      fetchItems();
+      await fetchItems();
+      await fetchFormData();
       setEditingId(null);
       Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
-    } catch { Swal.fire('Error', 'Failed to update', 'error'); }
+    } catch (error) {
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to update');
+      Swal.fire('Error', msg, 'error');
+    }
   };
 
   const handleBulkAddAll = async () => {
@@ -160,7 +164,8 @@ export default function GradeSubjects() {
         grade_id: selectedGrade,
         academic_term_id: selectedTerm,
       });
-      fetchItems();
+      await fetchItems();
+      await fetchFormData();
       Swal.fire({
         icon: 'success',
         title: res.data?.message || 'Subjects added',
@@ -184,7 +189,8 @@ export default function GradeSubjects() {
         target_term_id: selectedTerm,
         include_teachers: copyIncludeTeachers,
       });
-      fetchItems();
+      await fetchItems();
+      await fetchFormData();
       setShowCopyModal(false);
       setCopySourceTerm('');
       Swal.fire({
@@ -205,6 +211,7 @@ export default function GradeSubjects() {
     if (res.isConfirmed) {
       try { await del(`/class-management/grade-subjects/${id}`); } catch {}
       setItems(prev => prev.filter(i => i.id !== id));
+      await fetchFormData();
       Swal.fire({ icon: 'success', title: 'Removed', timer: 1200, showConfirmButton: false });
     }
   };
@@ -212,7 +219,6 @@ export default function GradeSubjects() {
   const startEdit = (item) => {
     setEditingId(item.id);
     setEditTeacher(item.teacher_id || '');
-    setEditHours(item.weekly_hours || '');
   };
 
   const gradeName = grades.find(g => g.id == selectedGrade)?.name || '';
@@ -289,12 +295,15 @@ export default function GradeSubjects() {
 
           {/* Add Subject */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h3 className="text-sm font-bold text-gray-800 mb-4">Add Subject to {gradeName}</h3>
-            <div className={`grid grid-cols-1 ${isPrimary ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-3 items-end`}>
-              <div className={isPrimary ? '' : ''}>
+            <h3 className="text-sm font-bold text-gray-800 mb-1">Add Subject to {gradeName}</h3>
+            <p className="text-[11px] text-gray-400 mb-4">Weekly hours are automatically taken from the subject's definition</p>
+            <div className={`grid grid-cols-1 ${isPrimary ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3 items-end`}>
+              <div>
                 <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Subject *</label>
                 <SearchSelect options={availableSubjects} value={addSubjectId} onChange={v => setAddSubjectId(v || '')}
-                  placeholder="Select subject..." getLabel={s => `${s.subject_code} — ${s.subject_name}`} getValue={s => s.id} />
+                  placeholder="Select subject..."
+                  getLabel={s => `${s.subject_code} — ${s.subject_name}${s.weekly_hours ? ` (${s.weekly_hours}h/week)` : ''}`}
+                  getValue={s => s.id} />
               </div>
               {!isPrimary && (
                 <div>
@@ -302,15 +311,17 @@ export default function GradeSubjects() {
                   <select value={addTeacherId} onChange={e => setAddTeacherId(e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                     <option value="">Select teacher...</option>
-                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.available_hours}h available)
+                      </option>
+                    ))}
                   </select>
+                  {teachers.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">All teachers are at full capacity</p>
+                  )}
                 </div>
               )}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Weekly Hours</label>
-                <input type="number" value={addHours} onChange={e => setAddHours(e.target.value)} min={1} max={20} placeholder="e.g. 4"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none" />
-              </div>
               <button onClick={handleAdd} disabled={!addSubjectId || isAdding}
                 className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]">
                 {isAdding ? (
@@ -373,19 +384,18 @@ export default function GradeSubjects() {
                             <select value={editTeacher} onChange={e => setEditTeacher(e.target.value)}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                               <option value="">No teacher</option>
-                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              {/* Include current teacher even if "full" so user can keep them */}
+                              {item.teacher_id && !teachers.some(t => t.id == item.teacher_id) && (
+                                <option value={item.teacher_id}>{item.teacher_name} (current)</option>
+                              )}
+                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h available)</option>)}
                             </select>
                           ) : (
                             <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {editingId === item.id ? (
-                            <input type="number" value={editHours} onChange={e => setEditHours(e.target.value)} min={1} max={20}
-                              className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:ring-2 focus:ring-teal-500 bg-white outline-none mx-auto" />
-                          ) : (
-                            <span className="text-sm text-gray-700">{item.weekly_hours ? `${item.weekly_hours}h` : '—'}</span>
-                          )}
+                          <span className="text-sm text-gray-700">{item.weekly_hours ? `${item.weekly_hours}h` : '—'}</span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">

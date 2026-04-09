@@ -12,6 +12,7 @@ const CONTRACT_TYPES = [
   { value: "rental", label: "Rental" },
   { value: "maintenance", label: "Maintenance" },
   { value: "consultancy", label: "Consultancy" },
+  { value: "other", label: "Other" },
 ];
 
 export default function VendorContractsForm() {

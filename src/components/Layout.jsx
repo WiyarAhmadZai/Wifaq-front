@@ -787,6 +787,12 @@ export default function Layout() {
               onClick={closeSidebar}
             />
             <SubMenuItem
+              label="Grade Subjects"
+              to="/class-management/grade-subjects"
+              active={isActive("/class-management/grade-subjects")}
+              onClick={closeSidebar}
+            />
+            <SubMenuItem
               label="Exams"
               to="/class-management/exams"
               active={isActive("/class-management/exams")}

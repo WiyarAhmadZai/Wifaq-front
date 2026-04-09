@@ -58,7 +58,7 @@ export default function GradeSubjects() {
   const [grades, setGrades] = useState([]);
   const [academicTerms, setAcademicTerms] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [staff, setStaff] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
   const [items, setItems] = useState([]);
@@ -87,7 +87,7 @@ export default function GradeSubjects() {
         setGrades(res.data?.grades || []);
         setAcademicTerms(res.data?.academic_terms || []);
         setSubjects(res.data?.subjects || []);
-        setStaff(res.data?.staff || []);
+        setTeachers(res.data?.teachers || []);
         if (res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
       } catch {}
     })();
@@ -302,7 +302,7 @@ export default function GradeSubjects() {
                   <select value={addTeacherId} onChange={e => setAddTeacherId(e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                     <option value="">Select teacher...</option>
-                    {staff.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
               )}
@@ -373,7 +373,7 @@ export default function GradeSubjects() {
                             <select value={editTeacher} onChange={e => setEditTeacher(e.target.value)}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                               <option value="">No teacher</option>
-                              {staff.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
                           ) : (
                             <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>

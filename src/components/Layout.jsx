@@ -373,6 +373,7 @@ function NotificationBell() {
     if (d.meeting_id) navigate(`/hr/meetings/show/${d.meeting_id}`);
     else if (d.staff_task_id) navigate(`/hr/staff-task/show/${d.staff_task_id}`);
     else if (d.vendor_contract_id) navigate(`/hr/vendor-contracts/show/${d.vendor_contract_id}`);
+    else if (d.agreement_id) navigate(`/hr/agreements/show/${d.agreement_id}`);
     setOpen(false);
   };
 
@@ -399,6 +400,9 @@ function NotificationBell() {
     }
     if (data?.type === "vendor_contract") {
       return { bg: "bg-orange-100", color: "text-orange-600", path: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" };
+    }
+    if (data?.type === "agreement") {
+      return { bg: "bg-purple-100", color: "text-purple-600", path: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" };
     }
     return { bg: "bg-blue-100", color: "text-blue-600", path: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" };
   };
@@ -521,8 +525,11 @@ export default function Layout() {
     { label: "Staff", path: "/hr/staff" },
     { label: "Staff Logs", path: "/hr/staff-logs" },
     { label: "Salary Snapshot", path: "/hr/salary-snapshot" },
-    { label: "Staff Contract", path: "/hr/contracts" },
-    { label: "Vendor Contract", path: "/hr/vendor-contracts" },
+    { label: "Contracts", key: "contracts", children: [
+      { label: "Staff Contract", path: "/hr/contracts" },
+      { label: "Vendor Contract", path: "/hr/vendor-contracts" },
+      { label: "Agreements", path: "/hr/agreements" },
+    ]},
     { label: "Attendance", path: "/hr/attendance" },
     { label: "Leave Request", path: "/hr/leave-request" },
     { label: "Add Vendor", path: "/hr/add-vendor" },

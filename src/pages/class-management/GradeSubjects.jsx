@@ -101,19 +101,15 @@ export default function GradeSubjects() {
 
   const selectedGradeData = grades.find(g => g.id == selectedGrade);
   const isPrimary = !!selectedGradeData?.is_primary;
-  // For primary grades: derive the single teacher from existing items
-  const primaryTeacherId = isPrimary ? (items.find(i => i.teacher_id)?.teacher_id || '') : '';
 
   const handleAdd = async () => {
     if (!addSubjectId) return;
     try {
-      // For primary grades: force the existing primary teacher
-      const teacherToUse = isPrimary ? (primaryTeacherId || addTeacherId) : addTeacherId;
       const res = await post('/class-management/grade-subjects', {
         grade_id: selectedGrade,
         academic_term_id: selectedTerm,
         subject_id: addSubjectId,
-        teacher_id: teacherToUse || null,
+        teacher_id: isPrimary ? null : (addTeacherId || null),
         weekly_hours: addHours || null,
       });
       if (res.data?.data) setItems(prev => [...prev, res.data.data]);
@@ -121,20 +117,6 @@ export default function GradeSubjects() {
       Swal.fire({ icon: 'success', title: 'Subject added', timer: 1200, showConfirmButton: false });
     } catch (error) {
       Swal.fire('Error', error.response?.data?.message || 'Failed to add', 'error');
-    }
-  };
-
-  const handleSetPrimaryTeacher = async (teacherId) => {
-    try {
-      await post('/class-management/grade-subjects/set-primary-teacher', {
-        grade_id: selectedGrade,
-        academic_term_id: selectedTerm,
-        teacher_id: teacherId || null,
-      });
-      fetchItems();
-      Swal.fire({ icon: 'success', title: 'Primary teacher updated for all subjects', timer: 1500, showConfirmButton: false });
-    } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to update', 'error');
     }
   };
 
@@ -196,28 +178,15 @@ export default function GradeSubjects() {
         <>
           {/* Primary Grade Banner */}
           {isPrimary && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-              <div className="flex items-start gap-3 mb-4">
-                <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-bold text-amber-900">Primary Grade — Single Teacher</p>
-                  <p className="text-[11px] text-amber-700 mt-0.5">In primary grades, ONE teacher teaches all subjects. Set the primary teacher below — it will apply to every subject in this grade.</p>
-                </div>
-              </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               <div>
-                <label className="block text-[10px] font-semibold text-amber-800 uppercase mb-1.5">Primary Class Teacher</label>
-                <select value={primaryTeacherId} onChange={e => handleSetPrimaryTeacher(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 bg-white outline-none">
-                  <option value="">No teacher assigned</option>
-                  {staff.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                {primaryTeacherId && (
-                  <p className="text-[10px] text-amber-700 mt-1.5">
-                    ✓ All {items.length} subject{items.length !== 1 ? 's' : ''} in {gradeName} are taught by this teacher
-                  </p>
-                )}
+                <p className="text-sm font-bold text-amber-900">Primary Grade — Teacher per Class</p>
+                <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                  In primary grades, the <strong>class supervisor</strong> teaches all subjects. Just list the subjects here — each class (e.g. Grade 1A, Grade 1B) will use its own supervisor as the teacher. So Ahmad can teach all subjects in Grade 1A while Ali teaches all subjects in Grade 1B.
+                </p>
               </div>
             </div>
           )}
@@ -293,19 +262,16 @@ export default function GradeSubjects() {
                           <span className="text-xs text-gray-600">{item.category}</span>
                         </td>
                         <td className="px-4 py-3">
-                          {editingId === item.id && !isPrimary ? (
+                          {isPrimary ? (
+                            <span className="text-xs text-amber-700 italic">Class supervisor</span>
+                          ) : editingId === item.id ? (
                             <select value={editTeacher} onChange={e => setEditTeacher(e.target.value)}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                               <option value="">No teacher</option>
                               {staff.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
                           ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>
-                              {isPrimary && item.teacher_name && (
-                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-semibold rounded">PRIMARY</span>
-                              )}
-                            </div>
+                            <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">

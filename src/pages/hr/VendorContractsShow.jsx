@@ -178,10 +178,14 @@ export default function VendorContractsShow() {
               Vendor Information
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Vendor Name" value={data.vendor_name} />
-              <Field label="Contact" value={data.vendor_contact} />
-              <Field label="Email" value={data.vendor_email} />
-              <Field label="Address" value={data.vendor_address} />
+              <Field label="Vendor Name" value={data.vendor?.name} />
+              <Field label="Category" value={data.vendor?.category} />
+              <Field label="Work Type" value={data.vendor?.work_type} />
+              <Field label="Contact" value={data.vendor?.contact} />
+              <Field label="Address" value={data.vendor?.address} full />
+              <Field label="Default Payment Terms" value={data.vendor?.payment_terms} full />
+              {data.vendor?.recommended_by && <Field label="Recommended By" value={data.vendor.recommended_by} />}
+              {data.vendor?.date_engaged && <Field label="Engaged Since" value={formatDate(data.vendor.date_engaged)} />}
             </div>
           </div>
 
@@ -195,7 +199,7 @@ export default function VendorContractsShow() {
               <Field label="Type" value={data.contract_type ? data.contract_type.charAt(0).toUpperCase() + data.contract_type.slice(1) : "—"} />
               <Field label="Start Date" value={formatDate(data.start_date)} />
               <Field label="End Date" value={formatDate(data.end_date)} />
-              <Field label="Amount" value={`${Number(data.amount || 0).toLocaleString()} ${data.currency || ""}`} />
+              <Field label="Amount" value={data.amount != null ? `${Number(data.amount).toLocaleString()} ${data.currency || ""}` : "—"} />
               <Field label="Created By" value={data.creator?.name} />
               <Field label="Description" value={data.description} full />
               <Field label="Payment Terms" value={data.payment_terms} full />
@@ -215,7 +219,7 @@ export default function VendorContractsShow() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Total Value</span>
-                <span className="text-xs font-medium">{Number(data.amount || 0).toLocaleString()} {data.currency}</span>
+                <span className="text-xs font-medium">{data.amount != null ? `${Number(data.amount).toLocaleString()} ${data.currency}` : "—"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Status</span>
@@ -247,7 +251,7 @@ export default function VendorContractsShow() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <h3 className="text-base font-bold text-gray-800 mb-1">Renew Vendor Contract</h3>
-            <p className="text-xs text-gray-500 mb-4">{data.contract_number} — {data.vendor_name}</p>
+            <p className="text-xs text-gray-500 mb-4">{data.contract_number} — {data.vendor?.name}</p>
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-700 mb-1">New End Date *</label>
               <input type="date" value={renewModal.end_date}

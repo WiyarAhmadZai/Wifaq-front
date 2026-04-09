@@ -63,6 +63,7 @@ export default function GradeSubjects() {
   const [selectedTerm, setSelectedTerm] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editTeacher, setEditTeacher] = useState('');
   const [editHours, setEditHours] = useState('');
@@ -104,6 +105,7 @@ export default function GradeSubjects() {
 
   const handleAdd = async () => {
     if (!addSubjectId) return;
+    setIsAdding(true);
     try {
       const res = await post('/class-management/grade-subjects', {
         grade_id: selectedGrade,
@@ -117,6 +119,8 @@ export default function GradeSubjects() {
       Swal.fire({ icon: 'success', title: 'Subject added', timer: 1200, showConfirmButton: false });
     } catch (error) {
       Swal.fire('Error', error.response?.data?.message || 'Failed to add', 'error');
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -215,10 +219,19 @@ export default function GradeSubjects() {
                 <input type="number" value={addHours} onChange={e => setAddHours(e.target.value)} min={1} max={20} placeholder="e.g. 4"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none" />
               </div>
-              <button onClick={handleAdd} disabled={!addSubjectId}
-                className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Add
+              <button onClick={handleAdd} disabled={!addSubjectId || isAdding}
+                className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]">
+                {isAdding ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Add
+                  </>
+                )}
               </button>
             </div>
           </div>

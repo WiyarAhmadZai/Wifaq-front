@@ -18,11 +18,20 @@ export default function Subjects() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ status: '', search: '', category: '' });
+  const [filters, setFilters] = useState({ status: '', search: '', category: '', grade_id: '' });
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
   const [statusModal, setStatusModal] = useState({ open: false, item: null, status: '' });
+  const [grades, setGrades] = useState([]);
 
   useEffect(() => { fetchItems(); }, [filters]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await get('/grades/list');
+        setGrades(res.data?.data || []);
+      } catch {}
+    })();
+  }, []);
 
   const fetchItems = async (page = 1) => {
     setLoading(true);
@@ -32,6 +41,7 @@ export default function Subjects() {
       if (filters.status) params.append('status', filters.status);
       if (filters.search) params.append('search', filters.search);
       if (filters.category) params.append('category', filters.category);
+      if (filters.grade_id) params.append('grade_id', filters.grade_id);
       const res = await get(`/class-management/subjects/list?${params.toString()}`);
       const data = res.data;
       setItems(data?.data || []);
@@ -79,7 +89,14 @@ export default function Subjects() {
       <div className="mx-auto px-4 py-4">
         {/* Filters */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Grade</label>
+              <select value={filters.grade_id} onChange={e => setFilters({ ...filters, grade_id: e.target.value })} className={inp}>
+                <option value="">All Grades</option>
+                {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
               <select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} className={inp}>
@@ -138,6 +155,7 @@ export default function Subjects() {
                   <tr>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Code</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Subject Name</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Grade</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden md:table-cell">Category</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Weekly Hours</th>
                     <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
@@ -146,7 +164,7 @@ export default function Subjects() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {items.length === 0 ? (
-                    <tr><td colSpan="6" className="px-4 py-12 text-center"><p className="text-sm text-gray-400">No subjects found</p>
+                    <tr><td colSpan="7" className="px-4 py-12 text-center"><p className="text-sm text-gray-400">No subjects found</p>
                       <button onClick={() => navigate('/class-management/subjects/create')} className="mt-3 text-xs font-semibold text-teal-600">Create your first subject</button></td></tr>
                   ) : items.map(item => (
                     <tr key={item.id} onClick={() => navigate(`/class-management/subjects/show/${item.id}`)} className="hover:bg-gray-50 cursor-pointer transition-colors group">
@@ -154,6 +172,11 @@ export default function Subjects() {
                       <td className="px-4 py-3">
                         <p className="text-xs font-medium text-gray-700">{item.subject_name}</p>
                         {item.book_name && <p className="text-[10px] text-gray-400 truncate">{item.book_name}</p>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.grade?.name ? (
+                          <span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-700 rounded-full text-[10px] font-semibold">{item.grade.name}</span>
+                        ) : <span className="text-[10px] text-gray-400">—</span>}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell"><span className="text-[11px] text-gray-600">{item.category}</span></td>
                       <td className="px-4 py-3 hidden lg:table-cell"><span className="text-[11px] text-gray-600">{item.weekly_hours ? `${item.weekly_hours}h/week` : '—'}</span></td>

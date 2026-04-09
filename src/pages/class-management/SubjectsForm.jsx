@@ -40,10 +40,11 @@ export default function SubjectsForm() {
   const [errors, setErrors] = useState({});
 
   const [form, setForm] = useState({
-    subject_name: '', subject_code: '', category: '', field: '',
+    grade_id: '', subject_name: '', subject_code: '', category: '', field: '',
     book_name: '', author: '', edition: '', total_pages: '', chapters: '',
     start_date: '', expected_completion_date: '', weekly_hours: '',
   });
+  const [grades, setGrades] = useState([]);
 
   const STEPS = [
     { num: 1, label: 'Basic Information', desc: 'Subject name, code & category' },
@@ -52,7 +53,15 @@ export default function SubjectsForm() {
     { num: 4, label: 'Teaching Timeline', desc: 'Schedule & duration' },
   ];
 
-  useEffect(() => { if (isEdit) loadSubject(); }, [id]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await get('/grades/list');
+        setGrades(res.data?.data || []);
+      } catch {}
+    })();
+    if (isEdit) loadSubject();
+  }, [id]);
 
   const loadSubject = async () => {
     setLoading(true);
@@ -60,6 +69,7 @@ export default function SubjectsForm() {
       const res = await get(`/class-management/subjects/show/${id}`);
       const d = res.data?.data || res.data;
       setForm({
+        grade_id: d.grade_id || '',
         subject_name: d.subject_name || '', subject_code: d.subject_code || '',
         category: d.category || '', field: d.field || '',
         book_name: d.book_name || '', author: d.author || '',
@@ -79,7 +89,7 @@ export default function SubjectsForm() {
   const handle = (e) => set(e.target.name, e.target.value);
 
   const canNext = () => {
-    if (step === 1) return form.subject_name && form.subject_code && form.category;
+    if (step === 1) return form.grade_id && form.subject_name && form.subject_code && form.category;
     if (step === 3) return form.book_name && form.author;
     if (step === 4) return form.start_date && form.expected_completion_date && form.weekly_hours;
     return true;
@@ -98,7 +108,7 @@ export default function SubjectsForm() {
       await Swal.fire({ icon: 'success', title: isEdit ? 'Subject Updated!' : 'Subject Created!', timer: 2000, showConfirmButton: false });
       navigate('/class-management/subjects');
     } catch (error) {
-      const stepMap = { 1: ['subject_name','subject_code','category'], 2: ['specialization'], 3: ['textbook_title','textbook_author','textbook_isbn'], 4: ['sessions_per_week','duration_minutes'] };
+      const stepMap = { 1: ['grade_id','subject_name','subject_code','category'], 2: ['field'], 3: ['book_name','author','edition','total_pages','chapters'], 4: ['start_date','expected_completion_date','weekly_hours'] };
       if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
         Swal.fire('Error', error.response?.data?.message || 'Failed to save subject', 'error');
       }
@@ -146,6 +156,15 @@ export default function SubjectsForm() {
 
           {step === 1 && (
             <StepCard step={STEPS[0]}>
+              <div>
+                <Label required>Grade</Label>
+                <select name="grade_id" value={form.grade_id} onChange={handle}
+                  className={`${inp} ${errors.grade_id ? 'border-red-400' : ''}`}>
+                  <option value="">Select Grade</option>
+                  {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+                {errors.grade_id && <p className="text-[10px] text-red-500 mt-1">{errors.grade_id[0]}</p>}
+              </div>
               <div>
                 <Label required>Subject Name</Label>
                 <input type="text" name="subject_name" value={form.subject_name} onChange={handle} className={`${inp} ${errors.subject_name ? 'border-red-400' : ''}`} placeholder="e.g. Mathematics" />
@@ -234,6 +253,7 @@ export default function SubjectsForm() {
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
                 <p className="text-xs font-bold text-gray-700">Review Summary</p>
                 {[
+                  { label: 'Grade', value: grades.find(g => g.id == form.grade_id)?.name || '—' },
                   { label: 'Subject', value: form.subject_name },
                   { label: 'Code', value: form.subject_code },
                   { label: 'Category', value: form.category || '—' },

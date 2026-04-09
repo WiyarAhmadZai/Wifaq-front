@@ -27,6 +27,7 @@ const typeBadge = {
   rental: "bg-amber-100 text-amber-700",
   maintenance: "bg-pink-100 text-pink-700",
   consultancy: "bg-cyan-100 text-cyan-700",
+  other: "bg-gray-100 text-gray-700",
 };
 
 const formatDate = (d) => {
@@ -232,6 +233,7 @@ export default function VendorContracts() {
                 <option value="rental">Rental</option>
                 <option value="maintenance">Maintenance</option>
                 <option value="consultancy">Consultancy</option>
+                <option value="other">Other</option>
               </select>
             </div>
           </div>

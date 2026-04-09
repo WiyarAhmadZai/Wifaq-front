@@ -35,6 +35,7 @@ const MyProfile = lazy(() => import("./pages/MyProfile"));
 const Staff = lazy(() => import("./pages/hr/Staff"));
 const Contracts = lazy(() => import("./pages/hr/Contracts"));
 const VendorContracts = lazy(() => import("./pages/hr/VendorContracts"));
+const Agreements = lazy(() => import("./pages/hr/Agreements"));
 const Attendance = lazy(() => import("./pages/hr/Attendance"));
 const QuickAttendance = lazy(() => import("./pages/hr/QuickAttendance"));
 const AttendanceReport = lazy(() => import("./pages/hr/AttendanceReport"));
@@ -59,6 +60,7 @@ const StaffForm = lazy(() => import("./pages/hr/StaffForm"));
 const StaffLogs = lazy(() => import("./pages/hr/StaffLogs"));
 const ContractsForm = lazy(() => import("./pages/hr/ContractsForm"));
 const VendorContractsForm = lazy(() => import("./pages/hr/VendorContractsForm"));
+const AgreementsForm = lazy(() => import("./pages/hr/AgreementsForm"));
 const AttendanceForm = lazy(() => import("./pages/hr/AttendanceForm"));
 const LeaveRequestForm = lazy(() => import("./pages/hr/LeaveRequestForm"));
 const JobsForm = lazy(() => import("./pages/hr/JobsForm"));
@@ -73,6 +75,7 @@ const SalarySnapshotForm = lazy(() => import("./pages/hr/SalarySnapshotForm"));
 const StaffShow = lazy(() => import("./pages/hr/StaffShow"));
 const ContractsShow = lazy(() => import("./pages/hr/ContractsShow"));
 const VendorContractsShow = lazy(() => import("./pages/hr/VendorContractsShow"));
+const AgreementsShow = lazy(() => import("./pages/hr/AgreementsShow"));
 const AttendanceShow = lazy(() => import("./pages/hr/AttendanceShow"));
 const LeaveRequestShow = lazy(() => import("./pages/hr/LeaveRequestShow"));
 const JobsShow = lazy(() => import("./pages/hr/JobsShow"));
@@ -283,6 +286,10 @@ function App() {
             <Route path="hr/vendor-contracts/create" element={<Suspense fallback={<PageLoader />}><VendorContractsForm /></Suspense>} />
             <Route path="hr/vendor-contracts/edit/:id" element={<Suspense fallback={<PageLoader />}><VendorContractsForm /></Suspense>} />
             <Route path="hr/vendor-contracts/show/:id" element={<Suspense fallback={<PageLoader />}><VendorContractsShow /></Suspense>} />
+            <Route path="hr/agreements" element={<Suspense fallback={<PageLoader />}><Agreements /></Suspense>} />
+            <Route path="hr/agreements/create" element={<Suspense fallback={<PageLoader />}><AgreementsForm /></Suspense>} />
+            <Route path="hr/agreements/edit/:id" element={<Suspense fallback={<PageLoader />}><AgreementsForm /></Suspense>} />
+            <Route path="hr/agreements/show/:id" element={<Suspense fallback={<PageLoader />}><AgreementsShow /></Suspense>} />
             <Route path="hr/attendance" element={<Suspense fallback={<PageLoader />}><Attendance /></Suspense>} />
             <Route path="hr/attendance/quick" element={<Suspense fallback={<PageLoader />}><QuickAttendance /></Suspense>} />
             <Route path="hr/attendance/report" element={<Suspense fallback={<PageLoader />}><AttendanceReport /></Suspense>} />

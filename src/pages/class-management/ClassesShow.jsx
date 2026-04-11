@@ -146,7 +146,6 @@ export default function ClassesShow() {
             <div className="grid grid-cols-2 gap-5">
               <F label="Room Number" value={item.room_number} />
               <F label="Room Name" value={item.room_name} />
-              <F label="Building" value={item.building} />
               <F label="Floor" value={item.floor ? `Floor ${item.floor}` : null} />
             </div>
           </Card>

@@ -19,14 +19,18 @@ const CATEGORY_COLORS = {
 const DEFAULT_COLOR = { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-800', dot: 'bg-gray-500' };
 
 export default function Schedule() {
-  const [viewMode, setViewMode] = useState('class');
+  const [viewMode, setViewMode] = useState('class'); // 'class' | 'grade' | 'teacher'
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [grades, setGrades] = useState([]);
   const [terms, setTerms] = useState([]);
   const [selectedTerm, setSelectedTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
+  const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [scheduleData, setScheduleData] = useState(null);
+  const [gradeData, setGradeData] = useState(null);
+  const [activeGradeTab, setActiveGradeTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -37,6 +41,9 @@ export default function Schedule() {
         setTerms(res.data?.academic_terms || []);
         setTeachers(res.data?.teachers || []);
         if (res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
+        // Fetch grades list
+        const gRes = await get('/grades/list');
+        setGrades(gRes.data?.data || []);
       } catch {}
     })();
   }, []);
@@ -53,9 +60,10 @@ export default function Schedule() {
 
   useEffect(() => {
     if (viewMode === 'class' && selectedClass) fetchClassSchedule();
+    else if (viewMode === 'grade' && selectedGrade && selectedTerm) fetchGradeSchedule();
     else if (viewMode === 'teacher' && selectedTeacher && selectedTerm) fetchTeacherSchedule();
-    else setScheduleData(null);
-  }, [selectedClass, selectedTeacher, viewMode]);
+    else { setScheduleData(null); setGradeData(null); }
+  }, [selectedClass, selectedGrade, selectedTeacher, viewMode]);
 
   const fetchClassSchedule = async () => {
     setLoading(true);
@@ -63,6 +71,17 @@ export default function Schedule() {
       const res = await get(`/class-management/schedule/class?class_id=${selectedClass}`);
       setScheduleData(res.data);
     } catch { setScheduleData(null); }
+    finally { setLoading(false); }
+  };
+
+  const fetchGradeSchedule = async () => {
+    setLoading(true);
+    try {
+      const res = await get(`/class-management/schedule/grade?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      setGradeData(res.data);
+      setActiveGradeTab(0);
+      setScheduleData(null);
+    } catch { setGradeData(null); }
     finally { setLoading(false); }
   };
 
@@ -100,8 +119,9 @@ export default function Schedule() {
         html += '</div>';
       }
       await Swal.fire({ icon: 'success', title: 'Schedule Generated', html, confirmButtonColor: '#0d9488' });
-      if (selectedClass) fetchClassSchedule();
-      if (selectedTeacher) fetchTeacherSchedule();
+      if (viewMode === 'class' && selectedClass) fetchClassSchedule();
+      if (viewMode === 'grade' && selectedGrade) fetchGradeSchedule();
+      if (viewMode === 'teacher' && selectedTeacher) fetchTeacherSchedule();
       // Refresh class list
       try {
         const r = await get(`/class-management/schedule/form-data?academic_term_id=${selectedTerm}`);
@@ -178,10 +198,10 @@ export default function Schedule() {
       {/* Controls */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <div className="flex items-center gap-2 mb-4">
-          {['class', 'teacher'].map(mode => (
-            <button key={mode} onClick={() => { setViewMode(mode); setScheduleData(null); }}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${viewMode === mode ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {mode === 'class' ? 'By Class' : 'By Teacher'}
+          {[{ key: 'class', label: 'By Class' }, { key: 'grade', label: 'By Grade' }, { key: 'teacher', label: 'By Teacher' }].map(mode => (
+            <button key={mode.key} onClick={() => { setViewMode(mode.key); setScheduleData(null); setGradeData(null); }}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${viewMode === mode.key ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {mode.label}
             </button>
           ))}
         </div>
@@ -189,14 +209,14 @@ export default function Schedule() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Academic Term</label>
-            <select value={selectedTerm} onChange={e => { setSelectedTerm(e.target.value); setSelectedClass(''); setSelectedTeacher(''); setScheduleData(null); }}
+            <select value={selectedTerm} onChange={e => { setSelectedTerm(e.target.value); setSelectedClass(''); setSelectedGrade(''); setSelectedTeacher(''); setScheduleData(null); setGradeData(null); }}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
               <option value="">Select term...</option>
               {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
 
-          {viewMode === 'class' ? (
+          {viewMode === 'class' && (
             <div>
               <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Class</label>
               <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
@@ -207,7 +227,20 @@ export default function Schedule() {
                 ))}
               </select>
             </div>
-          ) : (
+          )}
+
+          {viewMode === 'grade' && (
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Grade</label>
+              <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
+                <option value="">Select grade...</option>
+                {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          {viewMode === 'teacher' && (
             <div>
               <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Teacher</label>
               <select value={selectedTeacher} onChange={e => setSelectedTeacher(e.target.value)}
@@ -331,6 +364,106 @@ export default function Schedule() {
             ))}
           </div>
         </div>
+      ) : viewMode === 'grade' && gradeData && gradeData.classes?.length > 0 ? (
+        <div className="space-y-4">
+          {/* Grade header + section tabs */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xs">{gradeData.grade_name?.replace('Grade ', '').substring(0, 3)}</div>
+                <h3 className="text-sm font-bold text-gray-800">{gradeData.grade_name} — All Sections</h3>
+              </div>
+              <span className="text-xs text-gray-500">{gradeData.classes.length} class(es)</span>
+            </div>
+            <div className="px-5 py-3 flex items-center gap-2 border-b border-gray-100">
+              {gradeData.classes.map((cls, idx) => (
+                <button key={cls.class_id} onClick={() => setActiveGradeTab(idx)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${activeGradeTab === idx ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  Section {cls.section}
+                  <span className={`ml-1.5 text-[10px] ${activeGradeTab === idx ? 'text-teal-200' : 'text-gray-400'}`}>
+                    ({cls.shift === 'morning' ? 'AM' : 'PM'})
+                  </span>
+                </button>
+              ))}
+              <span className="ml-auto text-[10px] text-gray-400">Click a section to view its timetable</span>
+            </div>
+
+            {/* Active section timetable */}
+            {(() => {
+              const cls = gradeData.classes[activeGradeTab];
+              if (!cls) return null;
+              const clsEntries = cls.entries || [];
+              const gDays = gradeData.days || [];
+              const gPeriods = gradeData.periods_count || 6;
+              const getClsEntry = (day, period) => clsEntries.find(e => e.day === day && e.period === period);
+
+              return (
+                <>
+                  <div className="px-5 py-2 flex items-center gap-3 bg-gray-50">
+                    <p className="text-xs font-semibold text-gray-700">{cls.class_name}</p>
+                    <span className="text-[10px] text-gray-400">{clsEntries.length} periods scheduled</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px]">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider w-20">Period</th>
+                          {gDays.map(day => (
+                            <th key={day} className="px-2 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                              <span className="hidden sm:inline">{DAY_LABELS_FULL[day]}</span>
+                              <span className="sm:hidden">{DAY_LABELS[day]}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.from({ length: gPeriods }, (_, i) => i + 1).map(period => (
+                          <tr key={period} className="border-b border-gray-50">
+                            <td className="px-3 py-2">
+                              <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{period}</span>
+                            </td>
+                            {gDays.map(day => {
+                              const entry = getClsEntry(day, period);
+                              const colors = entry ? (CATEGORY_COLORS[entry.category] || DEFAULT_COLOR) : null;
+                              return (
+                                <td key={day} className="px-1 py-1">
+                                  {entry ? (
+                                    <div className={`p-2 rounded-xl border ${colors.bg} ${colors.border} min-h-[52px]`}>
+                                      <div className="flex items-start gap-1.5">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${colors.dot} mt-1.5 flex-shrink-0`} />
+                                        <div className="min-w-0 flex-1">
+                                          <p className={`text-[11px] font-semibold ${colors.text} leading-tight`}>{entry.subject_name}</p>
+                                          <p className="text-[9px] text-gray-400 mt-0.5 truncate">{entry.teacher_name || '—'}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="min-h-[52px] rounded-xl border border-dashed border-gray-200 bg-gray-50/50" />
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* Legend */}
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-4 flex-wrap">
+              <p className="text-[10px] text-gray-400 font-semibold uppercase">Legend:</p>
+              {Object.entries(CATEGORY_COLORS).map(([cat, colors]) => (
+                <div key={cat} className="flex items-center gap-1.5">
+                  <div className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
+                  <span className="text-[10px] text-gray-600">{cat}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-16 text-center">
           <div className="w-16 h-16 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -338,7 +471,9 @@ export default function Schedule() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
-          <p className="text-sm font-medium text-gray-600">Select a {viewMode === 'class' ? 'class' : 'teacher'} to view the schedule</p>
+          <p className="text-sm font-medium text-gray-600">
+            Select a {viewMode === 'class' ? 'class' : viewMode === 'grade' ? 'grade' : 'teacher'} to view the schedule
+          </p>
           <p className="text-xs text-gray-400 mt-1">Or click "Generate Schedule" to auto-create timetables for all classes</p>
         </div>
       )}

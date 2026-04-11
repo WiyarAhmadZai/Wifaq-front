@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
@@ -50,11 +50,16 @@ function Toggle({ name, id, checked, onChange, label }) {
 export default function StudentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
+
+  // Check if family_id was passed from parent form
+  const prefilledFamilyId = searchParams.get("family_id");
+  const prefilledFamilyLabel = searchParams.get("family_label");
 
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
-    family_id: "",
+    family_id: prefilledFamilyId || "",
     first_name: "",
     last_name: "",
     date_of_birth: "",
@@ -83,6 +88,13 @@ export default function StudentForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Family search state
+  const [families, setFamilies] = useState([]);
+  const [familySearch, setFamilySearch] = useState(prefilledFamilyLabel || "");
+  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
+  const [familyLocked, setFamilyLocked] = useState(Boolean(prefilledFamilyId));
+  const familyRef = useRef(null);
+
   const specialStatusOptions = [
     {
       value: "none",
@@ -106,8 +118,20 @@ export default function StudentForm() {
     fetchClasses();
     fetchEmploymentDurations();
     fetchAcademicTerms();
+    if (!prefilledFamilyId) fetchFamilies();
     if (isEdit) fetchStudent();
   }, [id]);
+
+  // Close family dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (familyRef.current && !familyRef.current.contains(e.target)) {
+        setShowFamilyDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     calculateDiscountAmount();
@@ -141,6 +165,40 @@ export default function StudentForm() {
     } catch (error) {
       console.error("Failed to fetch academic terms", error);
     }
+  };
+
+  const fetchFamilies = async () => {
+    try {
+      const response = await get("/student-management/families/list");
+      const data = response.data?.data || response.data || [];
+      setFamilies(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch families", error);
+    }
+  };
+
+  const filteredFamilies = families.filter((f) => {
+    const q = familySearch.toLowerCase();
+    return (
+      (f.family_id && f.family_id.toLowerCase().includes(q)) ||
+      (f.father_name && f.father_name.toLowerCase().includes(q)) ||
+      (f.father_name_en && f.father_name_en.toLowerCase().includes(q)) ||
+      String(f.id).includes(q)
+    );
+  });
+
+  const selectFamily = (family) => {
+    setFormData((prev) => ({ ...prev, family_id: family.id }));
+    setFamilySearch(`${family.family_id} - ${family.father_name}`);
+    setShowFamilyDropdown(false);
+    if (errors.family_id) setErrors((prev) => ({ ...prev, family_id: null }));
+  };
+
+  const clearFamily = () => {
+    setFormData((prev) => ({ ...prev, family_id: "" }));
+    setFamilySearch("");
+    setFamilyLocked(false);
+    if (families.length === 0) fetchFamilies();
   };
 
   const calculateDiscountAmount = () => {
@@ -386,19 +444,79 @@ export default function StudentForm() {
               </div>
             </div>
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+              <div ref={familyRef} className="relative">
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Family ID *
+                  Family *
                 </label>
-                <input
-                  type="text"
-                  name="family_id"
-                  value={formData.family_id}
-                  onChange={handleChange}
-                  required
-                  placeholder="e.g. WEN-FM-26-0001"
-                  className={inputClass("family_id")}
-                />
+                {familyLocked ? (
+                  <div className="flex items-center gap-2">
+                    <div className={`flex-1 px-3 py-2.5 border rounded-xl text-xs bg-teal-50 border-teal-200 text-teal-800 font-medium`}>
+                      {familySearch || `Family #${formData.family_id}`}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearFamily}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      title="Change family"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={familySearch}
+                        onChange={(e) => {
+                          setFamilySearch(e.target.value);
+                          setShowFamilyDropdown(true);
+                          if (formData.family_id) {
+                            setFormData((prev) => ({ ...prev, family_id: "" }));
+                          }
+                        }}
+                        onFocus={() => setShowFamilyDropdown(true)}
+                        placeholder="Search by Family ID or Father Name..."
+                        className={`${inputClass("family_id")} pl-9`}
+                      />
+                    </div>
+                    <input type="hidden" name="family_id" value={formData.family_id} />
+                    {showFamilyDropdown && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                        {filteredFamilies.length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-gray-400 text-center">No families found</div>
+                        ) : (
+                          filteredFamilies.slice(0, 20).map((family) => (
+                            <button
+                              key={family.id}
+                              type="button"
+                              onClick={() => selectFamily(family)}
+                              className="w-full text-left px-4 py-2.5 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="text-xs font-semibold text-gray-800">{family.father_name}</span>
+                                  {family.father_name_en && (
+                                    <span className="text-[10px] text-gray-400 ml-1.5">({family.father_name_en})</span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md">{family.family_id}</span>
+                              </div>
+                              {family.father_phone && (
+                                <p className="text-[10px] text-gray-400 mt-0.5">{family.father_phone}</p>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
                 {getFieldError("family_id") && (
                   <p className="text-red-500 text-[10px] mt-1">
                     {getFieldError("family_id")}

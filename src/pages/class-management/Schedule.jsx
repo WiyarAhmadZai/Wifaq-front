@@ -156,6 +156,37 @@ export default function Schedule() {
     } catch {}
   };
 
+  // Drag and drop
+  const [dragEntry, setDragEntry] = useState(null);
+  const [dragOver, setDragOver] = useState(null); // "day-period"
+
+  const handleDragStart = (entry) => {
+    setDragEntry(entry);
+  };
+
+  const handleDrop = async (targetDay, targetPeriod) => {
+    if (!dragEntry) return;
+    // Don't drop on same slot
+    if (dragEntry.day === targetDay && dragEntry.period === targetPeriod) {
+      setDragEntry(null);
+      setDragOver(null);
+      return;
+    }
+
+    try {
+      await post('/class-management/schedule/swap', {
+        source_id: dragEntry.id,
+        target_day: targetDay,
+        target_period: targetPeriod,
+      });
+      fetchClassSchedule();
+    } catch (error) {
+      Swal.fire('Cannot Move', error.response?.data?.message || 'Failed to move entry', 'error');
+    }
+    setDragEntry(null);
+    setDragOver(null);
+  };
+
   const days = scheduleData?.days || [];
   const periodsCount = scheduleData?.periods_count || 6;
   const entries = scheduleData?.entries || [];
@@ -177,6 +208,13 @@ export default function Schedule() {
           <p className="text-xs text-gray-400 mt-0.5">View and auto-generate weekly timetables</p>
         </div>
         <div className="flex gap-2">
+          {(scheduleData || gradeData) && (
+            <button onClick={() => window.print()}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              Print
+            </button>
+          )}
           {viewMode === 'class' && selectedClass && hasEntries && (
             <button onClick={handleClearClass}
               className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-red-200 text-red-600 text-xs font-semibold rounded-xl hover:bg-red-50 transition-colors">
@@ -303,10 +341,17 @@ export default function Schedule() {
                       if (viewMode === 'class') {
                         const entry = getEntry(day, period);
                         const colors = entry ? (CATEGORY_COLORS[entry.category] || DEFAULT_COLOR) : null;
+                        const isDragTarget = dragOver === `${day}-${period}`;
                         return (
-                          <td key={day} className="px-1 py-1">
+                          <td key={day} className="px-1 py-1"
+                            onDragOver={e => { e.preventDefault(); setDragOver(`${day}-${period}`); }}
+                            onDragLeave={() => setDragOver(null)}
+                            onDrop={e => { e.preventDefault(); handleDrop(day, period); }}>
                             {entry ? (
-                              <div className={`p-2 rounded-xl border ${colors.bg} ${colors.border} group relative min-h-[52px]`}>
+                              <div draggable
+                                onDragStart={() => handleDragStart(entry)}
+                                onDragEnd={() => { setDragEntry(null); setDragOver(null); }}
+                                className={`p-2 rounded-xl border ${colors.bg} ${colors.border} group relative min-h-[52px] cursor-grab active:cursor-grabbing transition-all ${dragEntry?.id === entry.id ? 'opacity-40 scale-95' : ''} ${isDragTarget ? 'ring-2 ring-teal-400' : ''}`}>
                                 <div className="flex items-start gap-1.5">
                                   <div className={`w-1.5 h-1.5 rounded-full ${colors.dot} mt-1.5 flex-shrink-0`} />
                                   <div className="min-w-0 flex-1">
@@ -320,11 +365,11 @@ export default function Schedule() {
                                 </button>
                               </div>
                             ) : (
-                              <div className="min-h-[52px] rounded-xl border border-dashed border-gray-200 bg-gray-50/50" />
+                              <div className={`min-h-[52px] rounded-xl border border-dashed transition-all ${isDragTarget ? 'border-teal-400 bg-teal-50 ring-2 ring-teal-200' : 'border-gray-200 bg-gray-50/50'}`} />
                             )}
                           </td>
                         );
-                      } else {
+                      } else if (viewMode === 'teacher') {
                         const dayEntries = getEntry(day, period);
                         return (
                           <td key={day} className="px-1 py-1">

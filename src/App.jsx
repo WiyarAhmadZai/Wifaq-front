@@ -108,6 +108,7 @@ const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/Studen
 // Teacher Management
 const Teachers = lazy(() => import("./pages/teacher-management/teacher/Teachers"));
 const TeachersForm = lazy(() => import("./pages/teacher-management/teacher/TeachersForm"));
+const TeachersShow = lazy(() => import("./pages/teacher-management/teacher/TeachersShow"));
 
 // Branches
 const Branches = lazy(() => import("./pages/branches/Branches"));
@@ -221,6 +222,7 @@ function App() {
             <Route path="teacher-management/teachers" element={<Suspense fallback={<PageLoader />}><Teachers /></Suspense>} />
             <Route path="teacher-management/teachers/create" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
             <Route path="teacher-management/teachers/edit/:id" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
+            <Route path="teacher-management/teachers/show/:id" element={<Suspense fallback={<PageLoader />}><TeachersShow /></Suspense>} />
 
             {/* Class Management */}
             <Route path="class-management/teachers" element={<Navigate to="/teacher-management/teachers" replace />} />

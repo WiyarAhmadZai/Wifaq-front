@@ -7,7 +7,7 @@ const SECTIONS = ['A', 'B', 'C', 'D', 'E'];
 
 const STEPS = [
   { num: 1, label: 'Basic Info', desc: 'Grade, section, name & year', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-  { num: 2, label: 'Location', desc: 'Room, building & floor', icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' },
+  { num: 2, label: 'Location', desc: 'Room & floor', icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' },
   { num: 3, label: 'Administration', desc: 'Supervisor & assistant', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
   { num: 4, label: 'Capacity', desc: 'Review & confirm', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ];
@@ -108,7 +108,7 @@ export default function ClassesForm() {
   // Map each field to the step it belongs to
   const FIELD_TO_STEP = {
     grade_id: 1, section: 1, shift: 1, class_name: 1, academic_term_id: 1,
-    room_number: 2, room_name: 2, building: 2, floor: 2,
+    room_number: 2, room_name: 2, floor: 2,
     supervisor_id: 3, assistant_id: 3,
     capacity: 4, status: 4,
   };
@@ -117,7 +117,7 @@ export default function ClassesForm() {
 
   const [form, setForm] = useState({
     grade_id: '', section: '', shift: 'morning', class_name: '', auto_name: true, academic_term_id: '',
-    room_number: '', room_name: '', building: '', floor: '',
+    room_number: '', room_name: '', floor: '',
     supervisor_id: '', assistant_id: '',
     capacity: 30, status: 'active',
   });
@@ -145,7 +145,7 @@ export default function ClassesForm() {
             setForm({
               grade_id: d.grade?.id || '', section: d.section || '', shift: d.shift || 'morning', class_name: d.class_name || '', auto_name: false,
               academic_term_id: d.academic_term?.id || '',
-              room_number: d.room_number || '', room_name: d.room_name || '', building: d.building || '', floor: d.floor || '',
+              room_number: d.room_number || '', room_name: d.room_name || '', floor: d.floor || '',
               supervisor_id: d.supervisor?.id || '', assistant_id: d.assistant?.id || '',
               capacity: d.capacity || 30, status: d.status || 'active',
             });
@@ -397,12 +397,6 @@ export default function ClassesForm() {
                   <input type="text" name="room_name" value={form.room_name} onChange={handle} className={inp} placeholder="e.g. Science Lab A" />
                 </div>
                 <div>
-                  <Label>Building</Label>
-                  <input type="text" name="building" value={form.building} onChange={handle}
-                    className={`${inp} ${err('building') ? 'border-red-400 focus:ring-red-400' : ''}`} placeholder="e.g. Main Building" />
-                  {err('building') && <p className="text-red-500 text-[10px] mt-1">{err('building')}</p>}
-                </div>
-                <div>
                   <Label>Floor</Label>
                   <select name="floor" value={form.floor} onChange={handle}
                     className={`${inp} ${err('floor') ? 'border-red-400 focus:ring-red-400' : ''}`}>
@@ -416,11 +410,11 @@ export default function ClassesForm() {
                   {err('floor') && <p className="text-red-500 text-[10px] mt-1">{err('floor')}</p>}
                 </div>
               </div>
-              {(form.building || form.room_number) && (
+              {(form.room_number || form.floor) && (
                 <div className="p-4 bg-teal-50 rounded-xl border border-teal-100 flex items-center gap-3">
                   <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>
                   <p className="text-sm text-teal-800 font-medium">
-                    {[form.building, form.floor && `Floor ${form.floor}`, form.room_number && `Room ${form.room_number}`, form.room_name].filter(Boolean).join(' · ')}
+                    {[form.floor && `Floor ${form.floor}`, form.room_number && `Room ${form.room_number}`, form.room_name].filter(Boolean).join(' · ')}
                   </p>
                 </div>
               )}
@@ -487,7 +481,7 @@ export default function ClassesForm() {
                   { label: 'Section', value: form.section || '—' },
                   { label: 'Shift', value: form.shift === 'morning' ? 'Morning' : 'Afternoon' },
                   { label: 'Academic Term', value: academicTerms.find(t => t.id == form.academic_term_id)?.name || '—' },
-                  { label: 'Location', value: [form.building, form.room_number && `Room ${form.room_number}`].filter(Boolean).join(', ') || '—' },
+                  { label: 'Location', value: [form.floor && `Floor ${form.floor}`, form.room_number && `Room ${form.room_number}`].filter(Boolean).join(', ') || '—' },
                   { label: 'Supervisor', value: teachers.find(t => t.id == form.supervisor_id)?.name || '—' },
                   { label: 'Assistant', value: teachers.find(t => t.id == form.assistant_id)?.name || '—' },
                   { label: 'Capacity', value: form.capacity ? `${form.capacity} students` : '—' },

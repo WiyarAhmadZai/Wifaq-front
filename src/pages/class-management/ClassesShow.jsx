@@ -3,6 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
 
+const DAY_LABELS = { saturday: 'Sat', sunday: 'Sun', monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu' };
+const CAT_COLORS = {
+  'Maarif Subjects': { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-800', dot: 'bg-teal-500' },
+  'Taqwayati Mayari': { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', dot: 'bg-blue-500' },
+  'Taqwayati Takhasosi': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-800', dot: 'bg-purple-500' },
+};
+const DEF_COLOR = { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-800', dot: 'bg-gray-500' };
+
 const F = ({ label, value }) => (
   <div>
     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
@@ -29,6 +37,7 @@ export default function ClassesShow() {
   const { id } = useParams();
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [schedule, setSchedule] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -36,6 +45,11 @@ export default function ClassesShow() {
       try {
         const res = await get(`/class-management/classes/show/${id}`);
         setItem(res.data?.data);
+        // Fetch schedule
+        try {
+          const sRes = await get(`/class-management/schedule/class?class_id=${id}`);
+          setSchedule(sRes.data);
+        } catch {}
       } catch {
         Swal.fire('Error', 'Failed to load class', 'error');
         navigate('/class-management/classes');
@@ -180,6 +194,48 @@ export default function ClassesShow() {
               <p className="text-sm text-gray-400 text-center py-4">No subjects assigned</p>
             )}
           </Card>
+
+          {/* Timetable */}
+          {schedule?.entries?.length > 0 && (
+            <Card title="Weekly Timetable" icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+              <div className="overflow-x-auto -mx-5 px-5">
+                <table className="w-full min-w-[500px]">
+                  <thead>
+                    <tr>
+                      <th className="px-1.5 py-2 text-[9px] font-bold text-gray-400 uppercase w-12"></th>
+                      {(schedule.days || []).map(d => (
+                        <th key={d} className="px-1 py-2 text-[9px] font-bold text-gray-400 uppercase text-center">{DAY_LABELS[d]}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: schedule.periods_count || 6 }, (_, i) => i + 1).map(p => (
+                      <tr key={p}>
+                        <td className="px-1.5 py-0.5">
+                          <span className="w-5 h-5 rounded bg-teal-100 text-teal-700 flex items-center justify-center text-[9px] font-bold">{p}</span>
+                        </td>
+                        {(schedule.days || []).map(d => {
+                          const e = schedule.entries.find(en => en.day === d && en.period === p);
+                          const c = e ? (CAT_COLORS[e.category] || DEF_COLOR) : null;
+                          return (
+                            <td key={d} className="px-0.5 py-0.5">
+                              {e ? (
+                                <div className={`px-1.5 py-1 rounded-lg border ${c.bg} ${c.border}`}>
+                                  <p className={`text-[9px] font-semibold ${c.text} leading-tight truncate`}>{e.subject_name}</p>
+                                </div>
+                              ) : (
+                                <div className="h-6 rounded-lg border border-dashed border-gray-200" />
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* Sidebar */}

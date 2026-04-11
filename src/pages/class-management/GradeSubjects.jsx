@@ -222,7 +222,10 @@ export default function GradeSubjects() {
   };
 
   const gradeName = grades.find(g => g.id == selectedGrade)?.name || '';
-  const availableSubjects = subjects.filter(s => !items.some(i => i.subject_id === s.id));
+  const availableSubjects = subjects.filter(s =>
+    !items.some(i => i.subject_id === s.id) &&
+    (!s.grade_id || s.grade_id == selectedGrade)
+  );
 
   return (
     <div className="px-4 py-5 space-y-5">

@@ -106,14 +106,8 @@ const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEn
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
 
 // Teacher Management
-const AnnualPlans = lazy(() => import("./pages/teacher-management/AnnualPlans"));
-const LessonPlans = lazy(() => import("./pages/teacher-management/LessonPlans"));
 const Teachers = lazy(() => import("./pages/teacher-management/teacher/Teachers"));
 const TeachersForm = lazy(() => import("./pages/teacher-management/teacher/TeachersForm"));
-const TeachersShow = lazy(() => import("./pages/teacher-management/teacher/TeachersShow"));
-const TeacherSubjects = lazy(() => import("./pages/teacher-management/teacher-subjects/TeacherSubjects"));
-const TeacherSubjectForm = lazy(() => import("./pages/teacher-management/teacher-subjects/TeacherSubjectForm"));
-const TeacherSubjectShow = lazy(() => import("./pages/teacher-management/teacher-subjects/TeacherSubjectShow"));
 
 // Branches
 const Branches = lazy(() => import("./pages/branches/Branches"));
@@ -224,28 +218,12 @@ function App() {
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
 
             {/* Teacher Management */}
-            <Route path="teacher-management/annual-plans" element={<Suspense fallback={<PageLoader />}><AnnualPlans /></Suspense>} />
-            <Route path="teacher-management/annual-plans/create" element={<Placeholder title="Create Annual Plan" />} />
-            <Route path="teacher-management/annual-plans/edit/:id" element={<Placeholder title="Edit Annual Plan" />} />
-            <Route path="teacher-management/annual-plans/show/:id" element={<Placeholder title="View Annual Plan" />} />
-            <Route path="teacher-management/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlans /></Suspense>} />
-            <Route path="teacher-management/lesson-plans/create" element={<Placeholder title="Create Lesson Plan" />} />
-            <Route path="teacher-management/lesson-plans/edit/:id" element={<Placeholder title="Edit Lesson Plan" />} />
-            <Route path="teacher-management/lesson-plans/show/:id" element={<Placeholder title="View Lesson Plan" />} />
             <Route path="teacher-management/teachers" element={<Suspense fallback={<PageLoader />}><Teachers /></Suspense>} />
             <Route path="teacher-management/teachers/create" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
             <Route path="teacher-management/teachers/edit/:id" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
-            <Route path="teacher-management/teachers/show/:id" element={<Suspense fallback={<PageLoader />}><TeachersShow /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects" element={<Suspense fallback={<PageLoader />}><TeacherSubjects /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects/create" element={<Suspense fallback={<PageLoader />}><TeacherSubjectForm /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects/edit/:id" element={<Suspense fallback={<PageLoader />}><TeacherSubjectForm /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects/show/:id" element={<Suspense fallback={<PageLoader />}><TeacherSubjectShow /></Suspense>} />
 
             {/* Class Management */}
             <Route path="class-management/teachers" element={<Navigate to="/teacher-management/teachers" replace />} />
-            <Route path="class-management/teachers/create" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
-            <Route path="class-management/teachers/edit/:id" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
-            <Route path="class-management/teachers/show/:id" element={<Suspense fallback={<PageLoader />}><TeachersShow /></Suspense>} />
             <Route path="branches" element={<Suspense fallback={<PageLoader />}><Branches /></Suspense>} />
             <Route path="branches/create" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/edit/:id" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />

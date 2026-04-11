@@ -124,7 +124,7 @@ export default function ClassesForm() {
 
   const [grades, setGrades] = useState([]);
   const [academicTerms, setAcademicTerms] = useState([]);
-  const [staff, setStaff] = useState([]);
+  const [teachers, setTeachers] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -134,7 +134,7 @@ export default function ClassesForm() {
         setGrades(res.data?.grades || []);
         console.log(res.data?.grades);
         setAcademicTerms(res.data?.academic_terms || []);
-        setStaff(res.data?.staff || []);
+        setTeachers(res.data?.teachers || []);
       } catch {}
 
       if (isEdit) {
@@ -433,9 +433,14 @@ export default function ClassesForm() {
               <div>
                 <Label>Class Supervisor</Label>
                 <div className={err('supervisor_id') ? 'ring-2 ring-red-400 rounded-xl' : ''}>
-                  <SearchSelect options={staff} value={form.supervisor_id} onChange={v => set('supervisor_id', v || '')}
-                    placeholder="Search supervisor..." getLabel={t => t.name} getValue={t => t.id} />
+                  <SearchSelect options={teachers} value={form.supervisor_id} onChange={v => set('supervisor_id', v || '')}
+                    placeholder="Search supervisor..."
+                    getLabel={t => `${t.name}${t.available_hours != null ? ` (${t.available_hours}h available)` : ''}`}
+                    getValue={t => t.id} />
                 </div>
+                {teachers.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">All teachers are at full capacity</p>
+                )}
                 {err('supervisor_id') && (
                   <div className="mt-1.5 p-2 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
                     <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -447,9 +452,10 @@ export default function ClassesForm() {
               </div>
               <div>
                 <Label>Assistant Teacher</Label>
-                <SearchSelect options={staff.filter(t => t.id != form.supervisor_id)} value={form.assistant_id}
+                <SearchSelect options={teachers.filter(t => t.id != form.supervisor_id)} value={form.assistant_id}
                   onChange={v => set('assistant_id', v || '')} placeholder="Search assistant..."
-                  getLabel={t => t.name} getValue={t => t.id} />
+                  getLabel={t => `${t.name}${t.available_hours != null ? ` (${t.available_hours}h available)` : ''}`}
+                  getValue={t => t.id} />
                 {err('assistant_id') && <p className="text-red-500 text-[10px] mt-1">{err('assistant_id')}</p>}
               </div>
             </StepCard>
@@ -482,8 +488,8 @@ export default function ClassesForm() {
                   { label: 'Shift', value: form.shift === 'morning' ? 'Morning' : 'Afternoon' },
                   { label: 'Academic Term', value: academicTerms.find(t => t.id == form.academic_term_id)?.name || '—' },
                   { label: 'Location', value: [form.building, form.room_number && `Room ${form.room_number}`].filter(Boolean).join(', ') || '—' },
-                  { label: 'Supervisor', value: staff.find(t => t.id == form.supervisor_id)?.name || '—' },
-                  { label: 'Assistant', value: staff.find(t => t.id == form.assistant_id)?.name || '—' },
+                  { label: 'Supervisor', value: teachers.find(t => t.id == form.supervisor_id)?.name || '—' },
+                  { label: 'Assistant', value: teachers.find(t => t.id == form.assistant_id)?.name || '—' },
                   { label: 'Capacity', value: form.capacity ? `${form.capacity} students` : '—' },
                 ].map(r => (
                   <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">

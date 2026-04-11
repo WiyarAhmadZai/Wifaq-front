@@ -762,27 +762,9 @@ export default function Layout() {
             onClick={() => toggleMenu("teacher-management")}
           >
             <SubMenuItem
-              label="Annual Plans"
-              to="/teacher-management/annual-plans"
-              active={isActive("/teacher-management/annual-plans")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Lesson Plans"
-              to="/teacher-management/lesson-plans"
-              active={isActive("/teacher-management/lesson-plans")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
               label="Teachers"
               to="/teacher-management/teachers"
               active={isActive("/teacher-management/teachers")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Teacher Subjects"
-              to="/teacher-management/teacher-subjects"
-              active={isActive("/teacher-management/teacher-subjects")}
               onClick={closeSidebar}
             />
           </ParentMenu>
@@ -824,36 +806,6 @@ export default function Layout() {
               onClick={closeSidebar}
             />
           </ParentMenu>
-
-        
-
-          <ParentMenu
-            icon={Icons.HR}
-            label="Teacher Management"
-            isOpen={openMenu.includes("teacher-mgmt")}
-            onClick={() => toggleMenu("teacher-mgmt")}
-          >
-            <SubMenuItem
-              label="Teachers"
-              to="/class-management/teachers"
-              active={isActive("/class-management/teachers")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Annual Plans"
-              to="/class-management/annual-plans"
-              active={isActive("/class-management/annual-plans")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Lesson Plans"
-              to="/class-management/lesson-plans"
-              active={isActive("/class-management/lesson-plans")}
-              onClick={closeSidebar}
-            />
-          </ParentMenu>
-
-        
 
           <ParentMenu
             icon={Icons.HR}

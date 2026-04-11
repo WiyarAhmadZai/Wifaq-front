@@ -58,32 +58,38 @@ export default function GradeSubjects() {
   const [grades, setGrades] = useState([]);
   const [academicTerms, setAcademicTerms] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [staff, setStaff] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editTeacher, setEditTeacher] = useState('');
-  const [editHours, setEditHours] = useState('');
 
   // Add form
   const [addSubjectId, setAddSubjectId] = useState('');
   const [addTeacherId, setAddTeacherId] = useState('');
-  const [addHours, setAddHours] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await get('/class-management/grade-subjects/form-data');
-        setGrades(res.data?.grades || []);
-        setAcademicTerms(res.data?.academic_terms || []);
-        setSubjects(res.data?.subjects || []);
-        setStaff(res.data?.staff || []);
-        if (res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
-      } catch {}
-    })();
-  }, []);
+  // Copy from term modal
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copySourceTerm, setCopySourceTerm] = useState('');
+  const [copyIncludeTeachers, setCopyIncludeTeachers] = useState(true);
+  const [isCopying, setIsCopying] = useState(false);
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
+
+  const fetchFormData = async () => {
+    try {
+      const res = await get('/class-management/grade-subjects/form-data');
+      setGrades(res.data?.grades || []);
+      setAcademicTerms(res.data?.academic_terms || []);
+      setSubjects(res.data?.subjects || []);
+      setTeachers(res.data?.teachers || []);
+      if (!selectedTerm && res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
+    } catch {}
+  };
+
+  useEffect(() => { fetchFormData(); }, []);
 
   useEffect(() => {
     if (selectedGrade && selectedTerm) fetchItems();
@@ -101,40 +107,27 @@ export default function GradeSubjects() {
 
   const selectedGradeData = grades.find(g => g.id == selectedGrade);
   const isPrimary = !!selectedGradeData?.is_primary;
-  // For primary grades: derive the single teacher from existing items
-  const primaryTeacherId = isPrimary ? (items.find(i => i.teacher_id)?.teacher_id || '') : '';
 
   const handleAdd = async () => {
     if (!addSubjectId) return;
+    setIsAdding(true);
     try {
-      // For primary grades: force the existing primary teacher
-      const teacherToUse = isPrimary ? (primaryTeacherId || addTeacherId) : addTeacherId;
-      const res = await post('/class-management/grade-subjects', {
+      await post('/class-management/grade-subjects', {
         grade_id: selectedGrade,
         academic_term_id: selectedTerm,
         subject_id: addSubjectId,
-        teacher_id: teacherToUse || null,
-        weekly_hours: addHours || null,
+        teacher_id: isPrimary ? null : (addTeacherId || null),
       });
-      if (res.data?.data) setItems(prev => [...prev, res.data.data]);
-      setAddSubjectId(''); setAddTeacherId(''); setAddHours('');
+      setAddSubjectId(''); setAddTeacherId('');
+      await fetchItems();
+      await fetchFormData();
       Swal.fire({ icon: 'success', title: 'Subject added', timer: 1200, showConfirmButton: false });
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to add', 'error');
-    }
-  };
-
-  const handleSetPrimaryTeacher = async (teacherId) => {
-    try {
-      await post('/class-management/grade-subjects/set-primary-teacher', {
-        grade_id: selectedGrade,
-        academic_term_id: selectedTerm,
-        teacher_id: teacherId || null,
-      });
-      fetchItems();
-      Swal.fire({ icon: 'success', title: 'Primary teacher updated for all subjects', timer: 1500, showConfirmButton: false });
-    } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to update', 'error');
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to add');
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -142,12 +135,75 @@ export default function GradeSubjects() {
     try {
       await put(`/class-management/grade-subjects/${id}`, {
         teacher_id: editTeacher || null,
-        weekly_hours: editHours || null,
       });
-      fetchItems();
+      await fetchItems();
+      await fetchFormData();
       setEditingId(null);
       Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
-    } catch { Swal.fire('Error', 'Failed to update', 'error'); }
+    } catch (error) {
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to update');
+      Swal.fire('Error', msg, 'error');
+    }
+  };
+
+  const handleBulkAddAll = async () => {
+    const confirm = await Swal.fire({
+      title: 'Add all active subjects?',
+      text: `This will add all available subjects to ${gradeName}.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#0d9488',
+      confirmButtonText: 'Yes, add all',
+    });
+    if (!confirm.isConfirmed) return;
+
+    setIsBulkAdding(true);
+    try {
+      const res = await post('/class-management/grade-subjects/bulk-add-all', {
+        grade_id: selectedGrade,
+        academic_term_id: selectedTerm,
+      });
+      await fetchItems();
+      await fetchFormData();
+      Swal.fire({
+        icon: 'success',
+        title: res.data?.message || 'Subjects added',
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire('Error', error.response?.data?.message || 'Failed to add', 'error');
+    } finally {
+      setIsBulkAdding(false);
+    }
+  };
+
+  const handleCopyFromTerm = async () => {
+    if (!copySourceTerm) return;
+    setIsCopying(true);
+    try {
+      const res = await post('/class-management/grade-subjects/copy-from-term', {
+        grade_id: selectedGrade,
+        source_term_id: copySourceTerm,
+        target_term_id: selectedTerm,
+        include_teachers: copyIncludeTeachers,
+      });
+      await fetchItems();
+      await fetchFormData();
+      setShowCopyModal(false);
+      setCopySourceTerm('');
+      Swal.fire({
+        icon: 'success',
+        title: res.data?.message || 'Copied successfully',
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire('Error', error.response?.data?.message || 'Failed to copy', 'error');
+    } finally {
+      setIsCopying(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -155,6 +211,7 @@ export default function GradeSubjects() {
     if (res.isConfirmed) {
       try { await del(`/class-management/grade-subjects/${id}`); } catch {}
       setItems(prev => prev.filter(i => i.id !== id));
+      await fetchFormData();
       Swal.fire({ icon: 'success', title: 'Removed', timer: 1200, showConfirmButton: false });
     }
   };
@@ -162,11 +219,13 @@ export default function GradeSubjects() {
   const startEdit = (item) => {
     setEditingId(item.id);
     setEditTeacher(item.teacher_id || '');
-    setEditHours(item.weekly_hours || '');
   };
 
   const gradeName = grades.find(g => g.id == selectedGrade)?.name || '';
-  const availableSubjects = subjects.filter(s => !items.some(i => i.subject_id === s.id));
+  const availableSubjects = subjects.filter(s =>
+    !items.some(i => i.subject_id === s.id) &&
+    (!s.grade_id || s.grade_id == selectedGrade)
+  );
 
   return (
     <div className="px-4 py-5 space-y-5">
@@ -194,42 +253,60 @@ export default function GradeSubjects() {
 
       {selectedGrade && selectedTerm && (
         <>
+          {/* Quick Actions */}
+          <div className="bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-200 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h3 className="text-sm font-bold text-teal-900">Quick Actions</h3>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={handleBulkAddAll} disabled={isBulkAdding}
+                className="flex items-center gap-2 px-3 py-2 bg-white border border-teal-200 text-teal-700 text-xs font-semibold rounded-xl hover:bg-teal-50 transition-colors disabled:opacity-50">
+                {isBulkAdding ? (
+                  <div className="w-3.5 h-3.5 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                )}
+                Add All Active Subjects
+              </button>
+              <button onClick={() => setShowCopyModal(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-white border border-teal-200 text-teal-700 text-xs font-semibold rounded-xl hover:bg-teal-50 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                Copy from Another Term
+              </button>
+            </div>
+          </div>
+
           {/* Primary Grade Banner */}
           {isPrimary && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-              <div className="flex items-start gap-3 mb-4">
-                <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-bold text-amber-900">Primary Grade — Single Teacher</p>
-                  <p className="text-[11px] text-amber-700 mt-0.5">In primary grades, ONE teacher teaches all subjects. Set the primary teacher below — it will apply to every subject in this grade.</p>
-                </div>
-              </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               <div>
-                <label className="block text-[10px] font-semibold text-amber-800 uppercase mb-1.5">Primary Class Teacher</label>
-                <select value={primaryTeacherId} onChange={e => handleSetPrimaryTeacher(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 bg-white outline-none">
-                  <option value="">No teacher assigned</option>
-                  {staff.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                {primaryTeacherId && (
-                  <p className="text-[10px] text-amber-700 mt-1.5">
-                    ✓ All {items.length} subject{items.length !== 1 ? 's' : ''} in {gradeName} are taught by this teacher
-                  </p>
-                )}
+                <p className="text-sm font-bold text-amber-900">Primary Grade — Teacher per Class</p>
+                <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                  In primary grades, the <strong>class supervisor</strong> teaches all subjects. Just list the subjects here — each class (e.g. Grade 1A, Grade 1B) will use its own supervisor as the teacher. So Ahmad can teach all subjects in Grade 1A while Ali teaches all subjects in Grade 1B.
+                </p>
               </div>
             </div>
           )}
 
           {/* Add Subject */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h3 className="text-sm font-bold text-gray-800 mb-4">Add Subject to {gradeName}</h3>
-            <div className={`grid grid-cols-1 ${isPrimary ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-3 items-end`}>
-              <div className={isPrimary ? '' : ''}>
+            <h3 className="text-sm font-bold text-gray-800 mb-1">Add Subject to {gradeName}</h3>
+            <p className="text-[11px] text-gray-400 mb-4">Weekly hours are automatically taken from the subject's definition</p>
+            <div className={`grid grid-cols-1 ${isPrimary ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3 items-end`}>
+              <div>
                 <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Subject *</label>
                 <SearchSelect options={availableSubjects} value={addSubjectId} onChange={v => setAddSubjectId(v || '')}
-                  placeholder="Select subject..." getLabel={s => `${s.subject_code} — ${s.subject_name}`} getValue={s => s.id} />
+                  placeholder="Select subject..."
+                  getLabel={s => `${s.subject_code} — ${s.subject_name}${s.weekly_hours ? ` (${s.weekly_hours}h/week)` : ''}`}
+                  getValue={s => s.id} />
               </div>
               {!isPrimary && (
                 <div>
@@ -237,19 +314,30 @@ export default function GradeSubjects() {
                   <select value={addTeacherId} onChange={e => setAddTeacherId(e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                     <option value="">Select teacher...</option>
-                    {staff.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.available_hours}h available)
+                      </option>
+                    ))}
                   </select>
+                  {teachers.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">All teachers are at full capacity</p>
+                  )}
                 </div>
               )}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Weekly Hours</label>
-                <input type="number" value={addHours} onChange={e => setAddHours(e.target.value)} min={1} max={20} placeholder="e.g. 4"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none" />
-              </div>
-              <button onClick={handleAdd} disabled={!addSubjectId}
-                className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Add
+              <button onClick={handleAdd} disabled={!addSubjectId || isAdding}
+                className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]">
+                {isAdding ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Add
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -293,28 +381,24 @@ export default function GradeSubjects() {
                           <span className="text-xs text-gray-600">{item.category}</span>
                         </td>
                         <td className="px-4 py-3">
-                          {editingId === item.id && !isPrimary ? (
+                          {isPrimary ? (
+                            <span className="text-xs text-amber-700 italic">Class supervisor</span>
+                          ) : editingId === item.id ? (
                             <select value={editTeacher} onChange={e => setEditTeacher(e.target.value)}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                               <option value="">No teacher</option>
-                              {staff.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              {/* Include current teacher even if "full" so user can keep them */}
+                              {item.teacher_id && !teachers.some(t => t.id == item.teacher_id) && (
+                                <option value={item.teacher_id}>{item.teacher_name} (current)</option>
+                              )}
+                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h available)</option>)}
                             </select>
                           ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>
-                              {isPrimary && item.teacher_name && (
-                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-semibold rounded">PRIMARY</span>
-                              )}
-                            </div>
+                            <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {editingId === item.id ? (
-                            <input type="number" value={editHours} onChange={e => setEditHours(e.target.value)} min={1} max={20}
-                              className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:ring-2 focus:ring-teal-500 bg-white outline-none mx-auto" />
-                          ) : (
-                            <span className="text-sm text-gray-700">{item.weekly_hours ? `${item.weekly_hours}h` : '—'}</span>
-                          )}
+                          <span className="text-sm text-gray-700">{item.weekly_hours ? `${item.weekly_hours}h` : '—'}</span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
@@ -347,6 +431,55 @@ export default function GradeSubjects() {
             )}
           </div>
         </>
+      )}
+
+      {/* Copy from Term Modal */}
+      {showCopyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800">Copy Subjects from Another Term</h3>
+                <p className="text-[10px] text-gray-500 mt-0.5">Copy all subjects of {gradeName} from a previous term</p>
+              </div>
+              <button onClick={() => setShowCopyModal(false)} className="p-1 hover:bg-teal-100 rounded-lg">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Source Term</label>
+                <select value={copySourceTerm} onChange={e => setCopySourceTerm(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
+                  <option value="">Choose a term to copy from...</option>
+                  {academicTerms.filter(t => t.id != selectedTerm).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              {!isPrimary && (
+                <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl cursor-pointer">
+                  <input type="checkbox" checked={copyIncludeTeachers} onChange={e => setCopyIncludeTeachers(e.target.checked)}
+                    className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500" />
+                  <span className="text-xs text-gray-700">Also copy teacher assignments</span>
+                </label>
+              )}
+              <div className="p-3 bg-teal-50 rounded-xl text-[11px] text-teal-800 leading-relaxed">
+                <strong>Note:</strong> Existing subjects in {gradeName} for the current term will be kept. Only new subjects from the source term will be added.
+              </div>
+            </div>
+            <div className="px-5 py-4 bg-gray-50 flex justify-end gap-2 border-t border-gray-100">
+              <button onClick={() => setShowCopyModal(false)}
+                className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={handleCopyFromTerm} disabled={!copySourceTerm || isCopying}
+                className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+                {isCopying ? (
+                  <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Copying...</>
+                ) : 'Copy Subjects'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

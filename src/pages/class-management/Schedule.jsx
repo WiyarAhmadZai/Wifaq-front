@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { get, post, del } from '../../api/axios';
+import { get, post, put, del } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const DAY_LABELS = {
@@ -160,8 +160,86 @@ export default function Schedule() {
   const [dragEntry, setDragEntry] = useState(null);
   const [dragOver, setDragOver] = useState(null); // "day-period"
 
+  // Cell editor modal
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorCell, setEditorCell] = useState(null); // { day, period, entry }
+  const [editorOptions, setEditorOptions] = useState(null);
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [editorSubjectId, setEditorSubjectId] = useState('');
+  const [editorTeacherId, setEditorTeacherId] = useState('');
+  const [editorSaving, setEditorSaving] = useState(false);
+
   const handleDragStart = (entry) => {
     setDragEntry(entry);
+  };
+
+  const openCellEditor = async (day, period, entry = null) => {
+    if (!selectedClass) return;
+    setEditorCell({ day, period, entry });
+    // Don't pre-fill subject for new entries — let user pick
+    setEditorSubjectId(entry?.subject_id ? String(entry.subject_id) : '');
+    setEditorTeacherId(entry?.teacher_id ? String(entry.teacher_id) : '');
+    setEditorOpen(true);
+    setEditorLoading(true);
+    try {
+      const params = new URLSearchParams({
+        class_id: selectedClass,
+        day,
+        period,
+      });
+      if (entry?.id) params.append('entry_id', entry.id);
+      const res = await get(`/class-management/schedule/cell-options?${params.toString()}`);
+      setEditorOptions(res.data);
+    } catch {
+      setEditorOptions(null);
+      Swal.fire('Error', 'Failed to load options', 'error');
+    } finally {
+      setEditorLoading(false);
+    }
+  };
+
+  const closeCellEditor = () => {
+    setEditorOpen(false);
+    setEditorCell(null);
+    setEditorOptions(null);
+    setEditorSubjectId('');
+    setEditorTeacherId('');
+  };
+
+  const handleSaveCell = async () => {
+    if (!editorSubjectId) {
+      Swal.fire('Error', 'Please select a subject', 'error');
+      return;
+    }
+    setEditorSaving(true);
+    try {
+      const isPrimary = editorOptions?.is_primary_grade;
+      const teacherId = isPrimary ? editorOptions?.class_supervisor_id : (editorTeacherId || null);
+
+      if (editorCell?.entry?.id) {
+        await put(`/class-management/schedule/entry/${editorCell.entry.id}`, {
+          subject_id: editorSubjectId,
+          teacher_id: teacherId,
+        });
+      } else {
+        await post('/class-management/schedule/entry', {
+          school_class_id: selectedClass,
+          day_of_week: editorCell.day,
+          period_number: editorCell.period,
+          subject_id: editorSubjectId,
+          teacher_id: teacherId,
+        });
+      }
+      closeCellEditor();
+      fetchClassSchedule();
+      Swal.fire({ icon: 'success', title: 'Saved', timer: 1200, showConfirmButton: false });
+    } catch (error) {
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to save');
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setEditorSaving(false);
+    }
   };
 
   const handleDrop = async (targetDay, targetPeriod) => {
@@ -351,21 +429,29 @@ export default function Schedule() {
                               <div draggable
                                 onDragStart={() => handleDragStart(entry)}
                                 onDragEnd={() => { setDragEntry(null); setDragOver(null); }}
-                                className={`p-2 rounded-xl border ${colors.bg} ${colors.border} group relative min-h-[52px] cursor-grab active:cursor-grabbing transition-all ${dragEntry?.id === entry.id ? 'opacity-40 scale-95' : ''} ${isDragTarget ? 'ring-2 ring-teal-400' : ''}`}>
+                                onClick={() => openCellEditor(day, period, entry)}
+                                className={`p-2 rounded-xl border ${colors.bg} ${colors.border} group relative min-h-[52px] cursor-pointer transition-all hover:shadow-md hover:border-teal-400 ${dragEntry?.id === entry.id ? 'opacity-40 scale-95' : ''} ${isDragTarget ? 'ring-2 ring-teal-400' : ''} ${!entry.teacher_name ? 'ring-1 ring-amber-300' : ''}`}>
                                 <div className="flex items-start gap-1.5">
                                   <div className={`w-1.5 h-1.5 rounded-full ${colors.dot} mt-1.5 flex-shrink-0`} />
                                   <div className="min-w-0 flex-1">
                                     <p className={`text-[11px] font-semibold ${colors.text} leading-tight`}>{entry.subject_name}</p>
-                                    <p className="text-[9px] text-gray-400 mt-0.5 truncate">{entry.teacher_name || '—'}</p>
+                                    <p className={`text-[9px] mt-0.5 truncate ${entry.teacher_name ? 'text-gray-400' : 'text-amber-600 font-semibold'}`}>
+                                      {entry.teacher_name || '⚠ No teacher'}
+                                    </p>
                                   </div>
                                 </div>
-                                <button onClick={() => handleDeleteEntry(entry.id)}
+                                <button onClick={(e) => { e.stopPropagation(); handleDeleteEntry(entry.id); }}
                                   className="absolute top-1 right-1 p-0.5 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                               </div>
                             ) : (
-                              <div className={`min-h-[52px] rounded-xl border border-dashed transition-all ${isDragTarget ? 'border-teal-400 bg-teal-50 ring-2 ring-teal-200' : 'border-gray-200 bg-gray-50/50'}`} />
+                              <div onClick={() => openCellEditor(day, period, null)}
+                                className={`min-h-[52px] rounded-xl border border-dashed transition-all cursor-pointer flex items-center justify-center hover:border-teal-400 hover:bg-teal-50 group ${isDragTarget ? 'border-teal-400 bg-teal-50 ring-2 ring-teal-200' : 'border-gray-200 bg-gray-50/50'}`}>
+                                <svg className="w-4 h-4 text-gray-300 group-hover:text-teal-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </div>
                             )}
                           </td>
                         );
@@ -520,6 +606,196 @@ export default function Schedule() {
             Select a {viewMode === 'class' ? 'class' : viewMode === 'grade' ? 'grade' : 'teacher'} to view the schedule
           </p>
           <p className="text-xs text-gray-400 mt-1">Or click "Generate Schedule" to auto-create timetables for all classes</p>
+        </div>
+      )}
+
+      {/* Cell Editor Modal */}
+      {editorOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800">
+                  {editorCell?.entry ? 'Edit Period' : 'Add Period'}
+                </h3>
+                <p className="text-[10px] text-gray-500 mt-0.5 capitalize">
+                  {editorCell?.day} · Period {editorCell?.period}
+                </p>
+              </div>
+              <button onClick={closeCellEditor} className="p-1 hover:bg-teal-100 rounded-lg">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {editorLoading ? (
+              <div className="p-8 text-center">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
+                <p className="text-xs text-gray-400 mt-2">Loading options...</p>
+              </div>
+            ) : editorOptions ? (
+              <div className="p-5 space-y-4">
+                {editorOptions.is_primary_grade && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                    <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-[11px] text-amber-800">
+                      Primary grade — teacher is automatically the class supervisor.
+                    </p>
+                  </div>
+                )}
+
+                {/* Subject dropdown with hours used */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Subject *</label>
+                  <select value={editorSubjectId}
+                    onChange={e => {
+                      setEditorSubjectId(e.target.value);
+                      // Auto-set default teacher from grade_subjects if available
+                      const subj = editorOptions.subjects.find(s => s.id == e.target.value);
+                      if (subj?.default_teacher_id) {
+                        const defaultTeacher = editorOptions.teachers.find(t => t.id == subj.default_teacher_id);
+                        if (defaultTeacher && !defaultTeacher.is_busy) {
+                          setEditorTeacherId(String(subj.default_teacher_id));
+                        } else {
+                          setEditorTeacherId('');
+                        }
+                      } else {
+                        setEditorTeacherId('');
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
+                    <option value="">Select subject...</option>
+                    {editorOptions.subjects.map(s => {
+                      // Don't disable the currently selected subject (when editing)
+                      const isCurrent = editorCell?.entry?.subject_id == s.id;
+                      const disabled = s.is_full && !isCurrent;
+                      return (
+                        <option key={s.id} value={s.id} disabled={disabled}>
+                          {s.subject_name} — {s.used_periods}/{s.weekly_hours}h used{disabled ? ' (FULL)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {editorOptions.subjects.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">No subjects assigned to this grade. Add them in Grade Subjects first.</p>
+                  )}
+                  {editorSubjectId && (() => {
+                    const subj = editorOptions.subjects.find(s => s.id == editorSubjectId);
+                    if (!subj) return null;
+                    const isCurrent = editorCell?.entry?.subject_id == subj.id;
+                    const remaining = isCurrent ? subj.remaining_periods + 1 : subj.remaining_periods;
+                    const pct = subj.weekly_hours > 0 ? (subj.used_periods / subj.weekly_hours) * 100 : 0;
+                    const barColor = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-teal-500';
+                    return (
+                      <div className="mt-2 p-2.5 bg-gray-50 rounded-xl">
+                        <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                          <span>Hours scheduled this week</span>
+                          <span className="font-semibold text-gray-700">{subj.used_periods} / {subj.weekly_hours}h</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${Math.min(100, pct)}%` }} />
+                        </div>
+                        {remaining <= 0 && !isCurrent && (
+                          <p className="text-[10px] text-red-600 mt-1.5">⚠ Subject already at weekly limit</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Teacher dropdown */}
+                {editorSubjectId && !editorOptions.is_primary_grade && (() => {
+                  const subj = editorOptions.subjects.find(s => s.id == editorSubjectId);
+                  if (!subj) return null;
+                  return (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Teacher</label>
+                      <select value={editorTeacherId} onChange={e => setEditorTeacherId(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
+                        <option value="">No teacher</option>
+                        {/* Default teacher first */}
+                        {subj.default_teacher_id && editorOptions.teachers.find(t => t.id == subj.default_teacher_id) && (() => {
+                          const t = editorOptions.teachers.find(t => t.id == subj.default_teacher_id);
+                          const isCurrent = editorCell?.entry?.teacher_id == t.id;
+                          return (
+                            <option key={`default-${t.id}`} value={t.id} disabled={t.is_busy && !isCurrent}>
+                              ⭐ {t.name}{t.is_busy && !isCurrent ? ' (busy)' : ''} — assigned to this subject
+                            </option>
+                          );
+                        })()}
+                        {editorOptions.teachers
+                          .filter(t => t.id != subj.default_teacher_id)
+                          .map(t => {
+                            const isCurrent = editorCell?.entry?.teacher_id == t.id;
+                            return (
+                              <option key={t.id} value={t.id} disabled={t.is_busy && !isCurrent}>
+                                {t.name}{t.is_busy ? (isCurrent ? ' (current)' : ' — busy at this time') : ` — ${t.weekly_hours}h capacity`}
+                              </option>
+                            );
+                          })}
+                      </select>
+                      {!subj.default_teacher_id && (
+                        <p className="text-[10px] text-amber-600 mt-1">⚠ No default teacher assigned to this subject in Grade Subjects.</p>
+                      )}
+                      {editorTeacherId && editorTeacherId != subj.default_teacher_id && subj.default_teacher_id && (
+                        <p className="text-[10px] text-amber-600 mt-1">ℹ This is an override — the default teacher for this subject is {subj.default_teacher_name}.</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Primary grade: show supervisor as the auto-assigned teacher */}
+                {editorOptions.is_primary_grade && editorSubjectId && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Teacher (Class Supervisor)</label>
+                    {(() => {
+                      const supervisorTeacher = editorOptions.teachers.find(t => t.id == editorOptions.class_supervisor_id);
+                      if (!supervisorTeacher) {
+                        return (
+                          <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
+                            <p className="text-xs text-amber-800">No supervisor assigned to this class</p>
+                          </div>
+                        );
+                      }
+                      const isBusy = supervisorTeacher.is_busy && editorCell?.entry?.teacher_id != supervisorTeacher.id;
+                      return (
+                        <div className={`p-3 rounded-xl border ${isBusy ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-200'}`}>
+                          <p className={`text-sm font-semibold ${isBusy ? 'text-red-700' : 'text-teal-800'}`}>
+                            {supervisorTeacher.name}
+                          </p>
+                          {isBusy && (
+                            <p className="text-[10px] text-red-600 mt-1">⚠ Supervisor is already busy at this time</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <div className="px-5 py-4 bg-gray-50 flex justify-between items-center gap-2 border-t border-gray-100">
+              {editorCell?.entry ? (
+                <button onClick={() => { handleDeleteEntry(editorCell.entry.id); closeCellEditor(); }}
+                  className="px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl">
+                  Remove
+                </button>
+              ) : <div />}
+              <div className="flex gap-2">
+                <button onClick={closeCellEditor}
+                  className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+                <button onClick={handleSaveCell} disabled={!editorSubjectId || editorSaving}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+                  {editorSaving ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                  ) : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

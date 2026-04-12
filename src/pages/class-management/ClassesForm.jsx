@@ -1,29 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 
-const TEACHERS = [
-  { id: 1, name: 'Ahmad Karimi' },
-  { id: 2, name: 'Fatima Ahmadi' },
-  { id: 3, name: 'Noor Rahman' },
-  { id: 4, name: 'Maryam Sultani' },
-  { id: 5, name: 'Khalid Noori' },
-];
-const SUBJECTS = ['Mathematics','English','Dari','Pashto','Science','Social Studies','Islamic Studies','Computer Science','Art','Physical Education'];
-const ACADEMIC_YEARS = ['1402-1403','1403-1404','1404-1405','1405-1406'];
-const GRADES = Array.from({ length: 12 }, (_, i) => `${i + 1}`);
+const SECTIONS = ['A', 'B', 'C', 'D', 'E'];
 
 const STEPS = [
-  { num: 1, label: 'Basic Class Info', desc: 'Grade, section, name & year',    icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-  { num: 2, label: 'Location',       desc: 'Room, building & floor',          icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' },
-  { num: 3, label: 'Administration', desc: 'Supervisor & assistant',           icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
-  { num: 4, label: 'Capacity',       desc: 'Max students per class',           icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+  { num: 1, label: 'Basic Info', desc: 'Grade, section, name & year', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+  { num: 2, label: 'Location', desc: 'Room & floor', icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' },
+  { num: 3, label: 'Administration', desc: 'Supervisor & assistant', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+  { num: 4, label: 'Capacity', desc: 'Review & confirm', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
 ];
 
 const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
 
-// ── Searchable single select ─────────────────────────────────────────────────
-function SearchSelect({ options, value, onChange, placeholder = 'Search or select...', getLabel = o => o, getValue = o => o }) {
+function SearchSelect({ options, value, onChange, placeholder = 'Select...', getLabel = o => o, getValue = o => o }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -55,15 +46,12 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         )}
-        <svg className={`w-4 h-4 text-gray-400 mr-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
       </div>
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
           <div className="max-h-52 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
+              <p className="px-4 py-3 text-sm text-gray-400">No results</p>
             ) : filtered.map(o => (
               <button key={getValue(o)} type="button"
                 onClick={() => { onChange(getValue(o)); setOpen(false); setQuery(''); }}
@@ -78,69 +66,6 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
   );
 }
 
-// ── Searchable multi select ──────────────────────────────────────────────────
-function SearchMultiSelect({ options, selected, onChange, placeholder = 'Search or select...' }) {
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, []);
-
-  const filtered = options.filter(o => o.toLowerCase().includes(query.toLowerCase()));
-  const toggle = (v) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
-
-  return (
-    <div ref={ref} className="relative">
-      <div className={`flex items-center border rounded-xl bg-white transition-all ${open ? 'border-teal-500 ring-2 ring-teal-500' : 'border-gray-200'}`}>
-        <svg className="w-4 h-4 text-gray-400 ml-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)} onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
-          placeholder={selected.length ? `${selected.length} selected` : placeholder}
-          className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none placeholder-gray-400" />
-        <svg className={`w-4 h-4 text-gray-400 mr-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-      {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-          <div className="max-h-52 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
-            ) : filtered.map(o => (
-              <button key={o} type="button" onClick={() => toggle(o)}
-                className={`w-full text-left flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${selected.includes(o) ? 'bg-teal-50' : 'hover:bg-gray-50'}`}>
-                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${selected.includes(o) ? 'bg-teal-600 border-teal-600' : 'border-gray-300'}`}>
-                  {selected.includes(o) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                </div>
-                <span className={`text-sm ${selected.includes(o) ? 'text-teal-800 font-medium' : 'text-gray-700'}`}>{o}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {selected.map(s => (
-            <span key={s} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg border border-teal-200 font-medium">
-              {s}
-              <button type="button" onClick={() => toggle(s)} className="opacity-60 hover:opacity-100">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Toggle ───────────────────────────────────────────────────────────────────
 const Toggle = ({ value, onChange }) => (
   <button type="button" onClick={() => onChange(!value)}
     className={`relative w-10 h-5 rounded-full transition-all duration-300 focus:outline-none ${value ? 'bg-teal-500' : 'bg-gray-300'}`}>
@@ -154,9 +79,8 @@ const Label = ({ children, required }) => (
   </label>
 );
 
-// ── Step card ────────────────────────────────────────────────────────────────
 const StepCard = ({ step, children }) => (
-  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
     <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 flex items-center gap-3">
       <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center flex-shrink-0">
         <svg className="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,46 +96,150 @@ const StepCard = ({ step, children }) => (
   </div>
 );
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 export default function ClassesForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = !!id;
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+  const [errors, setErrors] = useState({});
+
+  // Map each field to the step it belongs to
+  const FIELD_TO_STEP = {
+    grade_id: 1, section: 1, shift: 1, class_name: 1, academic_term_id: 1,
+    room_number: 2, room_name: 2, floor: 2,
+    supervisor_id: 3, assistant_id: 3,
+    capacity: 4, status: 4,
+  };
+
+  const err = (f) => errors[f]?.[0];
 
   const [form, setForm] = useState({
-    grade: '', section: '', class_name: '', auto_name: true, academic_year: '',
-    room_number: '', room_name: '', building: '', floor: '',
+    grade_id: '', section: '', shift: 'morning', class_name: '', auto_name: true, academic_term_id: '',
+    room_number: '', room_name: '', floor: '',
     supervisor_id: '', assistant_id: '',
-    capacity: '',
+    capacity: 30, status: 'active',
   });
 
-  useEffect(() => {
-    if (form.auto_name && form.grade && form.section) {
-      setForm(p => ({ ...p, class_name: `Class ${form.grade}${form.section}` }));
-    }
-  }, [form.grade, form.section, form.auto_name]);
+  const [grades, setGrades] = useState([]);
+  const [academicTerms, setAcademicTerms] = useState([]);
+  const [teachers, setTeachers] = useState([]);
 
-  const set = (name, value) => setForm(p => ({ ...p, [name]: value }));
+  useEffect(() => {
+    (async () => {
+      setLoadingData(true);
+      try {
+        const res = await get('/class-management/classes/form-data');
+        setGrades(res.data?.grades || []);
+        console.log(res.data?.grades);
+        setAcademicTerms(res.data?.academic_terms || []);
+        setTeachers(res.data?.teachers || []);
+      } catch {}
+
+      if (isEdit) {
+        try {
+          const res = await get(`/class-management/classes/show/${id}`);
+          const d = res.data?.data;
+          if (d) {
+            setForm({
+              grade_id: d.grade?.id || '', section: d.section || '', shift: d.shift || 'morning', class_name: d.class_name || '', auto_name: false,
+              academic_term_id: d.academic_term?.id || '',
+              room_number: d.room_number || '', room_name: d.room_name || '', floor: d.floor || '',
+              supervisor_id: d.supervisor?.id || '', assistant_id: d.assistant?.id || '',
+              capacity: d.capacity || 30, status: d.status || 'active',
+            });
+          }
+        } catch {
+          Swal.fire('Error', 'Failed to load class data', 'error');
+          navigate('/class-management/classes');
+        }
+      }
+      setLoadingData(false);
+    })();
+  }, [id]);
+
+  useEffect(() => {
+    if (form.auto_name && form.grade_id && form.section) {
+      const grade = grades.find(g => g.id == form.grade_id);
+      const shiftLabel = form.shift === 'afternoon' ? ' (PM)' : '';
+      if (grade) setForm(p => ({ ...p, class_name: `${grade.name} - ${form.section}${shiftLabel}` }));
+    }
+  }, [form.grade_id, form.section, form.shift, form.auto_name, grades]);
+
+  const set = (name, value) => {
+    setForm(p => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors(prev => { const n = { ...prev }; delete n[name]; return n; });
+  };
   const handle = (e) => set(e.target.name, e.target.value);
 
   const canNext = () => {
-    if (step === 1) return form.grade && form.section && form.class_name && form.academic_year;
-    if (step === 2) return form.room_number && form.building && form.floor;
-    if (step === 3) return form.supervisor_id && form.assistant_id;
+    if (step === 1) return form.grade_id && form.section && form.class_name && form.academic_term_id;
+    if (step === 2) return true;
+    if (step === 3) return true;
     if (step === 4) return !!form.capacity;
     return true;
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (step !== STEPS.length) return;
     setSaving(true);
-    setTimeout(() => {
-      Swal.fire({ icon: 'success', title: isEdit ? 'Class Updated!' : 'Class Created!', text: `${form.class_name} has been saved successfully.`, confirmButtonColor: '#0d9488', timer: 2000, showConfirmButton: false });
+    setErrors({});
+    try {
+      const payload = {
+        ...form,
+        supervisor_id: form.supervisor_id || null,
+        assistant_id: form.assistant_id || null,
+      };
+      delete payload.auto_name;
+
+      if (isEdit) {
+        await put(`/class-management/classes/update/${id}`, payload);
+      } else {
+        await post('/class-management/classes/store', payload);
+      }
+      Swal.fire({ icon: 'success', title: isEdit ? 'Class Updated!' : 'Class Created!', timer: 2000, showConfirmButton: false });
       navigate('/class-management/classes');
-    }, 600);
+    } catch (error) {
+      const responseErrors = error.response?.data?.errors;
+      const message = error.response?.data?.message || 'Failed to save class';
+
+      if (responseErrors && typeof responseErrors === 'object') {
+        setErrors(responseErrors);
+        // Navigate to the first step that has an error
+        const firstErrorField = Object.keys(responseErrors)[0];
+        const targetStep = FIELD_TO_STEP[firstErrorField];
+        if (targetStep) setStep(targetStep);
+
+        // Build a clear list of errors for the alert
+        const errorList = Object.values(responseErrors)
+          .map(msgs => `• ${Array.isArray(msgs) ? msgs[0] : msgs}`)
+          .join('<br>');
+
+        Swal.fire({
+          icon: 'error',
+          title: 'Validation Error',
+          html: `<div class="text-left text-sm">${errorList}</div>`,
+          confirmButtonColor: '#0d9488',
+        });
+      } else {
+        Swal.fire('Error', message, 'error');
+      }
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loadingData) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div>
+          <span className="text-gray-500 text-sm">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50/60">
@@ -257,34 +285,81 @@ export default function ClassesForm() {
       <form onSubmit={e => e.preventDefault()} onKeyDown={e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') e.preventDefault(); }}>
         <div className="max-w-full mx-auto px-4 py-6 space-y-4">
 
-          {/* ── Step 1 ── */}
+          {/* Validation Error Banner */}
+          {Object.keys(errors).length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-red-800">Please fix the following errors:</p>
+                  <ul className="mt-1.5 space-y-1">
+                    {Object.entries(errors).map(([field, msgs]) => {
+                      const stepNum = FIELD_TO_STEP[field];
+                      const stepLabel = stepNum ? STEPS[stepNum - 1].label : '';
+                      return (
+                        <li key={field} className="text-xs text-red-700 flex items-start gap-1.5">
+                          <span className="text-red-400">•</span>
+                          <span>
+                            {Array.isArray(msgs) ? msgs[0] : msgs}
+                            {stepNum && stepNum !== step && (
+                              <button type="button" onClick={() => setStep(stepNum)}
+                                className="ml-2 text-red-600 underline font-semibold">Go to {stepLabel}</button>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Basic Info */}
           {step === 1 && (
             <StepCard step={STEPS[0]}>
-              {/* Grade */}
               <div>
                 <Label required>Grade Level</Label>
-                <SearchSelect
-                  options={GRADES}
-                  value={form.grade}
-                  onChange={(value) => set('grade', value || '')}
-                  placeholder="Search or select grade..."
-                />
-                {form.grade && <p className="text-[11px] text-teal-600 mt-1.5 font-medium">Grade {form.grade} selected</p>}
+                <SearchSelect options={grades} value={form.grade_id} onChange={v => set('grade_id', v || '')}
+                  placeholder="Select grade..." getLabel={g => g.name} getValue={g => g.id} />
+                {(() => {
+                  const selectedGrade = grades.find(g => g.id == form.grade_id);
+                  if (selectedGrade?.is_primary) {
+                    return (
+                      <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                        <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="text-[11px] text-amber-800 leading-relaxed">
+                          <strong>Primary Grade:</strong> This is a primary grade where one teacher (the supervisor) teaches all subjects. The supervisor is locked to this class for the entire shift but can supervise a different class in another shift.
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
-
-              {/* Section */}
-              <div>
-                <Label required>Section</Label>
-                <SearchSelect
-                  options={['A', 'B', 'C', 'D']}
-                  value={form.section}
-                  onChange={(value) => set('section', value || '')}
-                  placeholder="Search or select section..."
-                />
-                {form.section && <p className="text-[11px] text-teal-600 mt-1.5 font-medium">Section {form.section} selected</p>}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label required>Section</Label>
+                  <SearchSelect options={SECTIONS} value={form.section} onChange={v => set('section', v || '')} placeholder="Select section..." />
+                </div>
+                <div>
+                  <Label required>Shift</Label>
+                  <div className="flex gap-2">
+                    {[{ value: 'morning', label: 'Morning', icon: '☀️' }, { value: 'afternoon', label: 'Afternoon', icon: '🌙' }].map(s => (
+                      <button key={s.value} type="button" onClick={() => set('shift', s.value)}
+                        className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-medium border transition-all flex items-center justify-center gap-2 ${
+                          form.shift === s.value ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'
+                        }`}>
+                        <span>{s.icon}</span> {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-
-              {/* Class Name */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <Label required>Class Name</Label>
@@ -297,40 +372,34 @@ export default function ClassesForm() {
                 <input type="text" name="class_name" value={form.class_name} onChange={handle}
                   readOnly={form.auto_name} required
                   className={`${inp} ${form.auto_name ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
-                  placeholder="e.g. Class 6A" />
-                {form.auto_name && <p className="text-[10px] text-teal-500 mt-1">Auto-generated from Grade + Section</p>}
+                  placeholder="e.g. Grade 6 - A" />
               </div>
-
-              {/* Academic Year */}
               <div>
-                <Label required>Academic Year</Label>
-                <select name="academic_year" value={form.academic_year} onChange={handle} className={inp} required>
-                  <option value="">Select Academic Year</option>
-                  {ACADEMIC_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
+                <Label required>Academic Term</Label>
+                <SearchSelect options={academicTerms} value={form.academic_term_id} onChange={v => set('academic_term_id', v || '')}
+                  placeholder="Select academic term..." getLabel={t => t.name} getValue={t => t.id} />
               </div>
             </StepCard>
           )}
 
-          {/* ── Step 2 ── */}
+          {/* Step 2: Location */}
           {step === 2 && (
             <StepCard step={STEPS[1]}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Room Number</Label>
-                  <input type="text" name="room_number" value={form.room_number} onChange={handle} className={inp} placeholder="e.g. 101" />
+                  <input type="text" name="room_number" value={form.room_number} onChange={handle}
+                    className={`${inp} ${err('room_number') ? 'border-red-400 focus:ring-red-400' : ''}`} placeholder="e.g. 101" />
+                  {err('room_number') && <p className="text-red-500 text-[10px] mt-1">{err('room_number')}</p>}
                 </div>
                 <div>
                   <Label>Room Name</Label>
                   <input type="text" name="room_name" value={form.room_name} onChange={handle} className={inp} placeholder="e.g. Science Lab A" />
                 </div>
                 <div>
-                  <Label>Building</Label>
-                  <input type="text" name="building" value={form.building} onChange={handle} className={inp} placeholder="e.g. Main Building" />
-                </div>
-                <div>
                   <Label>Floor</Label>
-                  <select name="floor" value={form.floor} onChange={handle} className={inp}>
+                  <select name="floor" value={form.floor} onChange={handle}
+                    className={`${inp} ${err('floor') ? 'border-red-400 focus:ring-red-400' : ''}`}>
                     <option value="">Select Floor</option>
                     <option value="Ground">Ground Floor</option>
                     <option value="1">1st Floor</option>
@@ -338,53 +407,60 @@ export default function ClassesForm() {
                     <option value="3">3rd Floor</option>
                     <option value="4">4th Floor</option>
                   </select>
+                  {err('floor') && <p className="text-red-500 text-[10px] mt-1">{err('floor')}</p>}
                 </div>
               </div>
-              {(form.building || form.room_number) && (
+              {(form.room_number || form.floor) && (
                 <div className="p-4 bg-teal-50 rounded-xl border border-teal-100 flex items-center gap-3">
                   <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>
                   <p className="text-sm text-teal-800 font-medium">
-                    {[form.building, form.floor && `Floor ${form.floor}`, form.room_number && `Room ${form.room_number}`, form.room_name].filter(Boolean).join(' · ')}
+                    {[form.floor && `Floor ${form.floor}`, form.room_number && `Room ${form.room_number}`, form.room_name].filter(Boolean).join(' · ')}
                   </p>
                 </div>
               )}
             </StepCard>
           )}
 
-          {/* ── Step 3 ── */}
+          {/* Step 3: Administration */}
           {step === 3 && (
             <StepCard step={STEPS[2]}>
               <div>
-                <Label required>Class Supervisor</Label>
-                <SearchSelect
-                  options={TEACHERS}
-                  value={form.supervisor_id}
-                  onChange={v => set('supervisor_id', v)}
-                  placeholder="Search supervisor..."
-                  getLabel={t => t.name}
-                  getValue={t => t.id}
-                />
+                <Label>Class Supervisor</Label>
+                <div className={err('supervisor_id') ? 'ring-2 ring-red-400 rounded-xl' : ''}>
+                  <SearchSelect options={teachers} value={form.supervisor_id} onChange={v => set('supervisor_id', v || '')}
+                    placeholder="Search supervisor..."
+                    getLabel={t => `${t.name}${t.available_hours != null ? ` (${t.available_hours}h available)` : ''}`}
+                    getValue={t => t.id} />
+                </div>
+                {teachers.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">All teachers are at full capacity</p>
+                )}
+                {err('supervisor_id') && (
+                  <div className="mt-1.5 p-2 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                    <svg className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p className="text-[10px] text-red-700">{err('supervisor_id')}</p>
+                  </div>
+                )}
               </div>
               <div>
-                <Label required>Assistant Teacher</Label>
-                <SearchSelect
-                  options={TEACHERS.filter(t => t.id != form.supervisor_id)}
-                  value={form.assistant_id}
-                  onChange={v => set('assistant_id', v)}
-                  placeholder="Search assistant teacher..."
-                  getLabel={t => t.name}
-                  getValue={t => t.id}
-                />
+                <Label>Assistant Teacher</Label>
+                <SearchSelect options={teachers.filter(t => t.id != form.supervisor_id)} value={form.assistant_id}
+                  onChange={v => set('assistant_id', v || '')} placeholder="Search assistant..."
+                  getLabel={t => `${t.name}${t.available_hours != null ? ` (${t.available_hours}h available)` : ''}`}
+                  getValue={t => t.id} />
+                {err('assistant_id') && <p className="text-red-500 text-[10px] mt-1">{err('assistant_id')}</p>}
               </div>
             </StepCard>
           )}
 
-          {/* ── Step 4 ── */}
+          {/* Step 4: Capacity & Review */}
           {step === 4 && (
             <StepCard step={STEPS[3]}>
               <div>
                 <Label required>Class Capacity</Label>
-                <input type="number" name="capacity" value={form.capacity} onChange={handle} min={1} max={100}
+                <input type="number" name="capacity" value={form.capacity} onChange={handle} min={1} max={200}
                   className={`${inp} text-center text-xl font-bold`} placeholder="e.g. 30" required />
                 <div className="flex gap-2 mt-2.5">
                   {[20, 25, 30, 35, 40].map(n => (
@@ -395,31 +471,20 @@ export default function ClassesForm() {
                   ))}
                 </div>
               </div>
-              {form.capacity > 0 && (
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Total Seats', value: form.capacity },
-                    { label: 'Enrolled',    value: 0 },
-                    { label: 'Available',   value: form.capacity },
-                  ].map(s => (
-                    <div key={s.label} className="p-4 bg-teal-50 rounded-xl border border-teal-100 text-center">
-                      <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider">{s.label}</p>
-                      <p className="text-2xl font-black text-teal-800 mt-1">{s.value}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
 
-              {/* Review summary */}
+              {/* Review */}
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
                 <p className="text-xs font-bold text-gray-700">Review Summary</p>
                 {[
-                  { label: 'Class',         value: form.class_name },
-                  { label: 'Academic Year', value: form.academic_year },
-                  { label: 'Location',      value: [form.building, form.room_number && `Room ${form.room_number}`].filter(Boolean).join(', ') || '—' },
-                  { label: 'Supervisor',    value: TEACHERS.find(t => t.id == form.supervisor_id)?.name || '—' },
-                  { label: 'Assistant',     value: TEACHERS.find(t => t.id == form.assistant_id)?.name || '—' },
-                  { label: 'Capacity',      value: form.capacity ? `${form.capacity} students` : '—' },
+                  { label: 'Class', value: form.class_name },
+                  { label: 'Grade', value: grades.find(g => g.id == form.grade_id)?.name || '—' },
+                  { label: 'Section', value: form.section || '—' },
+                  { label: 'Shift', value: form.shift === 'morning' ? 'Morning' : 'Afternoon' },
+                  { label: 'Academic Term', value: academicTerms.find(t => t.id == form.academic_term_id)?.name || '—' },
+                  { label: 'Location', value: [form.floor && `Floor ${form.floor}`, form.room_number && `Room ${form.room_number}`].filter(Boolean).join(', ') || '—' },
+                  { label: 'Supervisor', value: teachers.find(t => t.id == form.supervisor_id)?.name || '—' },
+                  { label: 'Assistant', value: teachers.find(t => t.id == form.assistant_id)?.name || '—' },
+                  { label: 'Capacity', value: form.capacity ? `${form.capacity} students` : '—' },
                 ].map(r => (
                   <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
                     <span className="text-xs text-gray-500">{r.label}</span>

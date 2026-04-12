@@ -93,6 +93,8 @@ export default function ParentForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
+  const [formMode, setFormMode] = useState("normal"); // 'emergency' or 'normal'
+
   const [formData, setFormData] = useState({
     father_name: "",
     father_name_en: "",
@@ -175,15 +177,22 @@ export default function ParentForm() {
       if (isEdit) {
         await put(`/student-management/families/update/${id}`, formData);
         Swal.fire("Success", "Family updated successfully", "success");
+        navigate(`/student-management/parents/show/${familyId}`);
       } else {
+        const dataToSend = {
+          ...formData,
+          is_emergency: formMode === "emergency",
+        };
         const response = await post(
           "/student-management/families/store",
-          formData,
+          dataToSend,
         );
-        Swal.fire("Success", "Family created successfully", "success");
         familyId = response.data?.data?.id || response.data?.id;
+        const familyDisplay = response.data?.data?.family_id || `Family #${familyId}`;
+        const fatherName = response.data?.data?.father_name || formData.father_name;
+        await Swal.fire("Success", "Family created successfully. Now register the student.", "success");
+        navigate(`/student-management/students/create?family_id=${familyId}&family_label=${encodeURIComponent(familyDisplay + ' - ' + fatherName)}`);
       }
-      navigate(`/student-management/parents/show/${familyId}`);
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire(
@@ -249,12 +258,32 @@ export default function ParentForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Emergency toggle button (Create only) */}
+        {!isEdit && (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setFormMode(formMode === "emergency" ? "normal" : "emergency")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                formMode === "emergency"
+                  ? "bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100"
+                  : "bg-white border-gray-200 text-gray-500 hover:border-orange-300 hover:text-orange-600"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {formMode === "emergency" ? "Emergency Mode (ON)" : "Emergency Mode"}
+            </button>
+          </div>
+        )}
+
         {/* ── Father Information ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <SectionHeader
             icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
             title="Father's Information"
-            subtitle="Identity, education and contact details"
+            subtitle={formMode === "emergency" ? "Quick registration — name and phone only" : "Identity, education and contact details"}
             gradient="bg-gradient-to-r from-teal-50 to-cyan-50 border-teal-100"
             iconBg="bg-teal-100"
             iconColor="text-teal-600"
@@ -281,106 +310,117 @@ export default function ParentForm() {
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Father's Name (English)
-              </label>
-              <input
-                type="text"
-                name="father_name_en"
-                value={formData.father_name_en}
-                onChange={handleChange}
-                placeholder="English name"
-                className={inputClass("father_name_en")}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Grandfather's Name
-              </label>
-              <input
-                type="text"
-                name="grandfather_name"
-                value={formData.grandfather_name}
-                onChange={handleChange}
-                placeholder="Grandfather's name"
-                className={inputClass("grandfather_name")}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Grandfather's Name (English)
-              </label>
-              <input
-                type="text"
-                name="grandfather_name_en"
-                value={formData.grandfather_name_en}
-                onChange={handleChange}
-                placeholder="English name"
-                className={inputClass("grandfather_name_en")}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Education Level
-              </label>
-              <select
-                name="father_education_level"
-                value={formData.father_education_level}
-                onChange={handleChange}
-                className={inputClass("father_education_level")}
-              >
-                {EDUCATION_LEVELS.map((level) => (
-                  <option key={level.value} value={level.value}>
-                    {level.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Occupation
-              </label>
-              <input
-                type="text"
-                name="father_occupation"
-                value={formData.father_occupation}
-                onChange={handleChange}
-                placeholder="e.g. Engineer"
-                className={inputClass("father_occupation")}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Phone Number
+                Phone Number {formMode === "emergency" ? "*" : ""}
               </label>
               <input
                 type="text"
                 name="father_phone"
                 value={formData.father_phone}
                 onChange={handleChange}
+                required={formMode === "emergency"}
                 placeholder="+93 7xx xxx xxxx"
                 className={inputClass("father_phone")}
               />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Email Address
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="e.g. family@example.com"
-                className={inputClass("email")}
-              />
-              {err("email") && (
-                <p className="text-red-500 text-[10px] mt-1">{err("email")}</p>
+              {err("father_phone") && (
+                <p className="text-red-500 text-[10px] mt-1">
+                  {err("father_phone")}
+                </p>
               )}
             </div>
+            {(isEdit || formMode === "normal") && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Father's Name (English)
+                  </label>
+                  <input
+                    type="text"
+                    name="father_name_en"
+                    value={formData.father_name_en}
+                    onChange={handleChange}
+                    placeholder="English name"
+                    className={inputClass("father_name_en")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Grandfather's Name
+                  </label>
+                  <input
+                    type="text"
+                    name="grandfather_name"
+                    value={formData.grandfather_name}
+                    onChange={handleChange}
+                    placeholder="Grandfather's name"
+                    className={inputClass("grandfather_name")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Grandfather's Name (English)
+                  </label>
+                  <input
+                    type="text"
+                    name="grandfather_name_en"
+                    value={formData.grandfather_name_en}
+                    onChange={handleChange}
+                    placeholder="English name"
+                    className={inputClass("grandfather_name_en")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Education Level
+                  </label>
+                  <select
+                    name="father_education_level"
+                    value={formData.father_education_level}
+                    onChange={handleChange}
+                    className={inputClass("father_education_level")}
+                  >
+                    {EDUCATION_LEVELS.map((level) => (
+                      <option key={level.value} value={level.value}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Occupation
+                  </label>
+                  <input
+                    type="text"
+                    name="father_occupation"
+                    value={formData.father_occupation}
+                    onChange={handleChange}
+                    placeholder="e.g. Engineer"
+                    className={inputClass("father_occupation")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="e.g. family@example.com"
+                    className={inputClass("email")}
+                  />
+                  {err("email") && (
+                    <p className="text-red-500 text-[10px] mt-1">{err("email")}</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* ── Mother Information ── */}
+        {/* ── Mother Information (hidden in emergency mode for create) ── */}
+        {(isEdit || formMode === "normal") && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <SectionHeader
             icon="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
@@ -455,8 +495,10 @@ export default function ParentForm() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* ── Income & Economic Status ── */}
+        {/* ── Income & Economic Status (hidden in emergency mode for create) ── */}
+        {(isEdit || formMode === "normal") && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <SectionHeader
             icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
@@ -588,8 +630,10 @@ export default function ParentForm() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* ── Address ── */}
+        {/* ── Address (hidden in emergency mode for create) ── */}
+        {(isEdit || formMode === "normal") && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <SectionHeader
             icon="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z"
@@ -610,6 +654,7 @@ export default function ParentForm() {
             />
           </div>
         </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex items-center justify-between pt-2">
@@ -645,7 +690,7 @@ export default function ParentForm() {
                     d="M5 13l4 4L19 7"
                   />
                 </svg>
-                {isEdit ? "Update Family" : "Register Family"}
+                {isEdit ? "Update Family" : "Register Family & Continue to Student"}
               </>
             )}
           </button>

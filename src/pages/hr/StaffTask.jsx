@@ -89,6 +89,7 @@ export default function StaffTask() {
       title: 'Rate Task Quality',
       input: 'select',
       inputOptions: { excellent: 'Excellent', good: 'Good', average: 'Average', poor: 'Poor' },
+      inputValue: item.quality || '',
       showCancelButton: true,
       confirmButtonColor: '#0d9488',
     });

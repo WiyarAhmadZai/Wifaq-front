@@ -34,6 +34,8 @@ const MyProfile = lazy(() => import("./pages/MyProfile"));
 // HR Pages - List
 const Staff = lazy(() => import("./pages/hr/Staff"));
 const Contracts = lazy(() => import("./pages/hr/Contracts"));
+const VendorContracts = lazy(() => import("./pages/hr/VendorContracts"));
+const Agreements = lazy(() => import("./pages/hr/Agreements"));
 const Attendance = lazy(() => import("./pages/hr/Attendance"));
 const QuickAttendance = lazy(() => import("./pages/hr/QuickAttendance"));
 const AttendanceReport = lazy(() => import("./pages/hr/AttendanceReport"));
@@ -57,6 +59,8 @@ const SalarySnapshot = lazy(() => import("./pages/hr/SalarySnapshot"));
 const StaffForm = lazy(() => import("./pages/hr/StaffForm"));
 const StaffLogs = lazy(() => import("./pages/hr/StaffLogs"));
 const ContractsForm = lazy(() => import("./pages/hr/ContractsForm"));
+const VendorContractsForm = lazy(() => import("./pages/hr/VendorContractsForm"));
+const AgreementsForm = lazy(() => import("./pages/hr/AgreementsForm"));
 const AttendanceForm = lazy(() => import("./pages/hr/AttendanceForm"));
 const LeaveRequestForm = lazy(() => import("./pages/hr/LeaveRequestForm"));
 const JobsForm = lazy(() => import("./pages/hr/JobsForm"));
@@ -70,6 +74,8 @@ const SalarySnapshotForm = lazy(() => import("./pages/hr/SalarySnapshotForm"));
 // HR Pages - Show
 const StaffShow = lazy(() => import("./pages/hr/StaffShow"));
 const ContractsShow = lazy(() => import("./pages/hr/ContractsShow"));
+const VendorContractsShow = lazy(() => import("./pages/hr/VendorContractsShow"));
+const AgreementsShow = lazy(() => import("./pages/hr/AgreementsShow"));
 const AttendanceShow = lazy(() => import("./pages/hr/AttendanceShow"));
 const LeaveRequestShow = lazy(() => import("./pages/hr/LeaveRequestShow"));
 const JobsShow = lazy(() => import("./pages/hr/JobsShow"));
@@ -100,14 +106,9 @@ const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEn
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
 
 // Teacher Management
-const AnnualPlans = lazy(() => import("./pages/teacher-management/AnnualPlans"));
-const LessonPlans = lazy(() => import("./pages/teacher-management/LessonPlans"));
 const Teachers = lazy(() => import("./pages/teacher-management/teacher/Teachers"));
 const TeachersForm = lazy(() => import("./pages/teacher-management/teacher/TeachersForm"));
 const TeachersShow = lazy(() => import("./pages/teacher-management/teacher/TeachersShow"));
-const TeacherSubjects = lazy(() => import("./pages/teacher-management/teacher-subjects/TeacherSubjects"));
-const TeacherSubjectForm = lazy(() => import("./pages/teacher-management/teacher-subjects/TeacherSubjectForm"));
-const TeacherSubjectShow = lazy(() => import("./pages/teacher-management/teacher-subjects/TeacherSubjectShow"));
 
 // Branches
 const Branches = lazy(() => import("./pages/branches/Branches"));
@@ -118,6 +119,7 @@ const BranchShow = lazy(() => import("./pages/branches/BranchShow"));
 const Classes = lazy(() => import("./pages/class-management/Classes"));
 const ClassesForm = lazy(() => import("./pages/class-management/ClassesForm"));
 const ClassesShow = lazy(() => import("./pages/class-management/ClassesShow"));
+const GradeSubjects = lazy(() => import("./pages/class-management/GradeSubjects"));
 const Subjects = lazy(() => import("./pages/class-management/Subjects"));
 const SubjectsForm = lazy(() => import("./pages/class-management/SubjectsForm"));
 const SubjectsShow = lazy(() => import("./pages/class-management/SubjectsShow"));
@@ -217,28 +219,13 @@ function App() {
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
 
             {/* Teacher Management */}
-            <Route path="teacher-management/annual-plans" element={<Suspense fallback={<PageLoader />}><AnnualPlans /></Suspense>} />
-            <Route path="teacher-management/annual-plans/create" element={<Placeholder title="Create Annual Plan" />} />
-            <Route path="teacher-management/annual-plans/edit/:id" element={<Placeholder title="Edit Annual Plan" />} />
-            <Route path="teacher-management/annual-plans/show/:id" element={<Placeholder title="View Annual Plan" />} />
-            <Route path="teacher-management/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlans /></Suspense>} />
-            <Route path="teacher-management/lesson-plans/create" element={<Placeholder title="Create Lesson Plan" />} />
-            <Route path="teacher-management/lesson-plans/edit/:id" element={<Placeholder title="Edit Lesson Plan" />} />
-            <Route path="teacher-management/lesson-plans/show/:id" element={<Placeholder title="View Lesson Plan" />} />
             <Route path="teacher-management/teachers" element={<Suspense fallback={<PageLoader />}><Teachers /></Suspense>} />
             <Route path="teacher-management/teachers/create" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
             <Route path="teacher-management/teachers/edit/:id" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
             <Route path="teacher-management/teachers/show/:id" element={<Suspense fallback={<PageLoader />}><TeachersShow /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects" element={<Suspense fallback={<PageLoader />}><TeacherSubjects /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects/create" element={<Suspense fallback={<PageLoader />}><TeacherSubjectForm /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects/edit/:id" element={<Suspense fallback={<PageLoader />}><TeacherSubjectForm /></Suspense>} />
-            <Route path="teacher-management/teacher-subjects/show/:id" element={<Suspense fallback={<PageLoader />}><TeacherSubjectShow /></Suspense>} />
 
             {/* Class Management */}
             <Route path="class-management/teachers" element={<Navigate to="/teacher-management/teachers" replace />} />
-            <Route path="class-management/teachers/create" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
-            <Route path="class-management/teachers/edit/:id" element={<Suspense fallback={<PageLoader />}><TeachersForm /></Suspense>} />
-            <Route path="class-management/teachers/show/:id" element={<Suspense fallback={<PageLoader />}><TeachersShow /></Suspense>} />
             <Route path="branches" element={<Suspense fallback={<PageLoader />}><Branches /></Suspense>} />
             <Route path="branches/create" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/edit/:id" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
@@ -247,6 +234,7 @@ function App() {
             <Route path="class-management/classes/create" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />
             <Route path="class-management/classes/edit/:id" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />
             <Route path="class-management/classes/show/:id" element={<Suspense fallback={<PageLoader />}><ClassesShow /></Suspense>} />
+            <Route path="class-management/grade-subjects" element={<Suspense fallback={<PageLoader />}><GradeSubjects /></Suspense>} />
             <Route path="class-management/subjects" element={<Suspense fallback={<PageLoader />}><Subjects /></Suspense>} />
             <Route path="class-management/subjects/create" element={<Suspense fallback={<PageLoader />}><SubjectsForm /></Suspense>} />
             <Route path="class-management/subjects/edit/:id" element={<Suspense fallback={<PageLoader />}><SubjectsForm /></Suspense>} />
@@ -274,6 +262,14 @@ function App() {
             <Route path="hr/contracts/create" element={<Suspense fallback={<PageLoader />}><ContractsForm /></Suspense>} />
             <Route path="hr/contracts/edit/:id" element={<Suspense fallback={<PageLoader />}><ContractsForm /></Suspense>} />
             <Route path="hr/contracts/show/:id" element={<Suspense fallback={<PageLoader />}><ContractsShow /></Suspense>} />
+            <Route path="hr/vendor-contracts" element={<Suspense fallback={<PageLoader />}><VendorContracts /></Suspense>} />
+            <Route path="hr/vendor-contracts/create" element={<Suspense fallback={<PageLoader />}><VendorContractsForm /></Suspense>} />
+            <Route path="hr/vendor-contracts/edit/:id" element={<Suspense fallback={<PageLoader />}><VendorContractsForm /></Suspense>} />
+            <Route path="hr/vendor-contracts/show/:id" element={<Suspense fallback={<PageLoader />}><VendorContractsShow /></Suspense>} />
+            <Route path="hr/agreements" element={<Suspense fallback={<PageLoader />}><Agreements /></Suspense>} />
+            <Route path="hr/agreements/create" element={<Suspense fallback={<PageLoader />}><AgreementsForm /></Suspense>} />
+            <Route path="hr/agreements/edit/:id" element={<Suspense fallback={<PageLoader />}><AgreementsForm /></Suspense>} />
+            <Route path="hr/agreements/show/:id" element={<Suspense fallback={<PageLoader />}><AgreementsShow /></Suspense>} />
             <Route path="hr/attendance" element={<Suspense fallback={<PageLoader />}><Attendance /></Suspense>} />
             <Route path="hr/attendance/quick" element={<Suspense fallback={<PageLoader />}><QuickAttendance /></Suspense>} />
             <Route path="hr/attendance/report" element={<Suspense fallback={<PageLoader />}><AttendanceReport /></Suspense>} />

@@ -50,6 +50,7 @@ export default function StudentForm() {
     enrollment_type: "new",
     uniform_required: false,
     transportation_required: false,
+    is_fourth_child: false,
     child_order_in_family: "",
     special_status: "none",
     employee_parent_staff_id: "",
@@ -108,7 +109,7 @@ export default function StudentForm() {
   }, [
     form.family_id,
     form.school_class_id,
-    form.child_order_in_family,
+    form.is_fourth_child,
     form.special_status,
     form.employee_parent_staff_id,
     form.discount_percent,
@@ -123,7 +124,7 @@ export default function StudentForm() {
       const res = await post("/student-management/students/preview-fee", {
         family_id: form.family_id || null,
         school_class_id: form.school_class_id,
-        child_order_in_family: form.child_order_in_family || null,
+        child_order_in_family: form.is_fourth_child ? 4 : null,
         special_status: form.special_status,
         employee_parent_staff_id: form.employee_parent_staff_id || null,
         discount_percent: form.discount_percent || 0,
@@ -152,6 +153,7 @@ export default function StudentForm() {
           enrollment_type: d.enrollment_type || "new",
           uniform_required: d.uniform_required || false,
           transportation_required: d.transportation_required || false,
+          is_fourth_child: (d.child_order_in_family || 0) >= 4 || d.special_status === "fourth_child",
           child_order_in_family: d.child_order_in_family || "",
           special_status: d.special_status || "none",
           employee_parent_staff_id: d.employee_parent_staff_id || "",
@@ -215,8 +217,9 @@ export default function StudentForm() {
         ...form,
         employee_parent_staff_id: form.special_status === "employee_child" ? form.employee_parent_staff_id : null,
         foundation_help_requested_amount: form.foundation_help_requested ? form.foundation_help_requested_amount : null,
-        child_order_in_family: form.child_order_in_family || null,
+        child_order_in_family: form.is_fourth_child ? 4 : null,
       };
+      delete payload.is_fourth_child;
 
       if (isEdit) {
         await put(`/student-management/students/update/${id}`, payload);
@@ -408,10 +411,17 @@ export default function StudentForm() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Child Order in Family</label>
-                  <input type="number" name="child_order_in_family" value={form.child_order_in_family} onChange={handle}
-                    min={1} max={20} placeholder="e.g. 3" className={inp("child_order_in_family")} />
-                  <p className="text-[10px] text-gray-400 mt-1">If 4+, system may apply free tuition (4th child policy)</p>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">4th Child Free Policy</label>
+                  <div className="p-3 rounded-xl border-2 border-gray-200 bg-white">
+                    <Toggle
+                      checked={form.is_fourth_child}
+                      onChange={(e) => set("is_fourth_child", e.target.checked)}
+                      label="This is the 4th+ child in the family"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+                      Requires 3+ active siblings already enrolled. Tuition becomes <strong>FREE</strong>.
+                    </p>
+                  </div>
                 </div>
               </div>
 

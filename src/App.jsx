@@ -190,15 +190,13 @@ const Placeholder = ({ title }) => (
 );
 
 function ProtectedRoute({ children }) {
-  // const token = localStorage.getItem("token");
-  // return token ? children : <Navigate to="/login" replace />;
-  return children;
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" replace />;
 }
 
 function PublicRoute({ children }) {
-  // const token = localStorage.getItem("token");
-  // return !token ? children : <Navigate to="/" replace />;
-  return children;
+  const token = localStorage.getItem("token");
+  return !token ? children : <Navigate to="/" replace />;
 }
 
 function App() {

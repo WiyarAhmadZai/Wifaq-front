@@ -2,50 +2,31 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
-import { handleValidationErrors } from "../../utils/formErrors";
 
-const steps = [
-  {
-    id: 1,
-    title: "Personal Info",
-    icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
-  },
-  {
-    id: 2,
-    title: "Academic Info",
-    icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
-  },
-  {
-    id: 3,
-    title: "Fees & Discounts",
-    icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
+const STEPS = [
+  { num: 1, label: "Personal Info", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+  { num: 2, label: "Academic Info", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13" },
+  { num: 3, label: "Fees & Discounts", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2" },
 ];
 
-function Toggle({ name, id, checked, onChange, label }) {
-  return (
-    <label
-      htmlFor={id}
-      className="flex items-center gap-3 cursor-pointer group"
-    >
-      <div className="relative">
-        <input
-          type="checkbox"
-          name={name}
-          id={id}
-          checked={checked}
-          onChange={onChange}
-          className="sr-only peer"
-        />
-        <div className="w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-teal-500 transition-colors"></div>
-        <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm peer-checked:translate-x-4 transition-transform"></div>
-      </div>
-      <span className="text-xs font-medium text-gray-700 group-hover:text-gray-900">
-        {label}
-      </span>
-    </label>
-  );
-}
+const DISCOUNT_OPTIONS = [0, 15, 20, 25, 30, 35, 40, 45, 50];
+
+const SPECIAL_STATUS_OPTIONS = [
+  { value: "none", label: "None", color: "bg-gray-50 text-gray-700 border-gray-200" },
+  { value: "orphan", label: "Orphan", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  { value: "employee_child", label: "Employee Child", color: "bg-blue-50 text-blue-700 border-blue-200" },
+];
+
+const Toggle = ({ checked, onChange, label }) => (
+  <label className="flex items-center gap-3 cursor-pointer group">
+    <div className="relative">
+      <input type="checkbox" checked={checked} onChange={onChange} className="sr-only peer" />
+      <div className="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-teal-500 transition-colors" />
+      <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform" />
+    </div>
+    <span className="text-xs font-medium text-gray-700">{label}</span>
+  </label>
+);
 
 export default function StudentForm() {
   const navigate = useNavigate();
@@ -53,898 +34,515 @@ export default function StudentForm() {
   const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
 
-  // Check if family_id was passed from parent form
   const prefilledFamilyId = searchParams.get("family_id");
   const prefilledFamilyLabel = searchParams.get("family_label");
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
     family_id: prefilledFamilyId || "",
     first_name: "",
     last_name: "",
     date_of_birth: "",
-    class_id: "",
+    gender: "",
+    school_class_id: "",
+    academic_term_id: "",
+    enrollment_date: new Date().toISOString().split("T")[0],
+    enrollment_type: "new",
     uniform_required: false,
     transportation_required: false,
     child_order_in_family: "",
     special_status: "none",
-    employee_duration_id: "",
-    enrollment_date: new Date().toISOString().split("T")[0],
-    academic_term_id: "",
-    discount_percent: "",
-    discount_amount: 0,
-    is_4th_child_free: false,
+    employee_parent_staff_id: "",
+    discount_percent: 0,
     foundation_help_requested: false,
-    foundation_help_amount: "",
-    final_fee: "",
-    enrollment_type: "new",
+    foundation_help_requested_amount: "",
   });
 
+  const [families, setFamilies] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [employmentDurations, setEmploymentDurations] = useState([]);
   const [academicTerms, setAcademicTerms] = useState([]);
-  const [classFee, setClassFee] = useState(0);
+  const [employeeParents, setEmployeeParents] = useState([]);
+  const [feeBreakdown, setFeeBreakdown] = useState(null);
+
+  const [familySearch, setFamilySearch] = useState(prefilledFamilyLabel || "");
+  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
+  const familyRef = useRef(null);
+
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Family search state
-  const [families, setFamilies] = useState([]);
-  const [familySearch, setFamilySearch] = useState(prefilledFamilyLabel || "");
-  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
-  const [familyLocked, setFamilyLocked] = useState(Boolean(prefilledFamilyId));
-  const familyRef = useRef(null);
-
-  const specialStatusOptions = [
-    {
-      value: "none",
-      label: "None",
-      color: "bg-gray-100 text-gray-700 border-gray-200",
-    },
-    {
-      value: "orphan",
-      label: "Orphan",
-      color: "bg-amber-50 text-amber-700 border-amber-200",
-    },
-    {
-      value: "employee",
-      label: "Employee Child",
-      color: "bg-blue-50 text-blue-700 border-blue-200",
-    },
-  ];
-  const discountOptions = [15, 20, 25, 30, 35, 40, 45, 50];
-
+  // Load form data
   useEffect(() => {
-    fetchClasses();
-    fetchEmploymentDurations();
-    fetchAcademicTerms();
-    if (!prefilledFamilyId) fetchFamilies();
-    if (isEdit) fetchStudent();
+    (async () => {
+      try {
+        const res = await get("/student-management/students/form-data");
+        setFamilies(res.data?.families || []);
+        setClasses(res.data?.classes || []);
+        setAcademicTerms(res.data?.academic_terms || []);
+        setEmployeeParents(res.data?.employee_parents || []);
+        // Auto-select latest term
+        if (res.data?.academic_terms?.length) {
+          setForm((p) => ({ ...p, academic_term_id: res.data.academic_terms[0].id }));
+        }
+      } catch (error) {
+        console.error("Failed to load form data", error);
+      }
+    })();
+    if (isEdit) loadStudent();
   }, [id]);
 
   // Close family dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (familyRef.current && !familyRef.current.contains(e.target)) {
-        setShowFamilyDropdown(false);
-      }
+    const close = (e) => {
+      if (familyRef.current && !familyRef.current.contains(e.target)) setShowFamilyDropdown(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  // Live fee preview whenever fee-related fields change
   useEffect(() => {
-    calculateDiscountAmount();
-  }, [formData.discount_percent, classFee, formData.is_4th_child_free]);
+    const timer = setTimeout(() => previewFee(), 300);
+    return () => clearTimeout(timer);
+  }, [
+    form.family_id,
+    form.school_class_id,
+    form.child_order_in_family,
+    form.special_status,
+    form.employee_parent_staff_id,
+    form.discount_percent,
+  ]);
 
-  const fetchClasses = async () => {
+  const previewFee = async () => {
+    if (!form.school_class_id) {
+      setFeeBreakdown(null);
+      return;
+    }
     try {
-      const response = await get("/grades/list");
-      const data = response.data?.data || response.data || [];
-      setClasses(Array.isArray(data) ? data : []);
+      const res = await post("/student-management/students/preview-fee", {
+        family_id: form.family_id || null,
+        school_class_id: form.school_class_id,
+        child_order_in_family: form.child_order_in_family || null,
+        special_status: form.special_status,
+        employee_parent_staff_id: form.employee_parent_staff_id || null,
+        discount_percent: form.discount_percent || 0,
+      });
+      setFeeBreakdown(res.data?.data || null);
     } catch (error) {
-      console.error("Failed to fetch classes", error);
+      console.error("Preview fee failed", error);
     }
   };
 
-  const fetchEmploymentDurations = async () => {
-    try {
-      const response = await get("/hr/staff?per_page=1000");
-      const data = response.data?.data || response.data || [];
-      setEmploymentDurations(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch employment durations", error);
-    }
-  };
-
-  const fetchAcademicTerms = async () => {
-    try {
-      const response = await get("/academic-terms/list");
-      const data = response.data?.data || response.data || [];
-      setAcademicTerms(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch academic terms", error);
-    }
-  };
-
-  const fetchFamilies = async () => {
-    try {
-      const response = await get("/student-management/families/list");
-      const data = response.data?.data || response.data || [];
-      setFamilies(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch families", error);
-    }
-  };
-
-  const filteredFamilies = families.filter((f) => {
-    const q = familySearch.toLowerCase();
-    return (
-      (f.family_id && f.family_id.toLowerCase().includes(q)) ||
-      (f.father_name && f.father_name.toLowerCase().includes(q)) ||
-      (f.father_name_en && f.father_name_en.toLowerCase().includes(q)) ||
-      String(f.id).includes(q)
-    );
-  });
-
-  const selectFamily = (family) => {
-    setFormData((prev) => ({ ...prev, family_id: family.id }));
-    setFamilySearch(`${family.family_id} - ${family.father_name}`);
-    setShowFamilyDropdown(false);
-    if (errors.family_id) setErrors((prev) => ({ ...prev, family_id: null }));
-  };
-
-  const clearFamily = () => {
-    setFormData((prev) => ({ ...prev, family_id: "" }));
-    setFamilySearch("");
-    setFamilyLocked(false);
-    if (families.length === 0) fetchFamilies();
-  };
-
-  const calculateDiscountAmount = () => {
-    let baseFee = classFee;
-    let discountPercent = parseFloat(formData.discount_percent) || 0;
-    if (formData.is_4th_child_free) discountPercent = 100;
-    const discountAmount = (baseFee * discountPercent) / 100;
-    const finalFee = baseFee - discountAmount;
-    setFormData((prev) => ({
-      ...prev,
-      discount_amount: discountAmount.toFixed(2),
-      final_fee: finalFee > 0 ? finalFee.toFixed(2) : "0.00",
-    }));
-  };
-
-  const fetchStudent = async () => {
+  const loadStudent = async () => {
     setLoading(true);
     try {
-      const response = await get(`/student-management/students/show/${id}`);
-      const data = response.data;
-      setFormData({
-        family_id: data.family_id || "",
-        first_name: data.first_name || "",
-        last_name: data.last_name || "",
-        date_of_birth: data.date_of_birth || "",
-        class_id: data.class_id || "",
-        uniform_required: data.uniform_required || false,
-        transportation_required: data.transportation_required || false,
-        child_order_in_family: data.child_order_in_family || "",
-        special_status: data.special_status || "none",
-        employee_duration_id: data.employee_duration_id || "",
-        enrollment_date:
-          data.enrollment_date || new Date().toISOString().split("T")[0],
-        academic_term_id: data.academic_term_id || "",
-        discount_percent: data.discount_percent || "",
-        discount_amount: data.discount_amount || 0,
-        is_4th_child_free: data.is_4th_child_free || false,
-        foundation_help_requested: data.foundation_help_requested || false,
-        foundation_help_amount: data.foundation_help_amount || "",
-        final_fee: data.final_fee || "",
-        enrollment_type: data.enrollment_type || "new",
-      });
-      if (data.class_id) {
-        const selectedClass = classes.find((c) => c.id === data.class_id);
-        if (selectedClass) setClassFee(selectedClass.base_fee || 0);
+      const res = await get(`/student-management/students/show/${id}`);
+      const d = res.data?.data;
+      if (d) {
+        setForm({
+          family_id: d.family_id || "",
+          first_name: d.first_name || "",
+          last_name: d.last_name || "",
+          date_of_birth: d.date_of_birth?.split("T")[0] || "",
+          gender: d.gender || "",
+          school_class_id: d.school_class_id || "",
+          academic_term_id: d.academic_term_id || "",
+          enrollment_date: d.enrollment_date?.split("T")[0] || "",
+          enrollment_type: d.enrollment_type || "new",
+          uniform_required: d.uniform_required || false,
+          transportation_required: d.transportation_required || false,
+          child_order_in_family: d.child_order_in_family || "",
+          special_status: d.special_status || "none",
+          employee_parent_staff_id: d.employee_parent_staff_id || "",
+          discount_percent: d.discount_percent || 0,
+          foundation_help_requested: d.foundation_help_requested || false,
+          foundation_help_requested_amount: d.foundation_help_requested_amount || "",
+        });
+        if (d.family) {
+          setFamilySearch(`${d.family.family_id} - ${d.family.father_name}`);
+        }
       }
-    } catch (error) {
-      Swal.fire("Error", "Failed to load student data", "error");
+    } catch {
+      Swal.fire("Error", "Failed to load student", "error");
       navigate("/student-management/students");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
+  const set = (name, value) => {
+    setForm((p) => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors((p) => { const n = { ...p }; delete n[name]; return n; });
+  };
+
+  const handle = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
+    set(name, type === "checkbox" ? checked : value);
   };
 
-  const handleClassChange = (e) => {
-    const classId = e.target.value;
-    const selectedClass = classes.find((c) => c.id === parseInt(classId));
-    if (selectedClass) setClassFee(selectedClass.base_fee || 0);
-    setFormData((prev) => ({ ...prev, class_id: classId }));
-    if (errors.class_id) setErrors((prev) => ({ ...prev, class_id: null }));
+  const selectFamily = (fam) => {
+    set("family_id", fam.id);
+    setFamilySearch(`${fam.family_id} - ${fam.father_name}`);
+    setShowFamilyDropdown(false);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const clearFamily = () => {
+    set("family_id", "");
+    setFamilySearch("");
+  };
+
+  const filteredFamilies = families.filter((f) => {
+    const q = familySearch.toLowerCase();
+    if (!q) return true;
+    return (f.family_id?.toLowerCase().includes(q) ||
+            f.father_name?.toLowerCase().includes(q) ||
+            f.mother_name?.toLowerCase().includes(q));
+  });
+
+  const canNext = () => {
+    if (step === 1) return form.family_id && form.first_name && form.last_name && form.date_of_birth;
+    if (step === 2) return form.school_class_id && form.enrollment_date;
+    return true;
+  };
+
+  const submit = async () => {
+    if (step !== STEPS.length) return;
     setSaving(true);
     setErrors({});
-    const dataToSend = {
-      ...formData,
-      employee_duration_id:
-        formData.special_status === "employee"
-          ? formData.employee_duration_id
-          : null,
-      foundation_help_amount: formData.foundation_help_requested
-        ? formData.foundation_help_amount
-        : null,
-    };
     try {
+      const payload = {
+        ...form,
+        employee_parent_staff_id: form.special_status === "employee_child" ? form.employee_parent_staff_id : null,
+        foundation_help_requested_amount: form.foundation_help_requested ? form.foundation_help_requested_amount : null,
+        child_order_in_family: form.child_order_in_family || null,
+      };
+
       if (isEdit) {
-        await put(`/student-management/students/update/${id}`, dataToSend);
-        Swal.fire("Success", "Student updated successfully", "success");
+        await put(`/student-management/students/update/${id}`, payload);
       } else {
-        await post("/student-management/students/store", dataToSend);
-        Swal.fire("Success", "Student created successfully", "success");
+        await post("/student-management/students/store", payload);
       }
+      await Swal.fire({
+        icon: "success",
+        title: isEdit ? "Student updated!" : "Student registered!",
+        timer: 1800,
+        showConfirmButton: false,
+      });
       navigate("/student-management/students");
     } catch (error) {
-      if (!handleValidationErrors(error.response, setErrors)) {
-        Swal.fire(
-          "Error",
-          error.response?.data?.message || "Failed to save student",
-          "error",
-        );
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        setErrors(error.response.data.errors);
+        Swal.fire("Validation failed", Object.values(error.response.data.errors).flat()[0] || "Please fix errors", "error");
+      } else {
+        Swal.fire("Error", error.response?.data?.message || "Failed to save student", "error");
       }
     } finally {
       setSaving(false);
     }
   };
 
-  const getFieldError = (fieldName) => errors[fieldName]?.[0];
-  const inputClass = (fieldName) => {
-    const base =
-      "w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:outline-none text-xs transition-all";
-    return `${base} ${getFieldError(fieldName) ? "border-red-400 focus:ring-red-300 bg-red-50" : "border-gray-200 focus:ring-teal-400 hover:border-gray-300"}`;
-  };
+  const err = (f) => errors[f]?.[0];
+  const inp = (f) => `w-full px-3 py-2.5 border rounded-xl text-sm focus:ring-2 focus:outline-none transition-all ${err(f) ? "border-red-400 focus:ring-red-300 bg-red-50" : "border-gray-200 focus:ring-teal-400 bg-white"}`;
 
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-3 border-teal-100 border-t-teal-600"></div>
-          <span className="text-gray-500 text-sm">Loading student data...</span>
-        </div>
+        <div className="w-10 h-10 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-4 mx-auto">
+    <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => navigate("/student-management/students")}
-          className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            />
-          </svg>
-        </button>
-        <div>
-          <h2 className="text-lg font-bold text-gray-800">
-            {isEdit ? "Edit Student" : "Enroll New Student"}
-          </h2>
-          <p className="text-[11px] text-gray-400">
-            Fill in the details below to {isEdit ? "update" : "register"} a
-            student
-          </p>
+      <div className="bg-teal-600 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/student-management/students")}
+            className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Student" : "New Student Registration"}</h1>
+            <p className="text-xs text-teal-100 mt-0.5">Phase 1 — Step {step} of {STEPS.length}: {STEPS[step - 1].label}</p>
+          </div>
         </div>
       </div>
 
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between mb-8 px-2">
-        {steps.map((step, i) => (
-          <div key={step.id} className="flex items-center flex-1">
-            <button
-              type="button"
-              onClick={() => setCurrentStep(step.id)}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
-                currentStep === step.id
-                  ? "bg-teal-600 text-white shadow-md shadow-teal-200"
-                  : currentStep > step.id
-                    ? "bg-teal-50 text-teal-700"
-                    : "bg-gray-50 text-gray-400"
-              }`}
-            >
-              <div
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                  currentStep === step.id
-                    ? "bg-white/20"
-                    : currentStep > step.id
-                      ? "bg-teal-100"
-                      : "bg-gray-100"
-                }`}
-              >
-                {currentStep > step.id ? (
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                ) : (
-                  step.id
-                )}
+      {/* Step pills */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="px-4 py-3 flex items-center gap-1 overflow-x-auto">
+          {STEPS.map((s, i) => {
+            const done = step > s.num;
+            const active = step === s.num;
+            return (
+              <div key={s.num} className="flex items-center gap-1 flex-shrink-0">
+                <button type="button" onClick={() => done && setStep(s.num)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                    ${active ? "bg-teal-600 text-white" : done ? "bg-teal-50 text-teal-700 cursor-pointer" : "bg-gray-100 text-gray-400"}`}>
+                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold
+                    ${active ? "bg-white/25 text-white" : done ? "bg-teal-600 text-white" : "bg-gray-300 text-white"}`}>
+                    {done ? "✓" : s.num}
+                  </span>
+                  <span className="hidden sm:block">{s.label}</span>
+                </button>
+                {i < STEPS.length - 1 && <div className={`w-4 h-px ${done ? "bg-teal-400" : "bg-gray-200"}`} />}
               </div>
-              <span className="text-[11px] font-semibold hidden sm:block">
-                {step.title}
-              </span>
-            </button>
-            {i < steps.length - 1 && (
-              <div
-                className={`flex-1 h-0.5 mx-2 rounded-full ${currentStep > step.id ? "bg-teal-300" : "bg-gray-100"}`}
-              />
-            )}
-          </div>
-        ))}
+            );
+          })}
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        {/* Step 1: Personal Info */}
-        {currentStep === 1 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in">
-            <div className="px-5 py-4 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-teal-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={steps[0].icon}
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-800">
-                    Personal Information
-                  </h3>
-                  <p className="text-[10px] text-gray-500">
-                    Student identity and family details
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Form body */}
+      <form onSubmit={(e) => e.preventDefault()} className="px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+
+          {/* Step 1: Personal Info */}
+          {step === 1 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+              <h3 className="text-sm font-bold text-gray-800">Personal Information</h3>
+
+              {/* Family selector */}
               <div ref={familyRef} className="relative">
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Family *
-                </label>
-                {familyLocked ? (
-                  <div className="flex items-center gap-2">
-                    <div className={`flex-1 px-3 py-2.5 border rounded-xl text-xs bg-teal-50 border-teal-200 text-teal-800 font-medium`}>
-                      {familySearch || `Family #${formData.family_id}`}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={clearFamily}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                      title="Change family"
-                    >
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Family *</label>
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input type="text" value={familySearch}
+                    onChange={(e) => { setFamilySearch(e.target.value); setShowFamilyDropdown(true); }}
+                    onFocus={() => setShowFamilyDropdown(true)}
+                    placeholder="Search by family ID, father, or mother..."
+                    className={`${inp("family_id")} pl-9 pr-10`} />
+                  {form.family_id && (
+                    <button type="button" onClick={clearFamily}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={familySearch}
-                        onChange={(e) => {
-                          setFamilySearch(e.target.value);
-                          setShowFamilyDropdown(true);
-                          if (formData.family_id) {
-                            setFormData((prev) => ({ ...prev, family_id: "" }));
-                          }
-                        }}
-                        onFocus={() => setShowFamilyDropdown(true)}
-                        placeholder="Search by Family ID or Father Name..."
-                        className={`${inputClass("family_id")} pl-9`}
-                      />
-                    </div>
-                    <input type="hidden" name="family_id" value={formData.family_id} />
-                    {showFamilyDropdown && (
-                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-                        {filteredFamilies.length === 0 ? (
-                          <div className="px-4 py-3 text-xs text-gray-400 text-center">No families found</div>
-                        ) : (
-                          filteredFamilies.slice(0, 20).map((family) => (
-                            <button
-                              key={family.id}
-                              type="button"
-                              onClick={() => selectFamily(family)}
-                              className="w-full text-left px-4 py-2.5 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <span className="text-xs font-semibold text-gray-800">{family.father_name}</span>
-                                  {family.father_name_en && (
-                                    <span className="text-[10px] text-gray-400 ml-1.5">({family.father_name_en})</span>
-                                  )}
-                                </div>
-                                <span className="text-[10px] font-mono text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md">{family.family_id}</span>
-                              </div>
-                              {family.father_phone && (
-                                <p className="text-[10px] text-gray-400 mt-0.5">{family.father_phone}</p>
-                              )}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-                {getFieldError("family_id") && (
-                  <p className="text-red-500 text-[10px] mt-1">
-                    {getFieldError("family_id")}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  First Name *
-                </label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  required
-                  placeholder="Enter first name"
-                  className={inputClass("first_name")}
-                />
-                {getFieldError("first_name") && (
-                  <p className="text-red-500 text-[10px] mt-1">
-                    {getFieldError("first_name")}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Last Name *
-                </label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  required
-                  placeholder="Enter last name"
-                  className={inputClass("last_name")}
-                />
-                {getFieldError("last_name") && (
-                  <p className="text-red-500 text-[10px] mt-1">
-                    {getFieldError("last_name")}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Date of Birth *
-                </label>
-                <input
-                  type="date"
-                  name="date_of_birth"
-                  value={formData.date_of_birth}
-                  onChange={handleChange}
-                  required
-                  className={inputClass("date_of_birth")}
-                />
-                {getFieldError("date_of_birth") && (
-                  <p className="text-red-500 text-[10px] mt-1">
-                    {getFieldError("date_of_birth")}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Academic Info */}
-        {currentStep === 2 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in">
-            <div className="px-5 py-4 bg-gradient-to-r from-teal-50 to-indigo-50 border-b border-teal-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-teal-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={steps[1].icon}
-                    />
-                  </svg>
+                  )}
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-800">
-                    Academic Information
-                  </h3>
-                  <p className="text-[10px] text-gray-500">
-                    Class, term, and enrollment details
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Grade / Class *
-                </label>
-                <select
-                  name="class_id"
-                  value={formData.class_id}
-                  onChange={handleClassChange}
-                  required
-                  className={inputClass("class_id")}
-                >
-                  <option value="">Select Grade</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name} —{" "}
-                      {parseFloat(cls.base_fee || 0).toLocaleString()} AFN
-                    </option>
-                  ))}
-                </select>
-                {getFieldError("class_id") && (
-                  <p className="text-red-500 text-[10px] mt-1">
-                    {getFieldError("class_id")}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Enrollment Date *
-                </label>
-                <input
-                  type="date"
-                  name="enrollment_date"
-                  value={formData.enrollment_date}
-                  onChange={handleChange}
-                  required
-                  className={inputClass("enrollment_date")}
-                />
-                {getFieldError("enrollment_date") && (
-                  <p className="text-red-500 text-[10px] mt-1">
-                    {getFieldError("enrollment_date")}
-                  </p>
-                )}
-              </div>
-              <div className="sm:col-span-2 pt-2 border-t border-gray-100 mt-1">
-                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  Options
-                </p>
-                <div className="flex flex-wrap gap-x-8 gap-y-3">
-                  <Toggle
-                    name="uniform_required"
-                    id="uniform_required"
-                    checked={formData.uniform_required}
-                    onChange={handleChange}
-                    label="Uniform Required"
-                  />
-                  <Toggle
-                    name="transportation_required"
-                    id="transportation_required"
-                    checked={formData.transportation_required}
-                    onChange={handleChange}
-                    label="Transportation Required"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Fees & Discounts */}
-        {currentStep === 3 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in">
-            <div className="px-5 py-4 bg-gradient-to-r from-teal-50 to-pink-50 border-b border-teal-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-teal-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={steps[2].icon}
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-800">
-                    Fees & Discounts
-                  </h3>
-                  <p className="text-[10px] text-gray-500">
-                    Configure fee calculations and discounts
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="p-5 space-y-5">
-              {/* Special Status */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-100">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                    Special Status
-                  </label>
-                  <div className="flex gap-2">
-                    {specialStatusOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            special_status: opt.value,
-                          }))
-                        }
-                        className={`flex-1 px-2 py-2 rounded-lg text-[11px] font-semibold border transition-all ${
-                          formData.special_status === opt.value
-                            ? `${opt.color} ring-2 ring-offset-1 ring-teal-400`
-                            : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        {opt.label}
+                {showFamilyDropdown && !form.family_id && filteredFamilies.length > 0 && (
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                    {filteredFamilies.slice(0, 10).map((f) => (
+                      <button key={f.id} type="button" onClick={() => selectFamily(f)}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-teal-50 border-b border-gray-50 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-teal-600">{f.family_id}</span>
+                          <span className="text-xs font-medium text-gray-800">{f.father_name}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{f.father_phone}</p>
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
-
-              {/* Toggles row */}
-              <div className="flex flex-wrap gap-x-8 gap-y-3 pb-4 border-b border-gray-100">
-                <Toggle
-                  name="is_4th_child_free"
-                  id="is_4th_child_free"
-                  checked={formData.is_4th_child_free}
-                  onChange={handleChange}
-                  label="4th Child Free (100%)"
-                />
-                <Toggle
-                  name="foundation_help_requested"
-                  id="foundation_help_requested"
-                  checked={formData.foundation_help_requested}
-                  onChange={handleChange}
-                  label="Foundation Help"
-                />
+                )}
+                {err("family_id") && <p className="text-red-500 text-[10px] mt-1">{err("family_id")}</p>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                    Discount Percent
-                  </label>
-                  <select
-                    name="discount_percent"
-                    value={formData.discount_percent}
-                    onChange={handleChange}
-                    disabled={formData.is_4th_child_free}
-                    className={`${inputClass("discount_percent")} ${formData.is_4th_child_free ? "bg-gray-50 opacity-60" : ""}`}
-                  >
-                    <option value="">No Discount</option>
-                    {discountOptions.map((d) => (
-                      <option key={d} value={d}>
-                        {d}%
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">First Name *</label>
+                  <input type="text" name="first_name" value={form.first_name} onChange={handle} className={inp("first_name")} />
+                  {err("first_name") && <p className="text-red-500 text-[10px] mt-1">{err("first_name")}</p>}
                 </div>
-                {formData.foundation_help_requested && (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                      Foundation Help Amount
-                    </label>
-                    <input
-                      type="number"
-                      name="foundation_help_amount"
-                      value={formData.foundation_help_amount}
-                      onChange={handleChange}
-                      placeholder="0.00"
-                      step="0.01"
-                      className={inputClass("foundation_help_amount")}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Fee Summary Card */}
-              <div className="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl p-5 border border-teal-100 mt-2">
-                <h4 className="text-xs font-bold text-teal-800 mb-4 flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                    />
-                  </svg>
-                  Fee Breakdown
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] font-bold text-teal-600 uppercase tracking-wider">
-                      Base Fee
-                    </p>
-                    <p className="text-lg font-bold text-gray-800 mt-1">
-                      {classFee.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-red-100">
-                    <p className="text-[9px] font-bold text-red-500 uppercase tracking-wider">
-                      Discount
-                    </p>
-                    <p className="text-lg font-bold text-red-600 mt-1">
-                      -{parseFloat(formData.discount_amount || 0).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-blue-100">
-                    <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">
-                      Foundation
-                    </p>
-                    <p className="text-lg font-bold text-blue-600 mt-1">
-                      -
-                      {formData.foundation_help_requested
-                        ? parseFloat(
-                            formData.foundation_help_amount || 0,
-                          ).toFixed(2)
-                        : "0.00"}
-                    </p>
-                  </div>
-                  <div className="bg-teal-600 rounded-lg p-3">
-                    <p className="text-[9px] font-bold text-teal-100 uppercase tracking-wider">
-                      Final Fee
-                    </p>
-                    <input
-                      type="number"
-                      name="final_fee"
-                      value={formData.final_fee}
-                      onChange={handleChange}
-                      required
-                      className="w-full bg-transparent text-lg font-bold text-white mt-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Last Name *</label>
+                  <input type="text" name="last_name" value={form.last_name} onChange={handle} className={inp("last_name")} />
+                  {err("last_name") && <p className="text-red-500 text-[10px] mt-1">{err("last_name")}</p>}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Date of Birth *</label>
+                  <input type="date" name="date_of_birth" value={form.date_of_birth} onChange={handle} className={inp("date_of_birth")} />
+                  {err("date_of_birth") && <p className="text-red-500 text-[10px] mt-1">{err("date_of_birth")}</p>}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Gender</label>
+                  <select name="gender" value={form.gender} onChange={handle} className={inp("gender")}>
+                    <option value="">Select...</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Navigation Buttons */}
-        <div className="flex items-center justify-between mt-6">
-          <button
-            type="button"
-            onClick={() =>
-              currentStep === 1
-                ? navigate("/student-management/students")
-                : setCurrentStep(currentStep - 1)
-            }
-            className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all flex items-center gap-1.5"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            {currentStep === 1 ? "Cancel" : "Back"}
-          </button>
-
-          {currentStep < 3 ? (
-            <button
-              type="button"
-              onClick={() => setCurrentStep(currentStep + 1)}
-              className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 transition-all shadow-sm flex items-center gap-1.5"
-            >
-              Next
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 transition-all shadow-sm disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  {isEdit ? "Update Student" : "Enroll Student"}
-                </>
-              )}
-            </button>
           )}
+
+          {/* Step 2: Academic Info */}
+          {step === 2 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+              <h3 className="text-sm font-bold text-gray-800">Academic Information</h3>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Class *</label>
+                <select name="school_class_id" value={form.school_class_id} onChange={handle} className={inp("school_class_id")}>
+                  <option value="">Select class...</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.class_name} ({c.shift === "morning" ? "AM" : "PM"}) — Base: {c.grade?.base_fee || 3500} AFN
+                    </option>
+                  ))}
+                </select>
+                {err("school_class_id") && <p className="text-red-500 text-[10px] mt-1">{err("school_class_id")}</p>}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Academic Term *</label>
+                  <select name="academic_term_id" value={form.academic_term_id} onChange={handle} className={inp("academic_term_id")}>
+                    <option value="">Select term...</option>
+                    {academicTerms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Enrollment Date *</label>
+                  <input type="date" name="enrollment_date" value={form.enrollment_date} onChange={handle} className={inp("enrollment_date")} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Enrollment Type</label>
+                  <select name="enrollment_type" value={form.enrollment_type} onChange={handle} className={inp("enrollment_type")}>
+                    <option value="new">New Admission</option>
+                    <option value="transfer">Transfer</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Child Order in Family</label>
+                  <input type="number" name="child_order_in_family" value={form.child_order_in_family} onChange={handle}
+                    min={1} max={20} placeholder="e.g. 3" className={inp("child_order_in_family")} />
+                  <p className="text-[10px] text-gray-400 mt-1">If 4+, system may apply free tuition (4th child policy)</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                <Toggle checked={form.uniform_required} onChange={(e) => set("uniform_required", e.target.checked)} label="Uniform Required" />
+                <Toggle checked={form.transportation_required} onChange={(e) => set("transportation_required", e.target.checked)} label="Transportation Required" />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Fees & Discounts */}
+          {step === 3 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+              <h3 className="text-sm font-bold text-gray-800">Fees & Discounts</h3>
+
+              {/* Special Status */}
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-2">Special Status</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {SPECIAL_STATUS_OPTIONS.map((s) => (
+                    <button key={s.value} type="button"
+                      onClick={() => set("special_status", s.value)}
+                      className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all
+                        ${form.special_status === s.value ? `${s.color} ring-2 ring-current/30` : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"}`}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Employee parent selector */}
+              {form.special_status === "employee_child" && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Employee Parent *</label>
+                  <select name="employee_parent_staff_id" value={form.employee_parent_staff_id} onChange={handle}
+                    className={inp("employee_parent_staff_id")}>
+                    <option value="">Select staff member...</option>
+                    {employeeParents.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} — {s.role || s.department}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-gray-400 mt-1">System will auto-apply discount based on years of service</p>
+                </div>
+              )}
+
+              {/* Discount percent (only for 'none' status) */}
+              {form.special_status === "none" && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-2">Regular Discount</label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {DISCOUNT_OPTIONS.map((pct) => (
+                      <button key={pct} type="button" onClick={() => set("discount_percent", pct)}
+                        className={`py-2 rounded-xl text-xs font-semibold border transition-all
+                          ${Number(form.discount_percent) === pct ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}>
+                        {pct === 0 ? "None" : `${pct}%`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Foundation help */}
+              <div className="pt-3 border-t border-gray-100 space-y-3">
+                <Toggle checked={form.foundation_help_requested}
+                  onChange={(e) => set("foundation_help_requested", e.target.checked)}
+                  label="Request Foundation Help (family cannot afford full fee)" />
+                {form.foundation_help_requested && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Amount Family Needs Help With (AFN)</label>
+                    <input type="number" name="foundation_help_requested_amount" value={form.foundation_help_requested_amount}
+                      onChange={handle} placeholder="e.g. 450" min={0}
+                      className={inp("foundation_help_requested_amount")} />
+                    <p className="text-[10px] text-amber-600 mt-1">⚠ This will create a pending foundation request for admin review</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <button type="button"
+              onClick={() => step > 1 ? setStep((s) => s - 1) : navigate("/student-management/students")}
+              className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+              {step === 1 ? "Cancel" : "Back"}
+            </button>
+            {step < STEPS.length ? (
+              <button type="button" disabled={!canNext()} onClick={() => setStep((s) => s + 1)}
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-40">
+                Next →
+              </button>
+            ) : (
+              <button type="button" onClick={submit} disabled={saving}
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+                {saving ? (
+                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                ) : (isEdit ? "Update Student" : "Register Student")}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar: Live fee breakdown */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sticky top-[80px]">
+            <h3 className="text-sm font-bold text-gray-800 mb-3">Fee Breakdown</h3>
+            {feeBreakdown ? (
+              <div className="space-y-2">
+                {feeBreakdown.breakdown?.map((row, i) => {
+                  const isFinal = row.label.toLowerCase().includes("final");
+                  const isNegative = row.amount < 0;
+                  return (
+                    <div key={i} className={`flex items-center justify-between text-xs py-2 ${isFinal ? "pt-3 mt-2 border-t-2 border-teal-200 font-bold" : "border-b border-gray-50"}`}>
+                      <span className={isFinal ? "text-gray-800" : "text-gray-600"}>{row.label}</span>
+                      <span className={isFinal ? "text-teal-700 text-sm" : isNegative ? "text-red-500" : "text-gray-700"}>
+                        {isNegative ? "- " : ""}{Math.abs(row.amount).toLocaleString()} AFN
+                      </span>
+                    </div>
+                  );
+                })}
+                {feeBreakdown.discount_percent > 0 && (
+                  <div className="mt-3 px-3 py-2 bg-teal-50 rounded-lg">
+                    <p className="text-[10px] font-bold text-teal-700">TOTAL DISCOUNT</p>
+                    <p className="text-sm font-black text-teal-900">{feeBreakdown.discount_percent}%</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">Select a class to see the fee breakdown</p>
+            )}
+          </div>
         </div>
       </form>
     </div>

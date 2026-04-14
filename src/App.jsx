@@ -101,6 +101,8 @@ const RouteForm = lazy(() => import("./pages/studentMangement/RouteForm"));
 const Vehicles = lazy(() => import("./pages/studentMangement/Vehicles"));
 const VehicleForm = lazy(() => import("./pages/studentMangement/VehicleForm"));
 const Students = lazy(() => import("./pages/studentMangement/Students"));
+const FoundationRequests = lazy(() => import("./pages/studentMangement/FoundationRequests"));
+const FoundationRequestShow = lazy(() => import("./pages/studentMangement/FoundationRequestShow"));
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
 const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEnrollments"));
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
@@ -321,6 +323,8 @@ function App() {
             <Route path="student-management/students/create" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
+            <Route path="student-management/foundation-requests" element={<Suspense fallback={<PageLoader />}><FoundationRequests /></Suspense>} />
+            <Route path="student-management/foundation-requests/show/:id" element={<Suspense fallback={<PageLoader />}><FoundationRequestShow /></Suspense>} />
             <Route path="student-management/student-enrollments" element={<Suspense fallback={<PageLoader />}><StudentEnrollments /></Suspense>} />
             <Route path="student-management/student-enrollments/create" element={<Suspense fallback={<PageLoader />}><StudentEnrollmentForm /></Suspense>} />
             <Route path="student-management/student-enrollments/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentEnrollmentForm /></Suspense>} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { get, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
@@ -117,7 +117,10 @@ export default function StudentEnrollmentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const isEdit = Boolean(id);
+  const isShow = isEdit && location.pathname.includes("/show/");
+  const readOnly = isShow;
 
   // Student selection (Phase 2 target)
   const prefilledStudentId = searchParams.get("student_id");
@@ -200,12 +203,15 @@ export default function StudentEnrollmentForm() {
     }
   }, []);
 
-  // When a student id is set (from URL or selection), fetch full student data
+  // When a student id is set (from URL param or query), fetch full student data
   useEffect(() => {
-    if (prefilledStudentId) {
-      fetchSelectedStudent(prefilledStudentId);
+    const targetId = prefilledStudentId || (isEdit ? id : null);
+    if (targetId) {
+      fetchSelectedStudent(targetId);
+      setSelectedStudentId(targetId);
+      setStudentLocked(true);
     }
-  }, [prefilledStudentId]);
+  }, [prefilledStudentId, id, isEdit]);
 
   // Close student dropdown on outside click
   useEffect(() => {
@@ -426,8 +432,15 @@ export default function StudentEnrollmentForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (readOnly) return;
+    // Only allow submit from the final step — prevents accidental Enter-key submits
+    if (!isLastVisibleStep) return;
     if (!isEdit && !selectedStudentId) {
       Swal.fire("Error", "Please select a student to enroll (Phase 2)", "error");
+      return;
+    }
+    if (!formData.parental_consent) {
+      Swal.fire("Consent required", "Please tick the parental consent checkbox before submitting.", "warning");
       return;
     }
     setSaving(true);
@@ -452,7 +465,7 @@ export default function StudentEnrollmentForm() {
       // Mark the student as phase_2 complete — transitions to enrolled list
       await put(`/student-management/students/${targetId}/complete-phase-2`);
       Swal.fire("Success", "Student officially enrolled (Phase 2 complete)", "success");
-      navigate("/student-management/enrolled-students");
+      navigate("/student-management/student-enrollments");
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save student", "error");
@@ -523,7 +536,7 @@ export default function StudentEnrollmentForm() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate("/student-management/students")}
+          onClick={() => navigate(isEdit ? "/student-management/student-enrollments" : "/student-management/students")}
           className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -532,12 +545,24 @@ export default function StudentEnrollmentForm() {
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-800">
-            {isEdit ? "Edit Student Enrollment" : "Phase 2 — Official Enrollment"}
+            {isShow ? "View Enrollment" : isEdit ? "Edit Student Enrollment" : "Phase 2 — Official Enrollment"}
           </h2>
           <p className="text-[11px] text-gray-400">
             Step {currentStep} of {visibleSteps.length} — {steps.find(s => s.id === currentStep)?.title}
           </p>
         </div>
+        {isShow && (
+          <button
+            type="button"
+            onClick={() => navigate(`/student-management/student-enrollments/edit/${id}`)}
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit
+          </button>
+        )}
       </div>
 
       {/* ── Student Selector (Phase 2 target) ── */}
@@ -728,7 +753,16 @@ export default function StudentEnrollmentForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          // Prevent Enter key from submitting the form unless on the last step
+          if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && !isLastVisibleStep) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <fieldset disabled={readOnly} className={readOnly ? "opacity-95" : ""}>
         {/* ── Step 1: Education History ── */}
         {currentStep === 1 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1714,13 +1748,15 @@ export default function StudentEnrollmentForm() {
           </div>
         )}
 
+        </fieldset>
+
         {/* Navigation Buttons */}
         <div className="flex items-center justify-between mt-6">
           <button
             type="button"
             onClick={() =>
               isFirstVisibleStep
-                ? navigate("/student-management/students")
+                ? navigate(isEdit ? "/student-management/student-enrollments" : "/student-management/students")
                 : goToPrevStep()
             }
             className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all flex items-center gap-1.5"
@@ -1754,7 +1790,7 @@ export default function StudentEnrollmentForm() {
                 onClick={goToNextStep}
                 className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 transition-all shadow-sm flex items-center gap-1.5"
               >
-                Next
+                {isShow ? "Next" : "Next"}
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>

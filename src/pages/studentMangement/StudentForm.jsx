@@ -300,8 +300,8 @@ export default function StudentForm() {
       </div>
 
       {/* Form body */}
-      <form onSubmit={(e) => e.preventDefault()} className="px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4">
+      <form onSubmit={(e) => e.preventDefault()} className="mx-auto px-4 py-6">
+        <div className="space-y-4">
 
           {/* Step 1: Student Info (combined personal + academic) */}
           {step === 1 && (
@@ -444,20 +444,82 @@ export default function StudentForm() {
             const showRegularDiscount = !hasFourthChild && !hasSpecialStatus;
             const showFoundationHelp = !hasFourthChild; // no fee to help with if free
 
+            const baseFee = feeBreakdown?.base_fee || 0;
+            const finalFee = feeBreakdown?.final_fee || 0;
+            const discountPct = feeBreakdown?.discount_percent || 0;
+            const savings = baseFee - finalFee;
+
             return (
               <div className="space-y-4">
-                {/* Header card */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100 mb-4">
-                    <div className="w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2" />
-                      </svg>
+                {/* ━━━━━━━ LIVE FEE SUMMARY (hero card) ━━━━━━━ */}
+                <div className="relative bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-700 rounded-2xl p-6 overflow-hidden shadow-xl">
+                  {/* Decorative background */}
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-20 translate-x-20" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-10 -translate-x-10" />
+
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-[10px] font-bold text-teal-100 uppercase tracking-wider">Monthly Tuition</p>
+                        <p className="text-[11px] text-teal-200 mt-0.5">Live fee breakdown</p>
+                      </div>
+                      {discountPct > 0 && (
+                        <div className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full">
+                          <span className="text-[10px] font-black text-white uppercase">-{discountPct}% off</span>
+                        </div>
+                      )}
                     </div>
-                    <h3 className="text-sm font-bold text-gray-800">Discount & Support</h3>
+
+                    {feeBreakdown ? (
+                      <>
+                        {/* Big number */}
+                        <div className="flex items-end gap-2 mb-4">
+                          <span className="text-4xl font-black text-white leading-none">
+                            {Number(finalFee).toLocaleString()}
+                          </span>
+                          <span className="text-sm font-semibold text-teal-100 mb-1">AFN / month</span>
+                        </div>
+
+                        {/* Strike-through base fee when discounted */}
+                        {savings > 0 && (
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="text-xs line-through text-teal-200">{Number(baseFee).toLocaleString()} AFN</span>
+                            <span className="text-[10px] px-2 py-0.5 bg-emerald-400/30 text-white rounded-full font-bold">
+                              Saving {Number(savings).toLocaleString()} AFN
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Breakdown pills */}
+                        <div className="flex flex-wrap gap-1.5 pt-3 border-t border-white/20">
+                          {feeBreakdown.breakdown?.filter(r => !r.label.toLowerCase().includes("final")).map((row, i) => {
+                            const isNeg = row.amount < 0;
+                            return (
+                              <div key={i} className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold backdrop-blur-sm
+                                ${isNeg ? "bg-emerald-400/20 text-emerald-50" : "bg-white/20 text-white"}`}>
+                                {row.label}: {isNeg ? "−" : ""}{Math.abs(row.amount).toLocaleString()}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-end gap-2 mb-2">
+                          <span className="text-4xl font-black text-white/40 leading-none">— — —</span>
+                          <span className="text-sm font-semibold text-teal-200 mb-1">AFN / month</span>
+                        </div>
+                        <p className="text-[11px] text-teal-100">Select a class in Step 1 to calculate the fee</p>
+                      </>
+                    )}
                   </div>
-                  <p className="text-[11px] text-gray-500">
-                    Select the <strong>one</strong> discount path that applies to this student. Only one discount category can be active at a time.
+                </div>
+
+                {/* Discount section header */}
+                <div className="px-1">
+                  <h3 className="text-sm font-bold text-gray-800">Apply Discount</h3>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Choose <strong>one</strong> discount path — the fee above updates live.
                   </p>
                 </div>
 
@@ -601,37 +663,6 @@ export default function StudentForm() {
                   <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
                 ) : (isEdit ? "Update Student" : "Register Student")}
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar: Live fee breakdown */}
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sticky top-[80px]">
-            <h3 className="text-sm font-bold text-gray-800 mb-3">Fee Breakdown</h3>
-            {feeBreakdown ? (
-              <div className="space-y-2">
-                {feeBreakdown.breakdown?.map((row, i) => {
-                  const isFinal = row.label.toLowerCase().includes("final");
-                  const isNegative = row.amount < 0;
-                  return (
-                    <div key={i} className={`flex items-center justify-between text-xs py-2 ${isFinal ? "pt-3 mt-2 border-t-2 border-teal-200 font-bold" : "border-b border-gray-50"}`}>
-                      <span className={isFinal ? "text-gray-800" : "text-gray-600"}>{row.label}</span>
-                      <span className={isFinal ? "text-teal-700 text-sm" : isNegative ? "text-red-500" : "text-gray-700"}>
-                        {isNegative ? "- " : ""}{Math.abs(row.amount).toLocaleString()} AFN
-                      </span>
-                    </div>
-                  );
-                })}
-                {feeBreakdown.discount_percent > 0 && (
-                  <div className="mt-3 px-3 py-2 bg-teal-50 rounded-lg">
-                    <p className="text-[10px] font-bold text-teal-700">TOTAL DISCOUNT</p>
-                    <p className="text-sm font-black text-teal-900">{feeBreakdown.discount_percent}%</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400">Select a class to see the fee breakdown</p>
             )}
           </div>
         </div>

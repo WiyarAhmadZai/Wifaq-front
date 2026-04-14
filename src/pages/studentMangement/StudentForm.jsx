@@ -375,24 +375,39 @@ export default function StudentForm() {
                 {/* Family selector */}
                 <div ref={familyRef} className="relative">
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Family *</label>
-                  <div className="relative">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input type="text" value={familySearch}
-                      onChange={(e) => { setFamilySearch(e.target.value); setShowFamilyDropdown(true); }}
-                      onFocus={() => setShowFamilyDropdown(true)}
-                      placeholder="Search by family ID, father, or mother..."
-                      className={`${inp("family_id")} pl-9 pr-10`} />
-                    {form.family_id && (
-                      <button type="button" onClick={clearFamily}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
+                  {form.family_id ? (() => {
+                    const selected = families.find((f) => String(f.id) === String(form.family_id));
+                    const name = selected?.father_name || familySearch;
+                    const phone = selected?.father_phone || "";
+                    return (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5 border border-teal-200 bg-teal-50/50 rounded-xl">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold shrink-0">
+                            {name?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
+                            {phone && <p className="text-[11px] text-gray-500 truncate">{phone}</p>}
+                          </div>
+                        </div>
+                        <button type="button" onClick={clearFamily}
+                          className="text-[10px] font-semibold text-teal-700 hover:text-teal-900 px-2 py-1 rounded-lg hover:bg-teal-100">
+                          Change
+                        </button>
+                      </div>
+                    );
+                  })() : (
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input type="text" value={familySearch}
+                        onChange={(e) => { setFamilySearch(e.target.value); setShowFamilyDropdown(true); }}
+                        onFocus={() => setShowFamilyDropdown(true)}
+                        placeholder="Search by family ID, father, or mother..."
+                        className={`${inp("family_id")} pl-9 pr-10`} />
+                    </div>
+                  )}
                   {showFamilyDropdown && !form.family_id && filteredFamilies.length > 0 && (
                     <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
                       {filteredFamilies.slice(0, 10).map((f) => (

@@ -14,6 +14,7 @@ export default function VehicleForm() {
     plate_number: "",
     total_seats: "",
     route_id: "",
+    monthly_fee: "",
     driver_name: "",
     driver_contact: "",
     driver_age: "",
@@ -51,6 +52,7 @@ export default function VehicleForm() {
         plate_number: vehicleData.plate_number || "",
         total_seats: vehicleData.total_seats || "",
         route_id: vehicleData.route_id || "",
+        monthly_fee: vehicleData.monthly_fee || "",
         driver_name: vehicleData.driver_name || "",
         driver_contact: vehicleData.driver_contact || "",
         driver_age: vehicleData.driver_age || "",
@@ -199,6 +201,27 @@ export default function VehicleForm() {
           {getFieldError("route_id") && (
             <p className="text-red-500 text-[10px] mt-1">
               {getFieldError("route_id")}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Monthly Fee (AFN) *
+          </label>
+          <input
+            type="number"
+            name="monthly_fee"
+            value={formData.monthly_fee}
+            onChange={handleChange}
+            required
+            min="0"
+            step="0.01"
+            className={getFieldClass("monthly_fee")}
+            placeholder="e.g. 1000"
+          />
+          {getFieldError("monthly_fee") && (
+            <p className="text-red-500 text-[10px] mt-1">
+              {getFieldError("monthly_fee")}
             </p>
           )}
         </div>

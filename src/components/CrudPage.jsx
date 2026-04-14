@@ -19,6 +19,7 @@ export default function CrudPage({
   statusField = "status",
   statusOptions = [],
   statusSuffix = "",
+  baseParams = {},
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -36,6 +37,9 @@ export default function CrudPage({
       const params = new URLSearchParams();
       params.append("page", page);
       if (search) params.append("search", search);
+      Object.entries(baseParams || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") params.append(k, v);
+      });
 
       const response = await get(`${apiEndpoint}?${params.toString()}`);
       const data = response.data?.data || response.data || [];
@@ -58,7 +62,7 @@ export default function CrudPage({
       Swal.fire({ title: errorTitle, text: errorMessage, icon: "error", confirmButtonColor: "#0d9488" });
       setItems([]);
     } finally { setLoading(false); }
-  }, [apiEndpoint, searchQuery]);
+  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams)]);
 
   useEffect(() => { fetchItems(1, ""); }, []);
 

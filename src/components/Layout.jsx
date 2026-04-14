@@ -553,6 +553,10 @@ export default function Layout() {
       path: "/student-management/student-enrollments",
     },
     {
+      label: "Students List",
+      path: "/student-management/enrolled-students",
+    },
+    {
       label: "Foundation Requests",
       path: "/student-management/foundation-requests",
     },

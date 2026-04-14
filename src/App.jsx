@@ -101,6 +101,7 @@ const RouteForm = lazy(() => import("./pages/studentMangement/RouteForm"));
 const Vehicles = lazy(() => import("./pages/studentMangement/Vehicles"));
 const VehicleForm = lazy(() => import("./pages/studentMangement/VehicleForm"));
 const Students = lazy(() => import("./pages/studentMangement/Students"));
+const EnrolledStudents = lazy(() => import("./pages/studentMangement/EnrolledStudents"));
 const FoundationRequests = lazy(() => import("./pages/studentMangement/FoundationRequests"));
 const FoundationRequestShow = lazy(() => import("./pages/studentMangement/FoundationRequestShow"));
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
@@ -322,6 +323,7 @@ function App() {
 
             {/* Student Management */}
             <Route path="student-management/students" element={<Suspense fallback={<PageLoader />}><Students /></Suspense>} />
+            <Route path="student-management/enrolled-students" element={<Suspense fallback={<PageLoader />}><EnrolledStudents /></Suspense>} />
             <Route path="student-management/students/create" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />

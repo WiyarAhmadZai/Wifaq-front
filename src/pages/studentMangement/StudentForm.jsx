@@ -44,7 +44,6 @@ export default function StudentForm() {
     date_of_birth: "",
     gender: "",
     school_class_id: "",
-    academic_term_id: "",
     enrollment_date: new Date().toISOString().split("T")[0],
     enrollment_type: "new",
     uniform_required: false,
@@ -60,7 +59,7 @@ export default function StudentForm() {
 
   const [families, setFamilies] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [academicTerms, setAcademicTerms] = useState([]);
+  const [currentTerm, setCurrentTerm] = useState(null);
   const [employeeParents, setEmployeeParents] = useState([]);
   const [feeBreakdown, setFeeBreakdown] = useState(null);
 
@@ -79,12 +78,8 @@ export default function StudentForm() {
         const res = await get("/student-management/students/form-data");
         setFamilies(res.data?.families || []);
         setClasses(res.data?.classes || []);
-        setAcademicTerms(res.data?.academic_terms || []);
+        setCurrentTerm(res.data?.current_term || null);
         setEmployeeParents(res.data?.employee_parents || []);
-        // Auto-select latest term
-        if (res.data?.academic_terms?.length) {
-          setForm((p) => ({ ...p, academic_term_id: res.data.academic_terms[0].id }));
-        }
       } catch (error) {
         console.error("Failed to load form data", error);
       }
@@ -147,7 +142,6 @@ export default function StudentForm() {
           date_of_birth: d.date_of_birth?.split("T")[0] || "",
           gender: d.gender || "",
           school_class_id: d.school_class_id || "",
-          academic_term_id: d.academic_term_id || "",
           enrollment_date: d.enrollment_date?.split("T")[0] || "",
           enrollment_type: d.enrollment_type || "new",
           uniform_required: d.uniform_required || false,
@@ -204,7 +198,7 @@ export default function StudentForm() {
   const canNext = () => {
     if (step === 1) {
       return form.family_id && form.first_name && form.last_name && form.date_of_birth
-        && form.school_class_id && form.enrollment_date && form.academic_term_id;
+        && form.school_class_id && form.enrollment_date;
     }
     return true;
   };
@@ -384,13 +378,20 @@ export default function StudentForm() {
 
               {/* Academic card */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                  <div className="w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13" />
-                    </svg>
+                <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13" />
+                      </svg>
+                    </div>
+                    <h3 className="text-sm font-bold text-gray-800">Academic Placement</h3>
                   </div>
-                  <h3 className="text-sm font-bold text-gray-800">Academic Placement</h3>
+                  {currentTerm && (
+                    <span className="text-[10px] px-2 py-1 bg-teal-50 text-teal-700 rounded-full font-semibold">
+                      Year: {currentTerm.name}
+                    </span>
+                  )}
                 </div>
 
                 <div>
@@ -399,21 +400,39 @@ export default function StudentForm() {
                     <option value="">Select class...</option>
                     {classes.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.class_name} ({c.shift === "morning" ? "AM" : "PM"}) — Base: {c.grade?.base_fee || 3500} AFN
+                        {c.class_name} ({c.shift === "morning" ? "AM" : "PM"}) — {c.available_seats}/{c.capacity} seats available · {c.grade?.base_fee || 3500} AFN
                       </option>
                     ))}
                   </select>
                   {err("school_class_id") && <p className="text-red-500 text-[10px] mt-1">{err("school_class_id")}</p>}
+
+                  {/* Selected class capacity card */}
+                  {form.school_class_id && (() => {
+                    const sel = classes.find((c) => c.id == form.school_class_id);
+                    if (!sel) return null;
+                    const usedPct = sel.capacity > 0 ? (sel.enrolled_count / sel.capacity) * 100 : 0;
+                    const barColor = usedPct >= 90 ? "bg-amber-500" : "bg-teal-500";
+                    return (
+                      <div className="mt-2 p-3 bg-gray-50 rounded-xl">
+                        <div className="flex items-center justify-between text-[11px] mb-1.5">
+                          <span className="font-semibold text-gray-700">{sel.class_name} capacity</span>
+                          <span className="text-gray-500">{sel.enrolled_count} / {sel.capacity} enrolled</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${Math.min(100, usedPct)}%` }} />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1.5">
+                          <strong>{sel.available_seats}</strong> seat{sel.available_seats !== 1 ? "s" : ""} remaining
+                        </p>
+                      </div>
+                    );
+                  })()}
+                  {classes.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-2">⚠ No classes with available capacity in the current academic year. Create more classes or increase capacity.</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Academic Term *</label>
-                    <select name="academic_term_id" value={form.academic_term_id} onChange={handle} className={inp("academic_term_id")}>
-                      <option value="">Select term...</option>
-                      {academicTerms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Enrollment Date *</label>
                     <input type="date" name="enrollment_date" value={form.enrollment_date} onChange={handle} className={inp("enrollment_date")} />

@@ -552,6 +552,10 @@ export default function Layout() {
       label: "Phase 2 - Students Registration",
       path: "/student-management/student-enrollments",
     },
+    {
+      label: "Foundation Requests",
+      path: "/student-management/foundation-requests",
+    },
   ];
 
   const academic = [

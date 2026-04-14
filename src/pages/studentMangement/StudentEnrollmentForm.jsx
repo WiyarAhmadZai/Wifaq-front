@@ -349,7 +349,7 @@ export default function StudentEnrollmentForm() {
       ...prev,
       transport_route_id: route.id,
       transport_vehicle_id: "",
-      transport_monthly_fee: route.fee || "",
+      transport_monthly_fee: "",
     }));
     setRouteSearch(route.route_name);
     setShowRouteDropdown(false);
@@ -367,7 +367,11 @@ export default function StudentEnrollmentForm() {
   };
 
   const pickVehicle = (vehicle) => {
-    setFormData((prev) => ({ ...prev, transport_vehicle_id: vehicle.id }));
+    setFormData((prev) => ({
+      ...prev,
+      transport_vehicle_id: vehicle.id,
+      transport_monthly_fee: vehicle.monthly_fee || "",
+    }));
     setVehicleSearch(`${vehicle.plate_number} — ${vehicle.driver_name || "No driver"}`);
     setShowVehicleDropdown(false);
   };
@@ -1096,9 +1100,9 @@ export default function StudentEnrollmentForm() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-800 truncate">{selectedRoute.route_name}</p>
-                      <p className="text-[10px] text-teal-700">
-                        Fee: {selectedRoute.fee ? `${Number(selectedRoute.fee).toLocaleString()} AFN/month` : "—"}
-                      </p>
+                      {selectedRoute.description && (
+                        <p className="text-[10px] text-teal-700 truncate">{selectedRoute.description}</p>
+                      )}
                     </div>
                     <button type="button" onClick={clearRoute} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1135,9 +1139,9 @@ export default function StudentEnrollmentForm() {
                             >
                               <div className="flex items-center justify-between">
                                 <span className="text-xs font-semibold text-gray-800">{route.route_name}</span>
-                                {route.fee && (
+                                {route.vehicles_count != null && (
                                   <span className="text-[10px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
-                                    {Number(route.fee).toLocaleString()} AFN
+                                    {route.vehicles_count} vehicle{route.vehicles_count === 1 ? "" : "s"}
                                   </span>
                                 )}
                               </div>
@@ -1173,9 +1177,14 @@ export default function StudentEnrollmentForm() {
                             <span className="text-[10px] text-gray-500 font-normal ml-1.5">· {selectedVehicle.driver_name}</span>
                           )}
                         </p>
-                        <p className="text-[10px] text-cyan-700">
-                          Seats: {selectedVehicle.available_seat}/{selectedVehicle.total_seats} available
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-cyan-700">
+                            Seats: {selectedVehicle.available_seat}/{selectedVehicle.total_seats}
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-700">
+                            · {selectedVehicle.monthly_fee != null ? `${Number(selectedVehicle.monthly_fee).toLocaleString()} AFN/month` : "Fee: —"}
+                          </span>
+                        </div>
                       </div>
                       <button type="button" onClick={clearVehicle} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1213,16 +1222,21 @@ export default function StudentEnrollmentForm() {
                                   onClick={() => !full && pickVehicle(vehicle)}
                                   className={`w-full text-left px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 ${full ? "opacity-50 cursor-not-allowed bg-gray-50" : "hover:bg-teal-50"}`}
                                 >
-                                  <div className="flex items-center justify-between">
-                                    <div>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
                                       <p className="text-xs font-semibold text-gray-800">{vehicle.plate_number}</p>
                                       {vehicle.driver_name && (
-                                        <p className="text-[10px] text-gray-500">{vehicle.driver_name}{vehicle.driver_contact ? ` · ${vehicle.driver_contact}` : ""}</p>
+                                        <p className="text-[10px] text-gray-500 truncate">{vehicle.driver_name}{vehicle.driver_contact ? ` · ${vehicle.driver_contact}` : ""}</p>
                                       )}
                                     </div>
-                                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${full ? "text-red-600 bg-red-50" : "text-teal-700 bg-teal-50"}`}>
-                                      {vehicle.available_seat}/{vehicle.total_seats} seats
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                      <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                                        {vehicle.monthly_fee != null ? `${Number(vehicle.monthly_fee).toLocaleString()} AFN/mo` : "—"}
+                                      </span>
+                                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${full ? "text-red-600 bg-red-50" : "text-teal-700 bg-teal-50"}`}>
+                                        {vehicle.available_seat}/{vehicle.total_seats} seats
+                                      </span>
+                                    </div>
                                   </div>
                                 </button>
                               );
@@ -1249,14 +1263,16 @@ export default function StudentEnrollmentForm() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Monthly Fee (AFN)</label>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                      Monthly Fee (AFN)
+                      <span className="ml-1 text-[9px] text-emerald-600 font-normal">(auto from vehicle)</span>
+                    </label>
                     <input
                       type="number"
                       name="transport_monthly_fee"
                       value={formData.transport_monthly_fee}
-                      onChange={handleChange}
-                      placeholder="Auto-filled from route"
-                      className={inputClass("transport_monthly_fee")}
+                      readOnly
+                      className={`${inputClass("transport_monthly_fee")} bg-emerald-50 text-emerald-800 font-bold cursor-not-allowed`}
                     />
                   </div>
                   <div>

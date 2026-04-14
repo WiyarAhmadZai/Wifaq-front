@@ -41,12 +41,6 @@ const steps = [
     shortTitle: "Questionnaire",
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
   },
-  {
-    id: 7,
-    title: "Transfer System",
-    shortTitle: "Transfer",
-    icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
-  },
 ];
 
 function Toggle({ name, id, checked, onChange, label }) {
@@ -179,16 +173,7 @@ export default function StudentEnrollmentForm() {
     uniform_sleeve: "",
     tailor_note: "",
     // Step 6: Family Questionnaire
-    questionnaire_status: "not_sent",
     parental_consent: false,
-    // Step 7: Transfer System
-    transfer_agreement: false,
-    transfer_first_parcha: false,
-    transfer_sawabiq: false,
-    transfer_assurance_request: false,
-    transfer_itminaniya: false,
-    transfer_case_status: "pending",
-    transfer_additional_notes: "",
   });
 
   const [files, setFiles] = useState({
@@ -280,20 +265,18 @@ export default function StudentEnrollmentForm() {
     setStudentLocked(false);
   };
 
-  // Fetch active routes when transport step becomes relevant
+  // Fetch active routes once on mount — step 3 is always available now
   useEffect(() => {
-    if (selectedStudent?.transportation_required || isEdit) {
-      (async () => {
-        try {
-          const res = await get("/transportation/routes/active/list");
-          const data = res.data?.data || res.data || [];
-          setRoutes(Array.isArray(data) ? data : []);
-        } catch (err) {
-          console.error("Failed to fetch routes", err);
-        }
-      })();
-    }
-  }, [selectedStudent, isEdit]);
+    (async () => {
+      try {
+        const res = await get("/transportation/routes/active/list");
+        const data = res.data?.data || res.data || [];
+        setRoutes(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch routes", err);
+      }
+    })();
+  }, []);
 
   // Fetch vehicles for the selected route
   useEffect(() => {
@@ -415,11 +398,7 @@ export default function StudentEnrollmentForm() {
         uniform_shoulder: data.uniform_shoulder || "",
         uniform_sleeve: data.uniform_sleeve || "",
         tailor_note: data.tailor_note || "",
-        questionnaire_status: data.questionnaire_status || "not_sent",
         parental_consent: data.parental_consent || false,
-        transfer_agreement_notes: data.transfer_agreement_notes || "",
-        transfer_case_status: data.transfer_case_status || "pending",
-        transfer_additional_notes: data.transfer_additional_notes || "",
       }));
     } catch (error) {
       Swal.fire("Error", "Failed to load student data", "error");
@@ -445,32 +424,6 @@ export default function StudentEnrollmentForm() {
     }
   };
 
-  const transferSteps = [
-    { key: "transfer_agreement", label: "Agreement / Muwafaqa Namadhe" },
-    { key: "transfer_first_parcha", label: "First Parcha" },
-    { key: "transfer_sawabiq", label: "Records / Sawabiq (2nd Parcha + Karte Sawani)" },
-    { key: "transfer_assurance_request", label: "Assurance Request" },
-    { key: "transfer_itminaniya", label: "Itminaniya" },
-  ];
-
-  const handleTransferCheck = (index) => {
-    const keys = transferSteps.map((s) => s.key);
-    const currentVal = formData[keys[index]];
-    setFormData((prev) => {
-      const updated = { ...prev };
-      if (!currentVal) {
-        // Checking: just check this one
-        updated[keys[index]] = true;
-      } else {
-        // Unchecking: uncheck this and all after it
-        for (let i = index; i < keys.length; i++) {
-          updated[keys[i]] = false;
-        }
-      }
-      return updated;
-    });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isEdit && !selectedStudentId) {
@@ -481,6 +434,21 @@ export default function StudentEnrollmentForm() {
     setErrors({});
     try {
       const targetId = isEdit ? id : selectedStudentId;
+
+      // If user changed transport/uniform opt-in during Phase 2, sync back to the Phase 1 student record
+      const phase1Patch = {};
+      if (selectedStudent) {
+        if (Boolean(selectedStudent.transportation_required) !== wantsTransport) {
+          phase1Patch.transportation_required = wantsTransport;
+        }
+        if (Boolean(selectedStudent.uniform_required) !== Boolean(formData.need_uniform)) {
+          phase1Patch.uniform_required = Boolean(formData.need_uniform);
+        }
+      }
+      if (Object.keys(phase1Patch).length > 0) {
+        await put(`/student-management/students/update/${targetId}`, phase1Patch);
+      }
+
       // Mark the student as phase_2 complete — transitions to enrolled list
       await put(`/student-management/students/${targetId}/complete-phase-2`);
       Swal.fire("Success", "Student officially enrolled (Phase 2 complete)", "success");
@@ -494,9 +462,24 @@ export default function StudentEnrollmentForm() {
     }
   };
 
-  // Conditional step helpers — Transport (step 3) only shown when student requested transport
+  // All steps always visible — user can opt-in to transport/uniform in Phase 2
+  // even if they didn't choose it in Phase 1.
+  const visibleSteps = steps;
   const needsTransport = Boolean(selectedStudent?.transportation_required);
-  const visibleSteps = steps.filter((s) => s.id !== 3 || needsTransport);
+
+  // User's current intent for transport/uniform (can differ from Phase 1 choice)
+  const [wantsTransport, setWantsTransport] = useState(false);
+
+  // Sync wantsTransport + need_uniform with the selected student on load
+  useEffect(() => {
+    if (selectedStudent) {
+      setWantsTransport(Boolean(selectedStudent.transportation_required));
+      setFormData((prev) => ({
+        ...prev,
+        need_uniform: Boolean(selectedStudent.uniform_required),
+      }));
+    }
+  }, [selectedStudent]);
 
   const goToNextStep = () => {
     const currentIdx = visibleSteps.findIndex((s) => s.id === currentStep);
@@ -512,13 +495,6 @@ export default function StudentEnrollmentForm() {
   };
   const isFirstVisibleStep = visibleSteps[0]?.id === currentStep;
   const isLastVisibleStep = visibleSteps[visibleSteps.length - 1]?.id === currentStep;
-
-  // If Transport step is currently active but student doesn't need transport, skip to next
-  useEffect(() => {
-    if (currentStep === 3 && !needsTransport && selectedStudent) {
-      setCurrentStep(4);
-    }
-  }, [needsTransport, selectedStudent, currentStep]);
 
   const getFieldError = (fieldName) => errors[fieldName]?.[0];
   const inputClass = (fieldName) => {
@@ -1074,8 +1050,8 @@ export default function StudentEnrollmentForm() {
           </div>
         )}
 
-        {/* ── Step 3: Transport (only when student requested transport) ── */}
-        {currentStep === 3 && needsTransport && (
+        {/* ── Step 3: Transport ── */}
+        {currentStep === 3 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 relative z-30">
             <SectionHeader
               gradient="from-teal-50 to-cyan-50"
@@ -1086,6 +1062,40 @@ export default function StudentEnrollmentForm() {
               subtitle="Select route, vehicle and pickup/drop-off details"
             />
             <div className="p-5 space-y-5">
+              {/* Opt-in toggle */}
+              <div className={`flex items-center justify-between p-4 rounded-xl border ${wantsTransport ? "bg-teal-50 border-teal-200" : "bg-amber-50 border-amber-200"}`}>
+                <div className="flex-1">
+                  <p className={`text-xs font-bold ${wantsTransport ? "text-teal-800" : "text-amber-800"}`}>
+                    {needsTransport ? "Student requested transport in Phase 1" : "Student did NOT request transport in Phase 1"}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${wantsTransport ? "text-teal-600" : "text-amber-600"}`}>
+                    {needsTransport
+                      ? "You can still change this choice before finalizing enrollment"
+                      : "Toggle ON if the student now wants transport — the Phase 1 status will be updated"}
+                  </p>
+                </div>
+                <Toggle
+                  name="wantsTransport"
+                  id="wantsTransport"
+                  checked={wantsTransport}
+                  onChange={(e) => setWantsTransport(e.target.checked)}
+                  label=""
+                />
+              </div>
+
+              {/* Gated fields: only when user opted in */}
+              {!wantsTransport && (
+                <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                  <p className="text-xs text-gray-500 font-medium">Transport is disabled for this student</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Enable the toggle above to configure route and vehicle</p>
+                </div>
+              )}
+
+              {wantsTransport && (
+              <>
               {/* Route Selector (Select2) */}
               <div ref={routeRef} className="relative">
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
@@ -1334,6 +1344,8 @@ export default function StudentEnrollmentForm() {
                   </div>
                 </div>
               )}
+              </>
+              )}
             </div>
           </div>
         )}
@@ -1350,10 +1362,18 @@ export default function StudentEnrollmentForm() {
               subtitle="Uniform measurements and requirements"
             />
             <div className="p-5 space-y-5">
-              <div className="flex items-center justify-between p-4 bg-teal-50 rounded-xl border border-teal-100">
-                <div>
-                  <p className="text-xs font-bold text-teal-800">Need a Uniform?</p>
-                  <p className="text-[10px] text-teal-600 mt-0.5">Enable if the student needs a school uniform</p>
+              <div className={`flex items-center justify-between p-4 rounded-xl border ${formData.need_uniform ? "bg-teal-50 border-teal-200" : "bg-amber-50 border-amber-200"}`}>
+                <div className="flex-1">
+                  <p className={`text-xs font-bold ${formData.need_uniform ? "text-teal-800" : "text-amber-800"}`}>
+                    {selectedStudent?.uniform_required
+                      ? "Student requested uniform in Phase 1"
+                      : "Student did NOT request uniform in Phase 1"}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${formData.need_uniform ? "text-teal-600" : "text-amber-600"}`}>
+                    {selectedStudent?.uniform_required
+                      ? "You can still change this choice before finalizing enrollment"
+                      : "Toggle ON if the student now wants a uniform — the Phase 1 status will be updated"}
+                  </p>
                 </div>
                 <Toggle
                   name="need_uniform"
@@ -1363,6 +1383,16 @@ export default function StudentEnrollmentForm() {
                   label=""
                 />
               </div>
+
+              {!formData.need_uniform && (
+                <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  <p className="text-xs text-gray-500 font-medium">Uniform is disabled for this student</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Enable the toggle above to enter uniform details</p>
+                </div>
+              )}
 
               {formData.need_uniform && (
                 <>
@@ -1597,7 +1627,7 @@ export default function StudentEnrollmentForm() {
           </div>
         )}
 
-        {/* ── Step 6: Family Questionnaire ── */}
+        {/* ── Step 6: Family Questionnaire / Commitment ── */}
         {currentStep === 6 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
@@ -1606,252 +1636,80 @@ export default function StudentEnrollmentForm() {
               iconColor="text-teal-600"
               icon={steps[5].icon}
               title="Family Questionnaire"
-              subtitle="Questionnaire status and parental consent"
+              subtitle="Review the commitment document and confirm parental consent"
             />
             <div className="p-5 space-y-5">
-              {/* Info notice */}
-              <div className="bg-teal-50 border border-teal-100 rounded-xl p-4">
-                <p className="text-xs font-semibold text-teal-800 mb-1">About the Questionnaire</p>
-                <p className="text-[11px] text-teal-700 leading-relaxed">
-                  The questionnaire will be given to the family (printed or linked). It will be returned
-                  after completion.
-                </p>
-                <p className="text-[11px] text-amber-700 mt-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  The fee can be paid without completing the questionnaire — the system will remind you.
-                </p>
-              </div>
-
-              {/* Questionnaire Status */}
+              {/* Document viewer */}
               <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-2">
-                  Questionnaire Status
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { value: "not_sent", label: "Not Sent", color: "border-gray-200 bg-gray-50 text-gray-600", selected: "ring-2 ring-gray-400 border-gray-400 bg-gray-50" },
-                    { value: "sent", label: "Sent", color: "border-blue-200 bg-blue-50 text-blue-700", selected: "ring-2 ring-blue-400 border-blue-400 bg-blue-50" },
-                    { value: "completed", label: "Completed", color: "border-teal-200 bg-teal-50 text-teal-700", selected: "ring-2 ring-teal-400 border-teal-400 bg-teal-50" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, questionnaire_status: opt.value }))}
-                      className={`p-3 rounded-xl border-2 text-left transition-all font-semibold text-xs ${
-                        formData.questionnaire_status === opt.value ? opt.selected : "border-gray-200 bg-white hover:border-gray-300 text-gray-600"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Send Questionnaire Actions */}
-              <div>
-                <p className="text-[11px] font-semibold text-gray-600 mb-2">Send Questionnaire</p>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
-                    onClick={() => Swal.fire("WhatsApp", "WhatsApp sending feature coming soon.", "info")}
-                  >
-                    <span>📱</span>
-                    WhatsApp
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
-                    onClick={() => Swal.fire("Email", "Email sending feature coming soon.", "info")}
-                  >
-                    <span>📧</span>
-                    Email
-                  </button>
-                </div>
-              </div>
-
-              {/* Parental Consent */}
-              <div className="pt-4 border-t border-gray-100">
-                <p className="text-[10px] font-bold text-gray-700 uppercase tracking-wider mb-3">
-                  Commitment — Parental Consent
-                </p>
-                <label
-                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    formData.parental_consent
-                      ? "border-teal-300 bg-teal-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    name="parental_consent"
-                    checked={formData.parental_consent}
-                    onChange={handleChange}
-                    className="mt-0.5 w-4 h-4 accent-teal-600 rounded"
-                  />
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                   <div>
-                    <p className={`text-xs font-semibold ${formData.parental_consent ? "text-teal-800" : "text-gray-700"}`}>
-                      Yes, I agree to school terms
-                    </p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">
-                      The parent/guardian confirms agreement to the school's rules and conditions.
-                    </p>
+                    <p className="text-[11px] font-semibold text-gray-700">تعهدنامه اولیای شاگردان مکتب وفاق</p>
+                    <p className="text-[10px] text-gray-400">Parent / Guardian Agreement — please review before signing</p>
                   </div>
-                  {formData.parental_consent && (
-                    <div className="ml-auto flex-shrink-0">
-                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  )}
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 7: Transfer System (Government) ── */}
-        {currentStep === 7 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <SectionHeader
-              gradient="from-teal-50 to-cyan-50"
-              iconBg="bg-teal-100"
-              iconColor="text-teal-600"
-              icon={steps[6].icon}
-              title="Transfer System (Government)"
-              subtitle="Complete each step in order to proceed to the next"
-            />
-            <div className="p-5 space-y-5">
-              {/* Sequential Checkboxes */}
-              <div>
-                <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3">
-                  Transfer Documents — Complete in Order
-                </p>
-                <div className="space-y-2">
-                  {transferSteps.map((item, index) => {
-                    const isChecked = formData[item.key];
-                    const prevChecked = index === 0 || formData[transferSteps[index - 1].key];
-                    const isDisabled = !prevChecked;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => handleTransferCheck(index)}
-                        className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${
-                          isChecked
-                            ? "border-teal-400 bg-teal-50"
-                            : isDisabled
-                            ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
-                            : "border-gray-200 bg-white hover:border-teal-300 hover:bg-teal-50 cursor-pointer"
-                        }`}
-                      >
-                        {/* Step number / check icon */}
-                        <div
-                          className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center border-2 transition-all ${
-                            isChecked
-                              ? "bg-teal-500 border-teal-500"
-                              : isDisabled
-                              ? "bg-gray-100 border-gray-200"
-                              : "bg-white border-gray-300"
-                          }`}
-                        >
-                          {isChecked ? (
-                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <span className={`text-[10px] font-bold ${isDisabled ? "text-gray-300" : "text-gray-400"}`}>
-                              {index + 1}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Label */}
-                        <span
-                          className={`text-xs font-semibold flex-1 ${
-                            isChecked ? "text-teal-800" : isDisabled ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          {item.label}
-                        </span>
-
-                        {/* Status badge */}
-                        {isChecked ? (
-                          <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">
-                            Done
-                          </span>
-                        ) : isDisabled ? (
-                          <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">Pending</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Progress */}
-                <div className="mt-4 bg-teal-50 rounded-xl p-3 border border-teal-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-semibold text-teal-700">Progress</p>
-                    <p className="text-[10px] font-bold text-teal-800">
-                      {transferSteps.filter((s) => formData[s.key]).length} / {transferSteps.length}
-                    </p>
-                  </div>
-                  <div className="h-1.5 bg-teal-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-teal-500 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${(transferSteps.filter((s) => formData[s.key]).length / transferSteps.length) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Case Status */}
-              <div className="pt-4 border-t border-gray-100">
-                <label className="block text-[11px] font-semibold text-gray-600 mb-2">
-                  Case Status
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { value: "pending", label: "Pending" },
-                    { value: "in_progress", label: "In Progress" },
-                    { value: "completed", label: "Completed" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, transfer_case_status: opt.value }))}
-                      className={`p-3 rounded-xl border-2 text-left transition-all font-semibold text-xs ${
-                        formData.transfer_case_status === opt.value
-                          ? "ring-2 ring-teal-400 border-teal-400 bg-teal-50 text-teal-700"
-                          : "border-gray-200 bg-white hover:border-teal-200 text-gray-600"
-                      }`}
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="/documents/ws-parent-contract.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
                     >
-                      {opt.label}
-                    </button>
-                  ))}
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Open in new tab
+                    </a>
+                    <a
+                      href="/documents/ws-parent-contract.pdf"
+                      download="ws-parent-contract.pdf"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </a>
+                  </div>
+                </div>
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                  <iframe
+                    src="/documents/ws-parent-contract.pdf"
+                    title="Family Commitment Document"
+                    className="w-full h-[560px]"
+                  />
                 </div>
               </div>
 
-              {/* Additional Notes */}
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Additional Notes
-                </label>
-                <textarea
-                  name="transfer_additional_notes"
-                  value={formData.transfer_additional_notes}
+              {/* Parental consent checkbox */}
+              <label
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  formData.parental_consent
+                    ? "border-teal-300 bg-teal-50"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  name="parental_consent"
+                  checked={formData.parental_consent}
                   onChange={handleChange}
-                  placeholder="Any additional notes about the transfer process, pending items, or follow-ups..."
-                  rows={4}
-                  className={`${inputClass("transfer_additional_notes")} resize-none`}
+                  className="mt-0.5 w-4 h-4 accent-teal-600 rounded"
                 />
-              </div>
+                <div className="flex-1">
+                  <p className={`text-xs font-semibold ${formData.parental_consent ? "text-teal-800" : "text-gray-700"}`}>
+                    The parent has read and signed the commitment document
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">
+                    Tick this box to confirm the parent/guardian has reviewed and agreed to the terms above.
+                  </p>
+                </div>
+                {formData.parental_consent && (
+                  <div className="ml-auto flex-shrink-0">
+                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </label>
             </div>
           </div>
         )}

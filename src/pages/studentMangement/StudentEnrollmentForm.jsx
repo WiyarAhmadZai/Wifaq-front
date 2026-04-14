@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { get, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -122,7 +122,28 @@ function FileInput({ label, name, onChange, file }) {
 export default function StudentEnrollmentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
+
+  // Student selection (Phase 2 target)
+  const prefilledStudentId = searchParams.get("student_id");
+  const [selectedStudentId, setSelectedStudentId] = useState(prefilledStudentId || "");
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [phase1Students, setPhase1Students] = useState([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [studentLocked, setStudentLocked] = useState(Boolean(prefilledStudentId));
+  const studentRef = useRef(null);
+
+  // Transport route & vehicle state
+  const [routes, setRoutes] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [routeSearch, setRouteSearch] = useState("");
+  const [showRouteDropdown, setShowRouteDropdown] = useState(false);
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+  const routeRef = useRef(null);
+  const vehicleRef = useRef(null);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -142,10 +163,12 @@ export default function StudentEnrollmentForm() {
     has_special_needs: false,
     health_details: "",
     // Step 3: Transport
-    transport_route: "",
+    transport_route_id: "",
+    transport_vehicle_id: "",
     transport_pickup_point: "",
     transport_pickup_time: "",
     transport_dropoff_point: "",
+    transport_monthly_fee: "",
     // Step 4: Uniform
     need_uniform: false,
     uniform_price: "",
@@ -185,6 +208,175 @@ export default function StudentEnrollmentForm() {
     if (isEdit) fetchStudent();
   }, [id]);
 
+  // Fetch phase 1 students list for selection (always, so user can change choice)
+  useEffect(() => {
+    if (!isEdit) {
+      fetchPhase1Students();
+    }
+  }, []);
+
+  // When a student id is set (from URL or selection), fetch full student data
+  useEffect(() => {
+    if (prefilledStudentId) {
+      fetchSelectedStudent(prefilledStudentId);
+    }
+  }, [prefilledStudentId]);
+
+  // Close student dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (studentRef.current && !studentRef.current.contains(e.target)) {
+        setShowStudentDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchPhase1Students = async () => {
+    try {
+      const response = await get("/student-management/students/list?registration_status=phase_1&per_page=1000");
+      const data = response.data?.data || [];
+      setPhase1Students(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch phase 1 students", error);
+    }
+  };
+
+  const fetchSelectedStudent = async (studentId) => {
+    try {
+      const response = await get(`/student-management/students/show/${studentId}`);
+      const data = response.data?.data || response.data;
+      setSelectedStudent(data);
+    } catch (error) {
+      console.error("Failed to fetch student", error);
+    }
+  };
+
+  const filteredStudents = phase1Students.filter((s) => {
+    const q = studentSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      (s.student_id && s.student_id.toLowerCase().includes(q)) ||
+      (s.first_name && s.first_name.toLowerCase().includes(q)) ||
+      (s.last_name && s.last_name.toLowerCase().includes(q)) ||
+      `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase().includes(q) ||
+      String(s.id).includes(q)
+    );
+  });
+
+  const selectStudent = (student) => {
+    setSelectedStudentId(student.id);
+    setSelectedStudent(student);
+    setStudentSearch(`${student.student_id || "#" + student.id} - ${student.first_name} ${student.last_name}`);
+    setShowStudentDropdown(false);
+    setStudentLocked(true);
+  };
+
+  const clearStudent = () => {
+    setSelectedStudentId("");
+    setSelectedStudent(null);
+    setStudentSearch("");
+    setStudentLocked(false);
+  };
+
+  // Fetch active routes when transport step becomes relevant
+  useEffect(() => {
+    if (selectedStudent?.transportation_required || isEdit) {
+      (async () => {
+        try {
+          const res = await get("/transportation/routes/active/list");
+          const data = res.data?.data || res.data || [];
+          setRoutes(Array.isArray(data) ? data : []);
+        } catch (err) {
+          console.error("Failed to fetch routes", err);
+        }
+      })();
+    }
+  }, [selectedStudent, isEdit]);
+
+  // Fetch vehicles for the selected route
+  useEffect(() => {
+    if (formData.transport_route_id) {
+      (async () => {
+        try {
+          const res = await get(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
+          const data = res.data?.data || res.data || [];
+          setVehicles(Array.isArray(data) ? data : []);
+        } catch (err) {
+          console.error("Failed to fetch vehicles", err);
+          setVehicles([]);
+        }
+      })();
+    } else {
+      setVehicles([]);
+    }
+  }, [formData.transport_route_id]);
+
+  // Click outside handlers for route/vehicle dropdowns
+  useEffect(() => {
+    const handler = (e) => {
+      if (routeRef.current && !routeRef.current.contains(e.target)) setShowRouteDropdown(false);
+      if (vehicleRef.current && !vehicleRef.current.contains(e.target)) setShowVehicleDropdown(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectedRoute = routes.find((r) => r.id == formData.transport_route_id);
+  const selectedVehicle = vehicles.find((v) => v.id == formData.transport_vehicle_id);
+
+  const filteredRoutes = routes.filter((r) => {
+    const q = routeSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      (r.route_name && r.route_name.toLowerCase().includes(q)) ||
+      (r.description && r.description.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredVehicles = vehicles.filter((v) => {
+    const q = vehicleSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      (v.plate_number && v.plate_number.toLowerCase().includes(q)) ||
+      (v.driver_name && v.driver_name.toLowerCase().includes(q))
+    );
+  });
+
+  const pickRoute = (route) => {
+    setFormData((prev) => ({
+      ...prev,
+      transport_route_id: route.id,
+      transport_vehicle_id: "",
+      transport_monthly_fee: route.fee || "",
+    }));
+    setRouteSearch(route.route_name);
+    setShowRouteDropdown(false);
+  };
+
+  const clearRoute = () => {
+    setFormData((prev) => ({
+      ...prev,
+      transport_route_id: "",
+      transport_vehicle_id: "",
+      transport_monthly_fee: "",
+    }));
+    setRouteSearch("");
+    setVehicleSearch("");
+  };
+
+  const pickVehicle = (vehicle) => {
+    setFormData((prev) => ({ ...prev, transport_vehicle_id: vehicle.id }));
+    setVehicleSearch(`${vehicle.plate_number} — ${vehicle.driver_name || "No driver"}`);
+    setShowVehicleDropdown(false);
+  };
+
+  const clearVehicle = () => {
+    setFormData((prev) => ({ ...prev, transport_vehicle_id: "" }));
+    setVehicleSearch("");
+  };
+
   const fetchStudent = async () => {
     setLoading(true);
     try {
@@ -205,7 +397,9 @@ export default function StudentEnrollmentForm() {
         has_special_health_condition: data.has_special_health_condition || false,
         has_special_needs: data.has_special_needs || false,
         health_details: data.health_details || "",
-        transport_route: data.transport_route || "",
+        transport_route_id: data.transport_route_id || "",
+        transport_vehicle_id: data.transport_vehicle_id || "",
+        transport_monthly_fee: data.transport_monthly_fee || "",
         transport_pickup_point: data.transport_pickup_point || "",
         transport_pickup_time: data.transport_pickup_time || "",
         transport_dropoff_point: data.transport_dropoff_point || "",
@@ -275,25 +469,18 @@ export default function StudentEnrollmentForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isEdit && !selectedStudentId) {
+      Swal.fire("Error", "Please select a student to enroll (Phase 2)", "error");
+      return;
+    }
     setSaving(true);
     setErrors({});
     try {
-      const payload = new FormData();
-      Object.entries(formData).forEach(([key, val]) => {
-        payload.append(key, val === null || val === undefined ? "" : val);
-      });
-      Object.entries(files).forEach(([key, file]) => {
-        if (file) payload.append(key, file);
-      });
-
-      if (isEdit) {
-        await put(`/student-management/students/update/${id}`, payload);
-        Swal.fire("Success", "Student updated successfully", "success");
-      } else {
-        await post("/student-management/students/store", payload);
-        Swal.fire("Success", "Student created successfully", "success");
-      }
-      navigate("/student-management/students");
+      const targetId = isEdit ? id : selectedStudentId;
+      // Mark the student as phase_2 complete — transitions to enrolled list
+      await put(`/student-management/students/${targetId}/complete-phase-2`);
+      Swal.fire("Success", "Student officially enrolled (Phase 2 complete)", "success");
+      navigate("/student-management/enrolled-students");
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save student", "error");
@@ -302,6 +489,32 @@ export default function StudentEnrollmentForm() {
       setSaving(false);
     }
   };
+
+  // Conditional step helpers — Transport (step 3) only shown when student requested transport
+  const needsTransport = Boolean(selectedStudent?.transportation_required);
+  const visibleSteps = steps.filter((s) => s.id !== 3 || needsTransport);
+
+  const goToNextStep = () => {
+    const currentIdx = visibleSteps.findIndex((s) => s.id === currentStep);
+    if (currentIdx < visibleSteps.length - 1) {
+      setCurrentStep(visibleSteps[currentIdx + 1].id);
+    }
+  };
+  const goToPrevStep = () => {
+    const currentIdx = visibleSteps.findIndex((s) => s.id === currentStep);
+    if (currentIdx > 0) {
+      setCurrentStep(visibleSteps[currentIdx - 1].id);
+    }
+  };
+  const isFirstVisibleStep = visibleSteps[0]?.id === currentStep;
+  const isLastVisibleStep = visibleSteps[visibleSteps.length - 1]?.id === currentStep;
+
+  // If Transport step is currently active but student doesn't need transport, skip to next
+  useEffect(() => {
+    if (currentStep === 3 && !needsTransport && selectedStudent) {
+      setCurrentStep(4);
+    }
+  }, [needsTransport, selectedStudent, currentStep]);
 
   const getFieldError = (fieldName) => errors[fieldName]?.[0];
   const inputClass = (fieldName) => {
@@ -339,18 +552,156 @@ export default function StudentEnrollmentForm() {
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-800">
-            {isEdit ? "Edit Student" : "Enroll New Student"}
+            {isEdit ? "Edit Student Enrollment" : "Phase 2 — Official Enrollment"}
           </h2>
           <p className="text-[11px] text-gray-400">
-            Step {currentStep} of {steps.length} — {steps[currentStep - 1].title}
+            Step {currentStep} of {visibleSteps.length} — {steps.find(s => s.id === currentStep)?.title}
           </p>
         </div>
       </div>
 
+      {/* ── Student Selector (Phase 2 target) ── */}
+      {!isEdit && (
+        <div className="mb-5 bg-white rounded-2xl shadow-sm border border-gray-100 relative z-40">
+          <SectionHeader
+            gradient="from-emerald-50 to-teal-50"
+            iconBg="bg-emerald-100"
+            iconColor="text-emerald-600"
+            icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            title="Select Student for Phase 2 Enrollment"
+            subtitle="Choose a Phase 1 registered student to officially enroll"
+          />
+          <div ref={studentRef} className="p-5 relative">
+            {studentLocked && selectedStudent ? (
+              <div className="flex items-center gap-3 p-4 bg-teal-50 border-2 border-teal-200 rounded-xl">
+                <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                  {(selectedStudent.first_name || "?").charAt(0)}{(selectedStudent.last_name || "").charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800 truncate">
+                    {selectedStudent.first_name} {selectedStudent.last_name}
+                  </p>
+                  <p className="text-[11px] text-teal-700 font-mono">{selectedStudent.student_id || `#${selectedStudent.id}`}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearStudent}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                  title="Change student"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => { setStudentSearch(e.target.value); setShowStudentDropdown(true); }}
+                    onFocus={() => setShowStudentDropdown(true)}
+                    placeholder="Search student by ID or name..."
+                    className="w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none"
+                  />
+                </div>
+                {showStudentDropdown && (
+                  <div className="absolute z-50 left-5 right-5 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                    {filteredStudents.length === 0 ? (
+                      <div className="px-4 py-4 text-xs text-gray-400 text-center">No Phase 1 students found</div>
+                    ) : (
+                      filteredStudents.slice(0, 30).map((student) => (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => selectStudent(student)}
+                          className="w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0 flex items-center gap-3"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {(student.first_name || "?").charAt(0)}{(student.last_name || "").charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {student.first_name} {student.last_name}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-mono text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded">{student.student_id || `#${student.id}`}</span>
+                              {student.school_class?.class_name && (
+                                <span className="text-[10px] text-gray-500">{student.school_class.class_name}</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Student Info Review Card (above form, all steps) ── */}
+      {selectedStudent && (
+        <div className="mb-5 bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 rounded-2xl border border-teal-200 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">Phase 1 Student Information</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Name</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Student ID</p>
+              <p className="text-xs font-bold text-teal-700 font-mono mt-0.5">{selectedStudent.student_id || `#${selectedStudent.id}`}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Class</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">{selectedStudent.school_class?.class_name || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">DOB</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">
+                {selectedStudent.date_of_birth ? new Date(selectedStudent.date_of_birth).toLocaleDateString() : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Father</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5 truncate">{selectedStudent.family?.father_name || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Phone</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">{selectedStudent.family?.father_phone || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Fee</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">
+                {selectedStudent.final_fee ? `${Number(selectedStudent.final_fee).toLocaleString()} AFN` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Transport</p>
+              <p className={`text-xs font-bold mt-0.5 ${needsTransport ? "text-emerald-700" : "text-gray-500"}`}>
+                {needsTransport ? "Required" : "Not Required"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Step Indicator */}
       <div className="mb-8 overflow-x-auto pb-2">
         <div className="flex items-center min-w-max px-2">
-          {steps.map((step, i) => (
+          {visibleSteps.map((step, i) => (
             <div key={step.id} className="flex items-center">
               <button
                 type="button"
@@ -371,7 +722,7 @@ export default function StudentEnrollmentForm() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
                   ) : (
-                    step.id
+                    i + 1
                   )}
                 </div>
                 <span
@@ -386,7 +737,7 @@ export default function StudentEnrollmentForm() {
                   {step.shortTitle}
                 </span>
               </button>
-              {i < steps.length - 1 && (
+              {i < visibleSteps.length - 1 && (
                 <div
                   className={`w-8 h-0.5 mx-1 mb-4 rounded-full transition-all`}
                   style={{ backgroundColor: currentStep > step.id ? "#5eead4" : "#f3f4f6" }}
@@ -719,102 +1070,254 @@ export default function StudentEnrollmentForm() {
           </div>
         )}
 
-        {/* ── Step 3: Transport ── */}
-        {currentStep === 3 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* ── Step 3: Transport (only when student requested transport) ── */}
+        {currentStep === 3 && needsTransport && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 relative z-30">
             <SectionHeader
               gradient="from-teal-50 to-cyan-50"
               iconBg="bg-teal-100"
               iconColor="text-teal-600"
               icon={steps[2].icon}
               title="Transport"
-              subtitle="Bus route and pickup/drop-off details"
+              subtitle="Select route, vehicle and pickup/drop-off details"
             />
             <div className="p-5 space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Bus Route</label>
-                  <input
-                    type="text"
-                    name="transport_route"
-                    value={formData.transport_route}
-                    onChange={handleChange}
-                    placeholder="e.g. Route A – Karte Naw"
-                    className={inputClass("transport_route")}
-                  />
-                  {getFieldError("transport_route") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_route")}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Time</label>
-                  <input
-                    type="time"
-                    name="transport_pickup_time"
-                    value={formData.transport_pickup_time}
-                    onChange={handleChange}
-                    className={inputClass("transport_pickup_time")}
-                  />
-                  {getFieldError("transport_pickup_time") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_pickup_time")}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Point / Stop</label>
-                  <input
-                    type="text"
-                    name="transport_pickup_point"
-                    value={formData.transport_pickup_point}
-                    onChange={handleChange}
-                    placeholder="e.g. Main street near mosque"
-                    className={inputClass("transport_pickup_point")}
-                  />
-                  {getFieldError("transport_pickup_point") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_pickup_point")}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Drop-off Point</label>
-                  <input
-                    type="text"
-                    name="transport_dropoff_point"
-                    value={formData.transport_dropoff_point}
-                    onChange={handleChange}
-                    placeholder="e.g. Same as pickup"
-                    className={inputClass("transport_dropoff_point")}
-                  />
-                  {getFieldError("transport_dropoff_point") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_dropoff_point")}</p>
-                  )}
-                </div>
+              {/* Route Selector (Select2) */}
+              <div ref={routeRef} className="relative">
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                  Bus Route <span className="text-red-400">*</span>
+                </label>
+                {formData.transport_route_id && selectedRoute ? (
+                  <div className="flex items-center gap-3 p-3 bg-teal-50 border-2 border-teal-200 rounded-xl">
+                    <div className="w-9 h-9 rounded-lg bg-teal-600 flex items-center justify-center text-white flex-shrink-0">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800 truncate">{selectedRoute.route_name}</p>
+                      <p className="text-[10px] text-teal-700">
+                        Fee: {selectedRoute.fee ? `${Number(selectedRoute.fee).toLocaleString()} AFN/month` : "—"}
+                      </p>
+                    </div>
+                    <button type="button" onClick={clearRoute} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={routeSearch}
+                        onChange={(e) => { setRouteSearch(e.target.value); setShowRouteDropdown(true); }}
+                        onFocus={() => setShowRouteDropdown(true)}
+                        placeholder="Search active routes..."
+                        className={`${inputClass("transport_route_id")} pl-9`}
+                      />
+                    </div>
+                    {showRouteDropdown && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                        {filteredRoutes.length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-gray-400 text-center">No active routes found</div>
+                        ) : (
+                          filteredRoutes.map((route) => (
+                            <button
+                              key={route.id}
+                              type="button"
+                              onClick={() => pickRoute(route)}
+                              className="w-full text-left px-4 py-2.5 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-gray-800">{route.route_name}</span>
+                                {route.fee && (
+                                  <span className="text-[10px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
+                                    {Number(route.fee).toLocaleString()} AFN
+                                  </span>
+                                )}
+                              </div>
+                              {route.description && (
+                                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{route.description}</p>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
-              <div className="bg-teal-50 rounded-xl p-4 border border-teal-100">
-                <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                  </svg>
-                  Transport Summary
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Route</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_route || "—"}</p>
+              {/* Vehicle Selector (only when route is chosen) */}
+              {formData.transport_route_id && (
+                <div ref={vehicleRef} className="relative">
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Vehicle (Bus) <span className="text-red-400">*</span>
+                  </label>
+                  {formData.transport_vehicle_id && selectedVehicle ? (
+                    <div className="flex items-center gap-3 p-3 bg-cyan-50 border-2 border-cyan-200 rounded-xl">
+                      <div className="w-9 h-9 rounded-lg bg-cyan-600 flex items-center justify-center text-white flex-shrink-0">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-800 truncate">
+                          {selectedVehicle.plate_number}
+                          {selectedVehicle.driver_name && (
+                            <span className="text-[10px] text-gray-500 font-normal ml-1.5">· {selectedVehicle.driver_name}</span>
+                          )}
+                        </p>
+                        <p className="text-[10px] text-cyan-700">
+                          Seats: {selectedVehicle.available_seat}/{selectedVehicle.total_seats} available
+                        </p>
+                      </div>
+                      <button type="button" onClick={clearVehicle} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={vehicleSearch}
+                          onChange={(e) => { setVehicleSearch(e.target.value); setShowVehicleDropdown(true); }}
+                          onFocus={() => setShowVehicleDropdown(true)}
+                          placeholder="Search vehicle by plate or driver..."
+                          className={`${inputClass("transport_vehicle_id")} pl-9`}
+                        />
+                      </div>
+                      {showVehicleDropdown && (
+                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                          {filteredVehicles.length === 0 ? (
+                            <div className="px-4 py-3 text-xs text-gray-400 text-center">No vehicles found for this route</div>
+                          ) : (
+                            filteredVehicles.map((vehicle) => {
+                              const full = vehicle.available_seat <= 0;
+                              return (
+                                <button
+                                  key={vehicle.id}
+                                  type="button"
+                                  disabled={full}
+                                  onClick={() => !full && pickVehicle(vehicle)}
+                                  className={`w-full text-left px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 ${full ? "opacity-50 cursor-not-allowed bg-gray-50" : "hover:bg-teal-50"}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-800">{vehicle.plate_number}</p>
+                                      {vehicle.driver_name && (
+                                        <p className="text-[10px] text-gray-500">{vehicle.driver_name}{vehicle.driver_contact ? ` · ${vehicle.driver_contact}` : ""}</p>
+                                      )}
+                                    </div>
+                                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${full ? "text-red-600 bg-red-50" : "text-teal-700 bg-teal-50"}`}>
+                                      {vehicle.available_seat}/{vehicle.total_seats} seats
+                                    </span>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Remaining transport detail fields (only after vehicle chosen) */}
+              {formData.transport_vehicle_id && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Time</label>
+                    <input
+                      type="time"
+                      name="transport_pickup_time"
+                      value={formData.transport_pickup_time}
+                      onChange={handleChange}
+                      className={inputClass("transport_pickup_time")}
+                    />
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Time</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_time || "—"}</p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Monthly Fee (AFN)</label>
+                    <input
+                      type="number"
+                      name="transport_monthly_fee"
+                      value={formData.transport_monthly_fee}
+                      onChange={handleChange}
+                      placeholder="Auto-filled from route"
+                      className={inputClass("transport_monthly_fee")}
+                    />
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Stop</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_point || "—"}</p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Point / Stop</label>
+                    <input
+                      type="text"
+                      name="transport_pickup_point"
+                      value={formData.transport_pickup_point}
+                      onChange={handleChange}
+                      placeholder="e.g. Main street near mosque"
+                      className={inputClass("transport_pickup_point")}
+                    />
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Drop-off</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_dropoff_point || "—"}</p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Drop-off Point</label>
+                    <input
+                      type="text"
+                      name="transport_dropoff_point"
+                      value={formData.transport_dropoff_point}
+                      onChange={handleChange}
+                      placeholder="e.g. Same as pickup"
+                      className={inputClass("transport_dropoff_point")}
+                    />
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Summary */}
+              {formData.transport_vehicle_id && (
+                <div className="bg-teal-50 rounded-xl p-4 border border-teal-100">
+                  <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3">Transport Summary</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Route</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{selectedRoute?.route_name || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Vehicle</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{selectedVehicle?.plate_number || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Time</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_time || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Monthly Fee</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1">
+                        {formData.transport_monthly_fee ? `${Number(formData.transport_monthly_fee).toLocaleString()} AFN` : "—"}
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Stop</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{formData.transport_pickup_point || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Drop-off</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{formData.transport_dropoff_point || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1342,22 +1845,22 @@ export default function StudentEnrollmentForm() {
           <button
             type="button"
             onClick={() =>
-              currentStep === 1
+              isFirstVisibleStep
                 ? navigate("/student-management/students")
-                : setCurrentStep(currentStep - 1)
+                : goToPrevStep()
             }
             className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            {currentStep === 1 ? "Cancel" : "Back"}
+            {isFirstVisibleStep ? "Cancel" : "Back"}
           </button>
 
           <div className="flex items-center gap-2">
             {/* Step dots */}
             <div className="hidden sm:flex items-center gap-1">
-              {steps.map((s) => (
+              {visibleSteps.map((s) => (
                 <div
                   key={s.id}
                   className={`rounded-full transition-all ${
@@ -1371,10 +1874,10 @@ export default function StudentEnrollmentForm() {
               ))}
             </div>
 
-            {currentStep < steps.length ? (
+            {!isLastVisibleStep ? (
               <button
                 type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
+                onClick={goToNextStep}
                 className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 transition-all shadow-sm flex items-center gap-1.5"
               >
                 Next

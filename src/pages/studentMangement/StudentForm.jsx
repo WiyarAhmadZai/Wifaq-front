@@ -203,7 +203,7 @@ export default function StudentForm() {
     return true;
   };
 
-  const submit = async () => {
+  const submit = async (action = "ask") => {
     if (step !== STEPS.length) return;
     setSaving(true);
     setErrors({});
@@ -216,18 +216,79 @@ export default function StudentForm() {
       };
       delete payload.is_fourth_child;
 
+      let savedStudent = null;
       if (isEdit) {
-        await put(`/student-management/students/update/${id}`, payload);
+        const res = await put(`/student-management/students/update/${id}`, payload);
+        savedStudent = res.data?.data || res.data;
       } else {
-        await post("/student-management/students/store", payload);
+        const res = await post("/student-management/students/store", payload);
+        savedStudent = res.data?.data || res.data;
       }
-      await Swal.fire({
+
+      const newStudentId = savedStudent?.id || savedStudent?.student?.id;
+      const savedFamilyId = form.family_id;
+      const savedFamilyLabel = familySearch;
+
+      if (!isEdit && action === "another") {
+        await Swal.fire({
+          icon: "success",
+          title: "Student registered!",
+          text: "Form reset — family kept for the next child.",
+          timer: 1600,
+          showConfirmButton: false,
+        });
+        setForm({
+          family_id: savedFamilyId,
+          first_name: "",
+          last_name: "",
+          date_of_birth: "",
+          gender: "",
+          school_class_id: "",
+          enrollment_date: new Date().toISOString().split("T")[0],
+          enrollment_type: "new",
+          uniform_required: false,
+          transportation_required: false,
+          is_fourth_child: false,
+          child_order_in_family: "",
+          special_status: "none",
+          employee_parent_staff_id: "",
+          discount_percent: 0,
+          foundation_help_requested: false,
+          foundation_help_requested_amount: "",
+        });
+        setFamilySearch(savedFamilyLabel);
+        setFeeBreakdown(null);
+        setStep(1);
+        return;
+      }
+
+      if (!isEdit && action === "phase2" && newStudentId) {
+        await Swal.fire({
+          icon: "success",
+          title: "Student registered!",
+          text: "Redirecting to Phase 2 enrollment...",
+          timer: 1400,
+          showConfirmButton: false,
+        });
+        navigate(`/student-management/student-enrollments/create?student_id=${newStudentId}`);
+        return;
+      }
+
+      const result = await Swal.fire({
         icon: "success",
         title: isEdit ? "Student updated!" : "Student registered!",
-        timer: 1800,
-        showConfirmButton: false,
+        text: isEdit ? undefined : "Would you like to continue to Phase 2 enrollment?",
+        showCancelButton: !isEdit,
+        confirmButtonText: isEdit ? "OK" : "Go to Phase 2",
+        cancelButtonText: "Back to list",
+        confirmButtonColor: "#0d9488",
       });
-      navigate("/student-management/students");
+
+      if (!isEdit && result.isConfirmed && newStudentId) {
+        navigate(`/student-management/student-enrollments/create?student_id=${newStudentId}`);
+      } else {
+        navigate("/student-management/students");
+      }
     } catch (error) {
       if (error.response?.status === 422 && error.response?.data?.errors) {
         setErrors(error.response.data.errors);
@@ -676,12 +737,26 @@ export default function StudentForm() {
                 Next →
               </button>
             ) : (
-              <button type="button" onClick={submit} disabled={saving}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
-                {saving ? (
-                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
-                ) : (isEdit ? "Update Student" : "Register Student")}
-              </button>
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+                {!isEdit && (
+                  <>
+                    <button type="button" onClick={() => submit("another")} disabled={saving}
+                      className="px-4 py-2.5 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-xl hover:bg-teal-100 disabled:opacity-50">
+                      Save & Add Another Child
+                    </button>
+                    <button type="button" onClick={() => submit("phase2")} disabled={saving}
+                      className="px-4 py-2.5 text-xs font-semibold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50">
+                      Save & Go to Phase 2 →
+                    </button>
+                  </>
+                )}
+                <button type="button" onClick={() => submit("ask")} disabled={saving}
+                  className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+                  {saving ? (
+                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                  ) : (isEdit ? "Update Student" : "Register Student")}
+                </button>
+              </div>
             )}
           </div>
         </div>

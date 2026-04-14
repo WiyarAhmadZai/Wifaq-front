@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import CrudPage from "../../components/CrudPage";
 
 const statusBadge = (val) => {
@@ -42,6 +43,19 @@ export default function Students() {
         { key: "final_fee", label: "Fee", render: (v) => v ? `${Number(v).toLocaleString()} AFN` : "—" },
         { key: "special_status", label: "Special", render: specialStatusBadge },
         { key: "status", label: "Status", render: statusBadge },
+        {
+          key: "phase2",
+          label: "Phase 2",
+          render: (_, item) => (
+            <Link
+              to={`/student-management/student-enrollments/create?student_id=${item.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg"
+            >
+              Enroll →
+            </Link>
+          ),
+        },
       ]}
       createRoute="/student-management/students/create"
       editRoute="/student-management/students/edit"

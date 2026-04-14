@@ -28,6 +28,23 @@ const TRANSFER_STEPS = [
   { key: "transfer_itminaniya", label: "Itminaniya" },
 ];
 
+const TRANSFER_STEP_SHORT = {
+  transfer_agreement: "Agreement done",
+  transfer_first_parcha: "First Parcha done",
+  transfer_sawabiq: "Records done",
+  transfer_assurance_request: "Assurance done",
+  transfer_itminaniya: "Itminaniya done",
+};
+
+const lastCompletedTransferLabel = (item) => {
+  let label = null;
+  for (const step of TRANSFER_STEPS) {
+    if (item[step.key]) label = TRANSFER_STEP_SHORT[step.key];
+    else break;
+  }
+  return label;
+};
+
 function TransferStepsModal({ student, onClose, onSaved }) {
   const [state, setState] = useState(() => ({
     transfer_agreement: Boolean(student.transfer_agreement),
@@ -202,12 +219,12 @@ export default function Students() {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-          className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg"
+          className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg whitespace-nowrap"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
           </svg>
-          {item.transfer_case_status === "in_progress" ? "In Progress" : "Start"}
+          {lastCompletedTransferLabel(item) || "Start"}
         </button>
       );
     },

@@ -10,9 +10,9 @@ export default function Routes() {
       listColumns={[
         { key: "route_name", label: "Route Name" },
         {
-          key: "fee",
-          label: "Monthly Fee",
-          render: (val) => (val ? `$${parseFloat(val).toFixed(2)}` : "—"),
+          key: "vehicles_count",
+          label: "Vehicles",
+          render: (val) => val ?? 0,
         },
         { key: "description", label: "Description" },
         {

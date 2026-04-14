@@ -2,7 +2,25 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
-import TransferStepsModal from "./TransferStepsModal";
+import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
+
+const TRANSFER_STEP_SHORT = {
+  transfer_agreement: "Agreement done",
+  transfer_first_parcha: "First Parcha done",
+  transfer_sawabiq: "Records done",
+  transfer_assurance_request: "Assurance done",
+  transfer_itminaniya: "Itminaniya done",
+};
+
+const lastCompletedTransferLabel = (item) => {
+  // Walk through steps in order and return the short label of the last one done
+  let label = null;
+  for (const step of TRANSFER_STEPS) {
+    if (item[step.key]) label = TRANSFER_STEP_SHORT[step.key];
+    else break;
+  }
+  return label;
+};
 
 const statusStyles = {
   active: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Active" },
@@ -265,18 +283,22 @@ export default function StudentEnrollments() {
                         {item.enrollment_type !== "transfer" ? (
                           <span className="text-xs text-gray-300">—</span>
                         ) : item.transfer_case_status === "completed" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full"
+                            title="Transfer process completed"
+                          >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
-                            ok — completed
-                          </span>
+                            completed
+                          </button>
                         ) : (
                           <button
                             onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full whitespace-nowrap"
                           >
-                            {item.transfer_case_status === "in_progress" ? "In Progress" : "Start"}
+                            {lastCompletedTransferLabel(item) || "Start"}
                           </button>
                         )}
                       </td>

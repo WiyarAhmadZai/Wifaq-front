@@ -14,6 +14,11 @@ export default function Vehicles() {
           label: "Route",
           render: (val) => val?.route_name || "—",
         },
+        {
+          key: "monthly_fee",
+          label: "Monthly Fee",
+          render: (val) => (val != null ? `${Number(val).toLocaleString()} AFN` : "—"),
+        },
         { key: "driver_name", label: "Driver Name" },
         { key: "driver_contact", label: "Driver Contact" },
         { key: "total_seats", label: "Total Seats" },

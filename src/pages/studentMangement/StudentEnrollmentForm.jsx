@@ -142,7 +142,7 @@ export default function StudentEnrollmentForm() {
   const routeRef = useRef(null);
   const vehicleRef = useRef(null);
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(2);
   const [formData, setFormData] = useState({
     // Step 1: Education History
     previous_school_name: "",
@@ -262,6 +262,10 @@ export default function StudentEnrollmentForm() {
     setStudentSearch(`${student.student_id || "#" + student.id} - ${student.first_name} ${student.last_name}`);
     setShowStudentDropdown(false);
     setStudentLocked(true);
+    // Always refetch full student record so fields like `enrollment_type`
+    // (which the list endpoint may not include, or may be stale after a
+    // Phase 1 update) reflect the current backend state.
+    fetchSelectedStudent(student.id);
   };
 
   const clearStudent = () => {
@@ -475,9 +479,21 @@ export default function StudentEnrollmentForm() {
     }
   };
 
-  // All steps always visible — user can opt-in to transport/uniform in Phase 2
-  // even if they didn't choose it in Phase 1.
-  const visibleSteps = steps;
+  // Step 1 (Education History) is only relevant for transfer students.
+  // For new-enrollment students it is hidden entirely.
+  const isTransferStudent = selectedStudent?.enrollment_type === "transfer";
+  const visibleSteps = isTransferStudent ? steps : steps.filter((s) => s.id !== 1);
+
+  // Keep currentStep inside visibleSteps. When a transfer student is selected,
+  // jump to step 1 so the admin starts at Education History.
+  useEffect(() => {
+    if (isTransferStudent) {
+      setCurrentStep(1);
+    } else if (currentStep === 1) {
+      setCurrentStep(2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTransferStudent]);
   const needsTransport = Boolean(selectedStudent?.transportation_required);
 
   // User's current intent for transport/uniform (can differ from Phase 1 choice)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
-import { get, put } from "../../api/axios";
+import { get, post, put, del, API_BASE_URL } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -180,13 +180,14 @@ export default function StudentEnrollmentForm() {
   });
 
   const [files, setFiles] = useState({
-    // Step 5: Documents
     doc_student_tazkira: null,
     doc_father_tazkira: null,
     doc_birth_certificate: null,
     doc_previous_school_documents: null,
     doc_student_photo: null,
   });
+  const [uploadedDocs, setUploadedDocs] = useState({});
+  const [uploading, setUploading] = useState({});
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -239,6 +240,13 @@ export default function StudentEnrollmentForm() {
       const response = await get(`/student-management/students/show/${studentId}`);
       const data = response.data?.data || response.data;
       setSelectedStudent(data);
+      if (data.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => {
+          docsMap[doc.document_type] = doc;
+        });
+        setUploadedDocs(docsMap);
+      }
     } catch (error) {
       console.error("Failed to fetch student", error);
     }
@@ -378,7 +386,16 @@ export default function StudentEnrollmentForm() {
     setLoading(true);
     try {
       const response = await get(`/student-management/students/show/${id}`);
-      const data = response.data;
+      const data = response.data?.data || response.data;
+      setSelectedStudent(data);
+      // Load existing documents
+      if (data.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => {
+          docsMap[doc.document_type] = doc;
+        });
+        setUploadedDocs(docsMap);
+      }
       setFormData((prev) => ({
         ...prev,
         previous_school_name: data.previous_school_name || "",
@@ -427,17 +444,52 @@ export default function StudentEnrollmentForm() {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const { name, files: fileList } = e.target;
-    if (fileList && fileList[0]) {
-      setFiles((prev) => ({ ...prev, [name]: fileList[0] }));
+    if (!fileList || !fileList[0]) return;
+    const file = fileList[0];
+    setFiles((prev) => ({ ...prev, [name]: file }));
+
+    const targetId = isEdit ? id : selectedStudentId;
+    if (!targetId) return;
+
+    setUploading((prev) => ({ ...prev, [name]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("document_type", name);
+      const res = await post(`/student-management/students/${targetId}/documents/upload`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setUploadedDocs((prev) => ({ ...prev, [name]: res.data?.data || res.data }));
+    } catch (err) {
+      Swal.fire("Upload failed", err.response?.data?.message || "Could not upload file", "error");
+      setFiles((prev) => ({ ...prev, [name]: null }));
+    } finally {
+      setUploading((prev) => ({ ...prev, [name]: false }));
+    }
+  };
+
+  const handleDeleteDoc = async (docType) => {
+    const targetId = isEdit ? id : selectedStudentId;
+    const doc = uploadedDocs[docType];
+    if (!doc || !targetId) return;
+    try {
+      await del(`/student-management/students/${targetId}/documents/${doc.id}`);
+      setUploadedDocs((prev) => {
+        const next = { ...prev };
+        delete next[docType];
+        return next;
+      });
+      setFiles((prev) => ({ ...prev, [docType]: null }));
+    } catch (err) {
+      Swal.fire("Error", "Could not delete document", "error");
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (readOnly) return;
-    // Only allow submit from the final step — prevents accidental Enter-key submits
     if (!isLastVisibleStep) return;
     if (!isEdit && !selectedStudentId) {
       Swal.fire("Error", "Please select a student to enroll (Phase 2)", "error");
@@ -452,23 +504,56 @@ export default function StudentEnrollmentForm() {
     try {
       const targetId = isEdit ? id : selectedStudentId;
 
-      // If user changed transport/uniform opt-in during Phase 2, sync back to the Phase 1 student record
-      const phase1Patch = {};
+      // Save all Phase 2 enrollment data to the student record
+      const enrollmentPayload = {
+        previous_school_name: formData.previous_school_name,
+        school_type: formData.school_type,
+        last_class_completed: formData.last_class_completed,
+        last_years_result: formData.last_years_result,
+        result_percentage: formData.result_percentage,
+        reason_for_change: formData.reason_for_change,
+        how_did_you_hear: formData.how_did_you_hear,
+        introducer_name: formData.introducer_name,
+        introducer_contact: formData.introducer_contact,
+        motivation_to_join: formData.motivation_to_join,
+        has_special_health_condition: formData.has_special_health_condition,
+        has_special_needs: formData.has_special_needs,
+        health_details: formData.health_details,
+        transport_route_id: formData.transport_route_id || null,
+        transport_vehicle_id: formData.transport_vehicle_id || null,
+        transport_pickup_point: formData.transport_pickup_point,
+        transport_pickup_time: formData.transport_pickup_time,
+        transport_dropoff_point: formData.transport_dropoff_point,
+        transport_monthly_fee: formData.transport_monthly_fee || null,
+        need_uniform: formData.need_uniform,
+        uniform_price: formData.uniform_price || null,
+        uniform_chest: formData.uniform_chest,
+        uniform_waist: formData.uniform_waist,
+        uniform_height: formData.uniform_height,
+        uniform_shoulder: formData.uniform_shoulder,
+        uniform_sleeve: formData.uniform_sleeve,
+        tailor_note: formData.tailor_note,
+        parental_consent: formData.parental_consent,
+      };
+
+      // Sync transport/uniform opt-in back to Phase 1 fields
       if (selectedStudent) {
         if (Boolean(selectedStudent.transportation_required) !== wantsTransport) {
-          phase1Patch.transportation_required = wantsTransport;
+          enrollmentPayload.transportation_required = wantsTransport;
         }
         if (Boolean(selectedStudent.uniform_required) !== Boolean(formData.need_uniform)) {
-          phase1Patch.uniform_required = Boolean(formData.need_uniform);
+          enrollmentPayload.uniform_required = Boolean(formData.need_uniform);
         }
       }
-      if (Object.keys(phase1Patch).length > 0) {
-        await put(`/student-management/students/update/${targetId}`, phase1Patch);
-      }
+
+      await put(`/student-management/students/update/${targetId}`, enrollmentPayload);
 
       // Mark the student as phase_2 complete — transitions to enrolled list
-      await put(`/student-management/students/${targetId}/complete-phase-2`);
-      Swal.fire("Success", "Student officially enrolled (Phase 2 complete)", "success");
+      if (!isEdit || selectedStudent?.registration_status !== "phase_2") {
+        await put(`/student-management/students/${targetId}/complete-phase-2`);
+      }
+
+      Swal.fire("Success", isEdit ? "Enrollment updated successfully" : "Student officially enrolled (Phase 2 complete)", "success");
       navigate("/student-management/student-enrollments");
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
@@ -812,6 +897,82 @@ export default function StudentEnrollmentForm() {
                 )}
               </div>
             </div>
+
+            {/* Documents */}
+            {(() => {
+              const docTypes = [
+                { key: "doc_student_tazkira", label: "Student Tazkira" },
+                { key: "doc_father_tazkira", label: "Father Tazkira" },
+                { key: "doc_birth_certificate", label: "Birth Certificate" },
+                { key: "doc_previous_school_documents", label: "Previous School Documents" },
+                { key: "doc_student_photo", label: "Student Official Photo" },
+              ];
+              const getDocUrl = (fileUrl) => {
+                if (!fileUrl) return null;
+                if (fileUrl.startsWith("http")) return fileUrl;
+                const storageBaseUrl = API_BASE_URL.replace(/\/api$/, "");
+                return `${storageBaseUrl}/storage/${fileUrl}`;
+              };
+              const docsArr = docTypes.map((d) => ({ ...d, doc: uploadedDocs[d.key] }));
+              const uploaded = docsArr.filter((d) => d.doc);
+
+              return (
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[4].icon} /></svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-800">Documents</h3>
+                    <span className="ml-auto text-xs font-bold text-cyan-700 bg-cyan-100 px-2.5 py-1 rounded-lg">{uploaded.length} / 5</span>
+                  </div>
+                  <div className="bg-cyan-50/50 rounded-xl p-5 border border-cyan-100">
+                    {uploaded.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {docsArr.map((item) => {
+                          const doc = item.doc;
+                          const url = doc ? getDocUrl(doc.file_url) : null;
+                          const isImage = doc?.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                          return (
+                            <div key={item.key} className={`flex items-center gap-3 p-3 rounded-xl border ${doc ? "bg-white border-cyan-200" : "bg-gray-50 border-gray-100"}`}>
+                              {doc ? (
+                                <>
+                                  {isImage && url ? (
+                                    <img src={url} alt={item.label} className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center flex-shrink-0">
+                                      <svg className="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-gray-800">{item.label}</p>
+                                    <p className="text-[10px] text-gray-500 truncate">{doc.original_name || "Uploaded"}</p>
+                                  </div>
+                                  <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 text-cyan-600 hover:text-cyan-800 hover:bg-cyan-100 rounded-lg transition-colors" title="View Document">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                  </a>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-gray-400">{item.label}</p>
+                                    <p className="text-[10px] text-gray-400">Not uploaded</p>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">No documents uploaded</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Family Questionnaire */}
             <div className="mb-4">
@@ -1890,7 +2051,17 @@ export default function StudentEnrollmentForm() {
         )}
 
         {/* ── Step 5: Documents ── */}
-        {currentStep === 5 && (
+        {currentStep === 5 && (() => {
+          const docTypes = [
+            { key: "doc_student_tazkira", label: "Student Tazkira" },
+            { key: "doc_father_tazkira", label: "Father Tazkira" },
+            { key: "doc_birth_certificate", label: "Birth Certificate" },
+            { key: "doc_previous_school_documents", label: "Previous School Documents" },
+            { key: "doc_student_photo", label: "Student Official Photo" },
+          ];
+          const uploadedCount = docTypes.filter((d) => uploadedDocs[d.key]).length;
+
+          return (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
               gradient="from-teal-50 to-cyan-50"
@@ -1902,98 +2073,64 @@ export default function StudentEnrollmentForm() {
             />
             <div className="p-5 space-y-4">
               <p className="text-[11px] text-gray-500">
-                Upload the required documents for student enrollment.
+                Upload the required documents for student enrollment. Files are saved immediately on selection.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FileInput
-                  label="Student Tazkira"
-                  name="doc_student_tazkira"
-                  onChange={handleFileChange}
-                  file={files.doc_student_tazkira}
-                />
-                <FileInput
-                  label="Father Tazkira"
-                  name="doc_father_tazkira"
-                  onChange={handleFileChange}
-                  file={files.doc_father_tazkira}
-                />
-                <FileInput
-                  label="Birth Certificate"
-                  name="doc_birth_certificate"
-                  onChange={handleFileChange}
-                  file={files.doc_birth_certificate}
-                />
-                <FileInput
-                  label="Previous School Documents"
-                  name="doc_previous_school_documents"
-                  onChange={handleFileChange}
-                  file={files.doc_previous_school_documents}
-                />
-                <div className="sm:col-span-2">
-                  <FileInput
-                    label="Student Official Photo"
-                    name="doc_student_photo"
-                    onChange={handleFileChange}
-                    file={files.doc_student_photo}
-                  />
-                </div>
+                {docTypes.map((doc) => {
+                  const existing = uploadedDocs[doc.key];
+                  const isUploading = uploading[doc.key];
+                  return (
+                    <div key={doc.key} className={doc.key === "doc_student_photo" ? "sm:col-span-2" : ""}>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">{doc.label}</label>
+                      {existing ? (
+                        <div className="flex items-center gap-3 w-full px-3 py-2.5 border-2 border-teal-200 bg-teal-50 rounded-xl">
+                          <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-xs text-teal-700 truncate flex-1">{existing.original_name || "Uploaded"}</span>
+                          <label className="text-[10px] text-teal-600 hover:text-teal-800 cursor-pointer font-semibold">
+                            Replace
+                            <input type="file" name={doc.key} onChange={handleFileChange} className="sr-only" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                          </label>
+                          <button type="button" onClick={() => handleDeleteDoc(doc.key)} className="text-red-400 hover:text-red-600 p-0.5">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <label className={`flex items-center gap-3 w-full px-3 py-2.5 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isUploading ? "border-teal-300 bg-teal-50" : "border-gray-200 hover:border-teal-300 hover:bg-teal-50"}`}>
+                          {isUploading ? (
+                            <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin flex-shrink-0"></div>
+                          ) : (
+                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                          )}
+                          <span className="text-xs text-gray-500 truncate">{isUploading ? "Uploading..." : "Click to upload file"}</span>
+                          <input type="file" name={doc.key} onChange={handleFileChange} className="sr-only" disabled={isUploading} accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Progress */}
               <div className="bg-teal-50 rounded-xl p-3 border border-teal-100">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-semibold text-teal-700">Documents Uploaded</p>
-                  <p className="text-[10px] font-bold text-teal-800">
-                    {Object.values(files).filter((f) => f !== null && [
-                      "doc_student_tazkira",
-                      "doc_father_tazkira",
-                      "doc_birth_certificate",
-                      "doc_previous_school_documents",
-                      "doc_student_photo",
-                    ].includes(
-                      Object.keys(files).find((k) => files[k] === f)
-                    )).length} /{" "}
-                    {[
-                      files.doc_student_tazkira,
-                      files.doc_father_tazkira,
-                      files.doc_birth_certificate,
-                      files.doc_previous_school_documents,
-                      files.doc_student_photo,
-                    ].filter(Boolean).length} / 5
-                  </p>
+                  <p className="text-[10px] font-bold text-teal-800">{uploadedCount} / 5</p>
                 </div>
                 <div className="h-1.5 bg-teal-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-teal-500 rounded-full transition-all"
-                    style={{
-                      width: `${
-                        ([
-                          files.doc_student_tazkira,
-                          files.doc_father_tazkira,
-                          files.doc_birth_certificate,
-                          files.doc_previous_school_documents,
-                          files.doc_student_photo,
-                        ].filter(Boolean).length /
-                          5) *
-                        100
-                      }%`,
-                    }}
-                  />
+                  <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${(uploadedCount / 5) * 100}%` }} />
                 </div>
-                <p className="text-[10px] text-teal-600 mt-1.5">
-                  {[
-                    files.doc_student_tazkira,
-                    files.doc_father_tazkira,
-                    files.doc_birth_certificate,
-                    files.doc_previous_school_documents,
-                    files.doc_student_photo,
-                  ].filter(Boolean).length}{" "}
-                  of 5 documents uploaded
-                </p>
+                <p className="text-[10px] text-teal-600 mt-1.5">{uploadedCount} of 5 documents uploaded</p>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ── Step 6: Family Questionnaire / Commitment ── */}
         {currentStep === 6 && (

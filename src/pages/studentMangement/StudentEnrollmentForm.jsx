@@ -547,6 +547,324 @@ export default function StudentEnrollmentForm() {
     );
   }
 
+  /* ── Read-only Show View ── */
+  if (isShow) {
+    const s = selectedStudent || {};
+    const isTransfer = s.enrollment_type === "transfer";
+    const statusMap = {
+      pending: { bg: "bg-orange-100", text: "text-orange-700", label: "Pending" },
+      active: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Active" },
+      graduated: { bg: "bg-blue-100", text: "text-blue-700", label: "Graduated" },
+      withdrawn: { bg: "bg-gray-200", text: "text-gray-600", label: "Withdrawn" },
+      transferred: { bg: "bg-amber-100", text: "text-amber-700", label: "Transferred" },
+    };
+    const st = statusMap[s.status] || statusMap.active;
+
+    return (
+      <div className="px-4 py-6 mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate("/student-management/student-enrollments")} className="p-2.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Enrollment Details</h1>
+              <p className="text-sm text-gray-500 mt-0.5">View complete enrollment information</p>
+            </div>
+          </div>
+          <button onClick={() => navigate(`/student-management/student-enrollments/edit/${id}`)} className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            Edit Enrollment
+          </button>
+        </div>
+
+        {/* Main Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Student Banner */}
+          <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-white text-xl font-bold">
+                {(s.first_name || "?").charAt(0)}{(s.last_name || "").charAt(0)}
+              </div>
+              <div className="flex-1">
+                <p className="text-teal-100 text-sm font-medium">Student</p>
+                <h2 className="text-2xl font-bold text-white">{s.first_name} {s.last_name}</h2>
+              </div>
+              <div className="text-right">
+                <p className="text-teal-100 text-xs font-medium">Student ID</p>
+                <p className="text-white font-mono font-bold text-lg">{s.student_id || `#${s.id}`}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {/* Quick Info Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  <span className="text-xs font-medium text-blue-700 uppercase tracking-wide">Class</span>
+                </div>
+                <p className="font-semibold text-gray-800">{s.school_class?.class_name || "—"}</p>
+              </div>
+              <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span className="text-xs font-medium text-purple-700 uppercase tracking-wide">DOB</span>
+                </div>
+                <p className="font-semibold text-gray-800">{s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString() : "—"}</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Fee</span>
+                </div>
+                <p className="font-semibold text-gray-800">{s.final_fee ? `${Number(s.final_fee).toLocaleString()} AFN` : "—"}</p>
+              </div>
+              <div className={`${st.bg} rounded-xl p-4 border`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className={`w-4 h-4 ${st.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className={`text-xs font-medium ${st.text} uppercase tracking-wide`}>Status</span>
+                </div>
+                <p className={`font-semibold ${st.text}`}>{st.label}</p>
+              </div>
+            </div>
+
+            {/* Father & Phone row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Father's Name</label>
+                <p className="text-lg font-semibold text-gray-800 mt-1">{s.family?.father_name || "—"}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Father's Phone</label>
+                <p className="text-lg font-semibold text-gray-800 mt-1">{s.family?.father_phone || "—"}</p>
+              </div>
+            </div>
+
+            {/* Education History — transfer only */}
+            {isTransfer && (
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[0].icon} /></svg>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800">Education History</h3>
+                </div>
+                <div className="bg-teal-50/50 rounded-xl p-5 border border-teal-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Previous School Name</label>
+                      <p className="text-gray-700 mt-1">{formData.previous_school_name || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">School Type</label>
+                      <p className="text-gray-700 mt-1">{formData.school_type || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Class Completed</label>
+                      <p className="text-gray-700 mt-1">{formData.last_class_completed || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Year's Result</label>
+                      <p className="text-gray-700 mt-1">{formData.last_years_result || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Result Percentage</label>
+                      <p className="text-gray-700 mt-1">{formData.result_percentage ? `${formData.result_percentage}%` : "—"}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Reason for Change</label>
+                      <p className="text-gray-700 mt-1">{formData.reason_for_change || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Health & References */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[1].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Health & References</h3>
+              </div>
+              <div className="bg-pink-50/50 rounded-xl p-5 border border-pink-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">How Did You Hear</label>
+                    <p className="text-gray-700 mt-1">{formData.how_did_you_hear || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Introducer Name</label>
+                    <p className="text-gray-700 mt-1">{formData.introducer_name || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Introducer Contact</label>
+                    <p className="text-gray-700 mt-1">{formData.introducer_contact || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Motivation to Join</label>
+                    <p className="text-gray-700 mt-1">{formData.motivation_to_join || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Special Health Condition</label>
+                    <p className="text-gray-700 mt-1">{formData.has_special_health_condition ? "Yes" : "No"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Special Needs</label>
+                    <p className="text-gray-700 mt-1">{formData.has_special_needs ? "Yes" : "No"}</p>
+                  </div>
+                  {(formData.has_special_health_condition || formData.has_special_needs) && (
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Health Details</label>
+                      <p className="text-gray-700 mt-1">{formData.health_details || "—"}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Transport */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[2].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Transport</h3>
+              </div>
+              <div className="bg-blue-50/50 rounded-xl p-5 border border-blue-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Route</label>
+                    <p className="text-gray-700 mt-1">{selectedRoute?.route_name || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Vehicle</label>
+                    <p className="text-gray-700 mt-1">{selectedVehicle ? `${selectedVehicle.plate_number} — ${selectedVehicle.driver_name || "No driver"}` : "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pickup Point</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_pickup_point || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pickup Time</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_pickup_time || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dropoff Point</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_dropoff_point || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Monthly Fee</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_monthly_fee ? `${Number(formData.transport_monthly_fee).toLocaleString()} AFN` : "—"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Uniform */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[3].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Uniform</h3>
+              </div>
+              <div className="bg-violet-50/50 rounded-xl p-5 border border-violet-100">
+                {formData.need_uniform ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Uniform Price</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_price ? `${Number(formData.uniform_price).toLocaleString()} AFN` : "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Chest</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_chest || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Waist</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_waist || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Height</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_height || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Shoulder</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_shoulder || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Sleeve</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_sleeve || "—"}</p>
+                    </div>
+                    {formData.tailor_note && (
+                      <div className="md:col-span-3">
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tailor Note</label>
+                        <p className="text-gray-700 mt-1">{formData.tailor_note}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Uniform not required</p>
+                )}
+              </div>
+            </div>
+
+            {/* Family Questionnaire */}
+            <div className="mb-4">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[5].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Family Questionnaire</h3>
+              </div>
+              <div className="bg-amber-50/50 rounded-xl p-5 border border-amber-100">
+                <div className="flex items-center gap-3">
+                  {formData.parental_consent ? (
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="font-semibold">Parental consent given</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-red-600">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="font-semibold">Parental consent not given</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <div className="flex flex-wrap gap-6 text-xs text-gray-500">
+              {s.enrollment_date && (
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
+                  <span>Enrolled: {new Date(s.enrollment_date).toLocaleDateString()}</span>
+                </div>
+              )}
+              {s.phase_2_completed_at && (
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                  <span>Phase 2: {new Date(s.phase_2_completed_at).toLocaleDateString()}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                <span>Type: {isTransfer ? "Transfer" : "New Admission"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 py-4 mx-auto">
       {/* Header */}

@@ -23,6 +23,7 @@ const lastCompletedTransferLabel = (item) => {
 };
 
 const statusStyles = {
+  pending: { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500", label: "Pending" },
   active: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Active" },
   graduated: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500", label: "Graduated" },
   withdrawn: { bg: "bg-gray-100", text: "text-gray-500", dot: "bg-gray-400", label: "Withdrawn" },
@@ -203,6 +204,7 @@ export default function StudentEnrollments() {
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Status</label>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">
                 <option value="">All Status</option>
+                <option value="pending">Pending</option>
                 <option value="active">Active</option>
                 <option value="graduated">Graduated</option>
                 <option value="withdrawn">Withdrawn</option>

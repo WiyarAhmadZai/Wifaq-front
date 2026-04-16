@@ -401,6 +401,58 @@ export default function ParentShow() {
             </div>
           </div>
 
+          {/* Permanent Residence */}
+          {(family.permanent_province || family.permanent_district || family.permanent_village) && (
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" /></svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800">Permanent Residence</h3>
+            </div>
+            <div className="bg-indigo-50/50 rounded-xl p-5 border border-indigo-100 grid grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500">Province</label>
+                <p className="text-gray-700 mt-1">{family.permanent_province || "—"}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500">District</label>
+                <p className="text-gray-700 mt-1">{family.permanent_district || "—"}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500">Village</label>
+                <p className="text-gray-700 mt-1">{family.permanent_village || "—"}</p>
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* Temporary Residence */}
+          {(family.temporary_province || family.temporary_district || family.temporary_village) && (
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800">Temporary Residence</h3>
+            </div>
+            <div className="bg-amber-50/50 rounded-xl p-5 border border-amber-100 grid grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500">Province</label>
+                <p className="text-gray-700 mt-1">{family.temporary_province || "—"}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500">District</label>
+                <p className="text-gray-700 mt-1">{family.temporary_district || "—"}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500">Village</label>
+                <p className="text-gray-700 mt-1">{family.temporary_village || "—"}</p>
+              </div>
+            </div>
+          </div>
+          )}
+
           {/* Address Section */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">

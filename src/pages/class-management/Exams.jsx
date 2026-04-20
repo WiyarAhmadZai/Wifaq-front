@@ -5,9 +5,9 @@ import { get, post, put, del } from "../../api/axios";
 
 const EXAM_TYPES = [
   { key: "weekly", label: "Weekly", sub: "One week view — period grid", color: "teal", rangeDays: 6, hasPeriods: true },
-  { key: "monthly", label: "Monthly", sub: "Full month view — period grid", color: "blue", rangeDays: 30, hasPeriods: true },
-  { key: "mid_term", label: "چهارنیم ماهه / Mid-Term", sub: "Mid-term exam schedule — list view", color: "violet", rangeDays: 14, hasPeriods: false },
-  { key: "annual", label: "Annual / Final", sub: "Final exam schedule — list view", color: "amber", rangeDays: 14, hasPeriods: false },
+  { key: "monthly", label: "Monthly", sub: "Calendar view — date & teacher per exam", color: "blue", rangeDays: 30, hasPeriods: false },
+  { key: "mid_term", label: "چهارنیم ماهه / Mid-Term", sub: "Calendar view — date & teacher per exam", color: "violet", rangeDays: 14, hasPeriods: false },
+  { key: "annual", label: "Annual / Final", sub: "Calendar view — date & teacher per exam", color: "amber", rangeDays: 14, hasPeriods: false },
 ];
 
 const PERIODS = [
@@ -644,15 +644,15 @@ export default function Exams() {
         });
         body += `</tbody></table>`;
       } else {
-        // Flat list
-        body += `<table class="exam-table"><thead><tr><th>Date</th><th>Day</th><th>Time</th><th>Subject</th><th>Teacher</th><th>Room</th><th>Marks</th></tr></thead><tbody>`;
+        // Calendar list
+        body += `<table class="exam-table"><thead><tr><th>Date</th><th>Day</th><th>Period</th><th>Subject</th><th>Teacher</th><th>Room</th><th>Marks</th></tr></thead><tbody>`;
         examsSorted.forEach((ex) => {
           const d = new Date(ex.exam_date);
           body += `
             <tr>
               <td>${d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</td>
               <td>${DAY_FULL[d.getDay()]}</td>
-              <td>${fmtTimeFn(ex.start_time)} – ${fmtTimeFn(ex.end_time)}</td>
+              <td>Period ${getPeriodForExam(ex.start_time) || "—"}</td>
               <td>${ex.subject?.subject_name || "—"}</td>
               <td>${ex.teacher?.staff?.application?.full_name || "—"}</td>
               <td>${ex.room || "—"}</td>
@@ -929,7 +929,7 @@ export default function Exams() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Time</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Period</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Subject</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Teacher</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Room</th>
@@ -954,7 +954,11 @@ export default function Exams() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-700">{fmtTime(exam.start_time)} – {fmtTime(exam.end_time)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-block text-[10px] font-bold px-2 py-1 rounded-md ${activeColor.soft} ${activeColor.text}`}>
+                        Period {getPeriodForExam(exam.start_time) || "—"}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <p className="text-xs font-semibold text-gray-800">{exam.subject?.subject_name || "—"}</p>
                       {exam.subject?.subject_code && <p className="text-[10px] text-gray-500">{exam.subject.subject_code}</p>}

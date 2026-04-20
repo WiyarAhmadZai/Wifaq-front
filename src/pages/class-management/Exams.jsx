@@ -587,7 +587,7 @@ export default function Exams() {
         // Day×Period grid
         body += `<table class="exam-table"><thead><tr><th>Day / Date</th>`;
         PERIODS.forEach((p) => {
-          body += `<th>${p.label}<br/><span class="period-time">${fmtTimeFn(p.start)}–${fmtTimeFn(p.end)}</span></th>`;
+          body += `<th>${p.label}</th>`;
         });
         body += `</tr></thead><tbody>`;
 
@@ -764,7 +764,6 @@ export default function Exams() {
                 {PERIODS.map((p) => (
                   <th key={p.n} className="px-2 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-r border-gray-200 last:border-r-0">
                     <div>{p.label}</div>
-                    <div className="text-[9px] font-medium text-gray-400 normal-case">{fmtTime(p.start)}–{fmtTime(p.end)}</div>
                   </th>
                 ))}
               </tr>
@@ -1139,7 +1138,7 @@ export default function Exams() {
         return (
           <ExamModal
             title={`Schedule ${activeType.label} Exam`}
-            subtitle={`${new Date(quickAdd.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} · ${PERIODS.find((p) => p.n === quickAdd.period)?.label} (${fmtTime(PERIODS.find((p) => p.n === quickAdd.period)?.start)}–${fmtTime(PERIODS.find((p) => p.n === quickAdd.period)?.end)})`}
+            subtitle={`${new Date(quickAdd.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} · ${PERIODS.find((p) => p.n === quickAdd.period)?.label}`}
             colorClass={activeColor}
             form={quickForm}
             setForm={setQuickForm}

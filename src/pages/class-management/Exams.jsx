@@ -90,17 +90,22 @@ export default function Exams() {
   const [quickTeachers, setQuickTeachers] = useState([]);
   const [quickSaving, setQuickSaving] = useState(false);
 
-  // Manual-add modal for list view (mid-term/annual)
+  // Manual-add modal for list view (mid-term/annual) + "New Exam" button
   const [listAdd, setListAdd] = useState(null);
-  const [listForm, setListForm] = useState({ school_class_id: "", subject_id: "", teacher_id: "", exam_date: "", start_time: "09:00", end_time: "11:00", room: "", total_marks: 100, passing_marks: 40 });
+  const [listForm, setListForm] = useState({ school_class_id: "", subject_id: "", teacher_id: "", exam_date: "", period: 1, room: "", total_marks: 100, passing_marks: 40 });
   const [listTeachers, setListTeachers] = useState([]);
   const [listSaving, setListSaving] = useState(false);
+  const [listShowAllTeachers, setListShowAllTeachers] = useState(false);
 
   // Edit modal
-  const [editAdd, setEditAdd] = useState(null); // the exam being edited
-  const [editForm, setEditForm] = useState({ school_class_id: "", subject_id: "", teacher_id: "", exam_date: "", start_time: "09:00", end_time: "11:00", room: "", total_marks: 100, passing_marks: 40, status: "scheduled" });
+  const [editAdd, setEditAdd] = useState(null);
+  const [editForm, setEditForm] = useState({ school_class_id: "", subject_id: "", teacher_id: "", exam_date: "", period: 1, room: "", total_marks: 100, passing_marks: 40, status: "scheduled" });
   const [editTeachers, setEditTeachers] = useState([]);
   const [editSaving, setEditSaving] = useState(false);
+  const [editShowAllTeachers, setEditShowAllTeachers] = useState(false);
+
+  // Quick-add show-all flag
+  const [quickShowAllTeachers, setQuickShowAllTeachers] = useState(false);
 
   useEffect(() => { fetchFormData(); }, []);
   useEffect(() => { fetchExams(); }, [activeTab, selectedClass, selectedTerm, anchor]);
@@ -353,6 +358,7 @@ export default function Exams() {
       passing_marks: 40,
     });
     setQuickTeachers([]);
+    setQuickShowAllTeachers(false);
     setQuickAdd({ date: ymd(date), period });
   };
 
@@ -369,6 +375,7 @@ export default function Exams() {
         exam_date: quickAdd.date,
         start_time: period.start,
         end_time: period.end,
+        show_all: quickShowAllTeachers ? 1 : 0,
       };
       if (quickForm.subject_id) params.subject_id = quickForm.subject_id;
       if (quickForm.school_class_id) params.school_class_id = quickForm.school_class_id;
@@ -378,7 +385,7 @@ export default function Exams() {
       setQuickTeachers([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quickForm.school_class_id, quickForm.subject_id, quickAdd]);
+  }, [quickForm.school_class_id, quickForm.subject_id, quickAdd, quickShowAllTeachers]);
 
   const submitQuickAdd = async () => {
     if (!quickForm.school_class_id || !quickForm.subject_id || !selectedTerm) {
@@ -416,13 +423,13 @@ export default function Exams() {
       subject_id: "",
       teacher_id: "",
       exam_date: prefDate ? ymd(prefDate) : ymd(new Date()),
-      start_time: "09:00",
-      end_time: "11:00",
+      period: 1,
       room: cls?.room_number || "",
       total_marks: 100,
       passing_marks: 40,
     });
     setListTeachers([]);
+    setListShowAllTeachers(false);
     setListAdd({});
   };
 
@@ -432,11 +439,13 @@ export default function Exams() {
     if (cls && cls.room_number && !listForm.room) {
       setListForm((p) => ({ ...p, room: cls.room_number }));
     }
-    if (listForm.exam_date && listForm.start_time && listForm.end_time) {
+    if (listForm.exam_date && listForm.period) {
+      const period = PERIODS.find((p) => p.n === Number(listForm.period));
       const params = {
         exam_date: listForm.exam_date,
-        start_time: listForm.start_time,
-        end_time: listForm.end_time,
+        start_time: period.start,
+        end_time: period.end,
+        show_all: listShowAllTeachers ? 1 : 0,
       };
       if (listForm.subject_id) params.subject_id = listForm.subject_id;
       if (listForm.school_class_id) params.school_class_id = listForm.school_class_id;
@@ -446,18 +455,22 @@ export default function Exams() {
       setListTeachers([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listForm.school_class_id, listForm.subject_id, listForm.exam_date, listForm.start_time, listForm.end_time, listAdd]);
+  }, [listForm.school_class_id, listForm.subject_id, listForm.exam_date, listForm.period, listAdd, listShowAllTeachers]);
 
   const submitListAdd = async () => {
-    if (!listForm.school_class_id || !listForm.subject_id || !selectedTerm || !listForm.exam_date) {
+    if (!listForm.school_class_id || !listForm.subject_id || !selectedTerm || !listForm.exam_date || !listForm.period) {
       Swal.fire("Missing fields", "Fill all required fields", "warning"); return;
     }
     setListSaving(true);
     try {
+      const period = PERIODS.find((p) => p.n === Number(listForm.period));
+      const { period: _, ...rest } = listForm;
       await post("/class-management/exams/store", {
         exam_type: activeTab,
         academic_term_id: selectedTerm,
-        ...listForm,
+        ...rest,
+        start_time: period.start,
+        end_time: period.end,
       });
       Swal.fire({ icon: "success", title: "Exam scheduled", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
       setListAdd(null); fetchExams(false);
@@ -475,35 +488,37 @@ export default function Exams() {
   // ── Edit Exam Modal ──
   const openEdit = (exam) => {
     const cls = formData.classes.find((c) => String(c.id) === String(exam.school_class_id));
+    const currentPeriod = getPeriodForExam((exam.start_time || "").substring(0, 5));
     setEditForm({
       school_class_id: exam.school_class_id || "",
       subject_id: exam.subject_id || "",
       teacher_id: exam.teacher_id || "",
       exam_date: exam.exam_date ? (exam.exam_date.split("T")[0]) : "",
-      start_time: (exam.start_time || "09:00").substring(0, 5),
-      end_time: (exam.end_time || "11:00").substring(0, 5),
+      period: currentPeriod || 1,
       room: exam.room || cls?.room_number || "",
       total_marks: exam.total_marks || 100,
       passing_marks: exam.passing_marks || 40,
       status: exam.status || "scheduled",
     });
     setEditTeachers([]);
+    setEditShowAllTeachers(false);
     setEditAdd(exam);
   };
 
   useEffect(() => {
     if (!editAdd) return;
     const cls = formData.classes.find((c) => String(c.id) === String(editForm.school_class_id));
-    // Auto-fill room if empty
     if (cls && cls.room_number && !editForm.room) {
       setEditForm((p) => ({ ...p, room: cls.room_number }));
     }
-    if (editForm.exam_date && editForm.start_time && editForm.end_time) {
+    if (editForm.exam_date && editForm.period) {
+      const period = PERIODS.find((p) => p.n === Number(editForm.period));
       const params = {
         exam_date: editForm.exam_date,
-        start_time: editForm.start_time,
-        end_time: editForm.end_time,
+        start_time: period.start,
+        end_time: period.end,
         exclude_exam_id: editAdd.id,
+        show_all: editShowAllTeachers ? 1 : 0,
       };
       if (editForm.subject_id) params.subject_id = editForm.subject_id;
       if (editForm.school_class_id) params.school_class_id = editForm.school_class_id;
@@ -513,24 +528,28 @@ export default function Exams() {
       setEditTeachers([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editForm.school_class_id, editForm.subject_id, editForm.exam_date, editForm.start_time, editForm.end_time, editAdd]);
+  }, [editForm.school_class_id, editForm.subject_id, editForm.exam_date, editForm.period, editAdd, editShowAllTeachers]);
 
   const submitEdit = async () => {
-    if (!editForm.school_class_id || !editForm.subject_id || !editForm.exam_date) {
+    if (!editForm.school_class_id || !editForm.subject_id || !editForm.exam_date || !editForm.period) {
       Swal.fire("Missing fields", "Fill all required fields", "warning"); return;
     }
     setEditSaving(true);
     try {
+      const period = PERIODS.find((p) => p.n === Number(editForm.period));
+      const { period: _, ...rest } = editForm;
       await put(`/class-management/exams/update/${editAdd.id}`, {
         exam_type: editAdd.exam_type,
         academic_term_id: editAdd.academic_term_id,
-        ...editForm,
+        ...rest,
+        start_time: period.start,
+        end_time: period.end,
       });
       Swal.fire({ icon: "success", title: "Exam updated", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
       setEditAdd(null); fetchExams(false);
     } catch (err) {
       if (err.response?.status === 422) {
-        Swal.fire({ icon: "error", title: "Time slot conflict", text: err.response.data?.message || "Another exam already exists at this time for this class or teacher." });
+        Swal.fire({ icon: "error", title: "Conflict", text: err.response.data?.message || "This slot conflicts with another exam." });
       } else {
         Swal.fire("Error", err.response?.data?.message || "Save failed", "error");
       }
@@ -1035,9 +1054,8 @@ export default function Exams() {
               <button
                 key={t.key}
                 onClick={() => setActiveTab(t.key)}
-                className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
-                  isActive ? `bg-gradient-to-r ${c.grad} text-white shadow-sm` : "text-gray-500 hover:bg-gray-50"
-                }`}
+                className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${isActive ? `bg-gradient-to-r ${c.grad} text-white shadow-sm` : "text-gray-500 hover:bg-gray-50"
+                  }`}
               >
                 {t.label}
               </button>
@@ -1148,7 +1166,9 @@ export default function Exams() {
             teachers={quickTeachers}
             usedSubjectIds={usedIds}
             lockClass={true}
-            showTimeFields={false}
+            showDateAndPeriod={false}
+            showAllTeachers={quickShowAllTeachers}
+            setShowAllTeachers={setQuickShowAllTeachers}
             onClose={() => setQuickAdd(null)}
             onSubmit={submitQuickAdd}
             saving={quickSaving}
@@ -1166,7 +1186,7 @@ export default function Exams() {
         return (
           <ExamModal
             title={`Add ${activeType.label} Exam`}
-            subtitle="Date, class, teacher, subject and room"
+            subtitle="Pick date, class, period, subject, teacher"
             colorClass={activeColor}
             form={listForm}
             setForm={setListForm}
@@ -1175,7 +1195,9 @@ export default function Exams() {
             gradeSubjects={formData.gradeSubjects}
             teachers={listTeachers}
             usedSubjectIds={usedIds}
-            showTimeFields={true}
+            showDateAndPeriod={true}
+            showAllTeachers={listShowAllTeachers}
+            setShowAllTeachers={setListShowAllTeachers}
             onClose={() => setListAdd(null)}
             onSubmit={submitListAdd}
             saving={listSaving}
@@ -1203,8 +1225,10 @@ export default function Exams() {
             gradeSubjects={formData.gradeSubjects}
             teachers={editTeachers}
             usedSubjectIds={usedIds}
-            showTimeFields={true}
+            showDateAndPeriod={true}
             showStatus={true}
+            showAllTeachers={editShowAllTeachers}
+            setShowAllTeachers={setEditShowAllTeachers}
             onClose={() => setEditAdd(null)}
             onSubmit={submitEdit}
             saving={editSaving}
@@ -1300,7 +1324,7 @@ function ShiftBanner({ label, icon, count }) {
 }
 
 /* ── Reusable Exam Modal ── */
-function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjects, teachers, gradeSubjects = [], usedSubjectIds = [], lockClass = false, showTimeFields, showStatus, onClose, onSubmit, saving, submitLabel }) {
+function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjects, teachers, gradeSubjects = [], usedSubjectIds = [], lockClass = false, showDateAndPeriod, showStatus, showAllTeachers, setShowAllTeachers, onClose, onSubmit, saving, submitLabel }) {
   const handle = (k, v) => setForm((p) => {
     const next = { ...p, [k]: v };
     // When class changes: auto-fill room AND reset subject (since grade may differ)
@@ -1372,40 +1396,52 @@ function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjec
               })}
             </select>
           </div>
-          {showTimeFields && (
-            <>
+          {showDateAndPeriod && (
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Exam Date *</label>
                 <input type="date" value={form.exam_date} onChange={(e) => handle("exam_date", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start *</label>
-                  <input type="time" value={form.start_time} onChange={(e) => handle("start_time", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End *</label>
-                  <input type="time" value={form.end_time} onChange={(e) => handle("end_time", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Period *</label>
+                <select value={form.period} onChange={(e) => handle("period", Number(e.target.value))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white">
+                  {PERIODS.map((p) => <option key={p.n} value={p.n}>{p.label}</option>)}
+                </select>
               </div>
-            </>
+            </div>
           )}
           <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-              Teacher *
-              <span className="text-gray-400 ml-1 font-normal">(from class timetable)</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-semibold text-gray-600">
+                Teacher *
+                <span className="text-gray-400 ml-1 font-normal">
+                  {showAllTeachers ? "(any free teacher)" : "(from class timetable)"}
+                </span>
+              </label>
+              {setShowAllTeachers && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllTeachers(!showAllTeachers)}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors ${showAllTeachers ? "bg-teal-100 text-teal-700" : "text-teal-600 hover:bg-teal-50"}`}
+                >
+                  {showAllTeachers ? "← Show assigned only" : "Pick another teacher →"}
+                </button>
+              )}
+            </div>
             <select value={form.teacher_id} onChange={(e) => handle("teacher_id", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" disabled={!form.subject_id}>
               <option value="">{form.subject_id ? "Select teacher…" : "Pick a subject first"}</option>
               {teachers.map((t) => (
                 <option key={t.id} value={t.id} disabled={t.busy} style={t.busy ? { color: "#9ca3af" } : {}}>
-                  {t.name}
-                  {t.busy ? " — already has exam at this time" : ""}
+                  {t.assigned && showAllTeachers ? "★ " : ""}{t.name}
+                  {t.busy ? " — has exam at this time" : ""}
                 </option>
               ))}
             </select>
-            {form.subject_id && teachers.length === 0 && (
-              <p className="text-[10px] text-amber-600 mt-1">No teacher assigned to this subject in the class timetable.</p>
+            {form.subject_id && teachers.length === 0 && !showAllTeachers && (
+              <p className="text-[10px] text-amber-600 mt-1">No teacher assigned to this subject. Click "Pick another teacher" to choose from all available.</p>
+            )}
+            {form.subject_id && teachers.length === 0 && showAllTeachers && (
+              <p className="text-[10px] text-amber-600 mt-1">No active teachers in this branch.</p>
             )}
           </div>
           <div className="grid grid-cols-3 gap-3">

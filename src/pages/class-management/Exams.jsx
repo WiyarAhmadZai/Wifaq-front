@@ -107,6 +107,9 @@ export default function Exams() {
   // Quick-add show-all flag
   const [quickShowAllTeachers, setQuickShowAllTeachers] = useState(false);
 
+  // Day-exams modal (click a calendar day to see all exams)
+  const [dayModal, setDayModal] = useState(null); // { date, className, grade, roomNumber, exams }
+
   useEffect(() => { fetchFormData(); }, []);
   useEffect(() => { fetchExams(); }, [activeTab, selectedClass, selectedTerm, anchor]);
 
@@ -138,7 +141,8 @@ export default function Exams() {
   useEffect(() => {
     const type = EXAM_TYPES.find((t) => t.key === activeTab);
     if (!type) return;
-    if (activeTab === "monthly") {
+    // Calendar-view tabs anchor on the first of the current month
+    if (!type.hasPeriods) {
       const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0);
       setAnchor(d);
     } else {
@@ -247,7 +251,8 @@ export default function Exams() {
   }, [viewDates, anchor, activeTab]);
 
   const navigatePeriod = (dir) => {
-    if (activeTab === "monthly") {
+    if (!activeType.hasPeriods) {
+      // Calendar view — navigate by month
       const d = new Date(anchor); d.setMonth(d.getMonth() + dir); d.setDate(1); setAnchor(d);
     } else {
       setAnchor(addDays(anchor, dir * activeType.rangeDays));
@@ -255,7 +260,7 @@ export default function Exams() {
   };
 
   const jumpToToday = () => {
-    if (activeTab === "monthly") {
+    if (!activeType.hasPeriods) {
       const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); setAnchor(d);
     } else {
       setAnchor(getWeekStart(new Date()));
@@ -899,100 +904,142 @@ export default function Exams() {
     const hasMorning = morningClasses.length > 0;
     const hasAfternoon = afternoonClasses.length > 0;
 
-    const renderTable = (classId, info) => (
-      <div key={classId} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4">
-        <div className={`px-5 py-3.5 ${activeColor.soft} border-b ${activeColor.border} flex items-center justify-between flex-wrap gap-2`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeColor.grad} flex items-center justify-center text-white shadow-sm`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
+    // Calendar renderer — one month grid per class
+    const renderTable = (classId, info) => {
+      // Map YYYY-MM-DD -> exams for this class
+      const examsByDay = {};
+      info.exams.forEach((e) => {
+        const key = (e.exam_date || "").split("T")[0];
+        if (!examsByDay[key]) examsByDay[key] = [];
+        examsByDay[key].push(e);
+      });
+
+      // Build calendar grid for the anchor month (anchor is first-of-month)
+      const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+      const monthEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+      const firstDow = monthStart.getDay(); // 0=Sun ... 6=Sat
+      const daysInMonth = monthEnd.getDate();
+
+      // Build 6 rows × 7 columns (Sun-Sat)
+      const cells = [];
+      for (let i = 0; i < firstDow; i++) cells.push(null); // leading blanks
+      for (let d = 1; d <= daysInMonth; d++) {
+        cells.push(new Date(anchor.getFullYear(), anchor.getMonth(), d));
+      }
+      while (cells.length % 7 !== 0) cells.push(null); // trailing blanks
+
+      const weeks = [];
+      for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+      return (
+        <div key={classId} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+          <div className={`px-5 py-3.5 ${activeColor.soft} border-b ${activeColor.border} flex items-center justify-between flex-wrap gap-2`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeColor.grad} flex items-center justify-center text-white shadow-sm`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-800">{info.className}</p>
+                <p className="text-[11px] text-gray-500">
+                  {info.grade && <span>{info.grade}</span>}
+                  {info.roomNumber && <span> · Room {info.roomNumber}</span>}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-gray-800">{info.className}</p>
-              <p className="text-[11px] text-gray-500">
-                {info.grade && <span>{info.grade}</span>}
-                {info.roomNumber && <span> · Room {info.roomNumber}</span>}
-              </p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setSelectedClass(classId); openListAdd(); }} className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Exam
+              </button>
+              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${info.exams.length > 0 ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                {info.exams.length} exam{info.exams.length !== 1 ? "s" : ""}
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setSelectedClass(classId); openListAdd(); }} className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}>
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Add Exam
-            </button>
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${info.exams.length > 0 ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
-              {info.exams.length} exam{info.exams.length !== 1 ? "s" : ""}
-            </span>
+
+          {/* Weekday header */}
+          <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="px-2 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">{d}</div>
+            ))}
           </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Period</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Subject</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Teacher</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Room</th>
-                <th className="px-4 py-2.5 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {info.exams.sort((a, b) => (a.exam_date + a.start_time).localeCompare(b.exam_date + b.start_time)).map((exam) => {
-                const st = STATUS_STYLES[exam.status] || STATUS_STYLES.scheduled;
-                return (
-                  <tr key={exam.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/class-management/exams/show/${exam.id}`)}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-9 h-9 rounded-lg ${activeColor.soft} flex flex-col items-center justify-center ${activeColor.text}`}>
-                          <span className="text-[9px] font-semibold leading-none">{new Date(exam.exam_date).toLocaleDateString("en-US", { month: "short" })}</span>
-                          <span className="text-sm font-bold leading-none">{new Date(exam.exam_date).getDate()}</span>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-800">{DAY_FULL[new Date(exam.exam_date).getDay()]}</p>
-                          <p className="text-[10px] text-gray-500">{new Date(exam.exam_date).getFullYear()}</p>
-                        </div>
+
+          {/* Calendar cells */}
+          <div className="grid grid-cols-7">
+            {weeks.flat().map((date, idx) => {
+              if (!date) {
+                return <div key={idx} className="aspect-square border-b border-r border-gray-100 bg-gray-50/30" />;
+              }
+              const key = ymd(date);
+              const dayExams = examsByDay[key] || [];
+              const rowIsToday = isToday(date);
+              const isFriday = date.getDay() === 5;
+              const dots = dayExams.slice(0, 3);
+              const extra = dayExams.length - dots.length;
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (dayExams.length > 0) {
+                      setDayModal({
+                        date: key,
+                        classId,
+                        className: info.className,
+                        grade: info.grade,
+                        roomNumber: info.roomNumber,
+                        exams: [...dayExams].sort((a, b) => (a.start_time || "").localeCompare(b.start_time || "")),
+                      });
+                    } else {
+                      setSelectedClass(classId);
+                      openListAdd(date);
+                    }
+                  }}
+                  className={`relative aspect-square border-b border-r border-gray-100 p-1.5 text-left transition-colors flex flex-col ${
+                    isFriday ? "bg-gray-50/40" : "hover:bg-gray-50"
+                  } ${rowIsToday ? activeColor.soft : ""} ${dayExams.length > 0 ? "cursor-pointer" : "cursor-pointer"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-semibold ${rowIsToday ? `${activeColor.text}` : isFriday ? "text-gray-400" : "text-gray-700"}`}>
+                      {date.getDate()}
+                    </span>
+                    {rowIsToday && (
+                      <span className={`text-[8px] font-bold px-1 rounded ${activeColor.soft} ${activeColor.text}`}>Today</span>
+                    )}
+                  </div>
+
+                  {dayExams.length > 0 && (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-1 mt-1">
+                      <div className="flex items-center gap-1">
+                        {dots.map((e, i) => (
+                          <div
+                            key={e.id}
+                            className={`w-2.5 h-2.5 rounded-full bg-gradient-to-br ${activeColor.grad} shadow-sm`}
+                            title={e.subject?.subject_name}
+                          />
+                        ))}
+                        {extra > 0 && (
+                          <span className={`text-[9px] font-bold ${activeColor.text} ml-0.5`}>+{extra}</span>
+                        )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block text-[10px] font-bold px-2 py-1 rounded-md ${activeColor.soft} ${activeColor.text}`}>
-                        Period {getPeriodForExam(exam.start_time) || "—"}
+                      <span className={`text-[9px] font-semibold ${activeColor.text}`}>
+                        {dayExams.length} exam{dayExams.length !== 1 ? "s" : ""}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-xs font-semibold text-gray-800">{exam.subject?.subject_name || "—"}</p>
-                      {exam.subject?.subject_code && <p className="text-[10px] text-gray-500">{exam.subject.subject_code}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-700">
-                      {exam.teacher?.staff?.application?.full_name || <span className="text-gray-400 italic">Not assigned</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-700">{exam.room || "—"}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${st.bg} ${st.text}`}>{st.label}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="inline-flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); openEdit(exam); }} className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(exam); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {info.exams.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-xs text-gray-400">No exams yet for this class.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {info.exams.length === 0 && (
+            <div className="px-4 py-4 text-center text-[11px] text-gray-400 border-t border-gray-100">
+              No exams yet. Click any date to add one.
+            </div>
+          )}
         </div>
-      </div>
-    );
+      );
+    };
 
     if (!hasMorning && !hasAfternoon) {
       return (
@@ -1097,13 +1144,11 @@ export default function Exams() {
               {formData.terms.map((t) => <option key={t.id} value={t.id}>{t.name}{t.is_current ? " (Current)" : ""}</option>)}
             </select>
           </div>
-          {activeType.hasPeriods && (
-            <div className="flex items-center gap-1">
-              <button onClick={() => navigatePeriod(-1)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
-              <button onClick={jumpToToday} className="px-3 py-2 text-[11px] font-semibold text-gray-600 hover:bg-gray-100 rounded-xl">Today</button>
-              <button onClick={() => navigatePeriod(1)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
-            </div>
-          )}
+          <div className="flex items-center gap-1">
+            <button onClick={() => navigatePeriod(-1)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl" title={activeType.hasPeriods ? "Previous" : "Previous month"}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+            <button onClick={jumpToToday} className="px-3 py-2 text-[11px] font-semibold text-gray-600 hover:bg-gray-100 rounded-xl">{!activeType.hasPeriods ? anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Today"}</button>
+            <button onClick={() => navigatePeriod(1)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl" title={activeType.hasPeriods ? "Next" : "Next month"}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+          </div>
         </div>
 
         {/* View label (grid tabs) */}
@@ -1240,6 +1285,95 @@ export default function Exams() {
           />
         );
       })()}
+
+      {/* Day-Exams Modal (click a calendar day) */}
+      {dayModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDayModal(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className={`px-5 py-4 bg-gradient-to-r ${activeColor.grad} flex items-center justify-between`}>
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  {new Date(dayModal.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                </h3>
+                <p className="text-[11px] text-white/80 mt-0.5">
+                  {dayModal.className}
+                  {dayModal.grade && ` · ${dayModal.grade}`}
+                  {dayModal.roomNumber && ` · Room ${dayModal.roomNumber}`}
+                  {` · ${dayModal.exams.length} exam${dayModal.exams.length !== 1 ? "s" : ""}`}
+                </p>
+              </div>
+              <button onClick={() => setDayModal(null)} className="text-white/80 hover:text-white p-1">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-2 overflow-y-auto">
+              {dayModal.exams.map((exam) => {
+                const st = STATUS_STYLES[exam.status] || STATUS_STYLES.scheduled;
+                return (
+                  <div
+                    key={exam.id}
+                    onClick={() => { setDayModal(null); navigate(`/class-management/exams/show/${exam.id}`); }}
+                    className={`group relative p-3 rounded-xl border-2 cursor-pointer hover:shadow-md transition-all ${activeColor.border} bg-white hover:bg-gray-50`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-800">{exam.subject?.subject_name || "—"}</p>
+                        {exam.subject?.subject_code && <p className="text-[10px] text-gray-500">{exam.subject.subject_code}</p>}
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeColor.soft} ${activeColor.text} flex-shrink-0`}>
+                        Period {getPeriodForExam(exam.start_time) || "—"}
+                      </span>
+                      {exam.status && exam.status !== "scheduled" && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${st.bg} ${st.text} flex-shrink-0`}>{st.label}</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-600">
+                      <div className="flex items-center gap-1.5">
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        <span className="truncate">{exam.teacher?.staff?.application?.full_name || <span className="italic text-gray-400">Not assigned</span>}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        <span className="truncate">{exam.room || "—"}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                        <span>{exam.total_marks} marks · pass {exam.passing_marks}</span>
+                      </div>
+                    </div>
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white rounded-lg shadow-md">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDayModal(null); openEdit(exam); }}
+                        className="p-1.5 text-gray-400 hover:text-teal-600"
+                        title="Edit"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(exam); setDayModal(null); }}
+                        className="p-1.5 text-gray-400 hover:text-red-600"
+                        title="Delete"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-between items-center">
+              <p className="text-[10px] text-gray-500">Click an exam to view details · Hover to edit/delete</p>
+              <button
+                onClick={() => { const d = new Date(dayModal.date); setSelectedClass(dayModal.classId); setDayModal(null); openListAdd(d); }}
+                className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Another Exam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Auto-Generate Modal */}
       {showGenerate && (

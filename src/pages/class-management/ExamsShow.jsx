@@ -4,25 +4,21 @@ import Swal from "sweetalert2";
 import { get, del } from "../../api/axios";
 
 const TYPE_LABELS = {
-  weekly: { label: "Weekly Exam", color: "teal" },
-  monthly: { label: "Monthly Exam", color: "blue" },
-  mid_term: { label: "چهارنیم ماهه / Mid-Term Exam", color: "violet" },
-  annual: { label: "Annual / Final Exam", color: "amber" },
+  weekly: { label: "Weekly Exam", noPeriod: false },
+  monthly: { label: "Monthly Exam", noPeriod: false },
+  mid_term: { label: "چهارنیم ماهه / Mid-Term Exam", noPeriod: true },
+  annual: { label: "Annual / Final Exam", noPeriod: true },
 };
 
 const STATUS_STYLES = {
-  scheduled: { bg: "bg-blue-100", text: "text-blue-700", label: "Scheduled" },
+  scheduled: { bg: "bg-teal-100", text: "text-teal-700", label: "Scheduled" },
   ongoing: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Ongoing" },
   completed: { bg: "bg-gray-200", text: "text-gray-700", label: "Completed" },
   cancelled: { bg: "bg-red-100", text: "text-red-700", label: "Cancelled" },
 };
 
-const COLOR = {
-  teal: { grad: "from-teal-500 to-teal-600", soft: "bg-teal-50", border: "border-teal-200", text: "text-teal-700" },
-  blue: { grad: "from-blue-500 to-blue-600", soft: "bg-blue-50", border: "border-blue-200", text: "text-blue-700" },
-  violet: { grad: "from-violet-500 to-violet-600", soft: "bg-violet-50", border: "border-violet-200", text: "text-violet-700" },
-  amber: { grad: "from-amber-500 to-amber-600", soft: "bg-amber-50", border: "border-amber-200", text: "text-amber-700" },
-};
+// Single brand color: teal
+const C = { grad: "from-teal-500 to-teal-600", soft: "bg-teal-50", border: "border-teal-200", text: "text-teal-700" };
 
 const fmtDate = (d) => new Date(d).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 const fmtTime = (t) => {
@@ -87,7 +83,7 @@ export default function ExamsShow() {
   if (!exam) return null;
 
   const typeInfo = TYPE_LABELS[exam.exam_type] || TYPE_LABELS.weekly;
-  const c = COLOR[typeInfo.color];
+  const c = C;
   const st = STATUS_STYLES[exam.status] || STATUS_STYLES.scheduled;
   const duration = (() => {
     if (!exam.start_time || !exam.end_time) return "—";
@@ -145,21 +141,25 @@ export default function ExamsShow() {
 
         <div className="p-6">
           {/* Quick Info */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className={`grid grid-cols-1 ${typeInfo.noPeriod ? "md:grid-cols-2" : "md:grid-cols-4"} gap-4 mb-8`}>
             <div className={`${c.soft} rounded-xl p-4 border ${c.border}`}>
               <p className={`text-[10px] font-semibold ${c.text} uppercase tracking-wide mb-1`}>Date</p>
               <p className="text-sm font-bold text-gray-800">{fmtDate(exam.exam_date)}</p>
             </div>
-            <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-              <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">Time</p>
-              <p className="text-sm font-bold text-gray-800">{fmtTime(exam.start_time)} – {fmtTime(exam.end_time)}</p>
-            </div>
-            <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-              <p className="text-[10px] font-semibold text-purple-700 uppercase tracking-wide mb-1">Duration</p>
-              <p className="text-sm font-bold text-gray-800">{duration}</p>
-            </div>
-            <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-              <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-1">Marks</p>
+            {!typeInfo.noPeriod && (
+              <>
+                <div className={`${c.soft} rounded-xl p-4 border ${c.border}`}>
+                  <p className={`text-[10px] font-semibold ${c.text} uppercase tracking-wide mb-1`}>Time</p>
+                  <p className="text-sm font-bold text-gray-800">{fmtTime(exam.start_time)} – {fmtTime(exam.end_time)}</p>
+                </div>
+                <div className={`${c.soft} rounded-xl p-4 border ${c.border}`}>
+                  <p className={`text-[10px] font-semibold ${c.text} uppercase tracking-wide mb-1`}>Duration</p>
+                  <p className="text-sm font-bold text-gray-800">{duration}</p>
+                </div>
+              </>
+            )}
+            <div className={`${c.soft} rounded-xl p-4 border ${c.border}`}>
+              <p className={`text-[10px] font-semibold ${c.text} uppercase tracking-wide mb-1`}>Marks</p>
               <p className="text-sm font-bold text-gray-800">{exam.total_marks} <span className="text-[10px] text-gray-500 font-normal">(pass: {exam.passing_marks})</span></p>
             </div>
           </div>
@@ -215,8 +215,8 @@ export default function ExamsShow() {
 
           {/* Notes */}
           {exam.notes && (
-            <div className="bg-blue-50/50 rounded-xl p-5 border border-blue-100">
-              <label className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Notes</label>
+            <div className="bg-teal-50/50 rounded-xl p-5 border border-teal-100">
+              <label className="text-[10px] font-semibold text-teal-700 uppercase tracking-wide">Notes</label>
               <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{exam.notes}</p>
             </div>
           )}

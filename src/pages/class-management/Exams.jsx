@@ -702,21 +702,49 @@ export default function Exams() {
       selectedShift ? `${selectedShift.charAt(0).toUpperCase() + selectedShift.slice(1)} Shift` : "All Shifts",
     ].filter(Boolean).join(" · ");
 
+    // Reusable header HTML — duplicated at the top of every printed class page
+    const headerHtml = `
+      <div class="print-header">
+        <div class="school-header">
+          <div class="school-name">WIFAQ SCHOOLS</div>
+          <div class="school-tagline">Excellence in Education</div>
+        </div>
+        <div class="doc-title">${title}</div>
+        <div class="doc-subtitle">${subtitle}</div>
+      </div>`;
+
     let body = "";
+    let isFirstClass = true;
     const renderOneClass = (info) => {
       const examsSorted = [...info.exams].sort((a, b) =>
         (a.exam_date + a.start_time).localeCompare(b.exam_date + b.start_time)
       );
 
+      // Mark all classes except the first one with `class-page-break` so each
+      // class table starts on its own printed page.
+      const blockClass = isFirstClass ? "class-block" : "class-block class-page-break";
+      // Repeat the header at the top of every NEW page (every class except the first,
+      // since the header is already rendered above the body for the first class).
+      // Header MUST be inside the page-break boundary so it lands on the new page,
+      // not at the bottom of the previous one.
+      const repeatedHeader = isFirstClass ? "" : headerHtml;
+      isFirstClass = false;
+
       body += `
-        <div class="class-block">
-          <div class="class-header">
-            <div class="class-name">${info.className}</div>
-            <div class="class-meta">
-              ${info.grade ? info.grade : ""}
-              ${info.roomNumber ? ` · Room ${info.roomNumber}` : ""}
-              ${info.shift ? ` · ${info.shift} shift` : ""}
-              · ${info.exams.length} exam${info.exams.length !== 1 ? "s" : ""}
+        <div class="${blockClass}">
+          ${repeatedHeader}
+          <div class="class-header-banner">
+            <div class="class-banner-left">
+              <div class="class-name">${info.className}</div>
+              <div class="class-meta">
+                ${info.grade ? info.grade : ""}
+                ${info.roomNumber ? ` · Room ${info.roomNumber}` : ""}
+                ${info.shift ? ` · ${info.shift} shift` : ""}
+              </div>
+            </div>
+            <div class="class-banner-right">
+              <span class="exam-count">${info.exams.length} exam${info.exams.length !== 1 ? "s" : ""}</span>
+              <span class="type-pill">${activeType.label}</span>
             </div>
           </div>`;
 
@@ -764,8 +792,19 @@ export default function Exams() {
       } else {
         // Flat exam table — hide Period column for mid-term/annual
         const printNoPeriod = activeType.noPeriod;
-        const colCount = printNoPeriod ? 7 : 8;
-        body += `<table class="exam-table"><thead><tr><th>Date</th><th>Day</th>${printNoPeriod ? "" : "<th>Period</th>"}<th>Subject</th><th>Teacher</th><th>Room</th><th>Marks</th><th>Status</th></tr></thead><tbody>`;
+        const colCount = printNoPeriod ? 9 : 10;
+        body += `<table class="exam-table"><thead><tr>
+          <th>Date</th>
+          <th>Day</th>
+          ${printNoPeriod ? "" : "<th>Period</th>"}
+          <th>Start</th>
+          <th>End</th>
+          <th>Subject</th>
+          <th>Teacher</th>
+          <th>Room</th>
+          <th>Marks</th>
+          <th>Status</th>
+        </tr></thead><tbody>`;
         examsSorted.forEach((ex) => {
           const d = new Date(ex.exam_date);
           body += `
@@ -773,6 +812,8 @@ export default function Exams() {
               <td>${d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</td>
               <td>${DAY_FULL[d.getDay()]}</td>
               ${printNoPeriod ? "" : `<td>Period ${getPeriodForExam(ex.start_time) || "—"}</td>`}
+              <td>${fmtTimeFn(ex.start_time)}</td>
+              <td>${fmtTimeFn(ex.end_time)}</td>
               <td>${ex.subject?.subject_name || "—"}</td>
               <td>${ex.teacher?.staff?.application?.full_name || "—"}</td>
               <td>${ex.room || "—"}</td>
@@ -789,17 +830,14 @@ export default function Exams() {
       body += `</div>`;
     };
 
-    const groups = [
-      { label: "Morning Shift", classes: Object.values(shiftGroups.morning) },
-      { label: "Afternoon Shift", classes: Object.values(shiftGroups.afternoon) },
+    // Render all classes in order — morning first, then afternoon. The shift
+    // is already shown inside each class banner so no standalone shift heading
+    // is needed (which would otherwise create awkward gaps between pages).
+    const allClasses = [
+      ...Object.values(shiftGroups.morning),
+      ...Object.values(shiftGroups.afternoon),
     ];
-    groups.forEach((g) => {
-      if (g.classes.length === 0) return;
-      if (!selectedShift) {
-        body += `<h2 class="shift-heading">${g.label}</h2>`;
-      }
-      g.classes.forEach((c) => renderOneClass(c));
-    });
+    allClasses.forEach((c) => renderOneClass(c));
 
     const html = `<!DOCTYPE html>
 <html>
@@ -816,12 +854,26 @@ export default function Exams() {
     .doc-subtitle { font-size: 12px; color: #6b7280; text-align: center; margin-bottom: 25px; }
     .shift-heading { font-size: 16px; font-weight: bold; color: #1f2937; margin: 25px 0 10px; padding: 8px 12px; background: #f3f4f6; border-left: 4px solid #0f766e; }
     .class-block { margin-bottom: 25px; page-break-inside: avoid; }
-    .class-header { padding: 10px 12px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px 4px 0 0; }
-    .class-name { font-size: 14px; font-weight: bold; color: #065f46; }
-    .class-meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
-    .exam-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .exam-table th { background: #f3f4f6; color: #374151; padding: 8px 6px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; }
-    .exam-table td { padding: 6px; border: 1px solid #e5e7eb; vertical-align: top; }
+    .class-header-banner {
+      background: linear-gradient(to right, #14b8a6, #0d9488);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 6px 6px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .class-banner-left { display: flex; flex-direction: column; }
+    .class-banner-right { display: flex; align-items: center; gap: 8px; }
+    .class-name { font-size: 15px; font-weight: bold; color: white; }
+    .class-meta { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 2px; }
+    .exam-count { background: rgba(255,255,255,0.2); color: white; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; }
+    .type-pill { background: white; color: #0f766e; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; }
+    .exam-table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; }
+    .exam-table th { background: #f3f4f6; color: #374151; padding: 6px 4px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+    .exam-table td { padding: 5px 4px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 10px; }
     .period-time { font-weight: normal; font-size: 9px; color: #6b7280; }
     .day-cell { background: #f9fafb; font-size: 11px; }
     .date-small { font-size: 10px; color: #6b7280; }
@@ -839,19 +891,25 @@ export default function Exams() {
     .status-cancelled { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
     .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #9ca3af; text-align: center; }
     @media print {
-      body { padding: 15px; }
-      .class-block { page-break-inside: avoid; }
-      @page { size: A4 landscape; margin: 15mm; }
+      body { padding: 0; }
+      .class-block { page-break-inside: auto; margin-bottom: 0; }
+      /* Each class (except the first) starts on a new page */
+      .class-page-break { page-break-before: always; }
+      /* Keep small atomic units together */
+      .class-header-banner, thead { page-break-after: avoid; }
+      tr { page-break-inside: avoid; }
+      .exam-item { page-break-inside: avoid; }
+      .school-header { padding: 8px 0 6px; margin-bottom: 8px; }
+      .school-name { font-size: 22px; }
+      .doc-title { font-size: 16px; margin: 6px 0 2px; }
+      .doc-subtitle { margin-bottom: 12px; }
+      .shift-heading { margin: 8px 0 4px; padding: 4px 10px; font-size: 12px; }
+      @page { size: A4 landscape; margin: 12mm 10mm; }
     }
   </style>
 </head>
 <body>
-  <div class="school-header">
-    <div class="school-name">WIFAQ SCHOOLS</div>
-    <div class="school-tagline">Excellence in Education</div>
-  </div>
-  <div class="doc-title">${title}</div>
-  <div class="doc-subtitle">${subtitle}</div>
+  ${headerHtml}
   ${body}
   <div class="footer">Generated on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
 </body>
@@ -860,10 +918,26 @@ export default function Exams() {
     printWin.document.open();
     printWin.document.write(html);
     printWin.document.close();
-    printWin.focus();
-    setTimeout(() => {
+
+    // Auto-close the print window after the user dismisses the print dialog
+    // (whether they printed or cancelled). This prevents the parent tab from
+    // hanging on focus return.
+    printWin.onafterprint = () => {
+      try { printWin.close(); } catch (_) {}
+    };
+
+    // Wait for the new window to fully load its assets before printing
+    printWin.onload = () => {
+      printWin.focus();
       printWin.print();
-    }, 250);
+    };
+
+    // Fallback: if onload doesn't fire fast enough, trigger print after a short delay
+    setTimeout(() => {
+      if (printWin && !printWin.closed) {
+        try { printWin.focus(); printWin.print(); } catch (_) {}
+      }
+    }, 500);
   };
 
   // Render period grid for a single class

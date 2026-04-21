@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { get, post, put, del } from "../../api/axios";
@@ -129,6 +129,12 @@ export default function Exams() {
   const [dayModal, setDayModal] = useState(null); // { date, className, grade, roomNumber, exams }
 
   useEffect(() => { fetchFormData(); }, []);
+
+  // In-memory cache of fetched exam lists, keyed by filter combo.
+  // Lets us show the previous result instantly while refetching in background.
+  const examCacheRef = useRef({});
+  const fetchSeqRef = useRef(0); // ignore stale responses from race conditions
+
   useEffect(() => { fetchExams(); }, [activeTab, selectedClass, selectedTerm, anchor]);
 
   // Auto-open edit modal when ?edit=id is in URL
@@ -142,7 +148,7 @@ export default function Exams() {
           if (exam) {
             // Switch to the exam's type tab
             if (exam.exam_type && exam.exam_type !== activeTab) {
-              setActiveTab(exam.exam_type);
+              switchTab(exam.exam_type);
             }
             openEdit(exam);
             searchParams.delete("edit");
@@ -156,17 +162,24 @@ export default function Exams() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.classes, searchParams]);
 
-  useEffect(() => {
-    const type = EXAM_TYPES.find((t) => t.key === activeTab);
-    if (!type) return;
-    // Calendar-view tabs anchor on the first of the current month
-    if (!type.hasPeriods) {
+  // Pick the right anchor for a given tab (first-of-month for calendar tabs,
+  // start-of-week for grid tabs).
+  const computeAnchor = (tabKey) => {
+    const type = EXAM_TYPES.find((t) => t.key === tabKey);
+    if (type && !type.hasPeriods) {
       const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0);
-      setAnchor(d);
-    } else {
-      setAnchor(getWeekStart(new Date()));
+      return d;
     }
-  }, [activeTab]);
+    return getWeekStart(new Date());
+  };
+
+  // Tab-switch wrapper — sets activeTab AND anchor in one render, so fetchExams
+  // only fires ONCE (avoids the double-fetch / blank-flash on tab change).
+  const switchTab = (tabKey) => {
+    if (tabKey === activeTab) return;
+    setActiveTab(tabKey);
+    setAnchor(computeAnchor(tabKey));
+  };
 
   const fetchFormData = async () => {
     try {
@@ -181,38 +194,50 @@ export default function Exams() {
   };
 
   const fetchExams = async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    try {
-      const params = new URLSearchParams();
+    const params = new URLSearchParams();
 
-      // Tab strategy:
-      //  - weekly  → fetch ALL exam types in the visible week (so a mid-term
-      //              exam scheduled today shows up in the weekly view)
-      //  - monthly → fetch ALL exam types in the visible month
-      //  - mid_term/annual → filter strictly by exam_type
-      const type = EXAM_TYPES.find((t) => t.key === activeTab);
-      if (type?.calendarView || type?.hasPeriods) {
-        // Date-range mode
-        let from, to;
-        if (activeTab === "monthly") {
-          from = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-          to = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
-        } else {
-          // weekly
-          from = anchor;
-          to = addDays(anchor, type.rangeDays - 1);
-        }
-        params.append("from_date", ymd(from));
-        params.append("to_date", ymd(to));
+    // Tab strategy:
+    //  - weekly  → fetch ALL exam types in the visible week
+    //  - monthly → fetch ALL exam types in the visible month
+    //  - mid_term/annual → filter strictly by exam_type
+    const type = EXAM_TYPES.find((t) => t.key === activeTab);
+    if (type?.calendarView || type?.hasPeriods) {
+      let from, to;
+      if (activeTab === "monthly") {
+        from = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+        to = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
       } else {
-        // mid_term / annual: by exam_type
-        params.append("exam_type", activeTab);
+        from = anchor;
+        to = addDays(anchor, type.rangeDays - 1);
       }
+      params.append("from_date", ymd(from));
+      params.append("to_date", ymd(to));
+    } else {
+      params.append("exam_type", activeTab);
+    }
 
-      if (selectedClass) params.append("school_class_id", selectedClass);
-      if (selectedTerm) params.append("academic_term_id", selectedTerm);
-      const res = await get(`/class-management/exams/list?${params.toString()}`);
-      setExams(res.data?.data || []);
+    if (selectedClass) params.append("school_class_id", selectedClass);
+    if (selectedTerm) params.append("academic_term_id", selectedTerm);
+
+    const cacheKey = params.toString();
+
+    // Show cached data instantly if we have it — no spinner blink on tab switch
+    const cached = examCacheRef.current[cacheKey];
+    if (cached) {
+      setExams(cached);
+      // skip the loader so the page feels instant; refetch silently in background
+      showLoading = false;
+    }
+
+    if (showLoading) setLoading(true);
+    const seq = ++fetchSeqRef.current;
+    try {
+      const res = await get(`/class-management/exams/list?${cacheKey}`);
+      // Ignore response if a newer request was started after this one
+      if (seq !== fetchSeqRef.current) return;
+      const data = res.data?.data || [];
+      examCacheRef.current[cacheKey] = data;
+      setExams(data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -341,7 +366,7 @@ export default function Exams() {
       const newStatus = isCancelled ? "scheduled" : "cancelled";
       await put(`/class-management/exams/update/${exam.id}`, { status: newStatus });
       Swal.fire({ icon: "success", title: isCancelled ? "Reactivated" : "Cancelled", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
-      fetchExams(false);
+      examCacheRef.current = {}; teacherCacheRef.current = {}; fetchExams(false);
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || `${action} failed`, "error");
     }
@@ -371,7 +396,7 @@ export default function Exams() {
       const res = await post("/class-management/exams/generate", payload);
       Swal.fire({ icon: "success", title: res.data?.message || "Generated", timer: 1500, showConfirmButton: false });
       setShowGenerate(false);
-      fetchExams(false);
+      examCacheRef.current = {}; teacherCacheRef.current = {}; fetchExams(false);
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Generation failed", "error");
     } finally {
@@ -379,12 +404,19 @@ export default function Exams() {
     }
   };
 
-  // ── Teacher filtering for quick / list add ──
+  // ── Teacher filtering for quick / list add ── (debounced + cached)
+  const teacherCacheRef = useRef({});
+  const teacherSeqRef = useRef(0);
   const fetchAvailableTeachers = async (params) => {
+    const qs = new URLSearchParams(params).toString();
+    if (teacherCacheRef.current[qs]) return teacherCacheRef.current[qs];
+    const seq = ++teacherSeqRef.current;
     try {
-      const qs = new URLSearchParams(params).toString();
       const res = await get(`/class-management/exams/available-teachers?${qs}`);
-      return res.data?.data || [];
+      const data = res.data?.data || [];
+      teacherCacheRef.current[qs] = data;
+      if (seq !== teacherSeqRef.current) return data;
+      return data;
     } catch (err) {
       console.error(err);
       return [];
@@ -406,7 +438,7 @@ export default function Exams() {
     try {
       await put(`/class-management/exams/reschedule/${dragExam.id}`, { exam_date: targetYmd, start_time: target.start, end_time: target.end });
       // Silent refetch (no loading spinner) so state matches DB without hiding the grid
-      fetchExams(false);
+      examCacheRef.current = {}; teacherCacheRef.current = {}; fetchExams(false);
     } catch (err) {
       setExams((prev) => prev.map((e) => e.id === dragExam.id ? { ...e, exam_date: original.date, start_time: original.start, end_time: original.end } : e));
       Swal.fire({ icon: "error", title: "Cannot move exam", text: err.response?.data?.message || "This slot conflicts with another exam." });
@@ -472,7 +504,7 @@ export default function Exams() {
         ...quickForm,
       });
       Swal.fire({ icon: "success", title: "Exam scheduled", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
-      setQuickAdd(null); fetchExams(false);
+      setQuickAdd(null); examCacheRef.current = {}; teacherCacheRef.current = {}; fetchExams(false);
     } catch (err) {
       if (err.response?.status === 422) {
         Swal.fire({ icon: "error", title: "Time slot conflict", text: err.response.data?.message || "Another exam already exists at this period for this class or teacher." });
@@ -565,7 +597,7 @@ export default function Exams() {
         end_time: useDefaultTime ? listForm.end_time : period.end,
       });
       Swal.fire({ icon: "success", title: "Exam scheduled", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
-      setListAdd(null); fetchExams(false);
+      setListAdd(null); examCacheRef.current = {}; teacherCacheRef.current = {}; fetchExams(false);
     } catch (err) {
       if (err.response?.status === 422) {
         Swal.fire({ icon: "error", title: "Time slot conflict", text: err.response.data?.message || "Another exam already exists at this time for this class or teacher." });
@@ -651,7 +683,7 @@ export default function Exams() {
         end_time: editTypeNoPeriod ? editForm.end_time : period.end,
       });
       Swal.fire({ icon: "success", title: "Exam updated", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
-      setEditAdd(null); fetchExams(false);
+      setEditAdd(null); examCacheRef.current = {}; teacherCacheRef.current = {}; fetchExams(false);
     } catch (err) {
       if (err.response?.status === 422) {
         Swal.fire({ icon: "error", title: "Conflict", text: err.response.data?.message || "This slot conflicts with another exam." });
@@ -1414,7 +1446,7 @@ export default function Exams() {
             return (
               <button
                 key={t.key}
-                onClick={() => setActiveTab(t.key)}
+                onClick={() => switchTab(t.key)}
                 className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${isActive ? `bg-gradient-to-r ${c.grad} text-white shadow-sm` : "text-gray-500 hover:bg-gray-50"
                   }`}
               >

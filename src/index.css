@@ -20,8 +20,11 @@ p    { font-size: 0.8125rem; line-height: 1.5; }
 span { font-size: inherit; }
 
 input, textarea, select { font-size: 0.8125rem; }
-button { font-size: 0.8125rem; }
+button { font-size: 0.8125rem; cursor: pointer; }
+button:disabled { cursor: not-allowed; }
 label  { font-size: 0.8125rem; }
+[role="button"], [role="tab"], [role="link"] { cursor: pointer; }
+a { cursor: pointer; }
 
 table { font-size: 0.8125rem; }
 th, td {

@@ -27,6 +27,17 @@ const STATUS_STYLES = {
   cancelled: { bg: "bg-red-500", text: "text-white", label: "Cancelled" },
 };
 
+// Read the time-aware status from the API (effective_status), fallback to status
+const examStatus = (exam) => exam?.effective_status || exam?.status || "scheduled";
+
+// Short label for an exam type (used as small badge on cards in mixed views)
+const TYPE_BADGE = {
+  weekly: "Weekly",
+  monthly: "Monthly",
+  mid_term: "Mid-Term",
+  annual: "Annual",
+};
+
 const TYPE_COLOR = {
   teal: { grad: "from-teal-500 to-teal-600", soft: "bg-teal-50", border: "border-teal-200", ring: "ring-teal-400", text: "text-teal-700", cellBg: "bg-teal-100 hover:bg-teal-200 border-teal-300", cellText: "text-teal-900" },
   blue: { grad: "from-blue-500 to-blue-600", soft: "bg-blue-50", border: "border-blue-200", ring: "ring-blue-400", text: "text-blue-700", cellBg: "bg-blue-100 hover:bg-blue-200 border-blue-300", cellText: "text-blue-900" },
@@ -81,6 +92,12 @@ export default function Exams() {
   const [anchor, setAnchor] = useState(() => getWeekStart(new Date()));
   const [showGenerate, setShowGenerate] = useState(false);
   const [genForm, setGenForm] = useState({ start_date: ymd(new Date()), duration_minutes: 60, total_marks: 100, replace_existing: false, all_classes: false });
+
+  // Refresh auto-generate defaults when active tab changes (mid_term=40, annual=60, etc.)
+  useEffect(() => {
+    const defaults = { weekly: 50, monthly: 100, mid_term: 40, annual: 60 };
+    setGenForm((p) => ({ ...p, total_marks: defaults[activeTab] || 100 }));
+  }, [activeTab]);
   const [generating, setGenerating] = useState(false);
   const [dragExam, setDragExam] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
@@ -166,7 +183,32 @@ export default function Exams() {
   const fetchExams = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const params = new URLSearchParams({ exam_type: activeTab });
+      const params = new URLSearchParams();
+
+      // Tab strategy:
+      //  - weekly  → fetch ALL exam types in the visible week (so a mid-term
+      //              exam scheduled today shows up in the weekly view)
+      //  - monthly → fetch ALL exam types in the visible month
+      //  - mid_term/annual → filter strictly by exam_type
+      const type = EXAM_TYPES.find((t) => t.key === activeTab);
+      if (type?.calendarView || type?.hasPeriods) {
+        // Date-range mode
+        let from, to;
+        if (activeTab === "monthly") {
+          from = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+          to = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+        } else {
+          // weekly
+          from = anchor;
+          to = addDays(anchor, type.rangeDays - 1);
+        }
+        params.append("from_date", ymd(from));
+        params.append("to_date", ymd(to));
+      } else {
+        // mid_term / annual: by exam_type
+        params.append("exam_type", activeTab);
+      }
+
       if (selectedClass) params.append("school_class_id", selectedClass);
       if (selectedTerm) params.append("academic_term_id", selectedTerm);
       const res = await get(`/class-management/exams/list?${params.toString()}`);
@@ -281,6 +323,27 @@ export default function Exams() {
       Swal.fire({ icon: "success", title: "Deleted", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Delete failed", "error");
+    }
+  };
+
+  const handleCancel = async (exam) => {
+    const isCancelled = exam.status === "cancelled";
+    const action = isCancelled ? "Reactivate" : "Cancel";
+    const ok = await Swal.fire({
+      title: `${action} this exam?`,
+      text: `${exam.subject?.subject_name} — ${new Date(exam.exam_date).toLocaleDateString()}`,
+      icon: "warning", showCancelButton: true,
+      confirmButtonColor: isCancelled ? "#0d9488" : "#f59e0b",
+      confirmButtonText: `Yes, ${action.toLowerCase()}`,
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      const newStatus = isCancelled ? "scheduled" : "cancelled";
+      await put(`/class-management/exams/update/${exam.id}`, { status: newStatus });
+      Swal.fire({ icon: "success", title: isCancelled ? "Reactivated" : "Cancelled", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
+      fetchExams(false);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || `${action} failed`, "error");
     }
   };
 
@@ -422,21 +485,34 @@ export default function Exams() {
   };
 
   // ── List Add (for mid_term / annual) ──
-  const openListAdd = (prefDate = null) => {
-    const cls = formData.classes.find((c) => String(c.id) === String(selectedClass));
+  // forClassId: when provided (e.g. clicked from a specific class card), the
+  // class is locked in the modal but the page-level filter is NOT changed.
+  const openListAdd = (prefDate = null, forClassId = null) => {
+    const targetClassId = forClassId || selectedClass;
+    const cls = formData.classes.find((c) => String(c.id) === String(targetClassId));
+    // Default marks per exam type — mid_term=40/16, annual=60/24, weekly=50/20, monthly=100/40
+    const defaults = {
+      weekly: { total: 50, pass: 20 },
+      monthly: { total: 100, pass: 40 },
+      mid_term: { total: 40, pass: 16 },
+      annual: { total: 60, pass: 24 },
+    };
+    const md = defaults[activeTab] || defaults.weekly;
     setListForm({
-      school_class_id: selectedClass || "",
+      school_class_id: targetClassId || "",
       subject_id: "",
       teacher_id: "",
       exam_date: prefDate ? ymd(prefDate) : ymd(new Date()),
       period: 1,
+      start_time: "09:00",
+      end_time: "11:00",
       room: cls?.room_number || "",
-      total_marks: 100,
-      passing_marks: 40,
+      total_marks: md.total,
+      passing_marks: md.pass,
     });
     setListTeachers([]);
     setListShowAllTeachers(false);
-    setListAdd({});
+    setListAdd({ lockClass: !!forClassId });
   };
 
   useEffect(() => {
@@ -445,12 +521,14 @@ export default function Exams() {
     if (cls && cls.room_number && !listForm.room) {
       setListForm((p) => ({ ...p, room: cls.room_number }));
     }
-    if (listForm.exam_date && (activeType.noPeriod || listForm.period)) {
-      const period = activeType.noPeriod ? { start: "09:00", end: "11:00" } : PERIODS.find((p) => p.n === Number(listForm.period));
+    if (listForm.exam_date && (activeType.noPeriod ? (listForm.start_time && listForm.end_time) : listForm.period)) {
+      const slot = activeType.noPeriod
+        ? { start: listForm.start_time, end: listForm.end_time }
+        : PERIODS.find((p) => p.n === Number(listForm.period));
       const params = {
         exam_date: listForm.exam_date,
-        start_time: period.start,
-        end_time: period.end,
+        start_time: slot.start,
+        end_time: slot.end,
         show_all: listShowAllTeachers ? 1 : 0,
       };
       if (listForm.subject_id) params.subject_id = listForm.subject_id;
@@ -461,7 +539,7 @@ export default function Exams() {
       setListTeachers([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listForm.school_class_id, listForm.subject_id, listForm.exam_date, listForm.period, listAdd, listShowAllTeachers]);
+  }, [listForm.school_class_id, listForm.subject_id, listForm.exam_date, listForm.period, listForm.start_time, listForm.end_time, listAdd, listShowAllTeachers]);
 
   const submitListAdd = async () => {
     if (!listForm.school_class_id || !listForm.subject_id || !selectedTerm || !listForm.exam_date) {
@@ -470,18 +548,21 @@ export default function Exams() {
     if (!activeType.noPeriod && !listForm.period) {
       Swal.fire("Missing fields", "Pick a period", "warning"); return;
     }
+    if (activeType.noPeriod && (!listForm.start_time || !listForm.end_time)) {
+      Swal.fire("Missing fields", "Pick start and end times", "warning"); return;
+    }
     setListSaving(true);
     try {
-      // For mid-term/annual (noPeriod), default to a standard exam window
+      // For weekly/monthly use period times; for mid-term/annual use the user-entered times
       const useDefaultTime = activeType.noPeriod;
       const period = useDefaultTime ? null : PERIODS.find((p) => p.n === Number(listForm.period));
-      const { period: _, ...rest } = listForm;
+      const { period: _, start_time: st, end_time: et, ...rest } = listForm;
       await post("/class-management/exams/store", {
         exam_type: activeTab,
         academic_term_id: selectedTerm,
         ...rest,
-        start_time: useDefaultTime ? "09:00" : period.start,
-        end_time: useDefaultTime ? "11:00" : period.end,
+        start_time: useDefaultTime ? listForm.start_time : period.start,
+        end_time: useDefaultTime ? listForm.end_time : period.end,
       });
       Swal.fire({ icon: "success", title: "Exam scheduled", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
       setListAdd(null); fetchExams(false);
@@ -506,6 +587,8 @@ export default function Exams() {
       teacher_id: exam.teacher_id || "",
       exam_date: exam.exam_date ? (exam.exam_date.split("T")[0]) : "",
       period: currentPeriod || 1,
+      start_time: (exam.start_time || "09:00").substring(0, 5),
+      end_time: (exam.end_time || "11:00").substring(0, 5),
       room: exam.room || cls?.room_number || "",
       total_marks: exam.total_marks || 100,
       passing_marks: exam.passing_marks || 40,
@@ -523,12 +606,15 @@ export default function Exams() {
       setEditForm((p) => ({ ...p, room: cls.room_number }));
     }
     const editTypeNoPeriod = ["mid_term", "annual"].includes(editAdd.exam_type);
-    if (editForm.exam_date && (editTypeNoPeriod || editForm.period)) {
-      const period = editTypeNoPeriod ? { start: "09:00", end: "11:00" } : PERIODS.find((p) => p.n === Number(editForm.period));
+    const haveTimes = editTypeNoPeriod ? (editForm.start_time && editForm.end_time) : !!editForm.period;
+    if (editForm.exam_date && haveTimes) {
+      const slot = editTypeNoPeriod
+        ? { start: editForm.start_time, end: editForm.end_time }
+        : PERIODS.find((p) => p.n === Number(editForm.period));
       const params = {
         exam_date: editForm.exam_date,
-        start_time: period.start,
-        end_time: period.end,
+        start_time: slot.start,
+        end_time: slot.end,
         exclude_exam_id: editAdd.id,
         show_all: editShowAllTeachers ? 1 : 0,
       };
@@ -540,7 +626,7 @@ export default function Exams() {
       setEditTeachers([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editForm.school_class_id, editForm.subject_id, editForm.exam_date, editForm.period, editAdd, editShowAllTeachers]);
+  }, [editForm.school_class_id, editForm.subject_id, editForm.exam_date, editForm.period, editForm.start_time, editForm.end_time, editAdd, editShowAllTeachers]);
 
   const submitEdit = async () => {
     if (!editForm.school_class_id || !editForm.subject_id || !editForm.exam_date) {
@@ -550,16 +636,19 @@ export default function Exams() {
     if (!editTypeNoPeriod && !editForm.period) {
       Swal.fire("Missing fields", "Pick a period", "warning"); return;
     }
+    if (editTypeNoPeriod && (!editForm.start_time || !editForm.end_time)) {
+      Swal.fire("Missing fields", "Pick start and end times", "warning"); return;
+    }
     setEditSaving(true);
     try {
       const period = editTypeNoPeriod ? null : PERIODS.find((p) => p.n === Number(editForm.period));
-      const { period: _, ...rest } = editForm;
+      const { period: _, start_time: _st, end_time: _et, ...rest } = editForm;
       await put(`/class-management/exams/update/${editAdd.id}`, {
         exam_type: editAdd.exam_type,
         academic_term_id: editAdd.academic_term_id,
         ...rest,
-        start_time: editTypeNoPeriod ? "09:00" : period.start,
-        end_time: editTypeNoPeriod ? "11:00" : period.end,
+        start_time: editTypeNoPeriod ? editForm.start_time : period.start,
+        end_time: editTypeNoPeriod ? editForm.end_time : period.end,
       });
       Swal.fire({ icon: "success", title: "Exam updated", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
       setEditAdd(null); fetchExams(false);
@@ -592,6 +681,19 @@ export default function Exams() {
       const ampm = hour >= 12 ? "PM" : "AM";
       const h12 = hour % 12 || 12;
       return `${h12}:${m} ${ampm}`;
+    };
+
+    // Status helpers for print — include badge with proper label
+    const STATUS_LABEL = { scheduled: "Scheduled", ongoing: "Ongoing", completed: "Completed", cancelled: "Cancelled" };
+    const STATUS_CLASS = {
+      scheduled: "status-scheduled",
+      ongoing: "status-ongoing",
+      completed: "status-completed",
+      cancelled: "status-cancelled",
+    };
+    const statusBadge = (ex) => {
+      const s = examStatus(ex);
+      return `<span class="status-badge ${STATUS_CLASS[s] || ""}">${STATUS_LABEL[s] || s}</span>`;
     };
 
     const title = `${activeType.label} Exam Schedule`;
@@ -648,7 +750,7 @@ export default function Exams() {
               list.forEach((ex) => {
                 body += `
                   <div class="exam-item">
-                    <div class="exam-subject">${ex.subject?.subject_name || "—"}</div>
+                    <div class="exam-subject">${ex.subject?.subject_name || "—"} ${statusBadge(ex)}</div>
                     ${ex.teacher?.staff?.application?.full_name ? `<div class="exam-meta">${ex.teacher.staff.application.full_name}</div>` : ""}
                     ${ex.room ? `<div class="exam-meta">Room ${ex.room}</div>` : ""}
                   </div>`;
@@ -662,8 +764,8 @@ export default function Exams() {
       } else {
         // Flat exam table — hide Period column for mid-term/annual
         const printNoPeriod = activeType.noPeriod;
-        const colCount = printNoPeriod ? 6 : 7;
-        body += `<table class="exam-table"><thead><tr><th>Date</th><th>Day</th>${printNoPeriod ? "" : "<th>Period</th>"}<th>Subject</th><th>Teacher</th><th>Room</th><th>Marks</th></tr></thead><tbody>`;
+        const colCount = printNoPeriod ? 7 : 8;
+        body += `<table class="exam-table"><thead><tr><th>Date</th><th>Day</th>${printNoPeriod ? "" : "<th>Period</th>"}<th>Subject</th><th>Teacher</th><th>Room</th><th>Marks</th><th>Status</th></tr></thead><tbody>`;
         examsSorted.forEach((ex) => {
           const d = new Date(ex.exam_date);
           body += `
@@ -675,6 +777,7 @@ export default function Exams() {
               <td>${ex.teacher?.staff?.application?.full_name || "—"}</td>
               <td>${ex.room || "—"}</td>
               <td>${ex.total_marks || "—"}</td>
+              <td style="text-align:center;">${statusBadge(ex)}</td>
             </tr>`;
         });
         if (examsSorted.length === 0) {
@@ -729,6 +832,11 @@ export default function Exams() {
     .exam-subject { font-weight: bold; font-size: 11px; color: #0f766e; }
     .exam-meta { font-size: 9px; color: #6b7280; }
     .no-exams { text-align: center; color: #9ca3af; padding: 20px !important; }
+    .status-badge { display: inline-block; font-size: 8px; font-weight: bold; padding: 1px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.4px; vertical-align: middle; margin-left: 4px; }
+    .status-scheduled { background: #ccfbf1; color: #0f766e; border: 1px solid #5eead4; }
+    .status-ongoing { background: #0f766e; color: #fff; }
+    .status-completed { background: #e5e7eb; color: #4b5563; border: 1px solid #d1d5db; }
+    .status-cancelled { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
     .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #9ca3af; text-align: center; }
     @media print {
       body { padding: 15px; }
@@ -839,7 +947,7 @@ export default function Exams() {
                           {cellExams.length > 0 ? (
                             <div className="space-y-1.5 h-full">
                               {cellExams.map((exam) => {
-                                const st = STATUS_STYLES[exam.status] || STATUS_STYLES.scheduled;
+                                const st = STATUS_STYLES[examStatus(exam)] || STATUS_STYLES.scheduled;
                                 return (
                                   <div
                                     key={exam.id}
@@ -851,9 +959,16 @@ export default function Exams() {
                                   >
                                     <div className="flex items-start justify-between gap-1 mb-1">
                                       <p className="text-xs font-bold leading-snug line-clamp-2 flex-1">{exam.subject?.subject_name || "—"}</p>
-                                      {exam.status && exam.status !== "scheduled" && (
-                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${st.bg} ${st.text} flex-shrink-0`}>{st.label}</span>
-                                      )}
+                                      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                                        {exam.exam_type !== activeTab && (
+                                          <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-white/70 text-gray-700 border border-gray-300">
+                                            {TYPE_BADGE[exam.exam_type]}
+                                          </span>
+                                        )}
+                                        {examStatus(exam) !== "scheduled" && (
+                                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${st.bg} ${st.text}`}>{st.label}</span>
+                                        )}
+                                      </div>
                                     </div>
                                     <div className="mt-auto space-y-0.5">
                                       {exam.room && (
@@ -936,7 +1051,7 @@ export default function Exams() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => { setSelectedClass(classId); openListAdd(); }} className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}>
+              <button onClick={() => openListAdd(null, classId)} className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}>
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Add Exam
               </button>
@@ -961,7 +1076,7 @@ export default function Exams() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sortedExams.map((exam) => {
-                  const st = STATUS_STYLES[exam.status] || STATUS_STYLES.scheduled;
+                  const st = STATUS_STYLES[examStatus(exam)] || STATUS_STYLES.scheduled;
                   return (
                     <tr key={exam.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/class-management/exams/show/${exam.id}`)}>
                       <td className="px-4 py-3">
@@ -997,10 +1112,13 @@ export default function Exams() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-1">
-                          <button onClick={(e) => { e.stopPropagation(); openEdit(exam); }} className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg">
+                          <button onClick={(e) => { e.stopPropagation(); openEdit(exam); }} className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg" title="Edit">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); handleDelete(exam); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                          <button onClick={(e) => { e.stopPropagation(); handleCancel(exam); }} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title={exam.status === "cancelled" ? "Reactivate" : "Cancel"}>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={exam.status === "cancelled" ? "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" : "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"} /></svg>
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(exam); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         </div>
@@ -1063,7 +1181,7 @@ export default function Exams() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => { setSelectedClass(classId); openListAdd(); }} className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}>
+              <button onClick={() => openListAdd(null, classId)} className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}>
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Add Exam
               </button>
@@ -1107,8 +1225,7 @@ export default function Exams() {
                         exams: [...dayExams].sort((a, b) => (a.start_time || "").localeCompare(b.start_time || "")),
                       });
                     } else {
-                      setSelectedClass(classId);
-                      openListAdd(date);
+                      openListAdd(date, classId);
                     }
                   }}
                   className={`relative aspect-square border-b border-r border-gray-100 p-1.5 text-left transition-colors flex flex-col ${
@@ -1365,6 +1482,7 @@ export default function Exams() {
             gradeSubjects={formData.gradeSubjects}
             teachers={listTeachers}
             usedSubjectIds={usedIds}
+            lockClass={!!listAdd?.lockClass}
             showDateAndPeriod={true}
             noPeriod={activeType.noPeriod}
             showAllTeachers={listShowAllTeachers}
@@ -1431,7 +1549,7 @@ export default function Exams() {
             </div>
             <div className="p-4 space-y-2 overflow-y-auto">
               {dayModal.exams.map((exam) => {
-                const st = STATUS_STYLES[exam.status] || STATUS_STYLES.scheduled;
+                const st = STATUS_STYLES[examStatus(exam)] || STATUS_STYLES.scheduled;
                 return (
                   <div
                     key={exam.id}
@@ -1443,12 +1561,19 @@ export default function Exams() {
                         <p className="text-sm font-bold text-gray-800">{exam.subject?.subject_name || "—"}</p>
                         {exam.subject?.subject_code && <p className="text-[10px] text-gray-500">{exam.subject.subject_code}</p>}
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeColor.soft} ${activeColor.text} flex-shrink-0`}>
-                        Period {getPeriodForExam(exam.start_time) || "—"}
-                      </span>
-                      {exam.status && exam.status !== "scheduled" && (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${st.bg} ${st.text} flex-shrink-0`}>{st.label}</span>
-                      )}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700`}>
+                          {TYPE_BADGE[exam.exam_type] || exam.exam_type}
+                        </span>
+                        {!["mid_term", "annual"].includes(exam.exam_type) && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeColor.soft} ${activeColor.text}`}>
+                            Period {getPeriodForExam(exam.start_time) || "—"}
+                          </span>
+                        )}
+                        {examStatus(exam) !== "scheduled" && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${st.bg} ${st.text}`}>{st.label}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-600">
                       <div className="flex items-center gap-1.5">
@@ -1473,6 +1598,13 @@ export default function Exams() {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
                       <button
+                        onClick={(e) => { e.stopPropagation(); handleCancel(exam); setDayModal(null); }}
+                        className="p-1.5 text-gray-400 hover:text-amber-600"
+                        title={exam.status === "cancelled" ? "Reactivate" : "Cancel"}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={exam.status === "cancelled" ? "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" : "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"} /></svg>
+                      </button>
+                      <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(exam); setDayModal(null); }}
                         className="p-1.5 text-gray-400 hover:text-red-600"
                         title="Delete"
@@ -1487,7 +1619,7 @@ export default function Exams() {
             <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-between items-center">
               <p className="text-[10px] text-gray-500">Click an exam to view details · Hover to edit/delete</p>
               <button
-                onClick={() => { const d = new Date(dayModal.date); setSelectedClass(dayModal.classId); setDayModal(null); openListAdd(d); }}
+                onClick={() => { const d = new Date(dayModal.date); setDayModal(null); openListAdd(d, dayModal.classId); }}
                 className={`px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg bg-gradient-to-r ${activeColor.grad} hover:opacity-90 flex items-center gap-1.5`}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -1660,9 +1792,19 @@ function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjec
           </div>
           {showDateAndPeriod && (
             noPeriod ? (
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Exam Date *</label>
-                <input type="date" value={form.exam_date} onChange={(e) => handle("exam_date", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Exam Date *</label>
+                  <input type="date" value={form.exam_date} onChange={(e) => handle("exam_date", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Time *</label>
+                  <input type="time" value={form.start_time} onChange={(e) => handle("start_time", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Time *</label>
+                  <input type="time" value={form.end_time} onChange={(e) => handle("end_time", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">

@@ -879,6 +879,11 @@ export default function Exams() {
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 20px; color: #1f2937; }
+    /* Centered content container — keeps everything aligned in the middle of the page */
+    .print-wrap { max-width: 95%; margin: 0 auto; text-align: center; }
+    .print-wrap .exam-table,
+    .print-wrap .class-header-banner { text-align: left; }
+    .print-wrap table { margin: 0 auto; }
     .school-header { text-align: center; padding: 20px 0 10px; border-bottom: 3px double #0f766e; margin-bottom: 20px; }
     .school-name { font-size: 28px; font-weight: bold; color: #0f766e; margin: 0; letter-spacing: 1px; }
     .school-tagline { font-size: 12px; color: #6b7280; margin-top: 4px; }
@@ -903,7 +908,7 @@ export default function Exams() {
     .class-meta { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 2px; }
     .exam-count { background: rgba(255,255,255,0.2); color: white; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; }
     .type-pill { background: white; color: #0f766e; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; }
-    .exam-table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; }
+    .exam-table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: auto; margin-left: auto; margin-right: auto; }
     .exam-table th { background: #f3f4f6; color: #374151; padding: 6px 4px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
     .exam-table td { padding: 5px 4px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 10px; }
     .period-time { font-weight: normal; font-size: 9px; color: #6b7280; }
@@ -941,9 +946,11 @@ export default function Exams() {
   </style>
 </head>
 <body>
-  ${headerHtml}
-  ${body}
-  <div class="footer">Generated on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+  <div class="print-wrap">
+    ${headerHtml}
+    ${body}
+    <div class="footer">Generated on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+  </div>
 </body>
 </html>`;
 

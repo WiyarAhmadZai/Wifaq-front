@@ -118,6 +118,82 @@ function BulletListDisplay({ text }) {
   );
 }
 
+// ── Searchable staff picker (select2-style) ─────────────────────────────────
+function SearchableStaffSelect({ options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const labelOf = (s) => s.name || s.full_name || s.application?.full_name || `Staff #${s.id || s.employee_id}`;
+  const selected = options.find((s) => String(s.id) === String(value));
+  const filtered = !query ? options : options.filter((s) => labelOf(s).toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`w-full px-3 py-2 border rounded-xl text-xs bg-white flex items-center justify-between gap-2 ${open ? "border-indigo-400 ring-2 ring-indigo-200" : "border-gray-200 hover:border-gray-300"}`}
+      >
+        <span className={selected ? "text-gray-800 font-medium" : "text-gray-400"}>
+          {selected ? labelOf(selected) : "Search & select staff…"}
+        </span>
+        <svg className={`w-3 h-3 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <svg className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Type a name…"
+                className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white outline-none"
+              />
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-gray-400 text-center">No staff found</p>
+            ) : (
+              filtered.map((s) => {
+                const isSelected = String(s.id) === String(value);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => { onChange(s.id); setOpen(false); setQuery(""); }}
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${isSelected ? "bg-indigo-50 text-indigo-700 font-semibold" : "hover:bg-gray-50 text-gray-700"}`}
+                  >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${isSelected ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                      {labelOf(s).split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </div>
+                    <span className="flex-1 truncate">{labelOf(s)}</span>
+                    {isSelected && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MeetingShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -131,6 +207,20 @@ export default function MeetingShow() {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteForm, setNoteForm] = useState({ ...emptyNote });
   const [savingNote, setSavingNote] = useState(false);
+
+  // Current user (from local storage, written by the auth layer)
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; } })();
+
+  // Propose agenda modal state
+  const [showProposeAgenda, setShowProposeAgenda] = useState(false);
+  const [proposeForm, setProposeForm] = useState({ title: "", description: "", duration_min: 15 });
+  const [proposing, setProposing] = useState(false);
+
+  // Assign task modal state
+  const [showAssignTask, setShowAssignTask] = useState(false);
+  const [staffList, setStaffList] = useState([]);
+  const [taskForm, setTaskForm] = useState({ staff_id: "", task: "", task_type: "normal", start_date: "", deadline: "", notes: "" });
+  const [assigningTask, setAssigningTask] = useState(false);
 
   useEffect(() => {
     get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data)).catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
@@ -154,6 +244,78 @@ export default function MeetingShow() {
   const handleDelete = async () => {
     const r = await Swal.fire({ title: "Delete meeting?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
     if (r.isConfirmed) { try { await del(`/meetings/${id}`); } catch {} navigate("/hr/meetings"); }
+  };
+
+  // ── Propose agenda item (participant flow) ──
+  const isOrganizer = data && currentUser?.id && data.organizer_id === currentUser.id;
+  const isParticipant = data && currentUser?.id && (data.participants || []).some((p) => p.id === currentUser.id);
+  const canProposeAgenda = isOrganizer || isParticipant;
+
+  const submitProposeAgenda = async () => {
+    if (!proposeForm.title.trim()) {
+      Swal.fire("Missing", "Please enter a topic", "warning"); return;
+    }
+    setProposing(true);
+    try {
+      const res = await post(`/meetings/${id}/agenda-items`, proposeForm);
+      const newItem = res.data?.data;
+      setData((p) => ({ ...p, agenda_items: [...(p.agenda_items || []), newItem] }));
+      setShowProposeAgenda(false);
+      setProposeForm({ title: "", description: "", duration_min: 15 });
+      Swal.fire({ icon: "success", title: "Agenda item added", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to add", "error");
+    } finally {
+      setProposing(false);
+    }
+  };
+
+  const deleteAgendaItem = async (itemId) => {
+    const ok = await Swal.fire({ title: "Remove this item?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444" });
+    if (!ok.isConfirmed) return;
+    try {
+      await del(`/meetings/${id}/agenda-items/${itemId}`);
+      setData((p) => ({ ...p, agenda_items: (p.agenda_items || []).filter((a) => a.id !== itemId) }));
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Cannot remove", "error");
+    }
+  };
+
+  // ── Assign task (organizer only) ──
+  const openAssignTask = async () => {
+    try {
+      const res = await get("/hr/staff-tasks/staff-list");
+      setStaffList(res.data?.data || res.data || []);
+    } catch {
+      setStaffList([]);
+    }
+    setTaskForm({
+      staff_id: "",
+      task: "",
+      task_type: "normal",
+      start_date: new Date().toISOString().split("T")[0],
+      deadline: "",
+      notes: `Assigned during meeting: ${data?.title || ""}`,
+    });
+    setShowAssignTask(true);
+  };
+
+  const submitAssignTask = async () => {
+    if (!taskForm.staff_id || !taskForm.task.trim() || !taskForm.start_date) {
+      Swal.fire("Missing fields", "Pick a staff member, enter the task, and pick a start date", "warning"); return;
+    }
+    setAssigningTask(true);
+    try {
+      const res = await post(`/meetings/${id}/tasks`, taskForm);
+      const newTask = res.data?.data;
+      setData((p) => ({ ...p, tasks: [...(p.tasks || []), newTask] }));
+      setShowAssignTask(false);
+      Swal.fire({ icon: "success", title: "Task assigned", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to assign task", "error");
+    } finally {
+      setAssigningTask(false);
+    }
   };
 
   // ── Notes handlers ──
@@ -268,6 +430,15 @@ export default function MeetingShow() {
               </div>
             )}
           </div>
+          {data.meeting_type === "emergency" && (
+            <span className="flex items-center gap-1 px-2.5 py-0.5 bg-red-500 text-white text-[11px] font-bold rounded-full">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              EMERGENCY
+            </span>
+          )}
+          {data.meeting_type === "routine" && (
+            <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">Routine</span>
+          )}
           <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{getDuration()}</span>
         </div>
       </div>
@@ -308,26 +479,50 @@ export default function MeetingShow() {
                   </div>
                   <p className="text-sm font-bold text-gray-800">Agenda</p>
                 </div>
-                {totalAgendaMin > 0 && <span className="text-[10px] font-semibold text-teal-600">{totalAgendaMin} min total</span>}
+                <div className="flex items-center gap-2">
+                  {totalAgendaMin > 0 && <span className="text-[10px] font-semibold text-teal-600">{totalAgendaMin} min total</span>}
+                  {canProposeAgenda && (
+                    <button onClick={() => setShowProposeAgenda(true)} className="px-2.5 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-[10px] font-medium flex items-center gap-1 transition-colors">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                      {isOrganizer ? "Add Item" : "Propose Item"}
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="p-5">
                 {(data.agenda_items || []).length === 0 ? (
                   <p className="text-xs text-gray-400 italic">No agenda items</p>
                 ) : (
                   <div className="space-y-3">
-                    {data.agenda_items.map((a, i) => (
-                      <div key={a.id || i} className="flex gap-3">
+                    {data.agenda_items.map((a, i) => {
+                      const submitterName = a.submitted_by?.name;
+                      const canRemove = isOrganizer || (a.submitted_by_id && currentUser?.id === a.submitted_by_id);
+                      return (
+                      <div key={a.id || i} className="flex gap-3 group">
                         <div className="w-6 h-6 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</div>
                         <div className="flex-1">
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start justify-between gap-2">
                             <p className="text-xs font-semibold text-gray-800">{a.title}</p>
-                            {a.duration_min > 0 && <span className="text-[10px] text-gray-400 flex-shrink-0">{a.duration_min} min</span>}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {a.duration_min > 0 && <span className="text-[10px] text-gray-400">{a.duration_min} min</span>}
+                              {canRemove && a.id && (
+                                <button onClick={() => deleteAgendaItem(a.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              )}
+                            </div>
                           </div>
                           {a.description && <p className="text-[10px] text-gray-500 mt-0.5">{a.description}</p>}
-                          {a.assigned_to && <p className="text-[10px] text-teal-600 mt-0.5 font-medium">Presenter: {a.assigned_to.name}</p>}
+                          <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                            {a.assigned_to && <span className="text-[10px] text-teal-600 font-medium">Presenter: {a.assigned_to.name}</span>}
+                            {submitterName && submitterName !== data.organizer?.name && (
+                              <span className="text-[10px] text-gray-400 italic">Proposed by {submitterName}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -484,6 +679,62 @@ export default function MeetingShow() {
                 ))}
               </div>
             </div>
+
+            {/* ── Tasks Assigned from this Meeting ── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className="px-5 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">Tasks from this meeting</p>
+                    <p className="text-[10px] text-indigo-600">{(data.tasks || []).length} task{(data.tasks || []).length !== 1 ? "s" : ""} assigned</p>
+                  </div>
+                </div>
+                {isOrganizer && (
+                  <button onClick={openAssignTask} className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-[10px] font-medium flex items-center gap-1 transition-colors">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Assign Task
+                  </button>
+                )}
+              </div>
+              <div className="p-5">
+                {(data.tasks || []).length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No tasks assigned yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {data.tasks.map((t) => {
+                      const priority = { urgent: "bg-red-100 text-red-700", high: "bg-orange-100 text-orange-700", normal: "bg-blue-100 text-blue-700", low: "bg-gray-100 text-gray-600" };
+                      const statusColor = { pending: "bg-amber-100 text-amber-700", in_progress: "bg-blue-100 text-blue-700", completed: "bg-emerald-100 text-emerald-700" };
+                      return (
+                        <div key={t.id} className="p-3 border border-gray-100 rounded-xl hover:border-indigo-200 transition-colors">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <p className="text-xs font-semibold text-gray-800 flex-1">{t.task}</p>
+                            <div className="flex gap-1 flex-shrink-0">
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${priority[t.task_type] || priority.normal}`}>{t.task_type?.toUpperCase()}</span>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${statusColor[t.status] || statusColor.pending}`}>{t.status?.replace("_", " ")}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                              {t.staff_name || t.staff?.application?.full_name || `Staff #${t.staff_id}`}
+                            </span>
+                            {t.deadline && (
+                              <span className="flex items-center gap-1">
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                Deadline: {new Date(t.deadline).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Sidebar */}
@@ -531,6 +782,93 @@ export default function MeetingShow() {
           </div>
         </div>
       </div>
+
+      {/* Propose Agenda Item Modal */}
+      {showProposeAgenda && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowProposeAgenda(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 bg-gradient-to-r from-teal-500 to-teal-600">
+              <h3 className="text-sm font-bold text-white">{isOrganizer ? "Add Agenda Item" : "Propose Agenda Item"}</h3>
+              <p className="text-[11px] text-white/80 mt-0.5">Your proposal will be visible to the organizer and participants</p>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Topic *</label>
+                <input type="text" value={proposeForm.title} onChange={(e) => setProposeForm((p) => ({ ...p, title: e.target.value }))} placeholder="e.g. Budget review for Q2" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
+                <textarea value={proposeForm.description} onChange={(e) => setProposeForm((p) => ({ ...p, description: e.target.value }))} rows={3} placeholder="Why is this important to discuss…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white resize-none" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Estimated Duration (minutes)</label>
+                <input type="number" min="1" max="180" value={proposeForm.duration_min} onChange={(e) => setProposeForm((p) => ({ ...p, duration_min: parseInt(e.target.value) || 15 }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowProposeAgenda(false)} className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={submitProposeAgenda} disabled={proposing} className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl disabled:opacity-50 flex items-center gap-2">
+                {proposing ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving…</> : "Add to Agenda"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Task Modal */}
+      {showAssignTask && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAssignTask(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600">
+              <h3 className="text-sm font-bold text-white">Assign Task from Meeting</h3>
+              <p className="text-[11px] text-white/80 mt-0.5">The assignee will be notified immediately</p>
+            </div>
+            <div className="p-5 space-y-3 overflow-y-auto">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Staff Member *</label>
+                <SearchableStaffSelect
+                  options={staffList}
+                  value={taskForm.staff_id}
+                  onChange={(v) => setTaskForm((p) => ({ ...p, staff_id: v }))}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Task Description *</label>
+                <textarea value={taskForm.task} onChange={(e) => setTaskForm((p) => ({ ...p, task: e.target.value }))} rows={3} placeholder="What needs to be done…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Priority *</label>
+                  <select value={taskForm.task_type} onChange={(e) => setTaskForm((p) => ({ ...p, task_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white">
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date *</label>
+                  <input type="date" value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Deadline</label>
+                <input type="date" value={taskForm.deadline} onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Notes</label>
+                <textarea value={taskForm.notes} onChange={(e) => setTaskForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional context…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white resize-none" />
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowAssignTask(false)} className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={submitAssignTask} disabled={assigningTask} className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl disabled:opacity-50 flex items-center gap-2">
+                {assigningTask ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Assigning…</> : "Assign Task"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

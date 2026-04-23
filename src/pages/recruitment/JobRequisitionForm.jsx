@@ -161,7 +161,18 @@ export default function JobRequisitionForm() {
       newErrors.number_of_positions = ["Number of positions must be at least 1"];
     }
     if (!formData.justification) newErrors.justification = ["Justification is required"];
-    
+
+    // Deadline must be today or later
+    if (formData.deadline_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const picked = new Date(formData.deadline_date);
+      picked.setHours(0, 0, 0, 0);
+      if (picked < today) {
+        newErrors.deadline_date = ["Deadline must be a future date"];
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -461,6 +472,7 @@ export default function JobRequisitionForm() {
                 name="deadline_date"
                 value={formData.deadline_date}
                 onChange={handleChange}
+                min={new Date().toISOString().split("T")[0]}
                 className={inputClass("deadline_date")}
               />
               {err("deadline_date") && <p className="text-red-500 text-[10px] mt-1">{err("deadline_date")}</p>}

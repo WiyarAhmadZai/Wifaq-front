@@ -30,6 +30,7 @@ export default function Schedule() {
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [scheduleData, setScheduleData] = useState(null);
   const [gradeData, setGradeData] = useState(null);
+  const [allSchedules, setAllSchedules] = useState(null); // array of class schedules when "all" is picked
   const [activeGradeTab, setActiveGradeTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -59,19 +60,42 @@ export default function Schedule() {
   }, [selectedTerm]);
 
   useEffect(() => {
-    if (viewMode === 'class' && selectedClass) fetchClassSchedule();
+    if (viewMode === 'class' && selectedClass === 'all') fetchAllClassSchedules();
+    else if (viewMode === 'class' && selectedClass) fetchClassSchedule();
     else if (viewMode === 'grade' && selectedGrade && selectedTerm) fetchGradeSchedule();
     else if (viewMode === 'teacher' && selectedTeacher && selectedTerm) fetchTeacherSchedule();
-    else { setScheduleData(null); setGradeData(null); }
+    else { setScheduleData(null); setGradeData(null); setAllSchedules(null); }
   }, [selectedClass, selectedGrade, selectedTeacher, viewMode]);
 
   const fetchClassSchedule = async () => {
     setLoading(true);
+    setAllSchedules(null);
     try {
       const res = await get(`/class-management/schedule/class?class_id=${selectedClass}`);
       setScheduleData(res.data);
     } catch { setScheduleData(null); }
     finally { setLoading(false); }
+  };
+
+  const fetchAllClassSchedules = async () => {
+    setLoading(true);
+    setScheduleData(null);
+    setGradeData(null);
+    try {
+      // Fetch all class schedules in parallel
+      const results = await Promise.all(
+        classes.map((c) =>
+          get(`/class-management/schedule/class?class_id=${c.id}`)
+            .then((r) => r.data)
+            .catch(() => null)
+        )
+      );
+      setAllSchedules(results.filter(Boolean));
+    } catch {
+      setAllSchedules([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchGradeSchedule = async () => {
@@ -277,6 +301,168 @@ export default function Schedule() {
   const classInfo = scheduleData?.class;
   const hasEntries = entries.length > 0;
 
+  // ── Print handler — opens a new window with clean HTML, one class per page,
+  // with the WIFAQ SCHOOLS header repeated at the top of every page ──
+  const handlePrint = () => {
+    const printWin = window.open("", "_blank", "width=1200,height=900");
+    if (!printWin) {
+      Swal.fire("Blocked", "Please allow popups to print.", "warning");
+      return;
+    }
+
+    // Collect the classes to print
+    let classesToPrint = [];
+    if (allSchedules && allSchedules.length > 0) {
+      classesToPrint = allSchedules;
+    } else if (scheduleData && viewMode === 'class') {
+      classesToPrint = [scheduleData];
+    } else if (gradeData && gradeData.classes) {
+      classesToPrint = gradeData.classes.map((c) => ({
+        class: { name: c.name, grade: gradeData.grade_name, section: c.section, shift: c.shift },
+        days: gradeData.days,
+        periods_count: gradeData.periods_count,
+        entries: c.entries || [],
+      }));
+    } else if (scheduleData && viewMode === 'teacher') {
+      // Teacher view is a single schedule
+      classesToPrint = [scheduleData];
+    }
+
+    const termName = terms.find((t) => String(t.id) === String(selectedTerm))?.name || "Current Term";
+    const title = viewMode === 'teacher' ? "Teacher Schedule" : "Class Schedule";
+
+    const headerHtml = `
+      <div class="print-header">
+        <div class="school-header">
+          <div class="school-name">WIFAQ SCHOOLS</div>
+          <div class="school-tagline">Excellence in Education</div>
+        </div>
+        <div class="doc-title">${title}</div>
+        <div class="doc-subtitle">${termName}</div>
+      </div>`;
+
+    let body = "";
+    let isFirst = true;
+    classesToPrint.forEach((sched) => {
+      const ci = sched.class || {};
+      const sDays = sched.days || [];
+      const sPeriods = sched.periods_count || 6;
+      const sEntries = sched.entries || [];
+      const blockClass = isFirst ? "class-block" : "class-block class-page-break";
+      const repeated = isFirst ? "" : headerHtml;
+      isFirst = false;
+
+      const className = ci.name || ci.class_name || "—";
+      const meta = [ci.grade, ci.section ? `Section ${ci.section}` : null, ci.shift ? (ci.shift === 'morning' ? 'Morning' : 'Afternoon') + ' shift' : null]
+        .filter(Boolean).join(" · ");
+
+      // Build entry map by day|period
+      const getEntryFor = (day, period) => sEntries.find((e) => e.day === day && e.period === period);
+
+      body += `
+        <div class="${blockClass}">
+          ${repeated}
+          <div class="class-header-banner">
+            <div class="class-banner-left">
+              <div class="class-name">${className}</div>
+              <div class="class-meta">${meta}</div>
+            </div>
+            <div class="class-banner-right">
+              <span class="exam-count">${sEntries.length} period${sEntries.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+          <table class="exam-table">
+            <thead>
+              <tr>
+                <th class="period-col">Period</th>
+                ${sDays.map((d) => `<th>${d.charAt(0).toUpperCase() + d.slice(1)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${Array.from({ length: sPeriods }, (_, i) => i + 1).map((p) => `
+                <tr>
+                  <td class="period-cell">P${p}</td>
+                  ${sDays.map((day) => {
+                    const e = getEntryFor(day, p);
+                    if (!e) return `<td class="empty-cell">—</td>`;
+                    return `<td class="exam-cell">
+                      <div class="exam-subject">${e.subject_name || '—'}</div>
+                      ${e.teacher_name ? `<div class="exam-meta">${e.teacher_name}</div>` : `<div class="exam-meta" style="color:#d97706;">⚠ No teacher</div>`}
+                    </td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    });
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 20px; color: #1f2937; }
+    .print-wrap { max-width: 95%; margin: 0 auto; text-align: center; }
+    .print-wrap .exam-table, .print-wrap .class-header-banner { text-align: left; }
+    .print-wrap table { margin: 0 auto; }
+    .print-header { margin-bottom: 12px; }
+    .school-header { text-align: center; padding: 12px 0 6px; border-bottom: 3px double #0f766e; margin-bottom: 10px; }
+    .school-name { font-size: 24px; font-weight: bold; color: #0f766e; letter-spacing: 1px; }
+    .school-tagline { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .doc-title { font-size: 16px; font-weight: bold; text-align: center; margin: 6px 0 2px; }
+    .doc-subtitle { font-size: 11px; color: #6b7280; text-align: center; margin-bottom: 10px; }
+    .class-block { margin-bottom: 15px; }
+    .class-header-banner {
+      background: linear-gradient(to right, #14b8a6, #0d9488);
+      color: white; padding: 10px 14px;
+      border-radius: 6px 6px 0 0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .class-banner-left { display: flex; flex-direction: column; }
+    .class-name { font-size: 14px; font-weight: bold; }
+    .class-meta { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 2px; }
+    .exam-count { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; }
+    .exam-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .exam-table th { background: #f3f4f6; color: #374151; padding: 6px 4px; text-align: center; border: 1px solid #d1d5db; font-weight: bold; font-size: 9px; text-transform: uppercase; }
+    .exam-table td { padding: 6px 4px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 10px; text-align: center; }
+    .period-col { width: 50px; }
+    .period-cell { background: #f9fafb; font-weight: bold; color: #0f766e; }
+    .empty-cell { color: #d1d5db; }
+    .exam-cell { background: #f0fdfa; text-align: left; }
+    .exam-subject { font-weight: bold; color: #0f766e; font-size: 11px; }
+    .exam-meta { font-size: 9px; color: #6b7280; margin-top: 2px; }
+    @media print {
+      body { padding: 0; }
+      .class-page-break { page-break-before: always; }
+      tr, .class-header-banner { page-break-inside: avoid; }
+      thead { page-break-after: avoid; }
+      @page { size: A4 landscape; margin: 12mm 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-wrap">
+    ${headerHtml}
+    ${body}
+  </div>
+</body>
+</html>`;
+
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.onafterprint = () => { try { printWin.close(); } catch (_) {} };
+    printWin.onload = () => { printWin.focus(); printWin.print(); };
+    setTimeout(() => {
+      if (printWin && !printWin.closed) {
+        try { printWin.focus(); printWin.print(); } catch (_) {}
+      }
+    }, 500);
+  };
+
   return (
     <div className="px-4 py-5 space-y-5">
       {/* Header */}
@@ -286,8 +472,8 @@ export default function Schedule() {
           <p className="text-xs text-gray-400 mt-0.5">View and auto-generate weekly timetables</p>
         </div>
         <div className="flex gap-2">
-          {(scheduleData || gradeData) && (
-            <button onClick={() => window.print()}
+          {(scheduleData || gradeData || (allSchedules && allSchedules.length > 0)) && (
+            <button onClick={handlePrint}
               className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-50 transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               Print
@@ -338,6 +524,7 @@ export default function Schedule() {
               <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                 <option value="">Select class...</option>
+                <option value="all">★ All Classes</option>
                 {classes.map(c => (
                   <option key={c.id} value={c.id}>{c.name} ({c.shift === 'morning' ? 'AM' : 'PM'}){c.has_schedule ? ' ✓' : ''}</option>
                 ))}
@@ -383,6 +570,15 @@ export default function Schedule() {
             <p className="text-lg font-black text-teal-700">{entries.length}</p>
             <p className="text-[10px] text-teal-600">periods</p>
           </div>
+        </div>
+      )}
+
+      {/* All-classes stacked view */}
+      {!loading && allSchedules && allSchedules.length > 0 && (
+        <div className="space-y-6">
+          {allSchedules.map((sched, idx) => (
+            <AllClassesGrid key={sched?.class?.id || idx} sched={sched} />
+          ))}
         </div>
       )}
 
@@ -798,6 +994,79 @@ export default function Schedule() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Compact read-only schedule grid used in the All-Classes stacked view ──
+function AllClassesGrid({ sched }) {
+  const ci = sched?.class || {};
+  const days = sched?.days || [];
+  const periodsCount = sched?.periods_count || 6;
+  const entries = sched?.entries || [];
+  const getEntry = (day, period) => entries.find((e) => e.day === day && e.period === period);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 bg-gradient-to-r from-teal-500 to-teal-600 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-white">{ci.name || ci.class_name}</p>
+            <p className="text-[11px] text-white/80">
+              {ci.grade}{ci.section ? ` · Section ${ci.section}` : ""}{ci.shift ? ` · ${ci.shift === "morning" ? "Morning" : "Afternoon"} shift` : ""}
+            </p>
+          </div>
+        </div>
+        <span className="text-[11px] bg-white/20 text-white px-2.5 py-1 rounded-full font-semibold">
+          {entries.length} period{entries.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px]">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="px-3 py-2 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider w-16">Period</th>
+              {days.map((d) => (
+                <th key={d} className="px-2 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  {DAY_LABELS_FULL[d] || d}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: periodsCount }, (_, i) => i + 1).map((p) => (
+              <tr key={p} className="border-b border-gray-50">
+                <td className="px-3 py-2 text-center">
+                  <span className="inline-flex w-7 h-7 rounded-lg bg-teal-100 text-teal-700 items-center justify-center text-xs font-bold">{p}</span>
+                </td>
+                {days.map((day) => {
+                  const e = getEntry(day, p);
+                  const colors = e ? (CATEGORY_COLORS[e.category] || DEFAULT_COLOR) : null;
+                  return (
+                    <td key={day} className="px-1.5 py-1.5">
+                      {e ? (
+                        <div className={`p-2 rounded-lg border ${colors.bg} ${colors.border} min-h-[48px]`}>
+                          <p className={`text-[11px] font-semibold ${colors.text} leading-tight`}>{e.subject_name}</p>
+                          <p className={`text-[9px] mt-0.5 truncate ${e.teacher_name ? "text-gray-500" : "text-amber-600 font-semibold"}`}>
+                            {e.teacher_name || "⚠ No teacher"}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="min-h-[48px] rounded-lg border border-dashed border-gray-200 bg-gray-50/40 flex items-center justify-center">
+                          <span className="text-gray-300 text-xs">—</span>
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

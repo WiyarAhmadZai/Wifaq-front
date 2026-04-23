@@ -18,6 +18,7 @@ export default function MeetingForm() {
     end_time: "",
     location: "",
     status: "scheduled",
+    meeting_type: "routine",
   });
 
   const [participants, setParticipants] = useState([]);
@@ -70,6 +71,7 @@ export default function MeetingForm() {
         end_time: d.end_time ? d.end_time.replace(" ", "T").substring(0, 16) : "",
         location: d.location || "",
         status: d.status || "scheduled",
+        meeting_type: d.meeting_type || "routine",
       });
       if (d.participants?.length) {
         setParticipants(d.participants.map((p) => ({
@@ -221,6 +223,27 @@ export default function MeetingForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Location</label>
               <input type="text" name="location" value={form.location} onChange={handle} placeholder="Room name or virtual link" className={ic("location")} />
             </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Meeting Type *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, meeting_type: "routine" }))}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 border ${form.meeting_type === "routine" ? "bg-teal-600 text-white border-teal-600 shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  Routine
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, meeting_type: "emergency" }))}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 border ${form.meeting_type === "emergency" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:border-red-300"}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  Emergency
+                </button>
+              </div>
+            </div>
             {isEdit && (
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Status</label>
@@ -232,7 +255,7 @@ export default function MeetingForm() {
                 </select>
               </div>
             )}
-            <div className={isEdit ? "" : "sm:col-span-2"}>
+            <div className="sm:col-span-2">
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
               <textarea name="description" value={form.description} onChange={handle} rows={2} placeholder="Brief description of the meeting..." className={`${ic("description")} resize-none`} />
             </div>

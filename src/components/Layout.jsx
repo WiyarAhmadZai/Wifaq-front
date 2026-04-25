@@ -1,5 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
+
+const PageFallback = () => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600" />
+      <span className="text-gray-400 text-xs">Loading...</span>
+    </div>
+  </div>
+);
 import { get, put } from "../api/axios";
 import Swal from "sweetalert2";
 
@@ -1006,7 +1016,9 @@ export default function Layout() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
-          <Outlet />
+          <Suspense key={location.pathname} fallback={<PageFallback />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

@@ -82,7 +82,7 @@ export default function AdminRoleShow() {
   if (!role) return null;
 
   return (
-    <div className="px-4 py-5 max-w-5xl mx-auto space-y-4">
+    <div className="px-4 py-5 mx-auto space-y-4">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate("/admin/roles")}
                 className="p-2 text-gray-400 hover:bg-gray-100 rounded-xl">

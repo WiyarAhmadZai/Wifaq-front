@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { get, del, API_BASE_URL as _API } from '../../api/axios';
 const STORAGE_URL = _API.replace(/\/api\/?$/, '');
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const DOCUMENT_TYPES = {
   cv_resume: { label: "CV/Resume", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", color: "blue" },
@@ -24,6 +25,7 @@ const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", C
 export default function StaffShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("staff");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewingDoc, setViewingDoc] = useState(null);
@@ -83,16 +85,20 @@ export default function StaffShow() {
               <p className="text-xs text-teal-100 mt-0.5">Viewing staff record</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => navigate(`/hr/staff/edit/${id}`)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                Edit
-              </button>
-              <button onClick={handleDelete}
-                className="flex items-center gap-2 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 text-white text-xs font-semibold rounded-xl transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Delete
-              </button>
+              {canUpdate && (
+                <button onClick={() => navigate(`/hr/staff/edit/${id}`)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  Edit
+                </button>
+              )}
+              {canDelete && (
+                <button onClick={handleDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500/30 hover:bg-red-500/50 text-white text-xs font-semibold rounded-xl transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete
+                </button>
+              )}
             </div>
           </div>
 

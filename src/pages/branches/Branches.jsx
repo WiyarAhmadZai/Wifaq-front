@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Branches() {
   return (
     <CrudPage
+      permissionBase="branches"
       title="Branches Management"
       apiEndpoint="/branches/list"
       statusEndpoint="/branches/update"

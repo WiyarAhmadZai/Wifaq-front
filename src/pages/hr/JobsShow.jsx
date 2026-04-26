@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { get } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 export default function JobsShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate } = useResourcePermissions("job-postings");
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -84,12 +86,14 @@ export default function JobsShow() {
           >
             Back
           </button>
-          <button
-            onClick={() => navigate(`/hr/jobs/edit/${id}`)}
-            className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-lg hover:bg-teal-700 transition-colors"
-          >
-            Edit
-          </button>
+          {canUpdate && (
+            <button
+              onClick={() => navigate(`/hr/jobs/edit/${id}`)}
+              className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-lg hover:bg-teal-700 transition-colors"
+            >
+              Edit
+            </button>
+          )}
         </div>
       </div>
 
@@ -199,12 +203,14 @@ export default function JobsShow() {
                 )}
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => navigate(`/hr/jobs/edit/${id}`)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-lg hover:bg-teal-700 transition-colors"
-                >
-                  Edit Job
-                </button>
+                {canUpdate && (
+                  <button
+                    onClick={() => navigate(`/hr/jobs/edit/${id}`)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-lg hover:bg-teal-700 transition-colors"
+                  >
+                    Edit Job
+                  </button>
+                )}
                 <button
                   onClick={() => navigate('/hr/jobs')}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"

@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function RoutineItems() {
   return (
     <CrudPage
+      permissionBase="routine-items"
       title="Routine Items"
       apiEndpoint="/purchase/routine-items"
       createRoute="/purchase/routine-items/create"

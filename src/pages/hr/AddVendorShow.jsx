@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get } from '../../api/axios';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const RATING_LABELS = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent' };
 
@@ -14,6 +15,7 @@ const DEMO = {
 export default function AddVendorShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate } = useResourcePermissions("vendors");
   const [vendor, setVendor] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,11 +53,13 @@ export default function AddVendorShow() {
               <h1 className="text-sm font-bold text-white">Vendor Details</h1>
               <p className="text-xs text-teal-100 mt-0.5">Viewing vendor record</p>
             </div>
-            <button onClick={() => navigate(`/hr/add-vendor/edit/${id}`)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              Edit
-            </button>
+            {canUpdate && (
+              <button onClick={() => navigate(`/hr/add-vendor/edit/${id}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Edit
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white text-xl font-black flex-shrink-0">{d.name.charAt(0)}</div>

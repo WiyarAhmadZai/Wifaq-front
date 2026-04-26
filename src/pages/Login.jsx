@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { post } from '../api/axios';
 import Swal from 'sweetalert2';
+import { useAuth } from '../admin/context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -30,6 +32,11 @@ export default function Login() {
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+
+      // Pull the full user profile (with roles + permissions) into AuthContext
+      // BEFORE navigating, otherwise the path gate sees user=null and redirects
+      // back to /login → infinite loop.
+      await auth.reload();
 
       Swal.fire({
         title: 'Welcome!',

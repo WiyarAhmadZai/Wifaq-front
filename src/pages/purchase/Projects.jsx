@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Projects() {
   return (
     <CrudPage
+      permissionBase="projects"
       title="Projects"
       apiEndpoint="/purchase/projects"
       createRoute="/purchase/projects/create"

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const dummyInvoices = {
   3: { id: 3, student_name: "Khalid Amiri", class: "Grade 9-C", invoice_month: "2026-03-01", base_amount: 2800, discount_amount: 0, support_amount: 300, late_fee: 0, final_amount: 2500, amount_paid: 1500, status: "partial",
@@ -21,6 +22,7 @@ const statusConfig = {
 export default function FeeInvoiceShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("invoices");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [payForm, setPayForm] = useState({ amount_paid: "", payment_method: "cash", receipt_number: "", recorded_by: "" });
@@ -72,9 +74,11 @@ export default function FeeInvoiceShow() {
         </div>
         <div className="flex gap-2">
           <span className={`px-3 py-1 rounded-full text-xs font-bold border ${sc.color}`}>{sc.label}</span>
-          <button onClick={handleDelete} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-          </button>
+          {canDelete && (
+            <button onClick={handleDelete} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -117,7 +121,7 @@ export default function FeeInvoiceShow() {
             </div>
 
             {/* Record Payment */}
-            {data.status !== "paid" && (
+            {data.status !== "paid" && canUpdate && (
               <div className="mt-3">
                 {!showPayForm ? (
                   <button onClick={() => setShowPayForm(true)} className="w-full py-2 bg-teal-600 text-white rounded-lg text-xs font-medium hover:bg-teal-700 flex items-center justify-center gap-2">

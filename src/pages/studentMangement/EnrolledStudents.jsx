@@ -74,6 +74,7 @@ export default function EnrolledStudents() {
   return (
     <>
       <CrudPage
+        permissionBase="enrolled-students"
         key={refreshKey}
         title="Enrolled Students — Officially Registered"
         apiEndpoint="/student-management/students/list"

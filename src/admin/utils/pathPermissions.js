@@ -101,17 +101,52 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 /**
- * Resolve the required permission for a given pathname.
+ * Derive the action suffix from a sub-path tail.
+ *  - "/create"          → "create"
+ *  - "/edit/:id"        → "update"
+ *  - "/show/:id"        → "view"
+ *  - "" or "/" or list  → "view"
+ *  - anything else      → "view"  (read-like default)
+ */
+function actionForTail(tail) {
+  if (!tail || tail === "/") return "view";
+  if (tail === "/create" || tail.startsWith("/create/")) return "create";
+  if (tail.startsWith("/edit/") || tail.startsWith("/edit")) return "update";
+  if (tail.startsWith("/show/") || tail.startsWith("/show")) return "view";
+  return "view";
+}
+
+/**
+ * Replace the trailing ".{action}" of a permission key with a different action.
+ * For permissions that only have ".view" seeded (e.g. enrolled-students.view),
+ * the caller should still try ".manage" as a fallback (handled by the gate).
+ */
+function withAction(permission, action) {
+  if (!permission.includes(".")) return `${permission}.${action}`;
+  return permission.replace(/\.[^.]+$/, `.${action}`);
+}
+
+/**
+ * Resolve the required permission(s) for a given pathname.
  * Returns:
- *   { type: "public" }                  → accessible to any authenticated user
- *   { type: "protected", permission }   → accessible only with this permission
- *   { type: "untagged" }                → no rule matched → super-admin only
+ *   { type: "public" }                                      → accessible to any authenticated user
+ *   { type: "protected", permissions: string[] }            → user needs ANY of these
+ *   { type: "untagged" }                                    → no rule matched → super-admin only
+ *
+ * "permissions" is a list because we want OR semantics: e.g. on a /create
+ * sub-path we accept either "{module}.create" or "{module}.manage".
  */
 export function permissionForPath(pathname) {
   if (PUBLIC_PATHS.has(pathname)) return { type: "public" };
   for (const rule of RULES) {
     if (pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")) {
-      return { type: "protected", permission: rule.permission };
+      const tail = pathname.slice(rule.prefix.length); // "" | "/create" | "/edit/123" | "/show/123"
+      const action = actionForTail(tail);
+      const base = withAction(rule.permission, action);
+      const manage = withAction(rule.permission, "manage");
+      // For pure listing, .view alone is fine; .manage is a global override.
+      const candidates = action === "view" ? [base, manage] : [base, manage];
+      return { type: "protected", permissions: candidates };
     }
   }
   return { type: "untagged" };

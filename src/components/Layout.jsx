@@ -963,7 +963,7 @@ export default function Layout() {
             </>
           )}
 
-          <MenuSection title="System" />
+          {/* <MenuSection title="System" />
           <SidebarItem
             icon={Icons.Settings}
             label="Settings"
@@ -977,7 +977,7 @@ export default function Layout() {
             to="/support"
             active={isActive("/support")}
             onClick={closeSidebar}
-          />
+          /> */}
         </nav>
 
         {/* User Profile */}

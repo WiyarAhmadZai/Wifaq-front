@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { get, put, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const STEPS = [
   { key: "received", label: "Received", desc: "Application received", color: "blue", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
@@ -41,6 +42,7 @@ const SCREENING_CHECKLIST = [
 export default function ApplicationShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("applications");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checklist, setChecklist] = useState({});
@@ -837,32 +839,34 @@ export default function ApplicationShow() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100">
-                    <button
-                      onClick={() => handleStatusChange("screening")}
-                      disabled={isUpdating}
-                      className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
-                      {isUpdating ? "Processing..." : "Start Screening"}
-                    </button>
-                    <button
-                      onClick={handleWaitingList}
-                      disabled={isUpdating}
-                      className="px-4 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all disabled:opacity-50"
-                    >
-                      Waiting List
-                    </button>
-                    <button
-                      onClick={() => handleStatusChange("rejected")}
-                      disabled={isUpdating}
-                      className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
+                  {canUpdate && (
+                    <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100">
+                      <button
+                        onClick={() => handleStatusChange("screening")}
+                        disabled={isUpdating}
+                        className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        {isUpdating ? "Processing..." : "Start Screening"}
+                      </button>
+                      <button
+                        onClick={handleWaitingList}
+                        disabled={isUpdating}
+                        className="px-4 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all disabled:opacity-50"
+                      >
+                        Waiting List
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange("rejected")}
+                        disabled={isUpdating}
+                        className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -967,32 +971,34 @@ export default function ApplicationShow() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-3 pt-4 border-t border-gray-100">
-                    <button
-                      onClick={() => handleStatusChange("shortlisted")}
-                      disabled={isUpdating}
-                      className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      {isUpdating ? "Processing..." : "Shortlist Candidate"}
-                    </button>
-                    <button
-                      onClick={handleWaitingList}
-                      disabled={isUpdating}
-                      className="px-4 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all disabled:opacity-50"
-                    >
-                      Waiting List
-                    </button>
-                    <button
-                      onClick={() => handleStatusChange("rejected")}
-                      disabled={isUpdating}
-                      className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
+                  {canUpdate && (
+                    <div className="flex gap-3 pt-4 border-t border-gray-100">
+                      <button
+                        onClick={() => handleStatusChange("shortlisted")}
+                        disabled={isUpdating}
+                        className={`flex-1 py-3 px-4 ${colors.btn} text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {isUpdating ? "Processing..." : "Shortlist Candidate"}
+                      </button>
+                      <button
+                        onClick={handleWaitingList}
+                        disabled={isUpdating}
+                        className="px-4 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all disabled:opacity-50"
+                      >
+                        Waiting List
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange("rejected")}
+                        disabled={isUpdating}
+                        className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1108,6 +1114,7 @@ export default function ApplicationShow() {
                   </div>
 
                   {/* Action Buttons */}
+                  {canUpdate && (
                   <div className="flex gap-3 pt-4 border-t border-gray-100">
                     <button
                       onClick={handleScheduleInterview}
@@ -1141,6 +1148,7 @@ export default function ApplicationShow() {
                       Reject
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1241,6 +1249,7 @@ export default function ApplicationShow() {
                     </div>
 
                     {/* Action Buttons */}
+                    {canUpdate && (
                     <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
                       <button
                         onClick={() => handleInterviewFeedback("passed")}
@@ -1290,6 +1299,7 @@ export default function ApplicationShow() {
                         {isSubmittingFeedback ? "Saving..." : "Save Feedback"}
                       </button> */}
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1441,6 +1451,7 @@ export default function ApplicationShow() {
                       </div>
 
                       {/* Action Buttons */}
+                      {canUpdate && (
                       <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
                         {/* Send/Resend email - only for draft or sent */}
                         {(existingOffer.status === "draft" || existingOffer.status === "sent") && (
@@ -1483,6 +1494,7 @@ export default function ApplicationShow() {
                           </button>
                         )}
                       </div>
+                      )}
                     </>
                   )}
 
@@ -1624,6 +1636,7 @@ export default function ApplicationShow() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                               </svg>
                             </a>
+                            {canDelete && (
                             <button
                               onClick={handleDeleteResponsibilityFile}
                               disabled={isSubmittingOffer}
@@ -1634,6 +1647,7 @@ export default function ApplicationShow() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                             </button>
+                            )}
                             <label className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-all cursor-pointer" title="Replace File">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -1691,6 +1705,7 @@ export default function ApplicationShow() {
                       </div>
 
                       {/* Form Action Buttons */}
+                      {canUpdate && (
                       <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
                         {existingOffer ? (
                           <>
@@ -1740,6 +1755,7 @@ export default function ApplicationShow() {
                           </>
                         )}
                       </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1890,6 +1906,7 @@ export default function ApplicationShow() {
                       </div>
                     </div>
                   </div>
+                  {canUpdate && (
                   <div className="flex gap-3 pt-4 border-t border-amber-100">
                     <button
                       onClick={() => handleStatusChange("screening")}
@@ -1909,6 +1926,7 @@ export default function ApplicationShow() {
                       Reject
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             )}

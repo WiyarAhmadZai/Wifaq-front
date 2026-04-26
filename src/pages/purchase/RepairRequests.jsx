@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function RepairRequests() {
   return (
     <CrudPage
+      permissionBase="repair-requests"
       title="Repair Requests"
       apiEndpoint="/purchase/repair-requests"
       createRoute="/purchase/repair-requests/create"

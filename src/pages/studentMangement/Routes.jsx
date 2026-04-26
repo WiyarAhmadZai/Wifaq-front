@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Routes() {
   return (
     <CrudPage
+      permissionBase="routes"
       title="Transportation Routes"
       apiEndpoint="/transportation/routes/list"
       searchable={true}

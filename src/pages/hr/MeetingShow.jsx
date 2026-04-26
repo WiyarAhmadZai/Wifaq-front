@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const statusConf = {
   scheduled: { label: "Scheduled", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
@@ -197,6 +198,7 @@ function SearchableStaffSelect({ options, value, onChange }) {
 export default function MeetingShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("meetings");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -405,8 +407,12 @@ export default function MeetingShow() {
             <h1 className="text-sm font-bold text-white">Meeting Details</h1>
             <p className="text-xs text-teal-100 mt-0.5">#{String(data.id).padStart(4, "0")}</p>
           </div>
-          <button onClick={() => navigate(`/hr/meetings/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
-          <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+          {canUpdate && (
+            <button onClick={() => navigate(`/hr/meetings/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
+          )}
+          {canDelete && (
+            <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+          )}
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
         <div className="flex items-center gap-2 mt-2">

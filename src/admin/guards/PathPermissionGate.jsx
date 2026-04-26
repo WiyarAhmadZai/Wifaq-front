@@ -34,7 +34,10 @@ export default function PathPermissionGate({ children }) {
 
   if (rule.type === "public") return children;
   if (rule.type === "protected") {
-    return hasPermission(rule.permission)
+    // OR semantics: user needs ANY of the candidate permissions.
+    const allowed = (rule.permissions || [rule.permission])
+      .some((p) => hasPermission(p));
+    return allowed
       ? children
       : <Navigate to="/403" replace state={{ from: location }} />;
   }

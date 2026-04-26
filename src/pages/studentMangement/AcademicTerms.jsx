@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function AcademicTerms() {
   return (
     <CrudPage
+      permissionBase="academic-terms"
       title="Academic Terms"
       apiEndpoint="/academic-terms/list"
       deleteEndpoint="/academic-terms/delete"

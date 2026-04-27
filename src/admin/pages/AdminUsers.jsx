@@ -86,6 +86,7 @@ export default function AdminUsers() {
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Name</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Email</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Branch</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Roles</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-gray-500">Actions</th>
                 </tr>
@@ -106,6 +107,20 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-700">{u.email}</td>
+                    <td className="px-4 py-3">
+                      {u.branch?.name ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          {u.branch.name}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700"
+                              title="This user has no specific branch — they see data from every branch">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                          All Branches
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {(u.roles || []).map((r) => (

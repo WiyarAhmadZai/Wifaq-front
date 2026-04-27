@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
+import { get } from "../../api/axios";
+import { useAuth } from "../context/AuthContext";
 
 /**
  * Create OR edit a user. In create mode, optionally assign initial roles too.
@@ -14,16 +16,34 @@ import { accessApi } from "../services/accessApi";
  */
 export default function UserFormModal({ mode = "create", user = null, roles = [], onClose, onSaved }) {
   const isEdit = mode === "edit";
+  const { user: me } = useAuth();
+  // Only "global" users (super-admin OR branch_id=null) can re-assign branches.
+  const canPickBranch = me?.is_super_admin || me?.branch_id == null;
 
   const [form, setForm] = useState({
     name: "",
     username: "",
     email: "",
     password: "",
+    branch_id: "",   // "" = global / all branches
     roles: new Set(),
   });
+  const [branches, setBranches] = useState([]);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // Fetch branches once when the modal opens (only if user can pick).
+  useEffect(() => {
+    if (!canPickBranch) return;
+    (async () => {
+      try {
+        const res = await get("/branches/list");
+        setBranches(res.data?.data || []);
+      } catch {
+        setBranches([]);
+      }
+    })();
+  }, [canPickBranch]);
 
   useEffect(() => {
     if (isEdit && user) {
@@ -32,6 +52,7 @@ export default function UserFormModal({ mode = "create", user = null, roles = []
         username: user.username || "",
         email: user.email || "",
         password: "",
+        branch_id: user.branch_id ?? "",
         roles: new Set(user.roles || []),
       });
     }
@@ -44,6 +65,9 @@ export default function UserFormModal({ mode = "create", user = null, roles = []
     setSaving(true);
     setErrors({});
     try {
+      // "" → null means "all branches / global". Only send branch_id when allowed.
+      const branchId = form.branch_id === "" ? null : Number(form.branch_id);
+
       let res;
       if (isEdit) {
         const payload = {
@@ -52,12 +76,14 @@ export default function UserFormModal({ mode = "create", user = null, roles = []
           email: form.email,
         };
         if (form.password) payload.password = form.password;
+        if (canPickBranch) payload.branch_id = branchId;
         res = await accessApi.updateUser(user.id, payload);
       } else {
         res = await accessApi.createUser({
           name: form.name,
           username: form.username,
           email: form.email,
+          ...(canPickBranch ? { branch_id: branchId } : {}),
           password: form.password,
           roles: Array.from(form.roles),
         });
@@ -134,6 +160,26 @@ export default function UserFormModal({ mode = "create", user = null, roles = []
             />
             {errOf("password") && <p className="text-red-500 text-[10px] mt-1">{errOf("password")}</p>}
           </div>
+
+          {canPickBranch && (
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Branch</label>
+              <select
+                value={form.branch_id}
+                onChange={(e) => set("branch_id", e.target.value)}
+                className={inp("branch_id")}
+              >
+                <option value="">All Branches (Global) — sees data from every branch</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Leave as "All Branches" to give this user cross-branch visibility (like a super-admin).
+              </p>
+              {errOf("branch_id") && <p className="text-red-500 text-[10px] mt-1">{errOf("branch_id")}</p>}
+            </div>
+          )}
 
           {!isEdit && roles.length > 0 && (
             <div>

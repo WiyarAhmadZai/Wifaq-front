@@ -23,14 +23,20 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle 401
+// Response interceptor: handle 401 (auth lost) and 403 (no permission)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    if (status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Avoid redirect loop if already on /login
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
+    // 403: don't auto-redirect — let the calling page show its own error.
+    // Components/guards handle UX; this keeps API calls deterministic.
     return Promise.reject(error);
   }
 );

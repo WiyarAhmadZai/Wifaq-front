@@ -12,6 +12,7 @@ const decisionBadge = (val) => (
 export default function HiringDecisions() {
   return (
     <CrudPage
+      permissionBase="applications"
       title="Hiring Decisions"
       apiEndpoint="/recruitment/hiring-decisions"
       listColumns={[

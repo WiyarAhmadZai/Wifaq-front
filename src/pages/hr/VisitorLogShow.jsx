@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 export default function VisitorLogShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("visitor-log");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -71,15 +73,19 @@ export default function VisitorLogShow() {
             <p className="text-xs text-teal-100 mt-0.5">#{String(data.id).padStart(4, "0")}</p>
           </div>
           <div className="flex gap-2">
-            {isInside && (
+            {isInside && canUpdate && (
               <button onClick={handleSignOut}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-xl transition-colors">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                 Sign Out
               </button>
             )}
-            <button onClick={() => navigate(`/hr/visitor-log/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
-            <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+            {canUpdate && (
+              <button onClick={() => navigate(`/hr/visitor-log/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
+            )}
+            {canDelete && (
+              <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">

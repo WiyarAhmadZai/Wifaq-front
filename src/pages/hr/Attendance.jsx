@@ -50,6 +50,7 @@ export default function Attendance() {
 
   return (
     <CrudPage
+      permissionBase="attendance"
       title="Staff Attendance"
       apiEndpoint={`/hr/attendances?date=${today}`}
       listColumns={[

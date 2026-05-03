@@ -233,6 +233,7 @@ export default function Students() {
   return (
     <>
       <CrudPage
+        permissionBase="students"
         key={refreshKey}
         title="Phase 1 Students — Pending Enrollment"
         apiEndpoint="/student-management/students/list"

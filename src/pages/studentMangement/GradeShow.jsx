@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 export default function GradeShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate } = useResourcePermissions("grades");
   const [grade, setGrade] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,15 +59,17 @@ export default function GradeShow() {
             <p className="text-sm text-gray-500 mt-0.5">View grade information</p>
           </div>
         </div>
-        <button
-          onClick={() => navigate(`/student-management/grades/edit/${id}`)}
-          className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-          Edit Grade
-        </button>
+        {canUpdate && (
+          <button
+            onClick={() => navigate(`/student-management/grades/edit/${id}`)}
+            className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit Grade
+          </button>
+        )}
       </div>
 
       {/* Card */}

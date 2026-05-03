@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useAuth } from "../../admin/context/AuthContext";
 
 const STATUS_BADGE = {
   pending: "bg-amber-100 text-amber-700 border-amber-200",
@@ -13,6 +14,9 @@ const STATUS_BADGE = {
 export default function FoundationRequestShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canApprove = hasPermission("foundation-requests.approve") || hasPermission("foundation-requests.manage");
+  const canReject = hasPermission("foundation-requests.reject") || hasPermission("foundation-requests.manage");
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [approveAmount, setApproveAmount] = useState("");
@@ -191,20 +195,22 @@ export default function FoundationRequestShow() {
         </div>
       )}
 
-      {/* Approve/Reject form (only if pending) */}
-      {isPending && (
+      {/* Approve/Reject form (only if pending AND user has at least one of the actions) */}
+      {isPending && (canApprove || canReject) && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
           <h3 className="text-sm font-bold text-gray-800">Decision</h3>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Approved Amount (AFN)</label>
-            <input type="number" value={approveAmount} onChange={(e) => setApproveAmount(e.target.value)}
-              min={0} max={item.expected_monthly_fee}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" />
-            <p className="text-[10px] text-gray-400 mt-1">
-              Max: {Number(item.expected_monthly_fee).toLocaleString()} AFN. You can approve a partial amount.
-            </p>
-          </div>
+          {canApprove && (
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Approved Amount (AFN)</label>
+              <input type="number" value={approveAmount} onChange={(e) => setApproveAmount(e.target.value)}
+                min={0} max={item.expected_monthly_fee}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" />
+              <p className="text-[10px] text-gray-400 mt-1">
+                Max: {Number(item.expected_monthly_fee).toLocaleString()} AFN. You can approve a partial amount.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Admin Note (optional)</label>
@@ -214,14 +220,18 @@ export default function FoundationRequestShow() {
           </div>
 
           <div className="flex gap-2 pt-2">
-            <button onClick={handleReject} disabled={saving}
-              className="flex-1 px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-semibold hover:bg-red-100 disabled:opacity-50">
-              Reject
-            </button>
-            <button onClick={handleApprove} disabled={saving}
-              className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-              {saving ? "Processing..." : "Approve"}
-            </button>
+            {canReject && (
+              <button onClick={handleReject} disabled={saving}
+                className="flex-1 px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-semibold hover:bg-red-100 disabled:opacity-50">
+                Reject
+              </button>
+            )}
+            {canApprove && (
+              <button onClick={handleApprove} disabled={saving}
+                className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                {saving ? "Processing..." : "Approve"}
+              </button>
+            )}
           </div>
         </div>
       )}

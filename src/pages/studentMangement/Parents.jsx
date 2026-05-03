@@ -4,6 +4,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Parents() {
   return (
     <CrudPage
+      permissionBase="parents"
       title="Families Management"
       apiEndpoint="/student-management/families/list"
       searchable={true}

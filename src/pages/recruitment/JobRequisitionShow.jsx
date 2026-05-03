@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const Icons = {
   ArrowLeft: () => (
@@ -71,6 +72,7 @@ const STATUS_OPTIONS = [
 export default function JobRequisitionShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("job-requisitions");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -215,20 +217,24 @@ export default function JobRequisitionShow() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => navigate(`/recruitment/job-requisitions/edit/${id}`)}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Edit />
-            Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Trash />
-            Delete
-          </button>
+          {canUpdate && (
+            <button
+              onClick={() => navigate(`/recruitment/job-requisitions/edit/${id}`)}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Edit />
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Trash />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -236,17 +242,17 @@ export default function JobRequisitionShow() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left Column - Primary Details */}
         <div className="lg:col-span-2 space-y-5">
-          {/* Status Card - Clickable */}
+          {/* Status Card - Clickable when permitted */}
           <div
-            onClick={handleOpenStatusModal}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={canUpdate ? handleOpenStatusModal : undefined}
+            className={`bg-white rounded-xl shadow-sm border border-gray-200 p-5 ${canUpdate ? "cursor-pointer hover:shadow-md" : ""} transition-shadow`}
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center text-teal-600">
                 <Icons.Check />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-gray-500 mb-1">Current Status (Click to update)</p>
+                <p className="text-xs text-gray-500 mb-1">{canUpdate ? "Current Status (Click to update)" : "Current Status"}</p>
                 <span
                   className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(
                     data.approval_status
@@ -255,11 +261,13 @@ export default function JobRequisitionShow() {
                   {data.approval_status?.replace(/_/g, " ")}
                 </span>
               </div>
-              <div className="text-gray-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
+              {canUpdate && (
+                <div className="text-gray-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              )}
             </div>
           </div>
 

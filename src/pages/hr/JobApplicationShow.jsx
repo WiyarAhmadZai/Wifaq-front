@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 export default function JobApplicationShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate } = useResourcePermissions("applications");
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -56,12 +58,14 @@ export default function JobApplicationShow() {
             <p className="text-xs text-gray-500 mt-1">ID: {application.id}</p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => navigate(`/hr/job-application/edit/${application.id}`)}
-              className="px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-xs font-medium"
-            >
-              Edit
-            </button>
+            {canUpdate && (
+              <button
+                onClick={() => navigate(`/hr/job-application/edit/${application.id}`)}
+                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-xs font-medium"
+              >
+                Edit
+              </button>
+            )}
             <button
               onClick={() => navigate('/hr/job-application')}
               className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-xs font-medium"

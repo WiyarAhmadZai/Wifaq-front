@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, del, put, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const Icons = {
@@ -124,6 +125,7 @@ const TimelineItem = ({ icon: Icon, label, value, color = 'teal' }) => (
 export default function StaffTaskShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("staff-task");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -225,20 +227,24 @@ export default function StaffTaskShow() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleStatusUpdate}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Refresh />
-            Update Status
-          </button>
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Trash />
-            Delete
-          </button>
+          {canUpdate && (
+            <button
+              onClick={handleStatusUpdate}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Refresh />
+              Update Status
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Trash />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 

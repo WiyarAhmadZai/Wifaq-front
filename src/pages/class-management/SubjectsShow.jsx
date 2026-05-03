@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const getStatusBadge = (status) => ({
   active: 'bg-emerald-100 text-emerald-700',
@@ -11,6 +12,7 @@ const getStatusBadge = (status) => ({
 export default function SubjectsShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate, canDelete } = useResourcePermissions("subjects");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -60,16 +62,20 @@ export default function SubjectsShow() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => navigate(`/class-management/subjects/edit/${id}`)}
-              className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              Edit
-            </button>
-            <button onClick={handleDelete}
-              className="px-4 py-2 bg-red-500/30 hover:bg-red-500/50 text-white rounded-xl transition-colors flex items-center gap-2 font-semibold text-xs">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              Delete
-            </button>
+            {canUpdate && (
+              <button onClick={() => navigate(`/class-management/subjects/edit/${id}`)}
+                className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Edit
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={handleDelete}
+                className="px-4 py-2 bg-red-500/30 hover:bg-red-500/50 text-white rounded-xl transition-colors flex items-center gap-2 font-semibold text-xs">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Delete
+              </button>
+            )}
           </div>
         </div>
       </div>

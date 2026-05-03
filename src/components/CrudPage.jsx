@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, del, put } from "../api/axios";
 import Swal from "sweetalert2";
+import { useAuth } from "../admin/context/AuthContext";
 
 export default function CrudPage({
   title,
@@ -20,8 +21,27 @@ export default function CrudPage({
   statusOptions = [],
   statusSuffix = "",
   baseParams = {},
+  /**
+   * Permission base name (e.g. "academic-terms", "parents"). When provided,
+   * Create/Edit/Delete/Status buttons are hidden unless the user holds the
+   * corresponding `{base}.create | .update | .delete | .manage` permission.
+   * If omitted, all buttons remain visible (legacy behaviour).
+   */
+  permissionBase = null,
 }) {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+
+  // Permission resolution. If no base provided → all true (legacy behavior).
+  const permCheck = (action) => {
+    if (!permissionBase) return true;
+    return hasPermission(`${permissionBase}.${action}`) || hasPermission(`${permissionBase}.manage`);
+  };
+  const canCreate = permCheck("create");
+  const canUpdate = permCheck("update");
+  const canDelete = permCheck("delete");
+  const canView = permCheck("view");
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,11 +140,13 @@ export default function CrudPage({
         </div>
         <div className="flex gap-2">
           {extraHeaderButtons}
-          <button onClick={() => navigate(createRoute)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            New Entry
-          </button>
+          {canCreate && createRoute && (
+            <button onClick={() => navigate(createRoute)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              New Entry
+            </button>
+          )}
         </div>
       </div>
 
@@ -194,24 +216,30 @@ export default function CrudPage({
                     ))}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`${showRoute}/${item[idField]}`)}
-                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                        </button>
-                        <button onClick={() => navigate(`${editRoute}/${item[idField]}`)}
-                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        {statusEndpoint && statusOptions.length > 0 && (
+                        {canView && showRoute && (
+                          <button onClick={() => navigate(`${showRoute}/${item[idField]}`)}
+                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                          </button>
+                        )}
+                        {canUpdate && editRoute && (
+                          <button onClick={() => navigate(`${editRoute}/${item[idField]}`)}
+                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                        )}
+                        {canUpdate && statusEndpoint && statusOptions.length > 0 && (
                           <button onClick={() => handleOpenStatusModal(item)}
                             className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           </button>
                         )}
-                        <button onClick={() => handleDelete(item[idField])}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                        {canDelete && deleteEndpoint && (
+                          <button onClick={() => handleDelete(item[idField])}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -230,13 +258,13 @@ export default function CrudPage({
               {searchQuery ? (
                 <button onClick={() => { setSearchQuery(""); }}
                   className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">Clear Search</button>
-              ) : (
+              ) : canCreate && createRoute ? (
                 <button onClick={() => navigate(createRoute)}
                   className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   Create Entry
                 </button>
-              )}
+              ) : null}
             </div>
           )}
 

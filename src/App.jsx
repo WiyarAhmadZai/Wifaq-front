@@ -6,6 +6,15 @@ import {
   Navigate,
 } from "react-router-dom";
 import Layout from "./components/Layout";
+import { AuthProvider } from "./admin/context/AuthContext";
+import Protected from "./admin/guards/Protected";
+
+const AdminRoles = lazy(() => import("./admin/pages/AdminRoles"));
+const AdminRoleShow = lazy(() => import("./admin/pages/AdminRoleShow"));
+const AdminPermissions = lazy(() => import("./admin/pages/AdminPermissions"));
+const AdminUsers = lazy(() => import("./admin/pages/AdminUsers"));
+const AdminUserShow = lazy(() => import("./admin/pages/AdminUserShow"));
+const Forbidden = lazy(() => import("./admin/pages/Forbidden"));
 
 // Loading spinner shown while lazy components load
 const PageLoader = () => (
@@ -205,11 +214,13 @@ function PublicRoute({ children }) {
 function App() {
   return (
     <Router>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
+      <AuthProvider>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
+            <Route path="/403" element={<Suspense fallback={<PageLoader />}><Forbidden /></Suspense>} />
 
-          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="departments" element={<Placeholder title="Departments" />} />
             <Route path="payroll" element={<Placeholder title="Payroll" />} />
@@ -424,9 +435,37 @@ function App() {
             <Route path="purchase/projects/create" element={<Suspense fallback={<PageLoader />}><ProjectForm /></Suspense>} />
             <Route path="purchase/projects/edit/:id" element={<Suspense fallback={<PageLoader />}><ProjectForm /></Suspense>} />
             <Route path="purchase/projects/show/:id" element={<Suspense fallback={<PageLoader />}><ProjectShow /></Suspense>} />
+
+            {/* ===== Admin: Access Control ===== */}
+            <Route path="admin/roles" element={
+              <Protected permission="roles.view">
+                <Suspense fallback={<PageLoader />}><AdminRoles /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/roles/:id" element={
+              <Protected permission="roles.view">
+                <Suspense fallback={<PageLoader />}><AdminRoleShow /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/permissions" element={
+              <Protected permission="permissions.view">
+                <Suspense fallback={<PageLoader />}><AdminPermissions /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/users" element={
+              <Protected permission="users.view">
+                <Suspense fallback={<PageLoader />}><AdminUsers /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/users/:id" element={
+              <Protected permission="users.view">
+                <Suspense fallback={<PageLoader />}><AdminUserShow /></Suspense>
+              </Protected>
+            } />
           </Route>
-        </Routes>
-      </Suspense>
+          </Routes>
+        </Suspense>
+      </AuthProvider>
     </Router>
   );
 }

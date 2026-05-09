@@ -4,7 +4,7 @@ export default function PaymentForm() {
   return (
     <CrudFormPage
       title="Payment"
-      apiEndpoint="/finance/payments"
+      apiEndpoint="/financial/payments"
       listRoute="/finance/payments"
       fields={[
         { name: "reference", label: "Payment Reference" },

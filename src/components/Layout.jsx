@@ -625,15 +625,45 @@ export default function Layout() {
     { label: "Schedule", path: "/class-management/schedule", permission: "schedule.view" },
   ];
 
-  const financeMenus = [
-    { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
-    { label: "Chart of Accounts", path: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
-    { label: "Accounts", path: "/finance/accounts", permission: "accounts.view" },
-    { label: "Invoices", path: "/finance/invoices", permission: "invoices.view" },
-    { label: "Payments", path: "/finance/payments", permission: "payments.view" },
-    { label: "Budgets", path: "/finance/budgets", permission: "budgets.view" },
-    { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
+  // Finance menu, organized into sub-sections for readability.
+  // Student Statements is intentionally NOT in the sidebar — reachable from the
+  // FeeInvoices row icon, the invoice detail header, and the Cashier student search.
+  const financeGroups = [
+    {
+      items: [
+        { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
+        { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },
+      ],
+    },
+    {
+      title: "Daily",
+      items: [
+        { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
+        { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
+        { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
+        { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
+      ],
+    },
+    {
+      title: "Bookkeeping",
+      items: [
+        { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
+        { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
+        { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
+        { label: "Budgets", path: "/finance/budgets", permission: "budgets.view" },
+      ],
+    },
+    {
+      title: "Setup",
+      items: [
+        { label: "Chart of Accounts", path: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
+        { label: "Accounts", path: "/finance/accounts", permission: "accounts.view" },
+        { label: "Parties", path: "/finance/parties", permission: "parties.view" },
+      ],
+    },
   ];
+  // Flat list still used by canSeeGroup / visible permission filters.
+  const financeMenus = financeGroups.flatMap((g) => g.items);
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -910,10 +940,23 @@ export default function Layout() {
                 isOpen={openMenu.includes("finance")}
                 onClick={() => toggleMenu("finance")}
               >
-                {visible(financeMenus).map((item) => (
-                  <SubMenuItem key={item.path} label={item.label} to={item.path}
-                               active={isActive(item.path)} onClick={closeSidebar} />
-                ))}
+                {financeGroups.map((group, gi) => {
+                  const items = visible(group.items);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={gi}>
+                      {group.title && (
+                        <div className="pl-10 pr-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-teal-400/80">
+                          {group.title}
+                        </div>
+                      )}
+                      {items.map((item) => (
+                        <SubMenuItem key={item.path} label={item.label} to={item.path}
+                                     active={isActive(item.path)} onClick={closeSidebar} />
+                      ))}
+                    </div>
+                  );
+                })}
               </ParentMenu>
             </>
           )}

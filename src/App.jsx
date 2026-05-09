@@ -173,6 +173,17 @@ const BudgetForm = lazy(() => import("./pages/finance/BudgetForm"));
 const FeeInvoices = lazy(() => import("./pages/finance/FeeInvoices"));
 const FeeInvoiceForm = lazy(() => import("./pages/finance/FeeInvoiceForm"));
 const FeeInvoiceShow = lazy(() => import("./pages/finance/FeeInvoiceShow"));
+const BillingRun = lazy(() => import("./pages/finance/BillingRun"));
+const StudentStatement = lazy(() => import("./pages/finance/StudentStatement"));
+const Cashier = lazy(() => import("./pages/finance/Cashier"));
+const StudentStatementSearch = lazy(() => import("./pages/finance/StudentStatementSearch"));
+const FinanceInbox = lazy(() => import("./pages/finance/FinanceInbox"));
+const Parties = lazy(() => import("./pages/finance/Parties"));
+const PartyForm = lazy(() => import("./pages/finance/PartyForm"));
+const PartyLedger = lazy(() => import("./pages/finance/PartyLedger"));
+const JournalEntries = lazy(() => import("./pages/finance/JournalEntries"));
+const JournalEntryForm = lazy(() => import("./pages/finance/JournalEntryForm"));
+const JournalEntryShow = lazy(() => import("./pages/finance/JournalEntryShow"));
 
 // Purchase
 const PurchaseRequests = lazy(() => import("./pages/purchase/PurchaseRequests"));
@@ -383,14 +394,26 @@ function App() {
             <Route path="finance/budgets" element={<Suspense fallback={<PageLoader />}><Budgets /></Suspense>} />
             <Route path="finance/budgets/create" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/budgets/edit/:id" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
+            <Route path="finance/billing-runs" element={<Suspense fallback={<PageLoader />}><BillingRun /></Suspense>} />
+            <Route path="finance/student-statements" element={<Suspense fallback={<PageLoader />}><StudentStatementSearch /></Suspense>} />
+            <Route path="finance/students/:studentId/statement" element={<Suspense fallback={<PageLoader />}><StudentStatement /></Suspense>} />
+            <Route path="finance/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
+            <Route path="finance/fee-payments/create" element={<Navigate to="/finance/cashier" replace />} />
             <Route path="finance/fee-invoices" element={<Suspense fallback={<PageLoader />}><FeeInvoices /></Suspense>} />
             <Route path="finance/fee-invoices/create" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/edit/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/show/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceShow /></Suspense>} />
             <Route path="finance/fee-payments" element={<Suspense fallback={<PageLoader />}><FeePayments /></Suspense>} />
-            <Route path="finance/fee-payments/create" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />
+            {/* /finance/fee-payments/create is handled above by redirect to /finance/cashier */}
             <Route path="finance/fee-payments/edit/:id" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />
             <Route path="finance/fee-payments/show/:id" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />
+            <Route path="finance/journal-entries" element={<Suspense fallback={<PageLoader />}><JournalEntries /></Suspense>} />
+            <Route path="finance/journal-entries/create" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />
+            <Route path="finance/journal-entries/show/:id" element={<Suspense fallback={<PageLoader />}><JournalEntryShow /></Suspense>} />
+            <Route path="finance/parties" element={<Suspense fallback={<PageLoader />}><Parties /></Suspense>} />
+            <Route path="finance/parties/create" element={<Suspense fallback={<PageLoader />}><PartyForm /></Suspense>} />
+            <Route path="finance/parties/:id/ledger" element={<Suspense fallback={<PageLoader />}><PartyLedger /></Suspense>} />
+            <Route path="finance/inbox" element={<Suspense fallback={<PageLoader />}><FinanceInbox /></Suspense>} />
 
             {/* Recruitment */}
             <Route path="recruitment/job-requisitions" element={<Suspense fallback={<PageLoader />}><JobRequisitions /></Suspense>} />

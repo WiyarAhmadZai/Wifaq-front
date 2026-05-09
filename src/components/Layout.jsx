@@ -496,11 +496,42 @@ function NotificationBell() {
 // ── Profile Button (navigates to /profile page) ─────────────────────────────
 function ProfileButton() {
   const navigate = useNavigate();
+  const auth = useAuth();
+  const [profileData, setProfileData] = useState(null);
+  
+  useEffect(() => {
+    // Fetch current user profile data
+    const fetchProfileData = async () => {
+      try {
+        const response = await get('/profile');
+        setProfileData(response.data.data);
+      } catch (error) {
+        console.error('Profile fetch error:', error);
+      }
+    };
+    
+    fetchProfileData();
+  }, []);
+
+  const getInitial = (name) => {
+    if (!name) return 'U';
+    return name.charAt(0);
+  };
+
   return (
     <button onClick={() => navigate('/profile')}
       className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold hover:bg-teal-700 transition-colors"
-      title="My Profile">
-      A
+      title="My Profile"
+    >
+      {profileData?.user?.profile_photo || profileData?.staff?.profile_photo || profileData?.teacher?.profile_photo || profileData?.student?.profile_photo ? (
+        <img 
+          src={profileData?.user?.profile_photo || profileData?.staff?.profile_photo || profileData?.teacher?.profile_photo || profileData?.student?.profile_photo} 
+          alt="Profile" 
+          className="w-full h-full object-cover rounded-full"
+        />
+      ) : (
+        getInitial(profileData?.user?.name || auth.user?.name)
+      )}
     </button>
   );
 }

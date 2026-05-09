@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { getBudgets, deleteBudget, approveBudget, closeBudget } from "../../api/financial";
 import Swal from "sweetalert2";
 
 const dummy = [
@@ -26,16 +26,78 @@ export default function Budgets() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    get("/finance/budgets").then((r) => setItems(r.data?.data || r.data || [])).catch(() => setItems(dummy));
+    fetchBudgets();
   }, []);
 
+  const fetchBudgets = async () => {
+    setLoading(true);
+    try {
+      const response = await getBudgets();
+      setItems(response.data?.data || []);
+    } catch (error) {
+      console.error('Failed to fetch budgets:', error);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id) => {
-    const r = await Swal.fire({ title: "Delete budget?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
+    const r = await Swal.fire({
+      title: "Delete budget?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      confirmButtonText: "Delete"
+    });
     if (r.isConfirmed) {
-      try { await del(`/finance/budgets/${id}`); } catch {}
-      setItems((p) => p.filter((i) => i.id !== id));
+      try {
+        await deleteBudget(id);
+        setItems((p) => p.filter((i) => i.id !== id));
+        Swal.fire("Deleted!", "", "success");
+      } catch (error) {
+        Swal.fire("Error", error.response?.data?.message || "Failed to delete", "error");
+      }
+    }
+  };
+
+  const handleApprove = async (id) => {
+    const r = await Swal.fire({
+      title: "Approve budget?",
+      text: "This will make it the active budget for this period. Ensure no overlapping active budget exists.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Approve",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      await approveBudget(id);
+      await fetchBudgets();
+      Swal.fire("Approved!", "Budget is now active", "success");
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to approve", "error");
+    }
+  };
+
+  const handleClose = async (id) => {
+    const r = await Swal.fire({
+      title: "Close budget?",
+      text: "This will end the budget period. Transactions after this will not use this budget.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Close",
+      confirmButtonColor: "#f59e0b",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      await closeBudget(id);
+      await fetchBudgets();
+      Swal.fire("Closed!", "Budget has been closed.", "success");
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to close", "error");
     }
   };
 
@@ -57,8 +119,10 @@ export default function Budgets() {
 
       <div className="space-y-3">
         {items.map((budget) => {
-          const pct = Math.round((budget.total_spent / budget.total_budget) * 100);
-          const remaining = budget.total_budget - budget.total_spent;
+          const totalBudgeted = Number(budget.total_budgeted || 0);
+          const totalSpent = Number(budget.total_spent || 0);
+          const pct = totalBudgeted > 0 ? Math.round((totalSpent / totalBudgeted) * 100) : 0;
+          const remaining = Number(budget.total_remaining ?? (totalBudgeted - totalSpent));
           const isExpanded = expandedId === budget.id;
 
           return (
@@ -71,15 +135,39 @@ export default function Budgets() {
                     <p className="text-[10px] text-gray-400">Year {budget.year}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${budget.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                      {budget.status}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                      budget.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                      budget.status === "closed" ? "bg-gray-100 text-gray-600 border-gray-300" :
+                      "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}>
+                      {budget.status === "active" ? "Active (current)" : budget.status}
                     </span>
-                    <button onClick={() => navigate(`/finance/budgets/edit/${budget.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    </button>
-                    <button onClick={() => handleDelete(budget.id)} className="p-1 text-red-500 hover:bg-red-50 rounded">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
+                    {budget.status === "draft" && (
+                      <>
+                        <button onClick={() => navigate(`/finance/budgets/edit/${budget.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </button>
+                        <button onClick={() => handleApprove(budget.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Approve">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        </button>
+                        <button onClick={() => handleDelete(budget.id)} className="p-1 text-red-500 hover:bg-red-50 rounded">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </>
+                    )}
+                    {budget.status === "active" && (
+                      <>
+                        <button onClick={() => navigate(`/finance/budgets/edit/${budget.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded" title="Edit">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </button>
+                        <button onClick={() => handleClose(budget.id)} className="p-1 text-amber-600 hover:bg-amber-50 rounded" title="Close">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
+                      </>
+                    )}
+                    {budget.status === "closed" && (
+                      <span className="text-[10px] text-gray-400 italic">Completed</span>
+                    )}
                   </div>
                 </div>
 
@@ -87,11 +175,11 @@ export default function Budgets() {
                 <div className="grid grid-cols-3 gap-3 mb-3 text-center">
                   <div className="bg-gray-50 rounded-lg p-2">
                     <p className="text-[10px] text-gray-500">Total Budget</p>
-                    <p className="text-xs font-bold text-gray-800">{budget.total_budget.toLocaleString()}</p>
+                    <p className="text-xs font-bold text-gray-800">{totalBudgeted.toLocaleString()}</p>
                   </div>
                   <div className="bg-red-50 rounded-lg p-2">
                     <p className="text-[10px] text-gray-500">Spent</p>
-                    <p className="text-xs font-bold text-red-600">{budget.total_spent.toLocaleString()}</p>
+                    <p className="text-xs font-bold text-red-600">{totalSpent.toLocaleString()}</p>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-2">
                     <p className="text-[10px] text-gray-500">Remaining</p>
@@ -125,13 +213,17 @@ export default function Budgets() {
                 <div className="border-t border-gray-100 p-4 bg-gray-50">
                   <div className="space-y-2.5">
                     {budget.items.map((item, i) => {
-                      const ip = Math.round((item.spent / item.budgeted) * 100);
+                      const budgeted = Number(item.budgeted_amount ?? item.budgeted ?? 0);
+                      const spent = Number(item.spent_amount ?? item.spent ?? 0);
+                      const ip = budgeted > 0 ? Math.round((spent / budgeted) * 100) : 0;
+                      const label = item.chart_account?.name || item.chartAccount?.name || item.category || "—";
+                      const code = item.chart_account?.code || item.chartAccount?.code || "";
                       return (
                         <div key={i}>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-gray-700">{item.category}</span>
+                            <span className="text-xs font-medium text-gray-700">{code ? `${code} - ${label}` : label}</span>
                             <div className="flex items-center gap-3">
-                              <span className="text-[10px] text-gray-500">{item.spent.toLocaleString()} / {item.budgeted.toLocaleString()} AFN</span>
+                              <span className="text-[10px] text-gray-500">{spent.toLocaleString()} / {budgeted.toLocaleString()} AFN</span>
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${ip > 90 ? "bg-red-100 text-red-700" : ip > 70 ? "bg-amber-100 text-amber-700" : "bg-teal-100 text-teal-700"}`}>{ip}%</span>
                             </div>
                           </div>

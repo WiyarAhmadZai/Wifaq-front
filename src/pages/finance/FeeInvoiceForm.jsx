@@ -4,7 +4,7 @@ export default function FeeInvoiceForm() {
   return (
     <CrudFormPage
       title="Fee Invoice"
-      apiEndpoint="/finance/fee-invoices"
+      apiEndpoint="/financial/fees/invoices"
       listRoute="/finance/fee-invoices"
       fields={[
         { name: "student_name", label: "Student Name", required: true },

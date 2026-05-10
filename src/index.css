@@ -1,5 +1,33 @@
 @import "tailwindcss";
 
+/* Brand palette — darker teal anchored on #155c57 (used by bg-teal-600).
+   Tailwind v4 reads theme tokens from @theme, not tailwind.config.js. */
+@theme {
+  --color-teal-50:  #ecf2f1;
+  --color-teal-100: #cee0de;
+  --color-teal-200: #a3c4c0;
+  --color-teal-300: #74a39e;
+  --color-teal-400: #468580;
+  --color-teal-500: #226966;
+  --color-teal-600: #155c57;
+  --color-teal-700: #104846;
+  --color-teal-800: #0a3635;
+  --color-teal-900: #082726;
+  --color-teal-950: #051a19;
+
+  --color-emerald-50:  #ecf3ef;
+  --color-emerald-100: #d0e1d6;
+  --color-emerald-200: #a4c5b1;
+  --color-emerald-300: #75a78c;
+  --color-emerald-400: #4a886a;
+  --color-emerald-500: #286b4b;
+  --color-emerald-600: #185234;
+  --color-emerald-700: #114027;
+  --color-emerald-800: #0b2d1b;
+  --color-emerald-900: #061e11;
+  --color-emerald-950: #03110a;
+}
+
 html {
   font-size: 15px;
 }
@@ -68,8 +96,8 @@ header { font-size: 0.8125rem; }
 }
 
 .react-select__control--is-focused {
-  border-color: #14b8a6 !important;
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2) !important;
+  border-color: #155c57 !important;
+  box-shadow: 0 0 0 2px rgba(21, 92, 87, 0.25) !important;
 }
 
 .react-select__control.react-select-error {
@@ -132,18 +160,18 @@ header { font-size: 0.8125rem; }
 }
 
 .react-select__option:hover {
-  background-color: #f0fdfa !important;
-  color: #14b8a6 !important;
+  background-color: #ecf2f1 !important;
+  color: #155c57 !important;
 }
 
 .react-select__option--is-selected {
-  background-color: #14b8a6 !important;
+  background-color: #155c57 !important;
   color: white !important;
 }
 
 .react-select__option--is-focused {
-  background-color: #f0fdfa !important;
-  color: #14b8a6 !important;
+  background-color: #ecf2f1 !important;
+  color: #155c57 !important;
 }
 
 .react-select__indicator {

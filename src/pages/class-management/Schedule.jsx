@@ -31,6 +31,8 @@ export default function Schedule() {
   const [scheduleData, setScheduleData] = useState(null);
   const [gradeData, setGradeData] = useState(null);
   const [allSchedules, setAllSchedules] = useState(null); // array of class schedules when "all" is picked
+  const [allGradesData, setAllGradesData] = useState(null); // array of grade schedules when "all" grades is picked
+  const [allTeachersData, setAllTeachersData] = useState(null); // array of teacher schedules when "all" teachers is picked
   const [activeGradeTab, setActiveGradeTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -62,9 +64,11 @@ export default function Schedule() {
   useEffect(() => {
     if (viewMode === 'class' && selectedClass === 'all') fetchAllClassSchedules();
     else if (viewMode === 'class' && selectedClass) fetchClassSchedule();
+    else if (viewMode === 'grade' && selectedGrade === 'all' && selectedTerm) fetchAllGradeSchedules();
     else if (viewMode === 'grade' && selectedGrade && selectedTerm) fetchGradeSchedule();
+    else if (viewMode === 'teacher' && selectedTeacher === 'all' && selectedTerm) fetchAllTeacherSchedules();
     else if (viewMode === 'teacher' && selectedTeacher && selectedTerm) fetchTeacherSchedule();
-    else { setScheduleData(null); setGradeData(null); setAllSchedules(null); }
+    else { setScheduleData(null); setGradeData(null); setAllSchedules(null); setAllGradesData(null); setAllTeachersData(null); }
   }, [selectedClass, selectedGrade, selectedTeacher, viewMode]);
 
   const fetchClassSchedule = async () => {
@@ -81,8 +85,9 @@ export default function Schedule() {
     setLoading(true);
     setScheduleData(null);
     setGradeData(null);
+    setAllGradesData(null);
+    setAllTeachersData(null);
     try {
-      // Fetch all class schedules in parallel
       const results = await Promise.all(
         classes.map((c) =>
           get(`/class-management/schedule/class?class_id=${c.id}`)
@@ -93,6 +98,50 @@ export default function Schedule() {
       setAllSchedules(results.filter(Boolean));
     } catch {
       setAllSchedules([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllGradeSchedules = async () => {
+    setLoading(true);
+    setScheduleData(null);
+    setGradeData(null);
+    setAllSchedules(null);
+    setAllTeachersData(null);
+    try {
+      const results = await Promise.all(
+        grades.map((g) =>
+          get(`/class-management/schedule/grade?grade_id=${g.id}&academic_term_id=${selectedTerm}`)
+            .then((r) => r.data)
+            .catch(() => null)
+        )
+      );
+      setAllGradesData(results.filter(Boolean));
+    } catch {
+      setAllGradesData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllTeacherSchedules = async () => {
+    setLoading(true);
+    setScheduleData(null);
+    setGradeData(null);
+    setAllSchedules(null);
+    setAllGradesData(null);
+    try {
+      const results = await Promise.all(
+        teachers.map((t) =>
+          get(`/class-management/schedule/teacher?teacher_id=${t.id}&academic_term_id=${selectedTerm}`)
+            .then((r) => ({ ...r.data, teacher_name: t.name, teacher_id: t.id }))
+            .catch(() => null)
+        )
+      );
+      setAllTeachersData(results.filter(Boolean));
+    } catch {
+      setAllTeachersData([]);
     } finally {
       setLoading(false);
     }
@@ -314,6 +363,25 @@ export default function Schedule() {
     let classesToPrint = [];
     if (allSchedules && allSchedules.length > 0) {
       classesToPrint = allSchedules;
+    } else if (allGradesData && allGradesData.length > 0) {
+      // Flatten every grade's classes into a single sequential print list
+      allGradesData.forEach((gd) => {
+        (gd.classes || []).forEach((c) => {
+          classesToPrint.push({
+            class: { name: c.name, grade: gd.grade_name, section: c.section, shift: c.shift },
+            days: gd.days,
+            periods_count: gd.periods_count,
+            entries: c.entries || [],
+          });
+        });
+      });
+    } else if (allTeachersData && allTeachersData.length > 0) {
+      classesToPrint = allTeachersData.map((td) => ({
+        class: { name: td.teacher_name || `Teacher #${td.teacher_id}`, grade: "Teacher Schedule" },
+        days: td.days,
+        periods_count: td.periods_count,
+        entries: td.entries || [],
+      }));
     } else if (scheduleData && viewMode === 'class') {
       classesToPrint = [scheduleData];
     } else if (gradeData && gradeData.classes) {
@@ -324,7 +392,6 @@ export default function Schedule() {
         entries: c.entries || [],
       }));
     } else if (scheduleData && viewMode === 'teacher') {
-      // Teacher view is a single schedule
       classesToPrint = [scheduleData];
     }
 
@@ -472,7 +539,7 @@ export default function Schedule() {
           <p className="text-xs text-gray-400 mt-0.5">View and auto-generate weekly timetables</p>
         </div>
         <div className="flex gap-2">
-          {(scheduleData || gradeData || (allSchedules && allSchedules.length > 0)) && (
+          {(scheduleData || gradeData || (allSchedules && allSchedules.length > 0) || (allGradesData && allGradesData.length > 0) || (allTeachersData && allTeachersData.length > 0)) && (
             <button onClick={handlePrint}
               className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-50 transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
@@ -538,6 +605,7 @@ export default function Schedule() {
               <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                 <option value="">Select grade...</option>
+                <option value="all">★ All Grades</option>
                 {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </div>
@@ -549,6 +617,7 @@ export default function Schedule() {
               <select value={selectedTeacher} onChange={e => setSelectedTeacher(e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
                 <option value="">Select teacher...</option>
+                <option value="all">★ All Teachers</option>
                 {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
@@ -578,6 +647,48 @@ export default function Schedule() {
         <div className="space-y-6">
           {allSchedules.map((sched, idx) => (
             <AllClassesGrid key={sched?.class?.id || idx} sched={sched} />
+          ))}
+        </div>
+      )}
+
+      {/* All-grades stacked view (each grade has its own classes tab block) */}
+      {!loading && allGradesData && allGradesData.length > 0 && (
+        <div className="space-y-6">
+          {allGradesData.map((gd, gi) => (
+            <div key={gi} className="space-y-4">
+              <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-2xl px-4 py-3 text-white shadow-sm">
+                <p className="text-sm font-bold">{gd.grade_name || `Grade ${gi + 1}`}</p>
+                <p className="text-[11px] text-white/80">{gd.classes?.length || 0} class{(gd.classes?.length || 0) !== 1 ? "es" : ""}</p>
+              </div>
+              {(gd.classes || []).map((cls, ci) => (
+                <AllClassesGrid
+                  key={`${gi}-${ci}`}
+                  sched={{
+                    class: { name: cls.name, grade: gd.grade_name, section: cls.section, shift: cls.shift, id: cls.id },
+                    days: gd.days,
+                    periods_count: gd.periods_count,
+                    entries: cls.entries || [],
+                  }}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* All-teachers stacked view */}
+      {!loading && allTeachersData && allTeachersData.length > 0 && (
+        <div className="space-y-6">
+          {allTeachersData.map((td, ti) => (
+            <AllClassesGrid
+              key={td.teacher_id || ti}
+              sched={{
+                class: { name: td.teacher_name || `Teacher #${td.teacher_id}`, grade: "Teacher Schedule" },
+                days: td.days,
+                periods_count: td.periods_count,
+                entries: td.entries || [],
+              }}
+            />
           ))}
         </div>
       )}

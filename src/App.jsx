@@ -242,9 +242,10 @@ function App() {
             <Route path="payroll" element={<Placeholder title="Payroll" />} />
             <Route path="leave-requests" element={<Placeholder title="Leave Requests" />} />
             <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
+            <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
+            <Route path="profile/:userId" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
             <Route path="settings" element={<Placeholder title="Settings" />} />
             <Route path="support" element={<Placeholder title="Support" />} />
-            <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
 
             {/* Teacher Management */}
             <Route path="teacher-management/teachers" element={<Suspense fallback={<PageLoader />}><Teachers /></Suspense>} />

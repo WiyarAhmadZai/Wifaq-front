@@ -511,9 +511,11 @@ function Field({ label, children }) {
 }
 
 function SelectedStudentBar({ student, onChange, onAddPending }) {
+  const navigate = useNavigate();
   const name = student?.full_name || `${student?.first_name || ""} ${student?.last_name || ""}`.trim() || "Student";
-  const className = student?.school_class?.name || "—";
+  const className = student?.school_class?.class_name || student?.school_class?.name || "—";
   const family = student?.family || {};
+  const studentId = student?.id;
   return (
     <div className="flex items-center justify-between gap-3 p-2 bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 rounded-lg">
       <div className="min-w-0">
@@ -525,6 +527,15 @@ function SelectedStudentBar({ student, onChange, onAddPending }) {
         </p>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
+        {studentId && (
+          <button
+            onClick={() => navigate(`/finance/students/${studentId}/payments`)}
+            className="px-2.5 py-1 bg-white border border-gray-200 text-gray-700 rounded-lg hover:border-teal-300 hover:text-teal-700 text-[11px] font-medium"
+            title="See every payment this student has made"
+          >
+            Payment history
+          </button>
+        )}
         {onAddPending && (
           <button
             onClick={onAddPending}

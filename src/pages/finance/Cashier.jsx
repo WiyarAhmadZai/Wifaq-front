@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
+import { useAuth } from "../../admin/context/AuthContext";
 import { get } from "../../api/axios";
 import {
   getStudentStatement,
@@ -768,70 +769,227 @@ function InvoiceCard({ invoice, allocation, setAllocation, fillFull, clear, appl
   );
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ *  Print-only stylesheet
+ *  When the user clicks Print, only the element with [data-print-receipt]
+ *  is shown on the page; the surrounding sidebar / header / buttons are
+ *  hidden via `.no-print`. A4-friendly margins via @page.
+ * ────────────────────────────────────────────────────────────────────────── */
+const RECEIPT_PRINT_STYLES = `
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  html, body { background: #fff !important; }
+  body * { visibility: hidden !important; }
+  [data-print-receipt], [data-print-receipt] * { visibility: visible !important; }
+  [data-print-receipt] { position: absolute; inset: 0; width: 100%; box-shadow: none !important; border: none !important; }
+  .no-print { display: none !important; }
+  .print-shadow-none { box-shadow: none !important; }
+}
+`;
+
+const SCHOOL = {
+  name: "Wifaq School",
+  tagline: "Education with Excellence",
+  address: "Kabul, Afghanistan",
+  phone: "+93 700 000 000",
+  email: "info@wifaq.edu.af",
+  logo: "/wiyarkpu.jpg",
+};
+
+const METHOD_LABELS = { cash: "Cash", bank: "Bank Transfer", mobile: "Mobile Money", check: "Cheque" };
+
+/**
+ * Build a stable, deterministic receipt number from the first FeePayment in
+ * the batch. Backend sets `receipt_number` on each FeePayment row already.
+ */
+function deriveReceiptNo(receipt) {
+  const firstOk = receipt.results.find((r) => r.ok);
+  return (
+    firstOk?.payment?.receipt_number ||
+    `REC-${(receipt.paymentDate || "").replace(/-/g, "")}-${firstOk?.payment?.id || "0"}`
+  );
+}
+
 function ReceiptPanel({ receipt, onNew }) {
+  const { user } = useAuth();
   const okItems = receipt.results.filter((r) => r.ok);
   const failed = receipt.results.filter((r) => !r.ok);
-  const studentName = receipt.student?.full_name
-    || `${receipt.student?.first_name || ""} ${receipt.student?.last_name || ""}`.trim()
+
+  const student = receipt.student || {};
+  const studentName = student.full_name
+    || `${student.first_name || ""} ${student.last_name || ""}`.trim()
     || "Student";
+  const className = student.school_class?.class_name || student.school_class?.name || "—";
+  const family = student.family || {};
+  const parentName = family.father_name || family.mother_name || "—";
+  const parentPhone = family.father_phone || family.mother_phone || "—";
+  const cashierName = user?.name || user?.email || "—";
+  const receiptNo = deriveReceiptNo(receipt);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-      <div className="flex items-start justify-between mb-4 pb-3 border-b border-gray-100">
-        <div>
-          <p className="text-[10px] text-gray-500 uppercase font-semibold">Receipt</p>
-          <h2 className="text-xl font-bold text-gray-900">{fmtMoney(receipt.total)} <span className="text-sm">AFN</span></h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {studentName} · {receipt.method} · {fmtDate(receipt.paymentDate)}
-            {receipt.reference ? ` · Ref ${receipt.reference}` : ""}
-            {receipt.account ? ` · → ${receipt.account.account_name}` : ""}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => window.print()}
-            className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:border-teal-300 text-xs font-medium"
-          >
-            🖨 Print
-          </button>
-          <button
-            onClick={onNew}
-            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium"
-          >
-            New transaction
-          </button>
-        </div>
+    <>
+      <style>{RECEIPT_PRINT_STYLES}</style>
+
+      {/* Action toolbar — hidden when printing */}
+      <div className="no-print flex items-center justify-end gap-2 mb-3">
+        <button
+          onClick={onNew}
+          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:border-teal-300 hover:text-teal-700 text-xs font-medium"
+        >
+          New transaction
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="px-4 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-semibold flex items-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+          Print receipt
+        </button>
       </div>
 
-      <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Settled invoices</h3>
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-gray-100">
-            <th className="py-1.5">Invoice</th>
-            <th className="py-1.5">Period</th>
-            <th className="py-1.5 text-right">Allocated</th>
-            <th className="py-1.5">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-50">
-          {okItems.map((r) => (
-            <tr key={r.invoice.id}>
-              <td className="py-1.5 font-medium text-teal-700">{r.invoice.invoice_number}</td>
-              <td className="py-1.5 text-gray-600">{fmtMonth(r.invoice.invoice_month)}</td>
-              <td className="py-1.5 text-right font-bold">{fmtMoney(r.amount)}</td>
-              <td className="py-1.5"><span className="text-emerald-700 text-[10px] font-semibold">✓ Recorded</span></td>
-            </tr>
-          ))}
-          {failed.map((r) => (
-            <tr key={r.invoice.id} className="bg-red-50">
-              <td className="py-1.5 font-medium text-red-700">{r.invoice.invoice_number}</td>
-              <td className="py-1.5 text-gray-600">{fmtMonth(r.invoice.invoice_month)}</td>
-              <td className="py-1.5 text-right">{fmtMoney(r.amount)}</td>
-              <td className="py-1.5"><span className="text-red-700 text-[10px] font-semibold">✗ {r.message}</span></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      {/* The receipt itself — what gets printed */}
+      <div
+        data-print-receipt
+        className="bg-white border border-gray-200 rounded-xl shadow-sm max-w-[820px] mx-auto"
+      >
+        {/* ── Header: logo + school identity + status stripe ────────────── */}
+        <div className="border-b-4 border-teal-700">
+          <div className="flex items-center justify-between gap-4 px-8 py-5">
+            <div className="flex items-center gap-4">
+              <img
+                src={SCHOOL.logo}
+                alt={SCHOOL.name}
+                className="w-16 h-16 rounded-full object-cover ring-2 ring-teal-700/10"
+                onError={(e) => { e.target.style.display = "none"; }}
+              />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight">{SCHOOL.name}</h1>
+                <p className="text-[11px] text-teal-700 font-semibold italic">{SCHOOL.tagline}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">
+                  {SCHOOL.address} · {SCHOOL.phone} · {SCHOOL.email}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded-full ring-1 ring-emerald-200">
+                ✓ Paid
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Title bar: receipt # + date ────────────────────────────────── */}
+        <div className="px-8 py-4 bg-gray-50 border-b border-gray-200 flex items-end justify-between">
+          <div>
+            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Payment Receipt</p>
+            <h2 className="text-2xl font-bold text-gray-900 mt-0.5 tracking-tight">{receiptNo}</h2>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Issued</p>
+            <p className="text-sm font-bold text-gray-800">{fmtDate(receipt.paymentDate)}</p>
+          </div>
+        </div>
+
+        {/* ── Body: Issued-To + Payment Details ─────────────────────────── */}
+        <div className="px-8 py-5 grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-gray-200">
+          <div>
+            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest mb-2">Issued to</p>
+            <p className="text-base font-bold text-gray-900">{studentName}</p>
+            <div className="mt-1.5 text-xs text-gray-600 space-y-0.5">
+              {student.student_id && <p><span className="text-gray-400">Student ID:</span> <span className="font-medium text-gray-700">{student.student_id}</span></p>}
+              <p><span className="text-gray-400">Class:</span> <span className="font-medium text-gray-700">{className}</span></p>
+              <p><span className="text-gray-400">Parent:</span> <span className="font-medium text-gray-700">{parentName}</span></p>
+              <p><span className="text-gray-400">Phone:</span> <span className="font-medium text-gray-700">{parentPhone}</span></p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest mb-2">Payment details</p>
+            <div className="text-xs text-gray-600 space-y-0.5">
+              <p><span className="text-gray-400">Method:</span> <span className="font-medium text-gray-700">{METHOD_LABELS[receipt.method] || receipt.method}</span></p>
+              <p><span className="text-gray-400">Account:</span> <span className="font-medium text-gray-700">{receipt.account?.account_name || "—"}</span></p>
+              <p><span className="text-gray-400">Reference:</span> <span className="font-medium text-gray-700">{receipt.reference || "—"}</span></p>
+              <p><span className="text-gray-400">Cashier:</span> <span className="font-medium text-gray-700">{cashierName}</span></p>
+              <p><span className="text-gray-400">Invoices settled:</span> <span className="font-medium text-gray-700">{okItems.length}</span></p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Settled invoices table ────────────────────────────────────── */}
+        <div className="px-8 py-5">
+          <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest mb-3">Settled invoices</p>
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-teal-700 text-white">
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider w-8">#</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider">Invoice No.</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider">Period</th>
+                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wider">Amount Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {okItems.map((r, idx) => (
+                <tr key={r.invoice.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="px-3 py-2 border-b border-gray-100 text-gray-500">{idx + 1}</td>
+                  <td className="px-3 py-2 border-b border-gray-100 font-semibold text-teal-700">{r.invoice.invoice_number}</td>
+                  <td className="px-3 py-2 border-b border-gray-100 text-gray-600">{fmtMonth(r.invoice.invoice_month)}</td>
+                  <td className="px-3 py-2 border-b border-gray-100 text-right font-bold text-gray-900">{fmtMoney(r.amount)} AFN</td>
+                </tr>
+              ))}
+              {failed.map((r) => (
+                <tr key={`fail-${r.invoice.id}`} className="bg-red-50">
+                  <td className="px-3 py-2 border-b border-red-100 text-red-500">!</td>
+                  <td className="px-3 py-2 border-b border-red-100 font-semibold text-red-700">{r.invoice.invoice_number}</td>
+                  <td className="px-3 py-2 border-b border-red-100 text-red-600">Failed: {r.message}</td>
+                  <td className="px-3 py-2 border-b border-red-100 text-right text-red-600">{fmtMoney(r.amount)} AFN</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* ── Total panel ─────────────────────────────────────────────── */}
+          <div className="mt-5 flex justify-end">
+            <div className="w-full max-w-[280px] border-2 border-teal-700 rounded-lg overflow-hidden">
+              <div className="px-4 py-2 bg-teal-700 text-white">
+                <p className="text-[10px] uppercase font-bold tracking-widest">Total Paid</p>
+              </div>
+              <div className="px-4 py-3 bg-white text-right">
+                <p className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                  {fmtMoney(receipt.total)}
+                  <span className="text-sm font-medium text-gray-500 ml-1">AFN</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Footer: signatures + thank-you note ───────────────────────── */}
+        <div className="px-8 py-5 border-t border-gray-200 bg-gray-50">
+          <p className="text-xs text-gray-700 mb-6">
+            Thank you for your payment. Please retain this receipt for your records.
+            For any inquiries, contact the school finance office.
+          </p>
+          <div className="grid grid-cols-2 gap-12 mt-8">
+            <div>
+              <div className="border-t border-gray-400 pt-1.5">
+                <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Cashier signature</p>
+                <p className="text-xs text-gray-700 font-medium mt-0.5">{cashierName}</p>
+              </div>
+            </div>
+            <div>
+              <div className="border-t border-gray-400 pt-1.5">
+                <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Parent / Guardian signature</p>
+                <p className="text-xs text-gray-700 font-medium mt-0.5">{parentName}</p>
+              </div>
+            </div>
+          </div>
+          <p className="text-[9px] text-gray-400 text-center mt-6 italic">
+            This is a computer-generated receipt — {SCHOOL.name} · Finance Office.
+          </p>
+        </div>
+      </div>
+    </>
   );
 }

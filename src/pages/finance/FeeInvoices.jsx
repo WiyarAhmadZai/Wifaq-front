@@ -488,6 +488,11 @@ function IconBtn({ onClick, title, iconPath, tone = "default" }) {
 function WhatsAppModal({ invoices, onClose }) {
   const [template, setTemplate] = useState(DEFAULT_WHATSAPP_TEMPLATE);
   const [textareaRef, setTextareaRef] = useState(null);
+  // Track which recipients have already had their tab opened. A Set keyed by
+  // invoice id. We can't actually verify the message was sent (that happens
+  // in WhatsApp itself), but tracking that the cashier did open the tab is
+  // accurate enough — and stops them from re-opening the same one.
+  const [sentIds, setSentIds] = useState(() => new Set());
 
   const insertToken = (tok) => {
     if (!textareaRef) {
@@ -512,25 +517,36 @@ function WhatsAppModal({ invoices, onClose }) {
       phone,
       hasPhone: !!sanitizePhone(phone),
       message: fillTemplate(template, inv),
+      sent: sentIds.has(inv.id),
     };
   });
 
+  // Open the WhatsApp tab for one recipient. CRITICAL: this MUST be called
+  // synchronously from a user-click handler (no setTimeout, no awaiting) or
+  // the browser will block the popup as non-user-initiated.
   const sendOne = (rec) => {
     if (!rec.hasPhone) return;
     const url = `https://wa.me/${sanitizePhone(rec.phone)}?text=${encodeURIComponent(rec.message)}`;
     window.open(url, "_blank", "noopener,noreferrer");
+    setSentIds((prev) => {
+      const next = new Set(prev);
+      next.add(rec.invoice.id);
+      return next;
+    });
   };
 
-  const sendAll = () => {
-    const ready = recipients.filter((r) => r.hasPhone);
-    if (ready.length === 0) return;
-    // Open one tab; subsequent tabs may be blocked by the browser. To avoid
-    // surprise, open each one with a small stagger so the user sees the chain.
-    ready.forEach((rec, i) => setTimeout(() => sendOne(rec), i * 120));
+  // The queue: ready recipients in display order that haven't been sent yet.
+  // sendNext() pops the head — this is what the "Send Next" button calls.
+  const queue = recipients.filter((r) => r.hasPhone && !r.sent);
+  const next = queue[0] || null;
+
+  const sendNext = () => {
+    if (next) sendOne(next);
   };
 
   const noPhoneCount = recipients.filter((r) => !r.hasPhone).length;
   const readyCount = recipients.length - noPhoneCount;
+  const sentCount = recipients.filter((r) => r.sent).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -548,7 +564,9 @@ function WhatsAppModal({ invoices, onClose }) {
               Send WhatsApp
             </h2>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              {readyCount} ready · {noPhoneCount > 0 && <span className="text-amber-700">{noPhoneCount} no phone</span>}
+              <strong className="text-emerald-700">{sentCount}</strong> sent ·{" "}
+              <strong className="text-gray-700">{readyCount - sentCount}</strong> remaining
+              {noPhoneCount > 0 && <span className="text-amber-700"> · {noPhoneCount} no phone</span>}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded">
@@ -588,63 +606,92 @@ function WhatsAppModal({ invoices, onClose }) {
         <div className="flex-1 overflow-y-auto px-5 py-3">
           <p className="text-[10px] font-semibold text-gray-600 uppercase mb-2">Recipients ({recipients.length})</p>
           <div className="space-y-2">
-            {recipients.map((rec) => (
-              <div
-                key={rec.invoice.id}
-                className={`border rounded-lg p-2.5 ${rec.hasPhone ? "border-gray-200" : "border-amber-200 bg-amber-50/40"}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-gray-800">
-                      {rec.invoice.student?.full_name || `Student #${rec.invoice.student_id}`}
-                      <span className="ml-2 text-[10px] text-gray-500 font-normal">
-                        {rec.invoice.invoice_number} · {fmtMonth(rec.invoice.invoice_month)}
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      {rec.hasPhone ? (
-                        <span>📱 {rec.phone}</span>
-                      ) : (
-                        <span className="text-amber-700 font-semibold">⚠ No phone on family record — cannot send</span>
-                      )}
-                    </p>
-                    <div className="mt-1.5 px-2 py-1.5 bg-gray-50 rounded text-[11px] text-gray-700 whitespace-pre-wrap break-words">
-                      {rec.message}
+            {recipients.map((rec) => {
+              const isNext = next && next.invoice.id === rec.invoice.id;
+              const cardTone = !rec.hasPhone
+                ? "border-amber-200 bg-amber-50/40"
+                : rec.sent
+                  ? "border-emerald-200 bg-emerald-50/40"
+                  : isNext
+                    ? "border-emerald-400 ring-2 ring-emerald-200"
+                    : "border-gray-200";
+              return (
+                <div key={rec.invoice.id} className={`border rounded-lg p-2.5 transition-colors ${cardTone}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-gray-800 flex items-center gap-2 flex-wrap">
+                        {rec.invoice.student?.full_name || `Student #${rec.invoice.student_id}`}
+                        <span className="text-[10px] text-gray-500 font-normal">
+                          {rec.invoice.invoice_number} · {fmtMonth(rec.invoice.invoice_month)}
+                        </span>
+                        {rec.sent && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            ✓ SENT
+                          </span>
+                        )}
+                        {isNext && !rec.sent && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-600 text-white">
+                            NEXT
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {rec.hasPhone ? (
+                          <span>📱 {rec.phone}</span>
+                        ) : (
+                          <span className="text-amber-700 font-semibold">⚠ No phone on family record — cannot send</span>
+                        )}
+                      </p>
+                      <div className="mt-1.5 px-2 py-1.5 bg-gray-50 rounded text-[11px] text-gray-700 whitespace-pre-wrap break-words">
+                        {rec.message}
+                      </div>
                     </div>
+                    <button
+                      onClick={() => sendOne(rec)}
+                      disabled={!rec.hasPhone}
+                      className={`flex-shrink-0 px-2.5 py-1 rounded text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed ${
+                        rec.sent
+                          ? "bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                          : "bg-emerald-600 text-white hover:bg-emerald-700"
+                      }`}
+                    >
+                      {rec.sent ? "Resend" : "Send"}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => sendOne(rec)}
-                    disabled={!rec.hasPhone}
-                    className="flex-shrink-0 px-2.5 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Send
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-          <p className="text-[10px] text-gray-500">
-            Click <strong>Send</strong> to open WhatsApp with the message pre-filled. You still have to press send in WhatsApp.
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+          <p className="text-[10px] text-gray-500 flex-1 min-w-0">
+            Each click opens WhatsApp Web with the message ready. Browsers block bulk popups,
+            so we open <strong>one tab per click</strong>.
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={onClose}
               className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:border-gray-300 text-xs font-medium"
             >
               Close
             </button>
-            {readyCount > 1 && (
+            {next ? (
               <button
-                onClick={sendAll}
-                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-semibold"
+                onClick={sendNext}
+                className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-semibold flex items-center gap-1.5"
               >
-                Open all {readyCount} in tabs
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.83 9.83 0 0 0 12.04 2z" />
+                </svg>
+                Send Next ({sentCount + 1}/{readyCount})
               </button>
-            )}
+            ) : readyCount > 0 ? (
+              <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold">
+                ✓ All {readyCount} sent
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

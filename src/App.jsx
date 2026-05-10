@@ -176,6 +176,8 @@ const FeeInvoiceForm = lazy(() => import("./pages/finance/FeeInvoiceForm"));
 const FeeInvoiceShow = lazy(() => import("./pages/finance/FeeInvoiceShow"));
 const BillingRun = lazy(() => import("./pages/finance/BillingRun"));
 const Cashier = lazy(() => import("./pages/finance/Cashier"));
+const StudentPayments = lazy(() => import("./pages/finance/StudentPayments"));
+const ClassCollectionReport = lazy(() => import("./pages/finance/ClassCollectionReport"));
 const FinanceInbox = lazy(() => import("./pages/finance/FinanceInbox"));
 const Parties = lazy(() => import("./pages/finance/Parties"));
 const PartyForm = lazy(() => import("./pages/finance/PartyForm"));
@@ -402,6 +404,8 @@ function App() {
             <Route path="finance/budgets/edit/:id" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/billing-runs" element={<Suspense fallback={<PageLoader />}><BillingRun /></Suspense>} />
             <Route path="finance/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
+            <Route path="finance/students/:studentId/payments" element={<Suspense fallback={<PageLoader />}><StudentPayments /></Suspense>} />
+            <Route path="finance/reports/class-collection" element={<Suspense fallback={<PageLoader />}><ClassCollectionReport /></Suspense>} />
             {/* Old paths now redirect to the single Cashier flow. */}
             <Route path="finance/fee-payments/create" element={<Navigate to="/finance/cashier" replace />} />
             <Route path="finance/student-statements" element={<Navigate to="/finance/cashier" replace />} />

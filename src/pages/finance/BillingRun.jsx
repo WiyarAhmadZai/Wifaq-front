@@ -466,15 +466,20 @@ function MoneyCell({ amount, present, signClass = "" }) {
 }
 
 function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride, setSkip }) {
+  const navigate = useNavigate();
   const overrides = edit.line_overrides || {};
   const { buckets, present, total } = bucketLineAmounts(row.lines, overrides);
   const ready = row.status === "ready";
+  // Render breakdown columns for both `ready` and `already_invoiced` rows so
+  // the cashier can see what each student's bill consists of, regardless of
+  // whether this run will create the invoice or it already exists.
+  const hasBreakdown = (row.lines || []).length > 0;
 
   return (
     <>
       <tr className={`hover:bg-gray-50 ${skipped ? "opacity-50" : ""}`}>
         <td className="px-2 py-2 text-center">
-          {ready && (
+          {hasBreakdown && (
             <button onClick={toggle} className="text-gray-400 hover:text-teal-700" aria-label="expand">
               {isOpen ? "▼" : "▶"}
             </button>
@@ -483,7 +488,7 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
         <td className="px-3 py-2 text-xs font-medium text-gray-800">{row.student_name}</td>
         <td className="px-3 py-2 text-xs text-gray-600">{row.school_class_name || "—"}</td>
 
-        {ready ? (
+        {hasBreakdown ? (
           <>
             <MoneyCell amount={buckets.TUITION}   present={present.TUITION} />
             <MoneyCell amount={buckets.DISCOUNT}  present={present.DISCOUNT} signClass="text-emerald-600" />
@@ -516,9 +521,18 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
               {skipped ? "Include" : "Skip"}
             </button>
           )}
+          {row.status === "already_invoiced" && row.existing_invoice_id && (
+            <button
+              onClick={() => navigate(`/finance/fee-invoices/show/${row.existing_invoice_id}`)}
+              className="text-[10px] px-2 py-0.5 rounded text-blue-600 hover:bg-blue-50"
+              title="Open the existing invoice"
+            >
+              View
+            </button>
+          )}
         </td>
       </tr>
-      {isOpen && ready && (
+      {isOpen && hasBreakdown && (
         <tr className="bg-gray-50/60">
           <td></td>
           <td colSpan={10} className="px-3 py-2">
@@ -532,9 +546,14 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
                     <input
                       type="number"
                       value={value}
-                      onChange={(e) => setLineOverride(line.fee_item_id, e.target.value)}
+                      onChange={(e) => ready && setLineOverride(line.fee_item_id, e.target.value)}
+                      readOnly={!ready}
                       step="0.01"
-                      className="w-32 px-2 py-1 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 text-right"
+                      className={`w-32 px-2 py-1 border rounded-lg text-xs text-right focus:ring-1 ${
+                        ready
+                          ? "border-gray-200 focus:ring-teal-500"
+                          : "border-gray-100 bg-gray-100 text-gray-500 cursor-not-allowed"
+                      }`}
                     />
                     <SourceBadge source={line.source} pendingId={line.pending_charge_id} />
                   </div>
@@ -551,6 +570,7 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
 function SourceBadge({ source, pendingId }) {
   const map = {
     class_plan:       { label: "from class plan",     tone: "text-gray-500" },
+    existing_invoice: { label: "on posted invoice",   tone: "text-gray-500" },
     profile_override: { label: "student override",    tone: "text-blue-600" },
     profile_add:      { label: "student add",         tone: "text-blue-600" },
     pending_charge:   { label: `pending charge #${pendingId || "?"}`, tone: "text-amber-700" },

@@ -124,6 +124,15 @@ export default function FeeInvoiceShow() {
         <div className="flex gap-2 items-center">
           <span className={`px-3 py-1 rounded-full text-xs font-bold border ${sc.color}`}>{sc.label}</span>
           {isVoided && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-gray-100 text-gray-600 border-gray-300">VOIDED</span>}
+          {data.student_id && (
+            <button
+              onClick={() => navigate(`/finance/students/${data.student_id}/payments`)}
+              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:border-teal-300 hover:text-teal-700 text-xs font-medium"
+              title="See every payment this student has made"
+            >
+              Payment history
+            </button>
+          )}
           {canTakePayment && (
             <button
               onClick={() => navigate(`/finance/cashier?student_id=${data.student_id}`)}

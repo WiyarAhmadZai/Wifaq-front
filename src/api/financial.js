@@ -59,6 +59,7 @@ export const getBudgetReport = (id) => get(`${BASE}/budgets/${id}/report`);
 
 // Fee Module
 export const getFeeInvoices = (params = {}) => get(`${BASE}/fees/invoices`, { params });
+export const getFeeInvoiceMonths = () => get(`${BASE}/fees/invoices/months`);
 export const getFeeInvoice = (id) => get(`${BASE}/fees/invoices/${id}`);
 export const regenerateFeeInvoice = (id, data) => post(`${BASE}/fees/invoices/${id}/regenerate`, data);
 export const addInvoiceLine = (id, data) => post(`${BASE}/fees/invoices/${id}/lines`, data);

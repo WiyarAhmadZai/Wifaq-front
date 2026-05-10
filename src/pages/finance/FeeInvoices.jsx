@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { getFeeInvoices } from "../../api/financial";
+import { getFeeInvoices, getFeeInvoiceMonths } from "../../api/financial";
 import { del } from "../../api/axios";
 import Swal from "sweetalert2";
 
@@ -25,6 +25,45 @@ const fmtMoney = (n) => Number(n || 0).toLocaleString();
 const fmtMonth = (d) => (d ? new Date(d).toLocaleString("default", { month: "short", year: "numeric" }) : "—");
 const fmtDate  = (d) => (d ? new Date(d).toLocaleDateString("en-CA") : "—");
 
+// Default WhatsApp template — kept short per user preference (student name + invoice #).
+// Tokens get substituted per recipient: {{student}}, {{invoice}}, {{period}}, {{amount}}, {{balance}}, {{due_date}}.
+const DEFAULT_WHATSAPP_TEMPLATE =
+  "Dear parent, invoice {{invoice}} has been issued for {{student}}. Thank you.";
+
+const WHATSAPP_TOKENS = [
+  { key: "{{student}}",  label: "Student name" },
+  { key: "{{invoice}}",  label: "Invoice #" },
+  { key: "{{period}}",   label: "Period (May 2026)" },
+  { key: "{{amount}}",   label: "Total amount" },
+  { key: "{{balance}}",  label: "Balance due" },
+  { key: "{{due_date}}", label: "Due date" },
+];
+
+// Strip everything but digits from a phone number so it works in wa.me URLs.
+const sanitizePhone = (p) => String(p || "").replace(/[^\d]/g, "");
+
+// Pull the best phone for a recipient — father's first, mother's as fallback.
+const pickPhone = (invoice) => {
+  const fam = invoice.student?.family || {};
+  return fam.father_phone || fam.mother_phone || "";
+};
+
+const fillTemplate = (template, invoice) => {
+  const balance = Number(invoice.final_amount || 0) - Number(invoice.amount_paid || 0);
+  const map = {
+    "{{student}}":  invoice.student?.full_name || `Student #${invoice.student_id}`,
+    "{{invoice}}":  invoice.invoice_number || "",
+    "{{period}}":   fmtMonth(invoice.invoice_month),
+    "{{amount}}":   `${fmtMoney(invoice.final_amount)} AFN`,
+    "{{balance}}":  `${fmtMoney(balance)} AFN`,
+    "{{due_date}}": fmtDate(invoice.due_date),
+  };
+  return Object.entries(map).reduce(
+    (msg, [tok, val]) => msg.split(tok).join(val),
+    template
+  );
+};
+
 export default function FeeInvoices() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,6 +73,10 @@ export default function FeeInvoices() {
   const [filterMonth, setFilterMonth] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // WhatsApp messaging — selection + modal state
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [waModalInvoices, setWaModalInvoices] = useState(null); // null = closed; array = open
 
   // Fetch invoices when filters change (server-side filtering)
   useEffect(() => { fetchInvoices(); }, [filterStatus, filterMonth]);
@@ -78,16 +121,14 @@ export default function FeeInvoices() {
     }
   };
 
-  // ---- Static month list for the filter dropdown -------------------------
-  const months = useMemo(() => {
-    const now = new Date();
-    const list = [];
-    for (let y = now.getFullYear(); y >= now.getFullYear() - 1; y--) {
-      for (let m = (y === now.getFullYear() ? now.getMonth() : 11); m >= 0; m--) {
-        list.push(`${y}-${String(m + 1).padStart(2, "0")}-01`);
-      }
-    }
-    return list;
+  // ---- Real month list — only periods that actually have invoices --------
+  // Comes from a dedicated backend endpoint (FeeInvoiceController::months)
+  // so the filter never offers a month with zero results.
+  const [months, setMonths] = useState([]);
+  useEffect(() => {
+    getFeeInvoiceMonths()
+      .then((res) => setMonths(Array.isArray(res.data?.data) ? res.data.data : []))
+      .catch(() => setMonths([]));
   }, []);
 
   // ---- Client-side text search (server already filtered status/month) -----
@@ -171,6 +212,33 @@ export default function FeeInvoices() {
 
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+        {selectedIds.size > 0 && (
+          <div className="px-3 py-2 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+            <p className="text-xs text-emerald-800">
+              <strong>{selectedIds.size}</strong> invoice{selectedIds.size === 1 ? "" : "s"} selected
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-[11px] text-emerald-700 hover:underline"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => {
+                  const picked = items.filter((i) => selectedIds.has(i.id));
+                  if (picked.length > 0) setWaModalInvoices(picked);
+                }}
+                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-semibold flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.83 9.83 0 0 0 12.04 2z" />
+                </svg>
+                Send WhatsApp ({selectedIds.size})
+              </button>
+            </div>
+          </div>
+        )}
         <div className="px-3 py-2 border-b border-gray-100 flex flex-wrap items-center gap-2">
           {/* Status segmented */}
           <div className="inline-flex items-center bg-gray-100 rounded-lg p-0.5">
@@ -226,6 +294,20 @@ export default function FeeInvoices() {
             <thead>
               <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60">
                 <th className="w-1 px-0"></th>
+                <th className="w-8 px-2 py-2.5 text-center">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id))}
+                    onChange={(e) => {
+                      const next = new Set(selectedIds);
+                      if (e.target.checked) filtered.forEach((i) => next.add(i.id));
+                      else filtered.forEach((i) => next.delete(i.id));
+                      setSelectedIds(next);
+                    }}
+                    className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    title="Select all on this page"
+                  />
+                </th>
                 <th className="px-3 py-2.5">Invoice</th>
                 <th className="px-3 py-2.5">Student</th>
                 <th className="px-3 py-2.5">Parent</th>
@@ -238,7 +320,7 @@ export default function FeeInvoices() {
             <tbody className="divide-y divide-gray-100">
               {loading && (
                 <tr>
-                  <td colSpan={8} className="text-center py-10">
+                  <td colSpan={9} className="text-center py-10">
                     <div className="inline-flex items-center gap-2 text-xs text-gray-500">
                       <span className="w-3 h-3 border-2 border-teal-200 border-t-teal-600 rounded-full animate-spin" />
                       Loading invoices…
@@ -248,7 +330,7 @@ export default function FeeInvoices() {
               )}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12">
+                  <td colSpan={9} className="text-center py-12">
                     <p className="text-sm text-gray-700 font-medium">No invoices match.</p>
                     <p className="text-xs text-gray-400 mt-1">
                       Try a different filter, or run a Billing Run for the period you need.
@@ -277,6 +359,19 @@ export default function FeeInvoices() {
                       onClick={() => navigate(`/finance/fee-invoices/show/${inv.id}`)}
                     >
                       <td className="w-1 p-0"><div className={`w-1 h-12 ${sc.bar}`} /></td>
+                      <td className="w-8 px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(inv.id)}
+                          onChange={() => {
+                            const next = new Set(selectedIds);
+                            if (next.has(inv.id)) next.delete(inv.id);
+                            else next.add(inv.id);
+                            setSelectedIds(next);
+                          }}
+                          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        />
+                      </td>
                       <td className="px-3 py-2.5">
                         <p className="text-xs font-bold text-teal-700">{inv.invoice_number}</p>
                         <p className="text-[10px] text-gray-500 mt-0.5">{fmtMonth(inv.invoice_month)}</p>
@@ -323,6 +418,12 @@ export default function FeeInvoices() {
                             iconPath="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                           />
                           <IconBtn
+                            onClick={() => setWaModalInvoices([inv])}
+                            title="Send WhatsApp message to parent"
+                            tone="success"
+                            iconPath="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.83 9.83 0 0 0 12.04 2zM8.53 7.33c.16 0 .33 0 .47.01.15.01.36-.06.55.42.2.49.66 1.69.72 1.81.06.12.1.27.02.43-.08.16-.12.27-.24.41-.12.14-.25.31-.36.42-.12.12-.24.25-.1.49.14.24.61.99 1.31 1.59.9.78 1.66 1.02 1.9 1.13.24.12.38.1.52-.06.15-.16.6-.7.76-.94.16-.24.32-.2.55-.12s1.42.67 1.66.79c.24.12.4.18.46.27.06.1.06.55-.13 1.08-.18.53-1.07 1.04-1.5 1.08-.45.04-.93.06-1.49-.09-.34-.09-.78-.24-1.34-.49-2.36-1.02-3.9-3.4-4.02-3.56-.12-.16-.96-1.27-.96-2.43 0-1.16.61-1.73.83-1.97.22-.24.48-.3.64-.3z"
+                          />
+                          <IconBtn
                             onClick={() => handleDelete(inv.id)}
                             title="Delete"
                             tone="danger"
@@ -337,6 +438,13 @@ export default function FeeInvoices() {
           </table>
         </div>
       </div>
+
+      {waModalInvoices && (
+        <WhatsAppModal
+          invoices={waModalInvoices}
+          onClose={() => setWaModalInvoices(null)}
+        />
+      )}
     </div>
   );
 }
@@ -356,15 +464,190 @@ function Stat({ label, value, unit, tone, subtle }) {
 }
 
 function IconBtn({ onClick, title, iconPath, tone = "default" }) {
-  const cls =
-    tone === "danger"
-      ? "text-red-500 hover:bg-red-50"
-      : "text-gray-500 hover:text-teal-700 hover:bg-teal-50";
+  const toneClass = {
+    default: "text-gray-500 hover:text-teal-700 hover:bg-teal-50",
+    danger:  "text-red-500 hover:bg-red-50",
+    success: "text-emerald-600 hover:bg-emerald-50",
+  }[tone] || "text-gray-500 hover:text-teal-700 hover:bg-teal-50";
   return (
-    <button onClick={onClick} title={title} className={`p-1.5 rounded ${cls}`}>
-      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={iconPath} />
+    <button onClick={onClick} title={title} className={`p-1.5 rounded ${toneClass}`}>
+      <svg className="w-3.5 h-3.5" fill={tone === "success" ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={tone === "success" ? 0 : 2} d={iconPath} />
       </svg>
     </button>
+  );
+}
+
+// =================================================================== WhatsApp modal
+
+/**
+ * Modal for composing and sending WhatsApp messages to invoice recipients.
+ * Send method = wa.me click-through links — opens WhatsApp Web/Desktop with
+ * the message pre-filled. No backend integration needed.
+ */
+function WhatsAppModal({ invoices, onClose }) {
+  const [template, setTemplate] = useState(DEFAULT_WHATSAPP_TEMPLATE);
+  const [textareaRef, setTextareaRef] = useState(null);
+
+  const insertToken = (tok) => {
+    if (!textareaRef) {
+      setTemplate((t) => t + tok);
+      return;
+    }
+    const start = textareaRef.selectionStart ?? template.length;
+    const end = textareaRef.selectionEnd ?? template.length;
+    const next = template.slice(0, start) + tok + template.slice(end);
+    setTemplate(next);
+    requestAnimationFrame(() => {
+      textareaRef.focus();
+      const pos = start + tok.length;
+      textareaRef.setSelectionRange(pos, pos);
+    });
+  };
+
+  const recipients = invoices.map((inv) => {
+    const phone = pickPhone(inv);
+    return {
+      invoice: inv,
+      phone,
+      hasPhone: !!sanitizePhone(phone),
+      message: fillTemplate(template, inv),
+    };
+  });
+
+  const sendOne = (rec) => {
+    if (!rec.hasPhone) return;
+    const url = `https://wa.me/${sanitizePhone(rec.phone)}?text=${encodeURIComponent(rec.message)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const sendAll = () => {
+    const ready = recipients.filter((r) => r.hasPhone);
+    if (ready.length === 0) return;
+    // Open one tab; subsequent tabs may be blocked by the browser. To avoid
+    // surprise, open each one with a small stagger so the user sees the chain.
+    ready.forEach((rec, i) => setTimeout(() => sendOne(rec), i * 120));
+  };
+
+  const noPhoneCount = recipients.filter((r) => !r.hasPhone).length;
+  const readyCount = recipients.length - noPhoneCount;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.83 9.83 0 0 0 12.04 2z" />
+              </svg>
+              Send WhatsApp
+            </h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {readyCount} ready · {noPhoneCount > 0 && <span className="text-amber-700">{noPhoneCount} no phone</span>}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Template editor */}
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <p className="text-[10px] font-semibold text-gray-600 uppercase mb-1.5">Message template</p>
+          <textarea
+            ref={setTextareaRef}
+            value={template}
+            onChange={(e) => setTemplate(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-teal-500 resize-none"
+            placeholder="Type your message…"
+          />
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <span className="text-[10px] text-gray-500 self-center mr-1">Insert:</span>
+            {WHATSAPP_TOKENS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => insertToken(t.key)}
+                className="px-2 py-0.5 bg-white border border-gray-200 text-[10px] text-gray-700 rounded hover:border-teal-300 hover:text-teal-700"
+                title={`Inserts ${t.label}`}
+              >
+                {t.key}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Recipient list */}
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          <p className="text-[10px] font-semibold text-gray-600 uppercase mb-2">Recipients ({recipients.length})</p>
+          <div className="space-y-2">
+            {recipients.map((rec) => (
+              <div
+                key={rec.invoice.id}
+                className={`border rounded-lg p-2.5 ${rec.hasPhone ? "border-gray-200" : "border-amber-200 bg-amber-50/40"}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-gray-800">
+                      {rec.invoice.student?.full_name || `Student #${rec.invoice.student_id}`}
+                      <span className="ml-2 text-[10px] text-gray-500 font-normal">
+                        {rec.invoice.invoice_number} · {fmtMonth(rec.invoice.invoice_month)}
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {rec.hasPhone ? (
+                        <span>📱 {rec.phone}</span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold">⚠ No phone on family record — cannot send</span>
+                      )}
+                    </p>
+                    <div className="mt-1.5 px-2 py-1.5 bg-gray-50 rounded text-[11px] text-gray-700 whitespace-pre-wrap break-words">
+                      {rec.message}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => sendOne(rec)}
+                    disabled={!rec.hasPhone}
+                    className="flex-shrink-0 px-2.5 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+          <p className="text-[10px] text-gray-500">
+            Click <strong>Send</strong> to open WhatsApp with the message pre-filled. You still have to press send in WhatsApp.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:border-gray-300 text-xs font-medium"
+            >
+              Close
+            </button>
+            {readyCount > 1 && (
+              <button
+                onClick={sendAll}
+                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-semibold"
+              >
+                Open all {readyCount} in tabs
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { getInvoices, deleteInvoice, approveInvoice } from "../../api/financial";
 import Swal from "sweetalert2";
 
 const statusConfig = {
@@ -23,16 +23,51 @@ export default function Invoices() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    get("/finance/invoices").then((r) => setItems(r.data?.data || r.data || [])).catch(() => setItems(dummy));
+    fetchInvoices();
   }, []);
 
+  const fetchInvoices = async () => {
+    setLoading(true);
+    try {
+      const response = await getInvoices();
+      setItems(response.data?.data || []);
+    } catch (error) {
+      console.error('Failed to fetch invoices:', error);
+      setItems(dummy);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id) => {
-    const r = await Swal.fire({ title: "Delete invoice?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
+    const r = await Swal.fire({
+      title: "Delete invoice?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      confirmButtonText: "Delete"
+    });
     if (r.isConfirmed) {
-      try { await del(`/finance/invoices/${id}`); } catch {}
-      setItems((p) => p.filter((i) => i.id !== id));
+      try {
+        await deleteInvoice(id);
+        setItems((p) => p.filter((i) => i.id !== id));
+        Swal.fire("Deleted!", "", "success");
+      } catch (error) {
+        Swal.fire("Error", error.response?.data?.message || "Failed to delete", "error");
+      }
+    }
+  };
+
+  const handleApprove = async (id) => {
+    try {
+      await approveInvoice(id);
+      await fetchInvoices();
+      Swal.fire("Approved!", "", "success");
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to approve", "error");
     }
   };
 

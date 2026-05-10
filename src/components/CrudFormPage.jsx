@@ -70,7 +70,9 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
     setLoading(true);
     try {
       const response = await get(`${apiEndpoint}/${id}`);
-      setFormData(response.data);
+      const raw = response.data;
+      const payload = raw && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'data') ? raw.data : raw;
+      setFormData(payload && typeof payload === 'object' ? payload : {});
     } catch (error) {
       Swal.fire('Error', 'Failed to load data', 'error');
     } finally {
@@ -303,7 +305,9 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
               <option value="">Select {field.label}</option>
               {options.map(option => (
                 <option key={option[field.valueField]} value={option[field.valueField]}>
-                  {option[field.displayField]}
+                  {typeof field.formatOption === 'function'
+                    ? field.formatOption(option)
+                    : option[field.displayField]}
                 </option>
               ))}
             </select>

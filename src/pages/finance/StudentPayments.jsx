@@ -18,8 +18,19 @@ import { getFeePayments, getFeeInvoices } from "../../api/financial";
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
 const fmtDateLong = (d) =>
   d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-const isoDay = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
-const monthKey = (d) => (d ? new Date(d).toISOString().slice(0, 7) : ""); // "YYYY-MM"
+
+// IMPORTANT: pull YYYY-MM and YYYY-MM-DD from the *string* directly. Going
+// through `new Date(...).toISOString()` shifts the month by one when the
+// backend's date format ("2026-05-01 00:00:00") is parsed as local time and
+// then converted back to UTC. Trust the string the API sends.
+const isoDay   = (d) => {
+  const s = String(d || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+};
+const monthKey = (d) => {
+  const s = String(d || "").slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(s) ? s : "";
+};
 
 const METHOD = {
   cash:   { label: "Cash",   tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
@@ -122,11 +133,13 @@ export default function StudentPayments() {
   const [calYear, setCalYear] = useState(null);
   useEffect(() => {
     if (calYear !== null || invoices.length === 0) return;
-    const latest = invoices.reduce((max, inv) => {
-      const d = new Date(inv.invoice_month);
-      return !max || d > max ? d : max;
-    }, null);
-    setCalYear(latest ? latest.getFullYear() : new Date().getFullYear());
+    // Compare invoice_month strings directly (ISO dates are lexicographic-safe).
+    // Avoids the same timezone shift that affects monthKey().
+    const latestKey = invoices.reduce((max, inv) => {
+      const k = monthKey(inv.invoice_month);
+      return !max || k > max ? k : max;
+    }, "");
+    setCalYear(latestKey ? Number(latestKey.slice(0, 4)) : new Date().getFullYear());
   }, [invoices, calYear]);
 
   const year = calYear ?? new Date().getFullYear();

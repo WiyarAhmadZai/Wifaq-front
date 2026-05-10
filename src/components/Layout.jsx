@@ -625,45 +625,30 @@ export default function Layout() {
     { label: "Schedule", path: "/class-management/schedule", permission: "schedule.view" },
   ];
 
-  // Finance menu, organized into sub-sections for readability.
+  // Finance menu — same nested-children shape as hrSubMenus so itemAllowed/visible work.
   // Student Statements is intentionally NOT in the sidebar — reachable from the
   // FeeInvoices row icon, the invoice detail header, and the Cashier student search.
-  const financeGroups = [
-    {
-      items: [
-        { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
-        { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },
-      ],
-    },
-    {
-      title: "Daily",
-      items: [
-        { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
-        { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
-        { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
-        { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
-      ],
-    },
-    {
-      title: "Bookkeeping",
-      items: [
-        { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
-        { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
-        { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
-        { label: "Budgets", path: "/finance/budgets", permission: "budgets.view" },
-      ],
-    },
-    {
-      title: "Setup",
-      items: [
-        { label: "Chart of Accounts", path: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
-        { label: "Accounts", path: "/finance/accounts", permission: "accounts.view" },
-        { label: "Parties", path: "/finance/parties", permission: "parties.view" },
-      ],
-    },
+  const financeMenus = [
+    { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
+    { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },
+    { label: "Daily", key: "finance-daily", children: [
+      { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
+      { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
+      { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
+      { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
+    ]},
+    { label: "Bookkeeping", key: "finance-bookkeeping", children: [
+      { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
+      { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
+      { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
+      { label: "Budgets", path: "/finance/budgets", permission: "budgets.view" },
+    ]},
+    { label: "Setup", key: "finance-setup", children: [
+      { label: "Chart of Accounts", path: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
+      { label: "Accounts", path: "/finance/accounts", permission: "accounts.view" },
+      { label: "Parties", path: "/finance/parties", permission: "parties.view" },
+    ]},
   ];
-  // Flat list still used by canSeeGroup / visible permission filters.
-  const financeMenus = financeGroups.flatMap((g) => g.items);
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -940,23 +925,45 @@ export default function Layout() {
                 isOpen={openMenu.includes("finance")}
                 onClick={() => toggleMenu("finance")}
               >
-                {financeGroups.map((group, gi) => {
-                  const items = visible(group.items);
-                  if (items.length === 0) return null;
-                  return (
-                    <div key={gi}>
-                      {group.title && (
-                        <div className="pl-10 pr-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-teal-400/80">
-                          {group.title}
+                {visible(financeMenus).map((item) =>
+                  item.children ? (
+                    <div key={item.key}>
+                      <button
+                        onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
+                          openSubMenu.includes(item.key)
+                            ? "bg-teal-700 text-white"
+                            : "text-teal-200 hover:bg-teal-800 hover:text-white"
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        <svg className={`w-3 h-3 transition-transform ${openSubMenu.includes(item.key) ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {openSubMenu.includes(item.key) && (
+                        <div className="mt-0.5 space-y-0.5">
+                          {visible(item.children).map((child) => (
+                            <Link key={child.path} to={child.path} onClick={closeSidebar}
+                              className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
+                                isActive(child.path) ? "bg-teal-700 text-white" : "text-teal-300 hover:bg-teal-800 hover:text-white"
+                              }`}>
+                              <span>{child.label}</span>
+                            </Link>
+                          ))}
                         </div>
                       )}
-                      {items.map((item) => (
-                        <SubMenuItem key={item.path} label={item.label} to={item.path}
-                                     active={isActive(item.path)} onClick={closeSidebar} />
-                      ))}
                     </div>
-                  );
-                })}
+                  ) : (
+                    <SubMenuItem
+                      key={item.path}
+                      label={item.label}
+                      to={item.path}
+                      active={isActive(item.path)}
+                      onClick={closeSidebar}
+                    />
+                  )
+                )}
               </ParentMenu>
             </>
           )}

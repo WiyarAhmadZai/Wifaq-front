@@ -666,6 +666,9 @@ export default function Layout() {
       { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
       { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
     ]},
+    { label: "Reports", key: "finance-reports", children: [
+      { label: "Class Collection", path: "/finance/reports/class-collection", permission: "fee-invoices.view" },
+    ]},
     { label: "Bookkeeping", key: "finance-bookkeeping", children: [
       { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
       { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },

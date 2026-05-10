@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Brand palette — darker teal anchored on #0e3d3a (used by bg-teal-600).
+/* Brand palette — darker teal anchored on #155c57 (used by bg-teal-600).
    Tailwind v4 reads theme tokens from @theme, not tailwind.config.js. */
 @theme {
   --color-teal-50:  #ecf2f1;
@@ -96,8 +96,8 @@ header { font-size: 0.8125rem; }
 }
 
 .react-select__control--is-focused {
-  border-color: #0e3d3a !important;
-  box-shadow: 0 0 0 2px rgba(14, 61, 58, 0.25) !important;
+  border-color: #155c57 !important;
+  box-shadow: 0 0 0 2px rgba(21, 92, 87, 0.25) !important;
 }
 
 .react-select__control.react-select-error {
@@ -160,18 +160,18 @@ header { font-size: 0.8125rem; }
 }
 
 .react-select__option:hover {
-  background-color: #e7eeed !important;
-  color: #0e3d3a !important;
+  background-color: #ecf2f1 !important;
+  color: #155c57 !important;
 }
 
 .react-select__option--is-selected {
-  background-color: #0e3d3a !important;
+  background-color: #155c57 !important;
   color: white !important;
 }
 
 .react-select__option--is-focused {
-  background-color: #e7eeed !important;
-  color: #0e3d3a !important;
+  background-color: #ecf2f1 !important;
+  color: #155c57 !important;
 }
 
 .react-select__indicator {

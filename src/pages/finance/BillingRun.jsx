@@ -55,6 +55,12 @@ export default function BillingRun() {
       .catch(() => setClasses([]));
   }, []);
 
+  // Auto-run a preview for the current month on first mount so the page is
+  // immediately useful — admin lands on it and sees a draft for everyone.
+  // Only fires once; user changes to scope/period require explicit "Run preview".
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { handlePreview(); }, []);
+
   // ----------------------------------------------------- Preview / commit
   const [previewing, setPreviewing] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -170,8 +176,11 @@ export default function BillingRun() {
     <div className="px-4 py-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-base font-bold text-gray-800">Generate Billing Run</h2>
-          <p className="text-xs text-gray-500">Auto-draft monthly invoices for all students from their fee plan + pending charges.</p>
+          <h2 className="text-base font-bold text-gray-800">Generate Monthly Invoices</h2>
+          <p className="text-xs text-gray-500">
+            One click bills every active student for the selected month. Amounts come from the class fee plan when set,
+            otherwise from each student's record (base fee, transport, discount).
+          </p>
         </div>
         <button
           onClick={() => navigate("/finance/fee-invoices")}
@@ -360,14 +369,18 @@ function PreviewPanel({
 
       {/* Rows */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[800px]">
+        <table className="w-full min-w-[1100px]">
           <thead className="bg-teal-50">
             <tr>
               <th className="w-8 px-2 py-2"></th>
               <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Student</th>
               <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Class</th>
-              <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Lines</th>
-              <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Amount</th>
+              <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Base</th>
+              <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Discount</th>
+              <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Transport</th>
+              <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Uniform</th>
+              <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Other</th>
+              <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Total</th>
               <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Status</th>
               <th className="w-14 px-3 py-2"></th>
             </tr>
@@ -378,7 +391,6 @@ function PreviewPanel({
               const isOpen = !!expanded[row.student_id];
               const edit = edits[row.student_id] || {};
               const skipped = !!edit.skip;
-              const lineSummary = (row.lines || []).map((l) => l.fee_item?.code || l.description).slice(0, 4).join(" + ") || "—";
 
               return (
                 <PreviewRow
@@ -388,7 +400,6 @@ function PreviewPanel({
                   isOpen={isOpen}
                   skipped={skipped}
                   edit={edit}
-                  lineSummary={lineSummary}
                   toggle={() => setExpanded((p) => ({ ...p, [row.student_id]: !p[row.student_id] }))}
                   setLineOverride={(itemId, amt) => setLineOverride(row.student_id, itemId, amt)}
                   setSkip={(s) => setSkip(row.student_id, s)}
@@ -396,7 +407,7 @@ function PreviewPanel({
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="text-center py-8 text-xs text-gray-400">No students match this filter.</td></tr>
+              <tr><td colSpan={11} className="text-center py-8 text-xs text-gray-400">No students match this filter.</td></tr>
             )}
           </tbody>
         </table>
@@ -419,19 +430,51 @@ function PreviewPanel({
   );
 }
 
-function PreviewRow({ row, meta, isOpen, skipped, edit, lineSummary, toggle, setLineOverride, setSkip }) {
-  const overrides = edit.line_overrides || {};
-  const rowTotal = (row.lines || []).reduce((s, line) => {
-    const o = overrides[line.fee_item_id];
+/**
+ * Group line amounts by fee_item.code so the row table can show
+ * Base / Discount / Transport / Uniform / Other in their own columns.
+ * Multiple lines with the same code (e.g. two DISCOUNT lines) are summed.
+ * Edits in `overrides` are applied so the displayed amount is the
+ * *committed* amount, not the original draft.
+ */
+function bucketLineAmounts(lines, overrides) {
+  const buckets = { TUITION: 0, DISCOUNT: 0, TRANSPORT: 0, UNIFORM: 0, OTHER: 0 };
+  const present = { TUITION: false, DISCOUNT: false, TRANSPORT: false, UNIFORM: false, OTHER: false };
+  for (const line of lines || []) {
+    const o = overrides?.[line.fee_item_id];
     const amt = o && o.amount !== null && o.amount !== undefined ? Number(o.amount) : Number(line.amount);
-    return s + amt;
-  }, 0);
+    const code = (line.fee_item?.code || "").toUpperCase();
+    if (code in buckets) {
+      buckets[code] += amt;
+      present[code] = true;
+    } else {
+      buckets.OTHER += amt;
+      present.OTHER = true;
+    }
+  }
+  const total = buckets.TUITION + buckets.DISCOUNT + buckets.TRANSPORT + buckets.UNIFORM + buckets.OTHER;
+  return { buckets, present, total };
+}
+
+function MoneyCell({ amount, present, signClass = "" }) {
+  if (!present) return <td className="px-3 py-2 text-xs text-right text-gray-300">—</td>;
+  return (
+    <td className={`px-3 py-2 text-xs text-right font-medium ${signClass}`}>
+      {fmtMoney(amount)}
+    </td>
+  );
+}
+
+function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride, setSkip }) {
+  const overrides = edit.line_overrides || {};
+  const { buckets, present, total } = bucketLineAmounts(row.lines, overrides);
+  const ready = row.status === "ready";
 
   return (
     <>
       <tr className={`hover:bg-gray-50 ${skipped ? "opacity-50" : ""}`}>
         <td className="px-2 py-2 text-center">
-          {row.status === "ready" && (
+          {ready && (
             <button onClick={toggle} className="text-gray-400 hover:text-teal-700" aria-label="expand">
               {isOpen ? "▼" : "▶"}
             </button>
@@ -439,17 +482,29 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, lineSummary, toggle, set
         </td>
         <td className="px-3 py-2 text-xs font-medium text-gray-800">{row.student_name}</td>
         <td className="px-3 py-2 text-xs text-gray-600">{row.school_class_name || "—"}</td>
-        <td className="px-3 py-2 text-xs text-gray-600">{row.status === "ready" ? lineSummary : (row.issues?.[0] || meta.label)}</td>
-        <td className="px-3 py-2 text-xs font-bold text-gray-800 text-right">
-          {row.status === "ready" ? fmtMoney(rowTotal) : "—"}
-        </td>
+
+        {ready ? (
+          <>
+            <MoneyCell amount={buckets.TUITION}   present={present.TUITION} />
+            <MoneyCell amount={buckets.DISCOUNT}  present={present.DISCOUNT} signClass="text-emerald-600" />
+            <MoneyCell amount={buckets.TRANSPORT} present={present.TRANSPORT} />
+            <MoneyCell amount={buckets.UNIFORM}   present={present.UNIFORM} />
+            <MoneyCell amount={buckets.OTHER}     present={present.OTHER} />
+            <td className="px-3 py-2 text-xs font-bold text-gray-800 text-right">{fmtMoney(total)}</td>
+          </>
+        ) : (
+          <td colSpan={6} className="px-3 py-2 text-xs text-gray-500">
+            {row.issues?.[0] || meta.label}
+          </td>
+        )}
+
         <td className="px-3 py-2">
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${meta.tone}`}>
             {meta.icon} {meta.label}
           </span>
         </td>
         <td className="px-3 py-2 text-right">
-          {row.status === "ready" && (
+          {ready && (
             <button
               onClick={() => setSkip(!skipped)}
               className={`text-[10px] px-2 py-0.5 rounded ${
@@ -463,10 +518,10 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, lineSummary, toggle, set
           )}
         </td>
       </tr>
-      {isOpen && row.status === "ready" && (
+      {isOpen && ready && (
         <tr className="bg-gray-50/60">
           <td></td>
-          <td colSpan={6} className="px-3 py-2">
+          <td colSpan={10} className="px-3 py-2">
             <div className="space-y-1">
               {(row.lines || []).map((line) => {
                 const o = overrides[line.fee_item_id];

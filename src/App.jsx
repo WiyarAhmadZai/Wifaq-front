@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useParams,
 } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./admin/context/AuthContext";
@@ -174,9 +175,7 @@ const FeeInvoices = lazy(() => import("./pages/finance/FeeInvoices"));
 const FeeInvoiceForm = lazy(() => import("./pages/finance/FeeInvoiceForm"));
 const FeeInvoiceShow = lazy(() => import("./pages/finance/FeeInvoiceShow"));
 const BillingRun = lazy(() => import("./pages/finance/BillingRun"));
-const StudentStatement = lazy(() => import("./pages/finance/StudentStatement"));
 const Cashier = lazy(() => import("./pages/finance/Cashier"));
-const StudentStatementSearch = lazy(() => import("./pages/finance/StudentStatementSearch"));
 const FinanceInbox = lazy(() => import("./pages/finance/FinanceInbox"));
 const Parties = lazy(() => import("./pages/finance/Parties"));
 const PartyForm = lazy(() => import("./pages/finance/PartyForm"));
@@ -220,6 +219,12 @@ function ProtectedRoute({ children }) {
 function PublicRoute({ children }) {
   const token = localStorage.getItem("token");
   return !token ? children : <Navigate to="/" replace />;
+}
+
+// Old per-student statement URL → forward to Cashier with that student preselected.
+function RedirectToCashier() {
+  const { studentId } = useParams();
+  return <Navigate to={`/finance/cashier${studentId ? `?student_id=${studentId}` : ""}`} replace />;
 }
 
 function App() {
@@ -395,10 +400,11 @@ function App() {
             <Route path="finance/budgets/create" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/budgets/edit/:id" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/billing-runs" element={<Suspense fallback={<PageLoader />}><BillingRun /></Suspense>} />
-            <Route path="finance/student-statements" element={<Suspense fallback={<PageLoader />}><StudentStatementSearch /></Suspense>} />
-            <Route path="finance/students/:studentId/statement" element={<Suspense fallback={<PageLoader />}><StudentStatement /></Suspense>} />
             <Route path="finance/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
+            {/* Old paths now redirect to the single Cashier flow. */}
             <Route path="finance/fee-payments/create" element={<Navigate to="/finance/cashier" replace />} />
+            <Route path="finance/student-statements" element={<Navigate to="/finance/cashier" replace />} />
+            <Route path="finance/students/:studentId/statement" element={<RedirectToCashier />} />
             <Route path="finance/fee-invoices" element={<Suspense fallback={<PageLoader />}><FeeInvoices /></Suspense>} />
             <Route path="finance/fee-invoices/create" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/edit/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />

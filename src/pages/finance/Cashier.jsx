@@ -8,6 +8,7 @@ import {
   getFeeItems,
   addInvoiceLine,
   createFeePayment,
+  addPendingCharge,
 } from "../../api/financial";
 
 /**
@@ -192,6 +193,48 @@ export default function Cashier() {
     }
   };
 
+  const handleAddPendingCharge = async () => {
+    if (!selectedStudentId) return;
+    const itemOptions = feeItems.reduce((acc, it) => {
+      acc[it.id] = `${it.code} — ${it.name}`;
+      return acc;
+    }, {});
+    if (Object.keys(itemOptions).length === 0) {
+      Swal.fire("No fee items", "Seed the fee_items catalog first.", "warning");
+      return;
+    }
+    const { value } = await Swal.fire({
+      title: "Add pending charge",
+      text: "This charge will be picked up by the next billing run for this student.",
+      html:
+        '<select id="pc-item" class="swal2-input" style="margin-top:0.5rem">' +
+          Object.entries(itemOptions).map(([id, label]) => `<option value="${id}">${label}</option>`).join("") +
+        "</select>" +
+        '<input id="pc-amount" type="number" class="swal2-input" placeholder="Amount" />' +
+        '<input id="pc-desc" type="text" class="swal2-input" placeholder="Description (optional)" />',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      preConfirm: () => {
+        const fee_item_id = Number(document.getElementById("pc-item").value);
+        const amount = Number(document.getElementById("pc-amount").value);
+        const description = document.getElementById("pc-desc").value || null;
+        if (!fee_item_id || !amount) {
+          Swal.showValidationMessage("Item and amount are required");
+          return false;
+        }
+        return { fee_item_id, amount, description };
+      },
+    });
+    if (!value) return;
+    try {
+      await addPendingCharge(selectedStudentId, value);
+      Swal.fire("Queued", "Pending charge added — it will appear on the next billing run.", "success");
+    } catch (err) {
+      Swal.fire("Failed", err.response?.data?.message || "Could not add pending charge.", "error");
+    }
+  };
+
   const handleSubmit = async () => {
     const items = outstandingInvoices
       .map((inv) => ({ inv, amt: Number(allocations[inv.id]) || 0 }))
@@ -320,6 +363,7 @@ export default function Cashier() {
               <SelectedStudentBar
                 student={statement?.student}
                 onChange={() => { setSelectedStudentId(""); setStudentQuery(""); setStatement(null); }}
+                onAddPending={handleAddPendingCharge}
               />
             )}
           </div>
@@ -463,7 +507,7 @@ function Field({ label, children }) {
   );
 }
 
-function SelectedStudentBar({ student, onChange }) {
+function SelectedStudentBar({ student, onChange, onAddPending }) {
   const name = student?.full_name || `${student?.first_name || ""} ${student?.last_name || ""}`.trim() || "Student";
   const className = student?.school_class?.name || "—";
   const family = student?.family || {};
@@ -477,12 +521,23 @@ function SelectedStudentBar({ student, onChange }) {
           {family.father_phone ? ` · ${family.father_phone}` : ""}
         </p>
       </div>
-      <button
-        onClick={onChange}
-        className="px-2.5 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg hover:border-teal-300 text-[11px] font-medium"
-      >
-        Change
-      </button>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {onAddPending && (
+          <button
+            onClick={onAddPending}
+            className="px-2.5 py-1 bg-white border border-gray-200 text-gray-700 rounded-lg hover:border-teal-300 hover:text-teal-700 text-[11px] font-medium"
+            title="Queue a one-off charge for this student's next billing run"
+          >
+            + Pending charge
+          </button>
+        )}
+        <button
+          onClick={onChange}
+          className="px-2.5 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg hover:border-teal-300 text-[11px] font-medium"
+        >
+          Change
+        </button>
+      </div>
     </div>
   );
 }

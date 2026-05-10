@@ -626,8 +626,6 @@ export default function Layout() {
   ];
 
   // Finance menu — same nested-children shape as hrSubMenus so itemAllowed/visible work.
-  // Student Statements is intentionally NOT in the sidebar — reachable from the
-  // FeeInvoices row icon, the invoice detail header, and the Cashier student search.
   const financeMenus = [
     { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
     { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },

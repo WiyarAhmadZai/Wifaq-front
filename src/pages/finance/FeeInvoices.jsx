@@ -92,7 +92,13 @@ export default function FeeInvoices() {
     try {
       const params = {};
       if (filterStatus !== "all") params.status = filterStatus;
-      if (filterMonth !== "all") params.month = filterMonth;
+      // Backend expects numeric year + month (whereYear / whereMonth).
+      // Dropdown values are full ISO dates like "2026-05-01", so split them.
+      if (filterMonth !== "all") {
+        const [y, m] = filterMonth.split("-");
+        params.year = Number(y);
+        params.month = Number(m);
+      }
       const response = await getFeeInvoices(params);
       setItems(response.data?.data?.data || response.data?.data || []);
     } catch (error) {

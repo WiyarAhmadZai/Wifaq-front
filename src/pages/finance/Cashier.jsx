@@ -393,6 +393,8 @@ export default function Cashier() {
                       </span>
                     </div>
 
+                    <OutstandingBreakdown invoices={outstandingInvoices} />
+
                     {outstandingInvoices.map((inv) => (
                       <InvoiceCard
                         key={inv.id}
@@ -542,11 +544,98 @@ function SelectedStudentBar({ student, onChange, onAddPending }) {
   );
 }
 
+/**
+ * Compute the discount percentage = |discount| / (positive charges) * 100.
+ * Returns null when there's no discount or no charges to discount against.
+ */
+function discountPercent(buckets) {
+  const discount = Math.abs(buckets.DISCOUNT || 0);
+  if (discount <= 0) return null;
+  const charges = Object.entries(buckets)
+    .filter(([code, amt]) => code !== "DISCOUNT" && amt > 0)
+    .reduce((s, [, amt]) => s + amt, 0);
+  if (charges <= 0) return null;
+  return (discount / charges) * 100;
+}
+
+/**
+ * Aggregate-breakdown card shown above the per-invoice list. Sums each fee
+ * category across every outstanding invoice for the student so the cashier
+ * sees "Y is for tuition, X is for transport, Z is for uniform" before they
+ * start allocating payments.
+ */
+function OutstandingBreakdown({ invoices }) {
+  const totals = invoices.reduce((acc, inv) => {
+    const buckets = bucketInvoiceLines(inv.lines || []);
+    for (const [k, v] of Object.entries(buckets)) acc[k] = (acc[k] || 0) + v;
+    return acc;
+  }, {});
+
+  // Hide the card if the breakdown is empty (legacy invoices with no lines).
+  const entries = Object.entries(totals).filter(([, v]) => v !== 0);
+  if (entries.length === 0) return null;
+
+  const pct = discountPercent(totals);
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        Where the balance comes from
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {entries.map(([code, amt]) => {
+          const meta = BREAKDOWN_LABELS[code] || { label: code, tone: "text-gray-700" };
+          const isDiscount = code === "DISCOUNT";
+          return (
+            <div
+              key={code}
+              className="bg-white border border-gray-100 rounded-lg px-2.5 py-1.5"
+            >
+              <p className="text-[10px] text-gray-500">
+                {meta.label}
+                {isDiscount && pct !== null && (
+                  <span className="ml-1 text-emerald-600 font-semibold">({pct.toFixed(1)}%)</span>
+                )}
+              </p>
+              <p className={`text-sm font-bold ${meta.tone}`}>{fmtMoney(amt)} <span className="text-[10px] font-normal text-gray-500">AFN</span></p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Bucket invoice lines by fee_item.code so the cashier sees what each chunk
+// of the balance is for (Tuition / Transport / Uniform / Discount / Other).
+// Multiple lines with the same code (e.g. two DISCOUNT lines) are summed.
+function bucketInvoiceLines(lines = []) {
+  const buckets = { TUITION: 0, TRANSPORT: 0, UNIFORM: 0, ADMISSION: 0, EXAM: 0, LATE_FEE: 0, DISCOUNT: 0, OTHER: 0 };
+  for (const line of lines) {
+    const code = (line.fee_item?.code || "").toUpperCase();
+    if (code in buckets) buckets[code] += Number(line.amount);
+    else buckets.OTHER += Number(line.amount);
+  }
+  return buckets;
+}
+
+const BREAKDOWN_LABELS = {
+  TUITION:   { label: "Tuition",   tone: "text-gray-700" },
+  TRANSPORT: { label: "Transport", tone: "text-gray-700" },
+  UNIFORM:   { label: "Uniform",   tone: "text-gray-700" },
+  ADMISSION: { label: "Admission", tone: "text-gray-700" },
+  EXAM:      { label: "Exam",      tone: "text-gray-700" },
+  LATE_FEE:  { label: "Late fee",  tone: "text-red-600" },
+  DISCOUNT:  { label: "Discount",  tone: "text-emerald-600" },
+  OTHER:     { label: "Other",     tone: "text-gray-700" },
+};
+
 function InvoiceCard({ invoice, allocation, setAllocation, fillFull, clear, applyDiscount, isOpen, toggle }) {
   const balance = Number(invoice.final_amount) - Number(invoice.amount_paid);
   const lines = invoice.lines || [];
   const allocNum = Number(allocation) || 0;
   const willOverpay = allocNum > balance + 0.005;
+  const buckets = bucketInvoiceLines(lines);
 
   const statusBadge = {
     pending: { label: "Pending", tone: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -572,6 +661,30 @@ function InvoiceCard({ invoice, allocation, setAllocation, fillFull, clear, appl
             {fmtMonth(invoice.invoice_month)} · Due {fmtDate(invoice.due_date)}
             {lines.length > 0 ? ` · ${lines.length} line${lines.length === 1 ? "" : "s"}` : ""}
           </p>
+
+          {/* Breakdown chips — shows what the balance is made of */}
+          {lines.length > 0 && (() => {
+            const invPct = discountPercent(buckets);
+            return (
+              <div className="ml-5 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {Object.entries(buckets)
+                  .filter(([, amt]) => amt !== 0)
+                  .map(([code, amt]) => {
+                    const meta = BREAKDOWN_LABELS[code] || { label: code, tone: "text-gray-700" };
+                    const isDiscount = code === "DISCOUNT";
+                    return (
+                      <span key={code} className="inline-flex items-baseline gap-1 text-[11px]">
+                        <span className="text-gray-500">{meta.label}</span>
+                        <span className={`font-semibold ${meta.tone}`}>{fmtMoney(amt)}</span>
+                        {isDiscount && invPct !== null && (
+                          <span className="text-[10px] text-emerald-600 font-semibold">({invPct.toFixed(1)}%)</span>
+                        )}
+                      </span>
+                    );
+                  })}
+              </div>
+            );
+          })()}
         </div>
         {/* Middle: balance */}
         <div className="text-right flex-shrink-0">

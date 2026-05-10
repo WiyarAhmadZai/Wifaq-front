@@ -116,7 +116,11 @@ export default function BillingRun() {
 
     setCommitting(true);
     try {
-      const res = await commitBillingRun({ ...buildInput(), per_student_edits: edits });
+      // Synthesize line_overrides for any row where prorate=true. We halve
+      // ONLY the TUITION and TRANSPORT line amounts; discount and one-off
+      // charges (uniform, admission, exam, late fee) stay full.
+      const proratedEdits = synthesizeProrateOverrides(preview, edits);
+      const res = await commitBillingRun({ ...buildInput(), per_student_edits: proratedEdits });
       setCommittedRun(res.data?.data || null);
       Swal.fire("Done", res.data?.message || "Invoices generated.", "success");
     } catch (err) {
@@ -141,6 +145,13 @@ export default function BillingRun() {
     setEdits((prev) => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), skip } }));
   };
 
+  // Per-row prorate toggle. When true, the row's TUITION and TRANSPORT line
+  // amounts are halved (mid-month registration). Other items (discount,
+  // uniform, admission, exam, late fee) are NOT halved.
+  const setProrate = (studentId, prorate) => {
+    setEdits((prev) => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), prorate } }));
+  };
+
   // --------------------------------------------- Filtered + edited row view
   const visibleRows = useMemo(() => {
     if (!preview?.rows) return [];
@@ -149,20 +160,15 @@ export default function BillingRun() {
     return preview.rows;
   }, [preview, filter]);
 
-  // Compute the running total taking edits into account.
+  // Compute the running total taking edits AND prorate flags into account.
   const editedTotal = useMemo(() => {
     if (!preview?.rows) return 0;
     return preview.rows.reduce((sum, row) => {
       if (row.status !== "ready") return sum;
       const edit = edits[row.student_id];
       if (edit?.skip) return sum;
-      const overrides = edit?.line_overrides || {};
-      const rowTotal = (row.lines || []).reduce((s, line) => {
-        const o = overrides[line.fee_item_id];
-        const amount = o && o.amount !== null && o.amount !== undefined ? Number(o.amount) : Number(line.amount);
-        return s + amount;
-      }, 0);
-      return sum + rowTotal;
+      const { total } = bucketLineAmounts(row.lines, edit?.line_overrides || {}, !!edit?.prorate);
+      return sum + total;
     }, 0);
   }, [preview, edits]);
 
@@ -279,6 +285,7 @@ export default function BillingRun() {
           edits={edits}
           setLineOverride={setLineOverride}
           setSkip={setSkip}
+          setProrate={setProrate}
           editedReadyCount={editedReadyCount}
           editedTotal={editedTotal}
           committing={committing}
@@ -320,7 +327,7 @@ function Checkbox({ checked, onChange, label }) {
 
 function PreviewPanel({
   preview, filter, setFilter, rows, expanded, setExpanded,
-  edits, setLineOverride, setSkip,
+  edits, setLineOverride, setSkip, setProrate,
   editedReadyCount, editedTotal, committing, onCommit,
 }) {
   const issuesCount = preview.blocked_count + preview.excluded_count + preview.already_invoiced_count;
@@ -403,6 +410,7 @@ function PreviewPanel({
                   toggle={() => setExpanded((p) => ({ ...p, [row.student_id]: !p[row.student_id] }))}
                   setLineOverride={(itemId, amt) => setLineOverride(row.student_id, itemId, amt)}
                   setSkip={(s) => setSkip(row.student_id, s)}
+                  setProrate={(p) => setProrate(row.student_id, p)}
                 />
               );
             })}
@@ -430,20 +438,31 @@ function PreviewPanel({
   );
 }
 
+// Codes that get halved when a row is prorated (mid-month registration).
+// DISCOUNT is included because in the existing data model it's computed as
+//   discount_amount = base_fee × discount_percent
+// so when the base fee halves, the discount must halve with it. Otherwise a
+// student with a 100% discount would end up with a *negative* total (the
+// school would owe them money). One-off charges (uniform, admission, exam,
+// late fee) are time-independent and stay at full amount.
+const PRORATABLE_CODES = new Set(["TUITION", "TRANSPORT", "DISCOUNT"]);
+
 /**
  * Group line amounts by fee_item.code so the row table can show
  * Base / Discount / Transport / Uniform / Other in their own columns.
  * Multiple lines with the same code (e.g. two DISCOUNT lines) are summed.
  * Edits in `overrides` are applied so the displayed amount is the
- * *committed* amount, not the original draft.
+ * *committed* amount, not the original draft. When `prorate` is true,
+ * TUITION and TRANSPORT amounts are halved (mid-month registration).
  */
-function bucketLineAmounts(lines, overrides) {
+function bucketLineAmounts(lines, overrides, prorate = false) {
   const buckets = { TUITION: 0, DISCOUNT: 0, TRANSPORT: 0, UNIFORM: 0, OTHER: 0 };
   const present = { TUITION: false, DISCOUNT: false, TRANSPORT: false, UNIFORM: false, OTHER: false };
   for (const line of lines || []) {
     const o = overrides?.[line.fee_item_id];
-    const amt = o && o.amount !== null && o.amount !== undefined ? Number(o.amount) : Number(line.amount);
+    let amt = o && o.amount !== null && o.amount !== undefined ? Number(o.amount) : Number(line.amount);
     const code = (line.fee_item?.code || "").toUpperCase();
+    if (prorate && PRORATABLE_CODES.has(code)) amt = amt / 2;
     if (code in buckets) {
       buckets[code] += amt;
       present[code] = true;
@@ -456,6 +475,39 @@ function bucketLineAmounts(lines, overrides) {
   return { buckets, present, total };
 }
 
+/**
+ * Convert per-row `prorate: true` flags into concrete `line_overrides` so the
+ * backend's existing applyEdits() logic produces the same halved amounts.
+ * Returns a NEW edits object — does not mutate input.
+ */
+function synthesizeProrateOverrides(preview, edits) {
+  const out = {};
+  for (const row of preview?.rows || []) {
+    const e = edits[row.student_id];
+    if (!e) continue;
+    if (!e.prorate) {
+      out[row.student_id] = e;
+      continue;
+    }
+    const lineOverrides = { ...(e.line_overrides || {}) };
+    for (const line of row.lines || []) {
+      const code = (line.fee_item?.code || "").toUpperCase();
+      if (!PRORATABLE_CODES.has(code)) continue;
+      const existing = lineOverrides[line.fee_item_id];
+      const baseAmt = existing && existing.amount !== null && existing.amount !== undefined
+        ? Number(existing.amount)
+        : Number(line.amount);
+      lineOverrides[line.fee_item_id] = {
+        ...(existing || {}),
+        amount: Number((baseAmt / 2).toFixed(2)),
+        description: existing?.description || `${line.fee_item?.name || code} (½ — prorated)`,
+      };
+    }
+    out[row.student_id] = { ...e, line_overrides: lineOverrides };
+  }
+  return out;
+}
+
 function MoneyCell({ amount, present, signClass = "" }) {
   if (!present) return <td className="px-3 py-2 text-xs text-right text-gray-300">—</td>;
   return (
@@ -465,10 +517,11 @@ function MoneyCell({ amount, present, signClass = "" }) {
   );
 }
 
-function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride, setSkip }) {
+function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride, setSkip, setProrate }) {
   const navigate = useNavigate();
   const overrides = edit.line_overrides || {};
-  const { buckets, present, total } = bucketLineAmounts(row.lines, overrides);
+  const prorated = !!edit.prorate;
+  const { buckets, present, total } = bucketLineAmounts(row.lines, overrides, prorated);
   const ready = row.status === "ready";
   // Render breakdown columns for both `ready` and `already_invoiced` rows so
   // the cashier can see what each student's bill consists of, regardless of
@@ -504,32 +557,54 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
         )}
 
         <td className="px-3 py-2">
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${meta.tone}`}>
-            {meta.icon} {meta.label}
-          </span>
+          <div className="flex flex-col items-start gap-0.5">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${meta.tone}`}>
+              {meta.icon} {meta.label}
+            </span>
+            {prorated && ready && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                ½ PRORATED
+              </span>
+            )}
+          </div>
         </td>
         <td className="px-3 py-2 text-right">
-          {ready && (
-            <button
-              onClick={() => setSkip(!skipped)}
-              className={`text-[10px] px-2 py-0.5 rounded ${
-                skipped
-                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  : "text-gray-500 hover:text-red-600 hover:bg-red-50"
-              }`}
-            >
-              {skipped ? "Include" : "Skip"}
-            </button>
-          )}
-          {row.status === "already_invoiced" && row.existing_invoice_id && (
-            <button
-              onClick={() => navigate(`/finance/fee-invoices/show/${row.existing_invoice_id}`)}
-              className="text-[10px] px-2 py-0.5 rounded text-blue-600 hover:bg-blue-50"
-              title="Open the existing invoice"
-            >
-              View
-            </button>
-          )}
+          <div className="flex items-center justify-end gap-1">
+            {ready && (
+              <button
+                onClick={() => setProrate(!prorated)}
+                className={`text-[10px] px-2 py-0.5 rounded ${
+                  prorated
+                    ? "bg-orange-50 text-orange-700 hover:bg-orange-100 ring-1 ring-orange-200"
+                    : "text-gray-500 hover:text-orange-700 hover:bg-orange-50"
+                }`}
+                title="Halve TUITION and TRANSPORT for this student (mid-month registration). Discount and one-off charges stay full."
+              >
+                ½ Prorate
+              </button>
+            )}
+            {ready && (
+              <button
+                onClick={() => setSkip(!skipped)}
+                className={`text-[10px] px-2 py-0.5 rounded ${
+                  skipped
+                    ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    : "text-gray-500 hover:text-red-600 hover:bg-red-50"
+                }`}
+              >
+                {skipped ? "Include" : "Skip"}
+              </button>
+            )}
+            {row.status === "already_invoiced" && row.existing_invoice_id && (
+              <button
+                onClick={() => navigate(`/finance/fee-invoices/show/${row.existing_invoice_id}`)}
+                className="text-[10px] px-2 py-0.5 rounded text-blue-600 hover:bg-blue-50"
+                title="Open the existing invoice"
+              >
+                View
+              </button>
+            )}
+          </div>
         </td>
       </tr>
       {isOpen && hasBreakdown && (

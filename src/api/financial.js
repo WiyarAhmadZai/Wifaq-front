@@ -23,6 +23,11 @@ export const getParty = (id) => get(`${BASE}/parties/${id}`);
 export const createParty = (data) => post(`${BASE}/parties`, data);
 export const getPartyLedger = (id, params = {}) => get(`${BASE}/parties/${id}/ledger`, { params });
 export const getPartyBalance = (id) => get(`${BASE}/parties/${id}/balance`);
+// The four canonical party-money actions — staff advances flow.
+export const givePartyAdvance       = (id, data) => post(`${BASE}/parties/${id}/advance`, data);
+export const recordPartyExpense     = (id, data) => post(`${BASE}/parties/${id}/expense`, data);
+export const recordPartyRepayment   = (id, data) => post(`${BASE}/parties/${id}/repayment`, data);
+export const recordPartyReimbursement = (id, data) => post(`${BASE}/parties/${id}/reimbursement`, data);
 
 // Journal Entries
 export const getJournalEntries = (params = {}) => get(`${BASE}/journal-entries`, { params });

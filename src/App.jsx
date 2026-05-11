@@ -40,6 +40,18 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Login = lazy(() => import("./pages/Login"));
 const MyProfile = lazy(() => import("./pages/MyProfile"));
 
+// HR — VATS / Welfare / Holidays (new modules)
+const VatsDashboard = lazy(() => import("./pages/hr/VatsDashboard"));
+const VatsObservations = lazy(() => import("./pages/hr/VatsObservations"));
+const VatsSlips = lazy(() => import("./pages/hr/VatsSlips"));
+const VatsCards = lazy(() => import("./pages/hr/VatsCards"));
+const VatsInterventions = lazy(() => import("./pages/hr/VatsInterventions"));
+const WelfareDashboard = lazy(() => import("./pages/hr/WelfareDashboard"));
+const WelfareCheckin = lazy(() => import("./pages/hr/WelfareCheckin"));
+const WelfareAlerts = lazy(() => import("./pages/hr/WelfareAlerts"));
+const WelfareBenefits = lazy(() => import("./pages/hr/WelfareBenefits"));
+const Holidays = lazy(() => import("./pages/hr/Holidays"));
+
 // HR Pages - List
 const Staff = lazy(() => import("./pages/hr/Staff"));
 const Contracts = lazy(() => import("./pages/hr/Contracts"));
@@ -329,6 +341,18 @@ function App() {
             <Route path="hr/visitor-log/edit/:id" element={<Suspense fallback={<PageLoader />}><VisitorLogForm /></Suspense>} />
             <Route path="hr/visitor-log/show/:id" element={<Suspense fallback={<PageLoader />}><VisitorLogShow /></Suspense>} />
             <Route path="hr/reports" element={<Suspense fallback={<PageLoader />}><HRReports /></Suspense>} />
+
+            {/* HR — VATS, Welfare, Holidays */}
+            <Route path="hr/vats" element={<Suspense fallback={<PageLoader />}><VatsDashboard /></Suspense>} />
+            <Route path="hr/vats/observations" element={<Suspense fallback={<PageLoader />}><VatsObservations /></Suspense>} />
+            <Route path="hr/vats/slips" element={<Suspense fallback={<PageLoader />}><VatsSlips /></Suspense>} />
+            <Route path="hr/vats/cards" element={<Suspense fallback={<PageLoader />}><VatsCards /></Suspense>} />
+            <Route path="hr/vats/interventions" element={<Suspense fallback={<PageLoader />}><VatsInterventions /></Suspense>} />
+            <Route path="hr/welfare" element={<Suspense fallback={<PageLoader />}><WelfareDashboard /></Suspense>} />
+            <Route path="hr/welfare/checkin" element={<Suspense fallback={<PageLoader />}><WelfareCheckin /></Suspense>} />
+            <Route path="hr/welfare/alerts" element={<Suspense fallback={<PageLoader />}><WelfareAlerts /></Suspense>} />
+            <Route path="hr/welfare/benefits" element={<Suspense fallback={<PageLoader />}><WelfareBenefits /></Suspense>} />
+            <Route path="hr/holidays" element={<Suspense fallback={<PageLoader />}><Holidays /></Suspense>} />
 
             {/* HR Routes - Meetings */}
             <Route path="hr/meetings" element={<Suspense fallback={<PageLoader />}><Meetings /></Suspense>} />

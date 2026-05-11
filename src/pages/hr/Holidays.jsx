@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
 
@@ -13,12 +15,14 @@ const TYPE_STYLE = {
 };
 
 export default function Holidays() {
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions("holidays");
+  const location = useLocation();
   const [year, setYear] = useState(new Date().getFullYear());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [edit, setEdit] = useState(null); // null | "new" | holiday object
 
-  useEffect(() => { fetchAll(); }, [year]);
+  useEffect(() => { fetchAll(); }, [year, location.key]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -51,11 +55,13 @@ export default function Holidays() {
                 options={[year - 1, year, year + 1].map(y => ({ value: y, label: String(y) }))}
                 isClearable={false} />
             </div>
-            <button onClick={() => setEdit("new")}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-              Add Holiday
-            </button>
+            {canCreate && (
+              <button onClick={() => setEdit("new")}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                Add Holiday
+              </button>
+            )}
           </div>
         </div>
 
@@ -64,9 +70,11 @@ export default function Holidays() {
         ) : items.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
             <p className="text-sm text-gray-400">No holidays added for {year}</p>
-            <button onClick={() => setEdit("new")} className="mt-3 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">
-              Add the first one
-            </button>
+            {canCreate && (
+              <button onClick={() => setEdit("new")} className="mt-3 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">
+                Add the first one
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -86,10 +94,16 @@ export default function Holidays() {
                       {h.recurring && <span className="px-1.5 py-0.5 bg-teal-600 text-white text-[9px] font-bold rounded uppercase">Recurring</span>}
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <button onClick={() => setEdit(h)} className="text-[10px] px-2 py-1 bg-white text-gray-600 rounded hover:bg-gray-100">Edit</button>
-                    <button onClick={() => remove(h.id)} className="text-[10px] px-2 py-1 bg-white text-red-600 rounded hover:bg-red-50">Delete</button>
-                  </div>
+                  {(canUpdate || canDelete) && (
+                    <div className="flex flex-col gap-1">
+                      {canUpdate && (
+                        <button onClick={() => setEdit(h)} className="text-[10px] px-2 py-1 bg-white text-gray-600 rounded hover:bg-gray-100">Edit</button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => remove(h.id)} className="text-[10px] px-2 py-1 bg-white text-red-600 rounded hover:bg-red-50">Delete</button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

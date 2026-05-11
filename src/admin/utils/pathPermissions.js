@@ -44,6 +44,22 @@ const RULES = [
   { prefix: "/hr/jobs", permission: "job-postings.view" }, // legacy alias
   { prefix: "/hr/job-application", permission: "applications.view" }, // legacy alias
 
+  // HR — VATS (performance / evidence engine)
+  { prefix: "/hr/vats/observations", permission: "vats-observations.view" },
+  { prefix: "/hr/vats/slips", permission: "vats-slips.view" },
+  { prefix: "/hr/vats/cards", permission: "vats-cards.view" },
+  { prefix: "/hr/vats/interventions", permission: "vats-interventions.view" },
+  { prefix: "/hr/vats", permission: "vats-dashboard.view" }, // overview — must come AFTER the sub-routes
+
+  // HR — Ihsan Welfare
+  { prefix: "/hr/welfare/checkin", permission: "welfare-checkin.view" },
+  { prefix: "/hr/welfare/alerts", permission: "welfare-alerts.view" },
+  { prefix: "/hr/welfare/benefits", permission: "welfare-benefits.view" },
+  { prefix: "/hr/welfare", permission: "welfare-dashboard.view" }, // dashboard root
+
+  // HR — Foundation
+  { prefix: "/hr/holidays", permission: "holidays.view" },
+
   // Student management
   { prefix: "/student-management/enrolled-students", permission: "enrolled-students.view" },
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },

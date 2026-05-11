@@ -16,6 +16,11 @@ export const getAccount = (id) => get(`${BASE}/accounts/${id}`);
 export const createAccount = (data) => post(`${BASE}/accounts`, data);
 export const updateAccount = (id, data) => put(`${BASE}/accounts/${id}`, data);
 export const deleteAccount = (id) => del(`${BASE}/accounts/${id}`);
+// Cash movements — every call posts a balanced journal entry server-side.
+export const depositToAccount       = (id, data) => post(`${BASE}/accounts/${id}/deposit`, data);
+export const withdrawFromAccount    = (id, data) => post(`${BASE}/accounts/${id}/withdraw`, data);
+export const transferBetweenAccounts = (id, data) => post(`${BASE}/accounts/${id}/transfer`, data);
+export const getAccountMovements    = (id, params = {}) => get(`${BASE}/accounts/${id}/movements`, { params });
 
 // Parties (Students, Employees, Suppliers)
 export const getParties = (params = {}) => get(`${BASE}/parties`, { params });

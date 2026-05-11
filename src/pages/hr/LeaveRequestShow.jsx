@@ -68,6 +68,7 @@ export default function LeaveRequestShow() {
       await put(`/hr/leave-requests/${id}/status`, { status: "approved" });
       Swal.fire({ icon: "success", title: isOverturn ? "Re-approved" : "Approved", timer: 1200, showConfirmButton: false });
       load();
+      window.dispatchEvent(new CustomEvent("wen:notifications-refresh"));
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed", "error");
     }
@@ -79,6 +80,7 @@ export default function LeaveRequestShow() {
       Swal.fire({ icon: "success", title: "Rejected", timer: 1200, showConfirmButton: false });
       setRejectOpen(false);
       load();
+      window.dispatchEvent(new CustomEvent("wen:notifications-refresh"));
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed", "error");
     }

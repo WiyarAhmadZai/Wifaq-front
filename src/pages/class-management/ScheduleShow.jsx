@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const getStatusBadge = (status) => ({ 
   active: 'bg-emerald-100 text-emerald-700', 
@@ -8,7 +9,8 @@ const getStatusBadge = (status) => ({
 export default function ScheduleShow() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const item = { 
+  const { canUpdate } = useResourcePermissions("schedule");
+  const item = {
     id: 1,
     class: 'Class 1-A',
     subject: 'Mathematics',
@@ -45,13 +47,15 @@ export default function ScheduleShow() {
               <p className="text-xs text-teal-100 mt-0.5">View class schedule information</p>
             </div>
           </div>
-          <button onClick={() => navigate(`/class-management/schedule/edit/${id}`)} 
-            className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit Schedule
-          </button>
+          {canUpdate && (
+            <button onClick={() => navigate(`/class-management/schedule/edit/${id}`)}
+              className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Schedule
+            </button>
+          )}
         </div>
       </div>
 

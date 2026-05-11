@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Stock() {
   return (
     <CrudPage
+      permissionBase="stock"
       title="Stock / Inventory"
       apiEndpoint="/purchase/stock/index"
       createRoute="/purchase/stock/create"

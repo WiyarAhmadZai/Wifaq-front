@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const pipelineStages = [
   { key: "draft", label: "Draft", color: "gray" },
@@ -94,6 +95,7 @@ const dummyRequests = {
 export default function PurchaseRequestShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete, canApprove } = useResourcePermissions("purchase-requests");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -217,7 +219,7 @@ export default function PurchaseRequestShow() {
           </div>
         </div>
         <div className="flex gap-2">
-          {data.status === "draft" && (
+          {data.status === "draft" && canUpdate && (
             <button onClick={() => navigate(`/purchase/purchase-requests/edit/${id}`)}
               className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -226,13 +228,15 @@ export default function PurchaseRequestShow() {
               Edit
             </button>
           )}
-          <button onClick={handleDelete}
-            className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs font-medium flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Delete
-          </button>
+          {canDelete && (
+            <button onClick={handleDelete}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs font-medium flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -341,7 +345,7 @@ export default function PurchaseRequestShow() {
           </div>
 
           {/* DRAFT: Approve or Reject */}
-          {data.status === "draft" && (
+          {data.status === "draft" && canApprove && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider mb-3">Approval Decision</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -373,7 +377,7 @@ export default function PurchaseRequestShow() {
           )}
 
           {/* APPROVED: Quotations + Invoice + Complete */}
-          {data.status === "approved" && (
+          {data.status === "approved" && canUpdate && (
             <div className="space-y-4">
               {/* Quotations */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">

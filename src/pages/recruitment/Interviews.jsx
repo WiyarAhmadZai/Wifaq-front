@@ -12,6 +12,7 @@ const statusBadge = (val) => (
 export default function Interviews() {
   return (
     <CrudPage
+      permissionBase="applications"
       title="Interviews"
       apiEndpoint="/recruitment/interviews"
       listColumns={[

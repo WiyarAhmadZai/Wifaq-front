@@ -112,6 +112,12 @@ export default function ParentForm() {
     number_of_family_members: "",
     number_of_dependents: "",
     income_category: "",
+    permanent_province: "",
+    permanent_district: "",
+    permanent_village: "",
+    temporary_province: "",
+    temporary_district: "",
+    temporary_village: "",
     address: "",
   });
 
@@ -145,6 +151,12 @@ export default function ParentForm() {
         number_of_family_members: d.number_of_family_members || "",
         number_of_dependents: d.number_of_dependents || "",
         income_category: d.income_category || "",
+        permanent_province: d.permanent_province || "",
+        permanent_district: d.permanent_district || "",
+        permanent_village: d.permanent_village || "",
+        temporary_province: d.temporary_province || "",
+        temporary_district: d.temporary_district || "",
+        temporary_village: d.temporary_village || "",
         address: d.address || "",
       });
     } catch (error) {
@@ -627,6 +639,68 @@ export default function ParentForm() {
                   {err("income_category")}
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* ── Permanent Residence (hidden in emergency mode for create) ── */}
+        {(isEdit || formMode === "normal") && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <SectionHeader
+            icon="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"
+            title="Permanent Residence"
+            subtitle="Family's permanent address details"
+            gradient="bg-gradient-to-r from-indigo-50 to-blue-50 border-indigo-100"
+            iconBg="bg-indigo-100"
+            iconColor="text-indigo-600"
+          />
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Province</label>
+              <input type="text" name="permanent_province" value={formData.permanent_province} onChange={handleChange} placeholder="e.g. Kabul" className={inputClass("permanent_province")} />
+              {err("permanent_province") && <p className="text-red-500 text-[10px] mt-1">{err("permanent_province")}</p>}
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">District</label>
+              <input type="text" name="permanent_district" value={formData.permanent_district} onChange={handleChange} placeholder="e.g. District 5" className={inputClass("permanent_district")} />
+              {err("permanent_district") && <p className="text-red-500 text-[10px] mt-1">{err("permanent_district")}</p>}
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Village</label>
+              <input type="text" name="permanent_village" value={formData.permanent_village} onChange={handleChange} placeholder="e.g. Qala-e-Fatullah" className={inputClass("permanent_village")} />
+              {err("permanent_village") && <p className="text-red-500 text-[10px] mt-1">{err("permanent_village")}</p>}
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* ── Temporary Residence (hidden in emergency mode for create) ── */}
+        {(isEdit || formMode === "normal") && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <SectionHeader
+            icon="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+            title="Temporary Residence"
+            subtitle="Family's current / temporary address details"
+            gradient="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100"
+            iconBg="bg-amber-100"
+            iconColor="text-amber-600"
+          />
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Province</label>
+              <input type="text" name="temporary_province" value={formData.temporary_province} onChange={handleChange} placeholder="e.g. Nangarhar" className={inputClass("temporary_province")} />
+              {err("temporary_province") && <p className="text-red-500 text-[10px] mt-1">{err("temporary_province")}</p>}
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">District</label>
+              <input type="text" name="temporary_district" value={formData.temporary_district} onChange={handleChange} placeholder="e.g. Jalalabad City" className={inputClass("temporary_district")} />
+              {err("temporary_district") && <p className="text-red-500 text-[10px] mt-1">{err("temporary_district")}</p>}
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Village</label>
+              <input type="text" name="temporary_village" value={formData.temporary_village} onChange={handleChange} placeholder="e.g. Samar Khel" className={inputClass("temporary_village")} />
+              {err("temporary_village") && <p className="text-red-500 text-[10px] mt-1">{err("temporary_village")}</p>}
             </div>
           </div>
         </div>

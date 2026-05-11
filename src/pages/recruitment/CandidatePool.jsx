@@ -25,6 +25,7 @@ const activeBadge = (val) => (
 export default function CandidatePool() {
   return (
     <CrudPage
+      permissionBase="candidate-pool"
       title="Candidate Pools"
       apiEndpoint="/recruitment/candidate-pool"
       listColumns={[

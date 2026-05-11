@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { get, del } from '../../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../../admin/utils/useResourcePermissions';
 
 const DAY_LABELS = { saturday: 'Sat', sunday: 'Sun', monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu' };
 const CAT_COLORS = {
@@ -14,6 +15,7 @@ const DEF_COLOR = { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gra
 export default function TeachersShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate, canDelete } = useResourcePermissions("teachers");
   const [teacher, setTeacher] = useState(null);
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -85,16 +87,20 @@ export default function TeachersShow() {
             Back
           </button>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate(`/teacher-management/teachers/edit/${id}`)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              Edit
-            </button>
-            <button onClick={handleDelete}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-red-500/60 text-white text-xs font-semibold rounded-xl transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              Delete
-            </button>
+            {canUpdate && (
+              <button onClick={() => navigate(`/teacher-management/teachers/edit/${id}`)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Edit
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={handleDelete}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-red-500/60 text-white text-xs font-semibold rounded-xl transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Delete
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">

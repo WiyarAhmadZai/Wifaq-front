@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Vehicles() {
   return (
     <CrudPage
+      permissionBase="vehicles"
       title="Vehicles Management"
       apiEndpoint="/transportation/vehicles/list"
       searchable={true}
@@ -13,6 +14,11 @@ export default function Vehicles() {
           key: "route",
           label: "Route",
           render: (val) => val?.route_name || "—",
+        },
+        {
+          key: "monthly_fee",
+          label: "Monthly Fee",
+          render: (val) => (val != null ? `${Number(val).toLocaleString()} AFN` : "—"),
         },
         { key: "driver_name", label: "Driver Name" },
         { key: "driver_contact", label: "Driver Contact" },

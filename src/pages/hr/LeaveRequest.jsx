@@ -33,6 +33,7 @@ const leaveTypeBadge = (val) => {
 export default function LeaveRequest() {
   return (
     <CrudPage
+      permissionBase="leave-request"
       title="Leave Requests"
       apiEndpoint="/hr/leave-requests"
       createRoute="/hr/leave-request/create"

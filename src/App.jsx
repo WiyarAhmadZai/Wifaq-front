@@ -4,8 +4,18 @@ import {
   Routes,
   Route,
   Navigate,
+  useParams,
 } from "react-router-dom";
 import Layout from "./components/Layout";
+import { AuthProvider } from "./admin/context/AuthContext";
+import Protected from "./admin/guards/Protected";
+
+const AdminRoles = lazy(() => import("./admin/pages/AdminRoles"));
+const AdminRoleShow = lazy(() => import("./admin/pages/AdminRoleShow"));
+const AdminPermissions = lazy(() => import("./admin/pages/AdminPermissions"));
+const AdminUsers = lazy(() => import("./admin/pages/AdminUsers"));
+const AdminUserShow = lazy(() => import("./admin/pages/AdminUserShow"));
+const Forbidden = lazy(() => import("./admin/pages/Forbidden"));
 
 // Loading spinner shown while lazy components load
 const PageLoader = () => (
@@ -101,6 +111,9 @@ const RouteForm = lazy(() => import("./pages/studentMangement/RouteForm"));
 const Vehicles = lazy(() => import("./pages/studentMangement/Vehicles"));
 const VehicleForm = lazy(() => import("./pages/studentMangement/VehicleForm"));
 const Students = lazy(() => import("./pages/studentMangement/Students"));
+const EnrolledStudents = lazy(() => import("./pages/studentMangement/EnrolledStudents"));
+const FoundationRequests = lazy(() => import("./pages/studentMangement/FoundationRequests"));
+const FoundationRequestShow = lazy(() => import("./pages/studentMangement/FoundationRequestShow"));
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
 const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEnrollments"));
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
@@ -161,6 +174,17 @@ const BudgetForm = lazy(() => import("./pages/finance/BudgetForm"));
 const FeeInvoices = lazy(() => import("./pages/finance/FeeInvoices"));
 const FeeInvoiceForm = lazy(() => import("./pages/finance/FeeInvoiceForm"));
 const FeeInvoiceShow = lazy(() => import("./pages/finance/FeeInvoiceShow"));
+const BillingRun = lazy(() => import("./pages/finance/BillingRun"));
+const Cashier = lazy(() => import("./pages/finance/Cashier"));
+const StudentPayments = lazy(() => import("./pages/finance/StudentPayments"));
+const ClassCollectionReport = lazy(() => import("./pages/finance/ClassCollectionReport"));
+const FinanceInbox = lazy(() => import("./pages/finance/FinanceInbox"));
+const Parties = lazy(() => import("./pages/finance/Parties"));
+const PartyForm = lazy(() => import("./pages/finance/PartyForm"));
+const PartyLedger = lazy(() => import("./pages/finance/PartyLedger"));
+const JournalEntries = lazy(() => import("./pages/finance/JournalEntries"));
+const JournalEntryForm = lazy(() => import("./pages/finance/JournalEntryForm"));
+const JournalEntryShow = lazy(() => import("./pages/finance/JournalEntryShow"));
 
 // Purchase
 const PurchaseRequests = lazy(() => import("./pages/purchase/PurchaseRequests"));
@@ -190,33 +214,40 @@ const Placeholder = ({ title }) => (
 );
 
 function ProtectedRoute({ children }) {
-  // const token = localStorage.getItem("token");
-  // return token ? children : <Navigate to="/login" replace />;
-  return children;
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" replace />;
 }
 
 function PublicRoute({ children }) {
-  // const token = localStorage.getItem("token");
-  // return !token ? children : <Navigate to="/" replace />;
-  return children;
+  const token = localStorage.getItem("token");
+  return !token ? children : <Navigate to="/" replace />;
+}
+
+// Old per-student statement URL → forward to Cashier with that student preselected.
+function RedirectToCashier() {
+  const { studentId } = useParams();
+  return <Navigate to={`/finance/cashier${studentId ? `?student_id=${studentId}` : ""}`} replace />;
 }
 
 function App() {
   return (
     <Router>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
+      <AuthProvider>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
+            <Route path="/403" element={<Suspense fallback={<PageLoader />}><Forbidden /></Suspense>} />
 
-          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="departments" element={<Placeholder title="Departments" />} />
             <Route path="payroll" element={<Placeholder title="Payroll" />} />
             <Route path="leave-requests" element={<Placeholder title="Leave Requests" />} />
             <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
+            <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
+            <Route path="profile/:userId" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
             <Route path="settings" element={<Placeholder title="Settings" />} />
             <Route path="support" element={<Placeholder title="Support" />} />
-            <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
 
             {/* Teacher Management */}
             <Route path="teacher-management/teachers" element={<Suspense fallback={<PageLoader />}><Teachers /></Suspense>} />
@@ -320,9 +351,12 @@ function App() {
 
             {/* Student Management */}
             <Route path="student-management/students" element={<Suspense fallback={<PageLoader />}><Students /></Suspense>} />
+            <Route path="student-management/enrolled-students" element={<Suspense fallback={<PageLoader />}><EnrolledStudents /></Suspense>} />
             <Route path="student-management/students/create" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
+            <Route path="student-management/foundation-requests" element={<Suspense fallback={<PageLoader />}><FoundationRequests /></Suspense>} />
+            <Route path="student-management/foundation-requests/show/:id" element={<Suspense fallback={<PageLoader />}><FoundationRequestShow /></Suspense>} />
             <Route path="student-management/student-enrollments" element={<Suspense fallback={<PageLoader />}><StudentEnrollments /></Suspense>} />
             <Route path="student-management/student-enrollments/create" element={<Suspense fallback={<PageLoader />}><StudentEnrollmentForm /></Suspense>} />
             <Route path="student-management/student-enrollments/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentEnrollmentForm /></Suspense>} />
@@ -368,14 +402,29 @@ function App() {
             <Route path="finance/budgets" element={<Suspense fallback={<PageLoader />}><Budgets /></Suspense>} />
             <Route path="finance/budgets/create" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/budgets/edit/:id" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
+            <Route path="finance/billing-runs" element={<Suspense fallback={<PageLoader />}><BillingRun /></Suspense>} />
+            <Route path="finance/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
+            <Route path="finance/students/:studentId/payments" element={<Suspense fallback={<PageLoader />}><StudentPayments /></Suspense>} />
+            <Route path="finance/reports/class-collection" element={<Suspense fallback={<PageLoader />}><ClassCollectionReport /></Suspense>} />
+            {/* Old paths now redirect to the single Cashier flow. */}
+            <Route path="finance/fee-payments/create" element={<Navigate to="/finance/cashier" replace />} />
+            <Route path="finance/student-statements" element={<Navigate to="/finance/cashier" replace />} />
+            <Route path="finance/students/:studentId/statement" element={<RedirectToCashier />} />
             <Route path="finance/fee-invoices" element={<Suspense fallback={<PageLoader />}><FeeInvoices /></Suspense>} />
             <Route path="finance/fee-invoices/create" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/edit/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/show/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceShow /></Suspense>} />
             <Route path="finance/fee-payments" element={<Suspense fallback={<PageLoader />}><FeePayments /></Suspense>} />
-            <Route path="finance/fee-payments/create" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />
+            {/* /finance/fee-payments/create is handled above by redirect to /finance/cashier */}
             <Route path="finance/fee-payments/edit/:id" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />
             <Route path="finance/fee-payments/show/:id" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />
+            <Route path="finance/journal-entries" element={<Suspense fallback={<PageLoader />}><JournalEntries /></Suspense>} />
+            <Route path="finance/journal-entries/create" element={<Suspense fallback={<PageLoader />}><JournalEntryForm /></Suspense>} />
+            <Route path="finance/journal-entries/show/:id" element={<Suspense fallback={<PageLoader />}><JournalEntryShow /></Suspense>} />
+            <Route path="finance/parties" element={<Suspense fallback={<PageLoader />}><Parties /></Suspense>} />
+            <Route path="finance/parties/create" element={<Suspense fallback={<PageLoader />}><PartyForm /></Suspense>} />
+            <Route path="finance/parties/:id/ledger" element={<Suspense fallback={<PageLoader />}><PartyLedger /></Suspense>} />
+            <Route path="finance/inbox" element={<Suspense fallback={<PageLoader />}><FinanceInbox /></Suspense>} />
 
             {/* Recruitment */}
             <Route path="recruitment/job-requisitions" element={<Suspense fallback={<PageLoader />}><JobRequisitions /></Suspense>} />
@@ -420,9 +469,37 @@ function App() {
             <Route path="purchase/projects/create" element={<Suspense fallback={<PageLoader />}><ProjectForm /></Suspense>} />
             <Route path="purchase/projects/edit/:id" element={<Suspense fallback={<PageLoader />}><ProjectForm /></Suspense>} />
             <Route path="purchase/projects/show/:id" element={<Suspense fallback={<PageLoader />}><ProjectShow /></Suspense>} />
+
+            {/* ===== Admin: Access Control ===== */}
+            <Route path="admin/roles" element={
+              <Protected permission="roles.view">
+                <Suspense fallback={<PageLoader />}><AdminRoles /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/roles/:id" element={
+              <Protected permission="roles.view">
+                <Suspense fallback={<PageLoader />}><AdminRoleShow /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/permissions" element={
+              <Protected permission="permissions.view">
+                <Suspense fallback={<PageLoader />}><AdminPermissions /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/users" element={
+              <Protected permission="users.view">
+                <Suspense fallback={<PageLoader />}><AdminUsers /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/users/:id" element={
+              <Protected permission="users.view">
+                <Suspense fallback={<PageLoader />}><AdminUserShow /></Suspense>
+              </Protected>
+            } />
           </Route>
-        </Routes>
-      </Suspense>
+          </Routes>
+        </Suspense>
+      </AuthProvider>
     </Router>
   );
 }

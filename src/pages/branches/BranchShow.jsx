@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const Icons = {
   ArrowLeft: () => (
@@ -41,6 +42,7 @@ const API_BASE_URL =
 export default function BranchShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate } = useResourcePermissions("branches");
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -125,13 +127,15 @@ export default function BranchShow() {
             <p className="text-sm text-gray-500">View branch information</p>
           </div>
         </div>
-        <button
-          onClick={() => navigate(`/branches/edit/${id}`)}
-          className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 font-medium"
-        >
-          <Icons.Edit />
-          Edit
-        </button>
+        {canUpdate && (
+          <button
+            onClick={() => navigate(`/branches/edit/${id}`)}
+            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 font-medium"
+          >
+            <Icons.Edit />
+            Edit
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

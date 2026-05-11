@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const Icons = {
   ArrowLeft: () => (
@@ -62,6 +63,7 @@ const STATUS_OPTIONS = [
 export default function JobPostingShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate, canDelete } = useResourcePermissions("job-postings");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -200,37 +202,50 @@ export default function JobPostingShow() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => navigate(`/recruitment/job-postings/edit/${id}`)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors"
-          >
-            <Icons.Edit />
-            Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors"
-          >
-            <Icons.Trash />
-            Delete
-          </button>
+          {canUpdate && (
+            <button
+              onClick={() => navigate(`/recruitment/job-postings/edit/${id}`)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors"
+            >
+              <Icons.Edit />
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors"
+            >
+              <Icons.Trash />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
       {/* Status Card */}
       <div className="mb-6">
-        <button
-          onClick={handleOpenStatusModal}
-          className={`w-full sm:w-auto px-6 py-4 rounded-xl ${getStatusColor(
-            data.status
-          )} hover:opacity-80 transition-opacity cursor-pointer text-left`}
-        >
-          <p className="text-[10px] uppercase tracking-wider opacity-75 mb-1">Current Status</p>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold">{getStatusLabel(data.status)}</span>
-            <span className="text-[10px] opacity-75">(Click to update)</span>
+        {canUpdate ? (
+          <button
+            onClick={handleOpenStatusModal}
+            className={`w-full sm:w-auto px-6 py-4 rounded-xl ${getStatusColor(
+              data.status
+            )} hover:opacity-80 transition-opacity cursor-pointer text-left`}
+          >
+            <p className="text-[10px] uppercase tracking-wider opacity-75 mb-1">Current Status</p>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold">{getStatusLabel(data.status)}</span>
+              <span className="text-[10px] opacity-75">(Click to update)</span>
+            </div>
+          </button>
+        ) : (
+          <div className={`w-full sm:w-auto px-6 py-4 rounded-xl ${getStatusColor(data.status)} text-left`}>
+            <p className="text-[10px] uppercase tracking-wider opacity-75 mb-1">Current Status</p>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold">{getStatusLabel(data.status)}</span>
+            </div>
           </div>
-        </button>
+        )}
       </div>
 
       {/* Content Grid */}

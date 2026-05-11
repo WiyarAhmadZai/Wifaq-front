@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Grades() {
   return (
     <CrudPage
+      permissionBase="grades"
       title="Grades Management"
       apiEndpoint="/grades/list"
       deleteEndpoint="/grades/delete"

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const statusConf = {
   upcoming: { label: "Upcoming", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
@@ -13,6 +14,7 @@ const statusConf = {
 export default function EventShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("events");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -72,8 +74,12 @@ export default function EventShow() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div className="flex-1"><h1 className="text-sm font-bold text-white">Event Details</h1></div>
-          <button onClick={() => navigate(`/hr/events/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
-          <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+          {canUpdate && (
+            <button onClick={() => navigate(`/hr/events/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
+          )}
+          {canDelete && (
+            <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+          )}
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
         <div className="flex items-center gap-2 mt-2 flex-wrap">

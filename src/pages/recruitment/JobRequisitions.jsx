@@ -19,6 +19,7 @@ const statusBadge = (val, item, onClick) => (
 export default function JobRequisitions() {
   return (
     <CrudPage
+      permissionBase="job-requisitions"
       title="Job Applications"
       apiEndpoint="/recruitment/job-requisitions"
       listColumns={[

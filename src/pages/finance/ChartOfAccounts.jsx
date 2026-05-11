@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { getChartOfAccounts, deleteChartOfAccount } from "../../api/financial";
 import Swal from "sweetalert2";
 
 const typeColors = {
@@ -30,15 +30,41 @@ export default function ChartOfAccounts() {
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("All");
 
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
-    get("/finance/chart-of-accounts").then((r) => setItems(r.data?.data || r.data || [])).catch(() => setItems(dummy));
+    fetchAccounts();
   }, []);
 
+  const fetchAccounts = async () => {
+    setLoading(true);
+    try {
+      const response = await getChartOfAccounts();
+      setItems(response.data?.data || []);
+    } catch (error) {
+      console.error('Failed to fetch accounts:', error);
+      setItems(dummy);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id) => {
-    const r = await Swal.fire({ title: "Delete account?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
+    const r = await Swal.fire({
+      title: "Delete account?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      confirmButtonText: "Delete"
+    });
     if (r.isConfirmed) {
-      try { await del(`/finance/chart-of-accounts/${id}`); } catch {}
-      setItems((p) => p.filter((i) => i.id !== id));
+      try {
+        await deleteChartOfAccount(id);
+        setItems((p) => p.filter((i) => i.id !== id));
+        Swal.fire("Deleted!", "", "success");
+      } catch (error) {
+        Swal.fire("Error", error.response?.data?.message || "Failed to delete", "error");
+      }
     }
   };
 

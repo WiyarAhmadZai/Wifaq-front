@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const Icons = {
   ArrowLeft: () => (
@@ -69,6 +70,7 @@ const Icons = {
 export default function AcademicTermShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate, canDelete } = useResourcePermissions("academic-terms");
   const [term, setTerm] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -165,15 +167,17 @@ export default function AcademicTermShow() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() =>
-            navigate(`/student-management/academic-terms/edit/${id}`)
-          }
-          className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
-        >
-          <Icons.Edit />
-          Edit Term
-        </button>
+        {canUpdate && (
+          <button
+            onClick={() =>
+              navigate(`/student-management/academic-terms/edit/${id}`)
+            }
+            className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+          >
+            <Icons.Edit />
+            Edit Term
+          </button>
+        )}
       </div>
 
       {/* Main Content Card */}

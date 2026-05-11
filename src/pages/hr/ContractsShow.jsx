@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const Icons = {
   ArrowLeft: () => (
@@ -60,6 +61,7 @@ const InfoCard = ({ icon: Icon, label, value }) => (
 export default function ContractsShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canUpdate, canDelete } = useResourcePermissions("contracts");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showRenewModal, setShowRenewModal] = useState(false);
@@ -144,6 +146,7 @@ export default function ContractsShow() {
             }
             const show = (dl !== null && dl <= 3) || data.status === 'expired';
             if (!show) return null;
+            if (!canUpdate) return null;
             return (
               <button onClick={() => setShowRenewModal(true)}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-xs font-medium animate-pulse">
@@ -152,12 +155,16 @@ export default function ContractsShow() {
               </button>
             );
           })()}
-          <button onClick={() => navigate(`/hr/contracts/edit/${id}`)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium">
-            <Icons.Edit /> Edit
-          </button>
-          <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium">
-            <Icons.Trash /> Delete
-          </button>
+          {canUpdate && (
+            <button onClick={() => navigate(`/hr/contracts/edit/${id}`)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium">
+              <Icons.Edit /> Edit
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium">
+              <Icons.Trash /> Delete
+            </button>
+          )}
         </div>
       </div>
 

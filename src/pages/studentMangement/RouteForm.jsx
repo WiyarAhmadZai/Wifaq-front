@@ -12,7 +12,6 @@ export default function RouteForm() {
 
   const [formData, setFormData] = useState({
     route_name: "",
-    fee: "",
     description: "",
     is_active: true,
   });
@@ -34,7 +33,6 @@ export default function RouteForm() {
       const routeData = response.data?.data || response.data;
       setFormData({
         route_name: routeData.route_name || "",
-        fee: routeData.fee || "",
         description: routeData.description || "",
         is_active: routeData.is_active ?? true,
       });
@@ -140,25 +138,6 @@ export default function RouteForm() {
           {getFieldError("route_name") && (
             <p className="text-red-500 text-[10px] mt-1">
               {getFieldError("route_name")}
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Monthly Fee (AFN) *
-          </label>
-          <input
-            type="number"
-            name="fee"
-            value={formData.fee}
-            onChange={handleChange}
-            required
-            className={getFieldClass("fee")}
-            placeholder="e.g. 1000"
-          />
-          {getFieldError("fee") && (
-            <p className="text-red-500 text-[10px] mt-1">
-              {getFieldError("fee")}
             </p>
           )}
         </div>

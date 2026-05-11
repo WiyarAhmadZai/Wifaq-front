@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
+import { get, post, put, del, API_BASE_URL } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -40,12 +40,6 @@ const steps = [
     title: "Family Questionnaire",
     shortTitle: "Questionnaire",
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-  },
-  {
-    id: 7,
-    title: "Transfer System",
-    shortTitle: "Transfer",
-    icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
   },
 ];
 
@@ -122,9 +116,33 @@ function FileInput({ label, name, onChange, file }) {
 export default function StudentEnrollmentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const isEdit = Boolean(id);
+  const isShow = isEdit && location.pathname.includes("/show/");
+  const readOnly = isShow;
 
-  const [currentStep, setCurrentStep] = useState(1);
+  // Student selection (Phase 2 target)
+  const prefilledStudentId = searchParams.get("student_id");
+  const [selectedStudentId, setSelectedStudentId] = useState(prefilledStudentId || "");
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [phase1Students, setPhase1Students] = useState([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [studentLocked, setStudentLocked] = useState(Boolean(prefilledStudentId));
+  const studentRef = useRef(null);
+
+  // Transport route & vehicle state
+  const [routes, setRoutes] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [routeSearch, setRouteSearch] = useState("");
+  const [showRouteDropdown, setShowRouteDropdown] = useState(false);
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+  const routeRef = useRef(null);
+  const vehicleRef = useRef(null);
+
+  const [currentStep, setCurrentStep] = useState(2);
   const [formData, setFormData] = useState({
     // Step 1: Education History
     previous_school_name: "",
@@ -142,10 +160,12 @@ export default function StudentEnrollmentForm() {
     has_special_needs: false,
     health_details: "",
     // Step 3: Transport
-    transport_route: "",
+    transport_route_id: "",
+    transport_vehicle_id: "",
     transport_pickup_point: "",
     transport_pickup_time: "",
     transport_dropoff_point: "",
+    transport_monthly_fee: "",
     // Step 4: Uniform
     need_uniform: false,
     uniform_price: "",
@@ -156,26 +176,18 @@ export default function StudentEnrollmentForm() {
     uniform_sleeve: "",
     tailor_note: "",
     // Step 6: Family Questionnaire
-    questionnaire_status: "not_sent",
     parental_consent: false,
-    // Step 7: Transfer System
-    transfer_agreement: false,
-    transfer_first_parcha: false,
-    transfer_sawabiq: false,
-    transfer_assurance_request: false,
-    transfer_itminaniya: false,
-    transfer_case_status: "pending",
-    transfer_additional_notes: "",
   });
 
   const [files, setFiles] = useState({
-    // Step 5: Documents
     doc_student_tazkira: null,
     doc_father_tazkira: null,
     doc_birth_certificate: null,
     doc_previous_school_documents: null,
     doc_student_photo: null,
   });
+  const [uploadedDocs, setUploadedDocs] = useState({});
+  const [uploading, setUploading] = useState({});
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -185,11 +197,205 @@ export default function StudentEnrollmentForm() {
     if (isEdit) fetchStudent();
   }, [id]);
 
+  // Fetch phase 1 students list for selection (always, so user can change choice)
+  useEffect(() => {
+    if (!isEdit) {
+      fetchPhase1Students();
+    }
+  }, []);
+
+  // When a student id is set (from URL param or query), fetch full student data
+  useEffect(() => {
+    const targetId = prefilledStudentId || (isEdit ? id : null);
+    if (targetId) {
+      fetchSelectedStudent(targetId);
+      setSelectedStudentId(targetId);
+      setStudentLocked(true);
+    }
+  }, [prefilledStudentId, id, isEdit]);
+
+  // Close student dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (studentRef.current && !studentRef.current.contains(e.target)) {
+        setShowStudentDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchPhase1Students = async () => {
+    try {
+      const response = await get("/student-management/students/list?registration_status=phase_1&per_page=1000");
+      const data = response.data?.data || [];
+      setPhase1Students(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch phase 1 students", error);
+    }
+  };
+
+  const fetchSelectedStudent = async (studentId) => {
+    try {
+      const response = await get(`/student-management/students/show/${studentId}`);
+      const data = response.data?.data || response.data;
+      setSelectedStudent(data);
+      if (data.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => {
+          docsMap[doc.document_type] = doc;
+        });
+        setUploadedDocs(docsMap);
+      }
+    } catch (error) {
+      console.error("Failed to fetch student", error);
+    }
+  };
+
+  const filteredStudents = phase1Students.filter((s) => {
+    const q = studentSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      (s.student_id && s.student_id.toLowerCase().includes(q)) ||
+      (s.first_name && s.first_name.toLowerCase().includes(q)) ||
+      (s.last_name && s.last_name.toLowerCase().includes(q)) ||
+      `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase().includes(q) ||
+      String(s.id).includes(q)
+    );
+  });
+
+  const selectStudent = (student) => {
+    setSelectedStudentId(student.id);
+    setSelectedStudent(student);
+    setStudentSearch(`${student.student_id || "#" + student.id} - ${student.first_name} ${student.last_name}`);
+    setShowStudentDropdown(false);
+    setStudentLocked(true);
+    // Always refetch full student record so fields like `enrollment_type`
+    // (which the list endpoint may not include, or may be stale after a
+    // Phase 1 update) reflect the current backend state.
+    fetchSelectedStudent(student.id);
+  };
+
+  const clearStudent = () => {
+    setSelectedStudentId("");
+    setSelectedStudent(null);
+    setStudentSearch("");
+    setStudentLocked(false);
+  };
+
+  // Fetch active routes once on mount — step 3 is always available now
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await get("/transportation/routes/active/list");
+        const data = res.data?.data || res.data || [];
+        setRoutes(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch routes", err);
+      }
+    })();
+  }, []);
+
+  // Fetch vehicles for the selected route
+  useEffect(() => {
+    if (formData.transport_route_id) {
+      (async () => {
+        try {
+          const res = await get(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
+          const data = res.data?.data || res.data || [];
+          setVehicles(Array.isArray(data) ? data : []);
+        } catch (err) {
+          console.error("Failed to fetch vehicles", err);
+          setVehicles([]);
+        }
+      })();
+    } else {
+      setVehicles([]);
+    }
+  }, [formData.transport_route_id]);
+
+  // Click outside handlers for route/vehicle dropdowns
+  useEffect(() => {
+    const handler = (e) => {
+      if (routeRef.current && !routeRef.current.contains(e.target)) setShowRouteDropdown(false);
+      if (vehicleRef.current && !vehicleRef.current.contains(e.target)) setShowVehicleDropdown(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectedRoute = routes.find((r) => r.id == formData.transport_route_id);
+  const selectedVehicle = vehicles.find((v) => v.id == formData.transport_vehicle_id);
+
+  const filteredRoutes = routes.filter((r) => {
+    const q = routeSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      (r.route_name && r.route_name.toLowerCase().includes(q)) ||
+      (r.description && r.description.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredVehicles = vehicles.filter((v) => {
+    const q = vehicleSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      (v.plate_number && v.plate_number.toLowerCase().includes(q)) ||
+      (v.driver_name && v.driver_name.toLowerCase().includes(q))
+    );
+  });
+
+  const pickRoute = (route) => {
+    setFormData((prev) => ({
+      ...prev,
+      transport_route_id: route.id,
+      transport_vehicle_id: "",
+      transport_monthly_fee: "",
+    }));
+    setRouteSearch(route.route_name);
+    setShowRouteDropdown(false);
+  };
+
+  const clearRoute = () => {
+    setFormData((prev) => ({
+      ...prev,
+      transport_route_id: "",
+      transport_vehicle_id: "",
+      transport_monthly_fee: "",
+    }));
+    setRouteSearch("");
+    setVehicleSearch("");
+  };
+
+  const pickVehicle = (vehicle) => {
+    setFormData((prev) => ({
+      ...prev,
+      transport_vehicle_id: vehicle.id,
+      transport_monthly_fee: vehicle.monthly_fee || "",
+    }));
+    setVehicleSearch(`${vehicle.plate_number} — ${vehicle.driver_name || "No driver"}`);
+    setShowVehicleDropdown(false);
+  };
+
+  const clearVehicle = () => {
+    setFormData((prev) => ({ ...prev, transport_vehicle_id: "" }));
+    setVehicleSearch("");
+  };
+
   const fetchStudent = async () => {
     setLoading(true);
     try {
       const response = await get(`/student-management/students/show/${id}`);
-      const data = response.data;
+      const data = response.data?.data || response.data;
+      setSelectedStudent(data);
+      // Load existing documents
+      if (data.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => {
+          docsMap[doc.document_type] = doc;
+        });
+        setUploadedDocs(docsMap);
+      }
       setFormData((prev) => ({
         ...prev,
         previous_school_name: data.previous_school_name || "",
@@ -205,7 +411,9 @@ export default function StudentEnrollmentForm() {
         has_special_health_condition: data.has_special_health_condition || false,
         has_special_needs: data.has_special_needs || false,
         health_details: data.health_details || "",
-        transport_route: data.transport_route || "",
+        transport_route_id: data.transport_route_id || "",
+        transport_vehicle_id: data.transport_vehicle_id || "",
+        transport_monthly_fee: data.transport_monthly_fee || "",
         transport_pickup_point: data.transport_pickup_point || "",
         transport_pickup_time: data.transport_pickup_time || "",
         transport_dropoff_point: data.transport_dropoff_point || "",
@@ -217,11 +425,7 @@ export default function StudentEnrollmentForm() {
         uniform_shoulder: data.uniform_shoulder || "",
         uniform_sleeve: data.uniform_sleeve || "",
         tailor_note: data.tailor_note || "",
-        questionnaire_status: data.questionnaire_status || "not_sent",
         parental_consent: data.parental_consent || false,
-        transfer_agreement_notes: data.transfer_agreement_notes || "",
-        transfer_case_status: data.transfer_case_status || "pending",
-        transfer_additional_notes: data.transfer_additional_notes || "",
       }));
     } catch (error) {
       Swal.fire("Error", "Failed to load student data", "error");
@@ -240,60 +444,153 @@ export default function StudentEnrollmentForm() {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const { name, files: fileList } = e.target;
-    if (fileList && fileList[0]) {
-      setFiles((prev) => ({ ...prev, [name]: fileList[0] }));
+    if (!fileList || !fileList[0]) return;
+    const file = fileList[0];
+    setFiles((prev) => ({ ...prev, [name]: file }));
+
+    const targetId = isEdit ? id : selectedStudentId;
+    if (!targetId) return;
+
+    setUploading((prev) => ({ ...prev, [name]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("document_type", name);
+      const res = await post(`/student-management/students/${targetId}/documents/upload`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setUploadedDocs((prev) => ({ ...prev, [name]: res.data?.data || res.data }));
+    } catch (err) {
+      Swal.fire("Upload failed", err.response?.data?.message || "Could not upload file", "error");
+      setFiles((prev) => ({ ...prev, [name]: null }));
+    } finally {
+      setUploading((prev) => ({ ...prev, [name]: false }));
     }
   };
 
-  const transferSteps = [
-    { key: "transfer_agreement", label: "Agreement / Muwafaqa Namadhe" },
-    { key: "transfer_first_parcha", label: "First Parcha" },
-    { key: "transfer_sawabiq", label: "Records / Sawabiq (2nd Parcha + Karte Sawani)" },
-    { key: "transfer_assurance_request", label: "Assurance Request" },
-    { key: "transfer_itminaniya", label: "Itminaniya" },
-  ];
-
-  const handleTransferCheck = (index) => {
-    const keys = transferSteps.map((s) => s.key);
-    const currentVal = formData[keys[index]];
-    setFormData((prev) => {
-      const updated = { ...prev };
-      if (!currentVal) {
-        // Checking: just check this one
-        updated[keys[index]] = true;
-      } else {
-        // Unchecking: uncheck this and all after it
-        for (let i = index; i < keys.length; i++) {
-          updated[keys[i]] = false;
-        }
-      }
-      return updated;
-    });
+  const handleDeleteDoc = async (docType) => {
+    const targetId = isEdit ? id : selectedStudentId;
+    const doc = uploadedDocs[docType];
+    if (!doc || !targetId) return;
+    try {
+      await del(`/student-management/students/${targetId}/documents/${doc.id}`);
+      setUploadedDocs((prev) => {
+        const next = { ...prev };
+        delete next[docType];
+        return next;
+      });
+      setFiles((prev) => ({ ...prev, [docType]: null }));
+    } catch (err) {
+      Swal.fire("Error", "Could not delete document", "error");
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (readOnly) return;
+    if (!isLastVisibleStep) return;
+    if (!isEdit && !selectedStudentId) {
+      Swal.fire("Error", "Please select a student to enroll (Phase 2)", "error");
+      return;
+    }
+    if (!formData.parental_consent) {
+      Swal.fire("Consent required", "Please tick the parental consent checkbox before submitting.", "warning");
+      return;
+    }
     setSaving(true);
     setErrors({});
     try {
-      const payload = new FormData();
-      Object.entries(formData).forEach(([key, val]) => {
-        payload.append(key, val === null || val === undefined ? "" : val);
-      });
-      Object.entries(files).forEach(([key, file]) => {
-        if (file) payload.append(key, file);
-      });
+      const targetId = isEdit ? id : selectedStudentId;
 
-      if (isEdit) {
-        await put(`/student-management/students/update/${id}`, payload);
-        Swal.fire("Success", "Student updated successfully", "success");
-      } else {
-        await post("/student-management/students/store", payload);
-        Swal.fire("Success", "Student created successfully", "success");
+      // Save all Phase 2 enrollment data to the student record
+      const enrollmentPayload = {
+        previous_school_name: formData.previous_school_name,
+        school_type: formData.school_type,
+        last_class_completed: formData.last_class_completed,
+        last_years_result: formData.last_years_result,
+        result_percentage: formData.result_percentage,
+        reason_for_change: formData.reason_for_change,
+        how_did_you_hear: formData.how_did_you_hear,
+        introducer_name: formData.introducer_name,
+        introducer_contact: formData.introducer_contact,
+        motivation_to_join: formData.motivation_to_join,
+        has_special_health_condition: formData.has_special_health_condition,
+        has_special_needs: formData.has_special_needs,
+        health_details: formData.health_details,
+        transport_route_id: formData.transport_route_id || null,
+        transport_vehicle_id: formData.transport_vehicle_id || null,
+        transport_pickup_point: formData.transport_pickup_point,
+        transport_pickup_time: formData.transport_pickup_time,
+        transport_dropoff_point: formData.transport_dropoff_point,
+        transport_monthly_fee: formData.transport_monthly_fee || null,
+        need_uniform: formData.need_uniform,
+        uniform_price: formData.uniform_price || null,
+        uniform_chest: formData.uniform_chest,
+        uniform_waist: formData.uniform_waist,
+        uniform_height: formData.uniform_height,
+        uniform_shoulder: formData.uniform_shoulder,
+        uniform_sleeve: formData.uniform_sleeve,
+        tailor_note: formData.tailor_note,
+        parental_consent: formData.parental_consent,
+      };
+
+      // Sync transport/uniform opt-in back to Phase 1 fields
+      if (selectedStudent) {
+        if (Boolean(selectedStudent.transportation_required) !== wantsTransport) {
+          enrollmentPayload.transportation_required = wantsTransport;
+        }
+        if (Boolean(selectedStudent.uniform_required) !== Boolean(formData.need_uniform)) {
+          enrollmentPayload.uniform_required = Boolean(formData.need_uniform);
+        }
       }
-      navigate("/student-management/students");
+
+      await put(`/student-management/students/update/${targetId}`, enrollmentPayload);
+
+      // Mark the student as phase_2 complete — transitions to enrolled list.
+      // Prompt for the admission fee first so the admin can override the default
+      // (or waive it for sibling/scholarship cases). The amount becomes a
+      // pending_charge that gets billed on the student's next invoice.
+      if (!isEdit || selectedStudent?.registration_status !== "phase_2") {
+        const { value: admissionFee, isConfirmed } = await Swal.fire({
+          title: "Admission fee",
+          html: `
+            <p style="text-align:left;font-size:12px;color:#475569;margin-bottom:8px">
+              One-time charge applied to this student's next bill. Default <strong>2,000 AFN</strong>.
+              <br/>Lower it for a discount, or set <strong>0</strong> to waive entirely.
+            </p>
+            <input id="adm-fee" type="number" class="swal2-input"
+                   placeholder="Amount (AFN)" value="2000" min="0" step="50" />
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonColor: "#0d9488",
+          confirmButtonText: "Apply & complete enrollment",
+          cancelButtonText: "Cancel enrollment",
+          preConfirm: () => {
+            const raw = document.getElementById("adm-fee").value;
+            const n = Number(raw);
+            if (Number.isNaN(n) || n < 0) {
+              Swal.showValidationMessage("Enter 0 or a positive number");
+              return false;
+            }
+            return n;
+          },
+        });
+        if (!isConfirmed) {
+          // Admin backed out — DON'T mark as phase_2 yet, but the form save above
+          // already persisted the rest of their edits. They can retry later.
+          setSaving(false);
+          return;
+        }
+        await put(`/student-management/students/${targetId}/complete-phase-2`, {
+          admission_fee: admissionFee,
+        });
+      }
+
+      Swal.fire("Success", isEdit ? "Enrollment updated successfully" : "Student officially enrolled (Phase 2 complete)", "success");
+      navigate("/student-management/student-enrollments");
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save student", "error");
@@ -302,6 +599,52 @@ export default function StudentEnrollmentForm() {
       setSaving(false);
     }
   };
+
+  // Step 1 (Education History) is only relevant for transfer students.
+  // For new-enrollment students it is hidden entirely.
+  const isTransferStudent = selectedStudent?.enrollment_type === "transfer";
+  const visibleSteps = isTransferStudent ? steps : steps.filter((s) => s.id !== 1);
+
+  // Keep currentStep inside visibleSteps. When a transfer student is selected,
+  // jump to step 1 so the admin starts at Education History.
+  useEffect(() => {
+    if (isTransferStudent) {
+      setCurrentStep(1);
+    } else if (currentStep === 1) {
+      setCurrentStep(2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTransferStudent]);
+  const needsTransport = Boolean(selectedStudent?.transportation_required);
+
+  // User's current intent for transport/uniform (can differ from Phase 1 choice)
+  const [wantsTransport, setWantsTransport] = useState(false);
+
+  // Sync wantsTransport + need_uniform with the selected student on load
+  useEffect(() => {
+    if (selectedStudent) {
+      setWantsTransport(Boolean(selectedStudent.transportation_required));
+      setFormData((prev) => ({
+        ...prev,
+        need_uniform: Boolean(selectedStudent.uniform_required),
+      }));
+    }
+  }, [selectedStudent]);
+
+  const goToNextStep = () => {
+    const currentIdx = visibleSteps.findIndex((s) => s.id === currentStep);
+    if (currentIdx < visibleSteps.length - 1) {
+      setCurrentStep(visibleSteps[currentIdx + 1].id);
+    }
+  };
+  const goToPrevStep = () => {
+    const currentIdx = visibleSteps.findIndex((s) => s.id === currentStep);
+    if (currentIdx > 0) {
+      setCurrentStep(visibleSteps[currentIdx - 1].id);
+    }
+  };
+  const isFirstVisibleStep = visibleSteps[0]?.id === currentStep;
+  const isLastVisibleStep = visibleSteps[visibleSteps.length - 1]?.id === currentStep;
 
   const getFieldError = (fieldName) => errors[fieldName]?.[0];
   const inputClass = (fieldName) => {
@@ -325,12 +668,406 @@ export default function StudentEnrollmentForm() {
     );
   }
 
+  /* ── Read-only Show View ── */
+  if (isShow) {
+    const s = selectedStudent || {};
+    const isTransfer = s.enrollment_type === "transfer";
+    const statusMap = {
+      pending: { bg: "bg-orange-100", text: "text-orange-700", label: "Pending" },
+      active: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Active" },
+      graduated: { bg: "bg-blue-100", text: "text-blue-700", label: "Graduated" },
+      withdrawn: { bg: "bg-gray-200", text: "text-gray-600", label: "Withdrawn" },
+      transferred: { bg: "bg-amber-100", text: "text-amber-700", label: "Transferred" },
+    };
+    const st = statusMap[s.status] || statusMap.active;
+
+    return (
+      <div className="px-4 py-6 mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate("/student-management/student-enrollments")} className="p-2.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Enrollment Details</h1>
+              <p className="text-sm text-gray-500 mt-0.5">View complete enrollment information</p>
+            </div>
+          </div>
+          <button onClick={() => navigate(`/student-management/student-enrollments/edit/${id}`)} className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            Edit Enrollment
+          </button>
+        </div>
+
+        {/* Main Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Student Banner */}
+          <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-white text-xl font-bold">
+                {(s.first_name || "?").charAt(0)}{(s.last_name || "").charAt(0)}
+              </div>
+              <div className="flex-1">
+                <p className="text-teal-100 text-sm font-medium">Student</p>
+                <h2 className="text-2xl font-bold text-white">{s.first_name} {s.last_name}</h2>
+              </div>
+              <div className="text-right">
+                <p className="text-teal-100 text-xs font-medium">Student ID</p>
+                <p className="text-white font-mono font-bold text-lg">{s.student_id || `#${s.id}`}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {/* Quick Info Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  <span className="text-xs font-medium text-blue-700 uppercase tracking-wide">Class</span>
+                </div>
+                <p className="font-semibold text-gray-800">{s.school_class?.class_name || "—"}</p>
+              </div>
+              <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span className="text-xs font-medium text-purple-700 uppercase tracking-wide">DOB</span>
+                </div>
+                <p className="font-semibold text-gray-800">{s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString() : "—"}</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Fee</span>
+                </div>
+                <p className="font-semibold text-gray-800">{s.final_fee ? `${Number(s.final_fee).toLocaleString()} AFN` : "—"}</p>
+              </div>
+              <div className={`${st.bg} rounded-xl p-4 border`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className={`w-4 h-4 ${st.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className={`text-xs font-medium ${st.text} uppercase tracking-wide`}>Status</span>
+                </div>
+                <p className={`font-semibold ${st.text}`}>{st.label}</p>
+              </div>
+            </div>
+
+            {/* Father & Phone row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Father's Name</label>
+                <p className="text-lg font-semibold text-gray-800 mt-1">{s.family?.father_name || "—"}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Father's Phone</label>
+                <p className="text-lg font-semibold text-gray-800 mt-1">{s.family?.father_phone || "—"}</p>
+              </div>
+            </div>
+
+            {/* Education History — transfer only */}
+            {isTransfer && (
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[0].icon} /></svg>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800">Education History</h3>
+                </div>
+                <div className="bg-teal-50/50 rounded-xl p-5 border border-teal-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Previous School Name</label>
+                      <p className="text-gray-700 mt-1">{formData.previous_school_name || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">School Type</label>
+                      <p className="text-gray-700 mt-1">{formData.school_type || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Class Completed</label>
+                      <p className="text-gray-700 mt-1">{formData.last_class_completed || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Year's Result</label>
+                      <p className="text-gray-700 mt-1">{formData.last_years_result || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Result Percentage</label>
+                      <p className="text-gray-700 mt-1">{formData.result_percentage ? `${formData.result_percentage}%` : "—"}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Reason for Change</label>
+                      <p className="text-gray-700 mt-1">{formData.reason_for_change || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Health & References */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[1].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Health & References</h3>
+              </div>
+              <div className="bg-pink-50/50 rounded-xl p-5 border border-pink-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">How Did You Hear</label>
+                    <p className="text-gray-700 mt-1">{formData.how_did_you_hear || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Introducer Name</label>
+                    <p className="text-gray-700 mt-1">{formData.introducer_name || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Introducer Contact</label>
+                    <p className="text-gray-700 mt-1">{formData.introducer_contact || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Motivation to Join</label>
+                    <p className="text-gray-700 mt-1">{formData.motivation_to_join || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Special Health Condition</label>
+                    <p className="text-gray-700 mt-1">{formData.has_special_health_condition ? "Yes" : "No"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Special Needs</label>
+                    <p className="text-gray-700 mt-1">{formData.has_special_needs ? "Yes" : "No"}</p>
+                  </div>
+                  {(formData.has_special_health_condition || formData.has_special_needs) && (
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Health Details</label>
+                      <p className="text-gray-700 mt-1">{formData.health_details || "—"}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Transport */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[2].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Transport</h3>
+              </div>
+              <div className="bg-blue-50/50 rounded-xl p-5 border border-blue-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Route</label>
+                    <p className="text-gray-700 mt-1">{selectedRoute?.route_name || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Vehicle</label>
+                    <p className="text-gray-700 mt-1">{selectedVehicle ? `${selectedVehicle.plate_number} — ${selectedVehicle.driver_name || "No driver"}` : "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pickup Point</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_pickup_point || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pickup Time</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_pickup_time || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dropoff Point</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_dropoff_point || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Monthly Fee</label>
+                    <p className="text-gray-700 mt-1">{formData.transport_monthly_fee ? `${Number(formData.transport_monthly_fee).toLocaleString()} AFN` : "—"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Uniform */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[3].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Uniform</h3>
+              </div>
+              <div className="bg-violet-50/50 rounded-xl p-5 border border-violet-100">
+                {formData.need_uniform ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Uniform Price</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_price ? `${Number(formData.uniform_price).toLocaleString()} AFN` : "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Chest</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_chest || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Waist</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_waist || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Height</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_height || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Shoulder</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_shoulder || "—"}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Sleeve</label>
+                      <p className="text-gray-700 mt-1">{formData.uniform_sleeve || "—"}</p>
+                    </div>
+                    {formData.tailor_note && (
+                      <div className="md:col-span-3">
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tailor Note</label>
+                        <p className="text-gray-700 mt-1">{formData.tailor_note}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Uniform not required</p>
+                )}
+              </div>
+            </div>
+
+            {/* Documents */}
+            {(() => {
+              const docTypes = [
+                { key: "doc_student_tazkira", label: "Student Tazkira" },
+                { key: "doc_father_tazkira", label: "Father Tazkira" },
+                { key: "doc_birth_certificate", label: "Birth Certificate" },
+                { key: "doc_previous_school_documents", label: "Previous School Documents" },
+                { key: "doc_student_photo", label: "Student Official Photo" },
+              ];
+              const getDocUrl = (fileUrl) => {
+                if (!fileUrl) return null;
+                if (fileUrl.startsWith("http")) return fileUrl;
+                const storageBaseUrl = API_BASE_URL.replace(/\/api$/, "");
+                return `${storageBaseUrl}/storage/${fileUrl}`;
+              };
+              const docsArr = docTypes.map((d) => ({ ...d, doc: uploadedDocs[d.key] }));
+              const uploaded = docsArr.filter((d) => d.doc);
+
+              return (
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[4].icon} /></svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-800">Documents</h3>
+                    <span className="ml-auto text-xs font-bold text-cyan-700 bg-cyan-100 px-2.5 py-1 rounded-lg">{uploaded.length} / 5</span>
+                  </div>
+                  <div className="bg-cyan-50/50 rounded-xl p-5 border border-cyan-100">
+                    {uploaded.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {docsArr.map((item) => {
+                          const doc = item.doc;
+                          const url = doc ? getDocUrl(doc.file_url) : null;
+                          const isImage = doc?.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                          return (
+                            <div key={item.key} className={`flex items-center gap-3 p-3 rounded-xl border ${doc ? "bg-white border-cyan-200" : "bg-gray-50 border-gray-100"}`}>
+                              {doc ? (
+                                <>
+                                  {isImage && url ? (
+                                    <img src={url} alt={item.label} className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center flex-shrink-0">
+                                      <svg className="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-gray-800">{item.label}</p>
+                                    <p className="text-[10px] text-gray-500 truncate">{doc.original_name || "Uploaded"}</p>
+                                  </div>
+                                  <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 text-cyan-600 hover:text-cyan-800 hover:bg-cyan-100 rounded-lg transition-colors" title="View Document">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                  </a>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-gray-400">{item.label}</p>
+                                    <p className="text-[10px] text-gray-400">Not uploaded</p>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">No documents uploaded</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Family Questionnaire */}
+            <div className="mb-4">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={steps[5].icon} /></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Family Questionnaire</h3>
+              </div>
+              <div className="bg-amber-50/50 rounded-xl p-5 border border-amber-100">
+                <div className="flex items-center gap-3">
+                  {formData.parental_consent ? (
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="font-semibold">Parental consent given</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-red-600">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="font-semibold">Parental consent not given</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <div className="flex flex-wrap gap-6 text-xs text-gray-500">
+              {s.enrollment_date && (
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
+                  <span>Enrolled: {new Date(s.enrollment_date).toLocaleDateString()}</span>
+                </div>
+              )}
+              {s.phase_2_completed_at && (
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                  <span>Phase 2: {new Date(s.phase_2_completed_at).toLocaleDateString()}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                <span>Type: {isTransfer ? "Transfer" : "New Admission"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 py-4 mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate("/student-management/students")}
+          onClick={() => navigate(isEdit ? "/student-management/student-enrollments" : "/student-management/students")}
           className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -339,18 +1076,168 @@ export default function StudentEnrollmentForm() {
         </button>
         <div>
           <h2 className="text-lg font-bold text-gray-800">
-            {isEdit ? "Edit Student" : "Enroll New Student"}
+            {isShow ? "View Enrollment" : isEdit ? "Edit Student Enrollment" : "Phase 2 — Official Enrollment"}
           </h2>
           <p className="text-[11px] text-gray-400">
-            Step {currentStep} of {steps.length} — {steps[currentStep - 1].title}
+            Step {currentStep} of {visibleSteps.length} — {steps.find(s => s.id === currentStep)?.title}
           </p>
         </div>
+        {isShow && (
+          <button
+            type="button"
+            onClick={() => navigate(`/student-management/student-enrollments/edit/${id}`)}
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit
+          </button>
+        )}
       </div>
+
+      {/* ── Student Selector (Phase 2 target) ── */}
+      {!isEdit && (
+        <div className="mb-5 bg-white rounded-2xl shadow-sm border border-gray-100 relative z-40">
+          <SectionHeader
+            gradient="from-emerald-50 to-teal-50"
+            iconBg="bg-emerald-100"
+            iconColor="text-emerald-600"
+            icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            title="Select Student for Phase 2 Enrollment"
+            subtitle="Choose a Phase 1 registered student to officially enroll"
+          />
+          <div ref={studentRef} className="p-5 relative">
+            {studentLocked && selectedStudent ? (
+              <div className="flex items-center gap-3 p-4 bg-teal-50 border-2 border-teal-200 rounded-xl">
+                <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                  {(selectedStudent.first_name || "?").charAt(0)}{(selectedStudent.last_name || "").charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800 truncate">
+                    {selectedStudent.first_name} {selectedStudent.last_name}
+                  </p>
+                  <p className="text-[11px] text-teal-700 font-mono">{selectedStudent.student_id || `#${selectedStudent.id}`}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearStudent}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                  title="Change student"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => { setStudentSearch(e.target.value); setShowStudentDropdown(true); }}
+                    onFocus={() => setShowStudentDropdown(true)}
+                    placeholder="Search student by ID or name..."
+                    className="w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none"
+                  />
+                </div>
+                {showStudentDropdown && (
+                  <div className="absolute z-50 left-5 right-5 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                    {filteredStudents.length === 0 ? (
+                      <div className="px-4 py-4 text-xs text-gray-400 text-center">No Phase 1 students found</div>
+                    ) : (
+                      filteredStudents.slice(0, 30).map((student) => (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => selectStudent(student)}
+                          className="w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0 flex items-center gap-3"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {(student.first_name || "?").charAt(0)}{(student.last_name || "").charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {student.first_name} {student.last_name}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-mono text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded">{student.student_id || `#${student.id}`}</span>
+                              {student.school_class?.class_name && (
+                                <span className="text-[10px] text-gray-500">{student.school_class.class_name}</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Student Info Review Card (above form, all steps) ── */}
+      {selectedStudent && (
+        <div className="mb-5 bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 rounded-2xl border border-teal-200 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">Phase 1 Student Information</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Name</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">{selectedStudent.first_name} {selectedStudent.last_name}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Student ID</p>
+              <p className="text-xs font-bold text-teal-700 font-mono mt-0.5">{selectedStudent.student_id || `#${selectedStudent.id}`}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Class</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">{selectedStudent.school_class?.class_name || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">DOB</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">
+                {selectedStudent.date_of_birth ? new Date(selectedStudent.date_of_birth).toLocaleDateString() : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Father</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5 truncate">{selectedStudent.family?.father_name || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Phone</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">{selectedStudent.family?.father_phone || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Fee</p>
+              <p className="text-xs font-bold text-gray-800 mt-0.5">
+                {selectedStudent.final_fee ? `${Number(selectedStudent.final_fee).toLocaleString()} AFN` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-gray-500 uppercase">Transport</p>
+              <p className={`text-xs font-bold mt-0.5 ${needsTransport ? "text-emerald-700" : "text-gray-500"}`}>
+                {needsTransport ? "Required" : "Not Required"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Step Indicator */}
       <div className="mb-8 overflow-x-auto pb-2">
         <div className="flex items-center min-w-max px-2">
-          {steps.map((step, i) => (
+          {visibleSteps.map((step, i) => (
             <div key={step.id} className="flex items-center">
               <button
                 type="button"
@@ -371,7 +1258,7 @@ export default function StudentEnrollmentForm() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
                   ) : (
-                    step.id
+                    i + 1
                   )}
                 </div>
                 <span
@@ -386,7 +1273,7 @@ export default function StudentEnrollmentForm() {
                   {step.shortTitle}
                 </span>
               </button>
-              {i < steps.length - 1 && (
+              {i < visibleSteps.length - 1 && (
                 <div
                   className={`w-8 h-0.5 mx-1 mb-4 rounded-full transition-all`}
                   style={{ backgroundColor: currentStep > step.id ? "#5eead4" : "#f3f4f6" }}
@@ -397,7 +1284,16 @@ export default function StudentEnrollmentForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          // Prevent Enter key from submitting the form unless on the last step
+          if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && !isLastVisibleStep) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <fieldset disabled={readOnly} className={readOnly ? "opacity-95" : ""}>
         {/* ── Step 1: Education History ── */}
         {currentStep === 1 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -721,100 +1617,300 @@ export default function StudentEnrollmentForm() {
 
         {/* ── Step 3: Transport ── */}
         {currentStep === 3 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 relative z-30">
             <SectionHeader
               gradient="from-teal-50 to-cyan-50"
               iconBg="bg-teal-100"
               iconColor="text-teal-600"
               icon={steps[2].icon}
               title="Transport"
-              subtitle="Bus route and pickup/drop-off details"
+              subtitle="Select route, vehicle and pickup/drop-off details"
             />
             <div className="p-5 space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Bus Route</label>
-                  <input
-                    type="text"
-                    name="transport_route"
-                    value={formData.transport_route}
-                    onChange={handleChange}
-                    placeholder="e.g. Route A – Karte Naw"
-                    className={inputClass("transport_route")}
-                  />
-                  {getFieldError("transport_route") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_route")}</p>
-                  )}
+              {/* Opt-in toggle */}
+              <div className={`flex items-center justify-between p-4 rounded-xl border ${wantsTransport ? "bg-teal-50 border-teal-200" : "bg-amber-50 border-amber-200"}`}>
+                <div className="flex-1">
+                  <p className={`text-xs font-bold ${wantsTransport ? "text-teal-800" : "text-amber-800"}`}>
+                    {needsTransport ? "Student requested transport in Phase 1" : "Student did NOT request transport in Phase 1"}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${wantsTransport ? "text-teal-600" : "text-amber-600"}`}>
+                    {needsTransport
+                      ? "You can still change this choice before finalizing enrollment"
+                      : "Toggle ON if the student now wants transport — the Phase 1 status will be updated"}
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Time</label>
-                  <input
-                    type="time"
-                    name="transport_pickup_time"
-                    value={formData.transport_pickup_time}
-                    onChange={handleChange}
-                    className={inputClass("transport_pickup_time")}
-                  />
-                  {getFieldError("transport_pickup_time") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_pickup_time")}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Point / Stop</label>
-                  <input
-                    type="text"
-                    name="transport_pickup_point"
-                    value={formData.transport_pickup_point}
-                    onChange={handleChange}
-                    placeholder="e.g. Main street near mosque"
-                    className={inputClass("transport_pickup_point")}
-                  />
-                  {getFieldError("transport_pickup_point") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_pickup_point")}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Drop-off Point</label>
-                  <input
-                    type="text"
-                    name="transport_dropoff_point"
-                    value={formData.transport_dropoff_point}
-                    onChange={handleChange}
-                    placeholder="e.g. Same as pickup"
-                    className={inputClass("transport_dropoff_point")}
-                  />
-                  {getFieldError("transport_dropoff_point") && (
-                    <p className="text-[10px] text-red-500 mt-1">{getFieldError("transport_dropoff_point")}</p>
-                  )}
-                </div>
+                <Toggle
+                  name="wantsTransport"
+                  id="wantsTransport"
+                  checked={wantsTransport}
+                  onChange={(e) => setWantsTransport(e.target.checked)}
+                  label=""
+                />
               </div>
 
-              <div className="bg-teal-50 rounded-xl p-4 border border-teal-100">
-                <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              {/* Gated fields: only when user opted in */}
+              {!wantsTransport && (
+                <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                   </svg>
-                  Transport Summary
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Route</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_route || "—"}</p>
+                  <p className="text-xs text-gray-500 font-medium">Transport is disabled for this student</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Enable the toggle above to configure route and vehicle</p>
+                </div>
+              )}
+
+              {wantsTransport && (
+              <>
+              {/* Route Selector (Select2) */}
+              <div ref={routeRef} className="relative">
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                  Bus Route <span className="text-red-400">*</span>
+                </label>
+                {formData.transport_route_id && selectedRoute ? (
+                  <div className="flex items-center gap-3 p-3 bg-teal-50 border-2 border-teal-200 rounded-xl">
+                    <div className="w-9 h-9 rounded-lg bg-teal-600 flex items-center justify-center text-white flex-shrink-0">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800 truncate">{selectedRoute.route_name}</p>
+                      {selectedRoute.description && (
+                        <p className="text-[10px] text-teal-700 truncate">{selectedRoute.description}</p>
+                      )}
+                    </div>
+                    <button type="button" onClick={clearRoute} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Time</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_time || "—"}</p>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={routeSearch}
+                        onChange={(e) => { setRouteSearch(e.target.value); setShowRouteDropdown(true); }}
+                        onFocus={() => setShowRouteDropdown(true)}
+                        placeholder="Search active routes..."
+                        className={`${inputClass("transport_route_id")} pl-9`}
+                      />
+                    </div>
+                    {showRouteDropdown && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                        {filteredRoutes.length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-gray-400 text-center">No active routes found</div>
+                        ) : (
+                          filteredRoutes.map((route) => (
+                            <button
+                              key={route.id}
+                              type="button"
+                              onClick={() => pickRoute(route)}
+                              className="w-full text-left px-4 py-2.5 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-gray-800">{route.route_name}</span>
+                                {route.vehicles_count != null && (
+                                  <span className="text-[10px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
+                                    {route.vehicles_count} vehicle{route.vehicles_count === 1 ? "" : "s"}
+                                  </span>
+                                )}
+                              </div>
+                              {route.description && (
+                                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{route.description}</p>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Vehicle Selector (only when route is chosen) */}
+              {formData.transport_route_id && (
+                <div ref={vehicleRef} className="relative">
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                    Vehicle (Bus) <span className="text-red-400">*</span>
+                  </label>
+                  {formData.transport_vehicle_id && selectedVehicle ? (
+                    <div className="flex items-center gap-3 p-3 bg-cyan-50 border-2 border-cyan-200 rounded-xl">
+                      <div className="w-9 h-9 rounded-lg bg-cyan-600 flex items-center justify-center text-white flex-shrink-0">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-800 truncate">
+                          {selectedVehicle.plate_number}
+                          {selectedVehicle.driver_name && (
+                            <span className="text-[10px] text-gray-500 font-normal ml-1.5">· {selectedVehicle.driver_name}</span>
+                          )}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-cyan-700">
+                            Seats: {selectedVehicle.available_seat}/{selectedVehicle.total_seats}
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-700">
+                            · {selectedVehicle.monthly_fee != null ? `${Number(selectedVehicle.monthly_fee).toLocaleString()} AFN/month` : "Fee: —"}
+                          </span>
+                        </div>
+                      </div>
+                      <button type="button" onClick={clearVehicle} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={vehicleSearch}
+                          onChange={(e) => { setVehicleSearch(e.target.value); setShowVehicleDropdown(true); }}
+                          onFocus={() => setShowVehicleDropdown(true)}
+                          placeholder="Search vehicle by plate or driver..."
+                          className={`${inputClass("transport_vehicle_id")} pl-9`}
+                        />
+                      </div>
+                      {showVehicleDropdown && (
+                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                          {filteredVehicles.length === 0 ? (
+                            <div className="px-4 py-3 text-xs text-gray-400 text-center">No vehicles found for this route</div>
+                          ) : (
+                            filteredVehicles.map((vehicle) => {
+                              const full = vehicle.available_seat <= 0;
+                              return (
+                                <button
+                                  key={vehicle.id}
+                                  type="button"
+                                  disabled={full}
+                                  onClick={() => !full && pickVehicle(vehicle)}
+                                  className={`w-full text-left px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 ${full ? "opacity-50 cursor-not-allowed bg-gray-50" : "hover:bg-teal-50"}`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-semibold text-gray-800">{vehicle.plate_number}</p>
+                                      {vehicle.driver_name && (
+                                        <p className="text-[10px] text-gray-500 truncate">{vehicle.driver_name}{vehicle.driver_contact ? ` · ${vehicle.driver_contact}` : ""}</p>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                      <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                                        {vehicle.monthly_fee != null ? `${Number(vehicle.monthly_fee).toLocaleString()} AFN/mo` : "—"}
+                                      </span>
+                                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${full ? "text-red-600 bg-red-50" : "text-teal-700 bg-teal-50"}`}>
+                                        {vehicle.available_seat}/{vehicle.total_seats} seats
+                                      </span>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Remaining transport detail fields (only after vehicle chosen) */}
+              {formData.transport_vehicle_id && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Time</label>
+                    <input
+                      type="time"
+                      name="transport_pickup_time"
+                      value={formData.transport_pickup_time}
+                      onChange={handleChange}
+                      className={inputClass("transport_pickup_time")}
+                    />
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Stop</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_point || "—"}</p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                      Monthly Fee (AFN)
+                      <span className="ml-1 text-[9px] text-emerald-600 font-normal">(auto from vehicle)</span>
+                    </label>
+                    <input
+                      type="number"
+                      name="transport_monthly_fee"
+                      value={formData.transport_monthly_fee}
+                      readOnly
+                      className={`${inputClass("transport_monthly_fee")} bg-emerald-50 text-emerald-800 font-bold cursor-not-allowed`}
+                    />
                   </div>
-                  <div className="bg-white rounded-lg p-3 border border-teal-100">
-                    <p className="text-[9px] text-teal-600 font-bold uppercase">Drop-off</p>
-                    <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_dropoff_point || "—"}</p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Pickup Point / Stop</label>
+                    <input
+                      type="text"
+                      name="transport_pickup_point"
+                      value={formData.transport_pickup_point}
+                      onChange={handleChange}
+                      placeholder="e.g. Main street near mosque"
+                      className={inputClass("transport_pickup_point")}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Drop-off Point</label>
+                    <input
+                      type="text"
+                      name="transport_dropoff_point"
+                      value={formData.transport_dropoff_point}
+                      onChange={handleChange}
+                      placeholder="e.g. Same as pickup"
+                      className={inputClass("transport_dropoff_point")}
+                    />
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Summary */}
+              {formData.transport_vehicle_id && (
+                <div className="bg-teal-50 rounded-xl p-4 border border-teal-100">
+                  <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3">Transport Summary</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Route</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{selectedRoute?.route_name || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Vehicle</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{selectedVehicle?.plate_number || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Time</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1">{formData.transport_pickup_time || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Monthly Fee</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1">
+                        {formData.transport_monthly_fee ? `${Number(formData.transport_monthly_fee).toLocaleString()} AFN` : "—"}
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Pickup Stop</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{formData.transport_pickup_point || "—"}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-teal-100">
+                      <p className="text-[9px] text-teal-600 font-bold uppercase">Drop-off</p>
+                      <p className="text-xs font-semibold text-gray-700 mt-1 truncate">{formData.transport_dropoff_point || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </>
+              )}
             </div>
           </div>
         )}
@@ -831,10 +1927,18 @@ export default function StudentEnrollmentForm() {
               subtitle="Uniform measurements and requirements"
             />
             <div className="p-5 space-y-5">
-              <div className="flex items-center justify-between p-4 bg-teal-50 rounded-xl border border-teal-100">
-                <div>
-                  <p className="text-xs font-bold text-teal-800">Need a Uniform?</p>
-                  <p className="text-[10px] text-teal-600 mt-0.5">Enable if the student needs a school uniform</p>
+              <div className={`flex items-center justify-between p-4 rounded-xl border ${formData.need_uniform ? "bg-teal-50 border-teal-200" : "bg-amber-50 border-amber-200"}`}>
+                <div className="flex-1">
+                  <p className={`text-xs font-bold ${formData.need_uniform ? "text-teal-800" : "text-amber-800"}`}>
+                    {selectedStudent?.uniform_required
+                      ? "Student requested uniform in Phase 1"
+                      : "Student did NOT request uniform in Phase 1"}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${formData.need_uniform ? "text-teal-600" : "text-amber-600"}`}>
+                    {selectedStudent?.uniform_required
+                      ? "You can still change this choice before finalizing enrollment"
+                      : "Toggle ON if the student now wants a uniform — the Phase 1 status will be updated"}
+                  </p>
                 </div>
                 <Toggle
                   name="need_uniform"
@@ -844,6 +1948,16 @@ export default function StudentEnrollmentForm() {
                   label=""
                 />
               </div>
+
+              {!formData.need_uniform && (
+                <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  <p className="text-xs text-gray-500 font-medium">Uniform is disabled for this student</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Enable the toggle above to enter uniform details</p>
+                </div>
+              )}
 
               {formData.need_uniform && (
                 <>
@@ -973,7 +2087,17 @@ export default function StudentEnrollmentForm() {
         )}
 
         {/* ── Step 5: Documents ── */}
-        {currentStep === 5 && (
+        {currentStep === 5 && (() => {
+          const docTypes = [
+            { key: "doc_student_tazkira", label: "Student Tazkira" },
+            { key: "doc_father_tazkira", label: "Father Tazkira" },
+            { key: "doc_birth_certificate", label: "Birth Certificate" },
+            { key: "doc_previous_school_documents", label: "Previous School Documents" },
+            { key: "doc_student_photo", label: "Student Official Photo" },
+          ];
+          const uploadedCount = docTypes.filter((d) => uploadedDocs[d.key]).length;
+
+          return (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
               gradient="from-teal-50 to-cyan-50"
@@ -985,100 +2109,66 @@ export default function StudentEnrollmentForm() {
             />
             <div className="p-5 space-y-4">
               <p className="text-[11px] text-gray-500">
-                Upload the required documents for student enrollment.
+                Upload the required documents for student enrollment. Files are saved immediately on selection.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FileInput
-                  label="Student Tazkira"
-                  name="doc_student_tazkira"
-                  onChange={handleFileChange}
-                  file={files.doc_student_tazkira}
-                />
-                <FileInput
-                  label="Father Tazkira"
-                  name="doc_father_tazkira"
-                  onChange={handleFileChange}
-                  file={files.doc_father_tazkira}
-                />
-                <FileInput
-                  label="Birth Certificate"
-                  name="doc_birth_certificate"
-                  onChange={handleFileChange}
-                  file={files.doc_birth_certificate}
-                />
-                <FileInput
-                  label="Previous School Documents"
-                  name="doc_previous_school_documents"
-                  onChange={handleFileChange}
-                  file={files.doc_previous_school_documents}
-                />
-                <div className="sm:col-span-2">
-                  <FileInput
-                    label="Student Official Photo"
-                    name="doc_student_photo"
-                    onChange={handleFileChange}
-                    file={files.doc_student_photo}
-                  />
-                </div>
+                {docTypes.map((doc) => {
+                  const existing = uploadedDocs[doc.key];
+                  const isUploading = uploading[doc.key];
+                  return (
+                    <div key={doc.key} className={doc.key === "doc_student_photo" ? "sm:col-span-2" : ""}>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">{doc.label}</label>
+                      {existing ? (
+                        <div className="flex items-center gap-3 w-full px-3 py-2.5 border-2 border-teal-200 bg-teal-50 rounded-xl">
+                          <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-xs text-teal-700 truncate flex-1">{existing.original_name || "Uploaded"}</span>
+                          <label className="text-[10px] text-teal-600 hover:text-teal-800 cursor-pointer font-semibold">
+                            Replace
+                            <input type="file" name={doc.key} onChange={handleFileChange} className="sr-only" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                          </label>
+                          <button type="button" onClick={() => handleDeleteDoc(doc.key)} className="text-red-400 hover:text-red-600 p-0.5">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <label className={`flex items-center gap-3 w-full px-3 py-2.5 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isUploading ? "border-teal-300 bg-teal-50" : "border-gray-200 hover:border-teal-300 hover:bg-teal-50"}`}>
+                          {isUploading ? (
+                            <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin flex-shrink-0"></div>
+                          ) : (
+                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                          )}
+                          <span className="text-xs text-gray-500 truncate">{isUploading ? "Uploading..." : "Click to upload file"}</span>
+                          <input type="file" name={doc.key} onChange={handleFileChange} className="sr-only" disabled={isUploading} accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Progress */}
               <div className="bg-teal-50 rounded-xl p-3 border border-teal-100">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-semibold text-teal-700">Documents Uploaded</p>
-                  <p className="text-[10px] font-bold text-teal-800">
-                    {Object.values(files).filter((f) => f !== null && [
-                      "doc_student_tazkira",
-                      "doc_father_tazkira",
-                      "doc_birth_certificate",
-                      "doc_previous_school_documents",
-                      "doc_student_photo",
-                    ].includes(
-                      Object.keys(files).find((k) => files[k] === f)
-                    )).length} /{" "}
-                    {[
-                      files.doc_student_tazkira,
-                      files.doc_father_tazkira,
-                      files.doc_birth_certificate,
-                      files.doc_previous_school_documents,
-                      files.doc_student_photo,
-                    ].filter(Boolean).length} / 5
-                  </p>
+                  <p className="text-[10px] font-bold text-teal-800">{uploadedCount} / 5</p>
                 </div>
                 <div className="h-1.5 bg-teal-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-teal-500 rounded-full transition-all"
-                    style={{
-                      width: `${
-                        ([
-                          files.doc_student_tazkira,
-                          files.doc_father_tazkira,
-                          files.doc_birth_certificate,
-                          files.doc_previous_school_documents,
-                          files.doc_student_photo,
-                        ].filter(Boolean).length /
-                          5) *
-                        100
-                      }%`,
-                    }}
-                  />
+                  <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${(uploadedCount / 5) * 100}%` }} />
                 </div>
-                <p className="text-[10px] text-teal-600 mt-1.5">
-                  {[
-                    files.doc_student_tazkira,
-                    files.doc_father_tazkira,
-                    files.doc_birth_certificate,
-                    files.doc_previous_school_documents,
-                    files.doc_student_photo,
-                  ].filter(Boolean).length}{" "}
-                  of 5 documents uploaded
-                </p>
+                <p className="text-[10px] text-teal-600 mt-1.5">{uploadedCount} of 5 documents uploaded</p>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
-        {/* ── Step 6: Family Questionnaire ── */}
+        {/* ── Step 6: Family Questionnaire / Commitment ── */}
         {currentStep === 6 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <SectionHeader
@@ -1087,277 +2177,107 @@ export default function StudentEnrollmentForm() {
               iconColor="text-teal-600"
               icon={steps[5].icon}
               title="Family Questionnaire"
-              subtitle="Questionnaire status and parental consent"
+              subtitle="Review the commitment document and confirm parental consent"
             />
             <div className="p-5 space-y-5">
-              {/* Info notice */}
-              <div className="bg-teal-50 border border-teal-100 rounded-xl p-4">
-                <p className="text-xs font-semibold text-teal-800 mb-1">About the Questionnaire</p>
-                <p className="text-[11px] text-teal-700 leading-relaxed">
-                  The questionnaire will be given to the family (printed or linked). It will be returned
-                  after completion.
-                </p>
-                <p className="text-[11px] text-amber-700 mt-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  The fee can be paid without completing the questionnaire — the system will remind you.
-                </p>
-              </div>
-
-              {/* Questionnaire Status */}
+              {/* Document viewer */}
               <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-2">
-                  Questionnaire Status
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { value: "not_sent", label: "Not Sent", color: "border-gray-200 bg-gray-50 text-gray-600", selected: "ring-2 ring-gray-400 border-gray-400 bg-gray-50" },
-                    { value: "sent", label: "Sent", color: "border-blue-200 bg-blue-50 text-blue-700", selected: "ring-2 ring-blue-400 border-blue-400 bg-blue-50" },
-                    { value: "completed", label: "Completed", color: "border-teal-200 bg-teal-50 text-teal-700", selected: "ring-2 ring-teal-400 border-teal-400 bg-teal-50" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, questionnaire_status: opt.value }))}
-                      className={`p-3 rounded-xl border-2 text-left transition-all font-semibold text-xs ${
-                        formData.questionnaire_status === opt.value ? opt.selected : "border-gray-200 bg-white hover:border-gray-300 text-gray-600"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Send Questionnaire Actions */}
-              <div>
-                <p className="text-[11px] font-semibold text-gray-600 mb-2">Send Questionnaire</p>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
-                    onClick={() => Swal.fire("WhatsApp", "WhatsApp sending feature coming soon.", "info")}
-                  >
-                    <span>📱</span>
-                    WhatsApp
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
-                    onClick={() => Swal.fire("Email", "Email sending feature coming soon.", "info")}
-                  >
-                    <span>📧</span>
-                    Email
-                  </button>
-                </div>
-              </div>
-
-              {/* Parental Consent */}
-              <div className="pt-4 border-t border-gray-100">
-                <p className="text-[10px] font-bold text-gray-700 uppercase tracking-wider mb-3">
-                  Commitment — Parental Consent
-                </p>
-                <label
-                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    formData.parental_consent
-                      ? "border-teal-300 bg-teal-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    name="parental_consent"
-                    checked={formData.parental_consent}
-                    onChange={handleChange}
-                    className="mt-0.5 w-4 h-4 accent-teal-600 rounded"
-                  />
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                   <div>
-                    <p className={`text-xs font-semibold ${formData.parental_consent ? "text-teal-800" : "text-gray-700"}`}>
-                      Yes, I agree to school terms
-                    </p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">
-                      The parent/guardian confirms agreement to the school's rules and conditions.
-                    </p>
+                    <p className="text-[11px] font-semibold text-gray-700">تعهدنامه اولیای شاگردان مکتب وفاق</p>
+                    <p className="text-[10px] text-gray-400">Parent / Guardian Agreement — please review before signing</p>
                   </div>
-                  {formData.parental_consent && (
-                    <div className="ml-auto flex-shrink-0">
-                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  )}
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 7: Transfer System (Government) ── */}
-        {currentStep === 7 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <SectionHeader
-              gradient="from-teal-50 to-cyan-50"
-              iconBg="bg-teal-100"
-              iconColor="text-teal-600"
-              icon={steps[6].icon}
-              title="Transfer System (Government)"
-              subtitle="Complete each step in order to proceed to the next"
-            />
-            <div className="p-5 space-y-5">
-              {/* Sequential Checkboxes */}
-              <div>
-                <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-3">
-                  Transfer Documents — Complete in Order
-                </p>
-                <div className="space-y-2">
-                  {transferSteps.map((item, index) => {
-                    const isChecked = formData[item.key];
-                    const prevChecked = index === 0 || formData[transferSteps[index - 1].key];
-                    const isDisabled = !prevChecked;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => handleTransferCheck(index)}
-                        className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${
-                          isChecked
-                            ? "border-teal-400 bg-teal-50"
-                            : isDisabled
-                            ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
-                            : "border-gray-200 bg-white hover:border-teal-300 hover:bg-teal-50 cursor-pointer"
-                        }`}
-                      >
-                        {/* Step number / check icon */}
-                        <div
-                          className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center border-2 transition-all ${
-                            isChecked
-                              ? "bg-teal-500 border-teal-500"
-                              : isDisabled
-                              ? "bg-gray-100 border-gray-200"
-                              : "bg-white border-gray-300"
-                          }`}
-                        >
-                          {isChecked ? (
-                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <span className={`text-[10px] font-bold ${isDisabled ? "text-gray-300" : "text-gray-400"}`}>
-                              {index + 1}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Label */}
-                        <span
-                          className={`text-xs font-semibold flex-1 ${
-                            isChecked ? "text-teal-800" : isDisabled ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          {item.label}
-                        </span>
-
-                        {/* Status badge */}
-                        {isChecked ? (
-                          <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">
-                            Done
-                          </span>
-                        ) : isDisabled ? (
-                          <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">Pending</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Progress */}
-                <div className="mt-4 bg-teal-50 rounded-xl p-3 border border-teal-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-semibold text-teal-700">Progress</p>
-                    <p className="text-[10px] font-bold text-teal-800">
-                      {transferSteps.filter((s) => formData[s.key]).length} / {transferSteps.length}
-                    </p>
-                  </div>
-                  <div className="h-1.5 bg-teal-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-teal-500 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${(transferSteps.filter((s) => formData[s.key]).length / transferSteps.length) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Case Status */}
-              <div className="pt-4 border-t border-gray-100">
-                <label className="block text-[11px] font-semibold text-gray-600 mb-2">
-                  Case Status
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { value: "pending", label: "Pending" },
-                    { value: "in_progress", label: "In Progress" },
-                    { value: "completed", label: "Completed" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, transfer_case_status: opt.value }))}
-                      className={`p-3 rounded-xl border-2 text-left transition-all font-semibold text-xs ${
-                        formData.transfer_case_status === opt.value
-                          ? "ring-2 ring-teal-400 border-teal-400 bg-teal-50 text-teal-700"
-                          : "border-gray-200 bg-white hover:border-teal-200 text-gray-600"
-                      }`}
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="/documents/ws-parent-contract.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
                     >
-                      {opt.label}
-                    </button>
-                  ))}
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Open in new tab
+                    </a>
+                    <a
+                      href="/documents/ws-parent-contract.pdf"
+                      download="ws-parent-contract.pdf"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </a>
+                  </div>
+                </div>
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                  <iframe
+                    src="/documents/ws-parent-contract.pdf"
+                    title="Family Commitment Document"
+                    className="w-full h-[560px]"
+                  />
                 </div>
               </div>
 
-              {/* Additional Notes */}
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Additional Notes
-                </label>
-                <textarea
-                  name="transfer_additional_notes"
-                  value={formData.transfer_additional_notes}
+              {/* Parental consent checkbox */}
+              <label
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  formData.parental_consent
+                    ? "border-teal-300 bg-teal-50"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  name="parental_consent"
+                  checked={formData.parental_consent}
                   onChange={handleChange}
-                  placeholder="Any additional notes about the transfer process, pending items, or follow-ups..."
-                  rows={4}
-                  className={`${inputClass("transfer_additional_notes")} resize-none`}
+                  className="mt-0.5 w-4 h-4 accent-teal-600 rounded"
                 />
-              </div>
+                <div className="flex-1">
+                  <p className={`text-xs font-semibold ${formData.parental_consent ? "text-teal-800" : "text-gray-700"}`}>
+                    The parent has read and signed the commitment document
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">
+                    Tick this box to confirm the parent/guardian has reviewed and agreed to the terms above.
+                  </p>
+                </div>
+                {formData.parental_consent && (
+                  <div className="ml-auto flex-shrink-0">
+                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </label>
             </div>
           </div>
         )}
+
+        </fieldset>
 
         {/* Navigation Buttons */}
         <div className="flex items-center justify-between mt-6">
           <button
             type="button"
             onClick={() =>
-              currentStep === 1
-                ? navigate("/student-management/students")
-                : setCurrentStep(currentStep - 1)
+              isFirstVisibleStep
+                ? navigate(isEdit ? "/student-management/student-enrollments" : "/student-management/students")
+                : goToPrevStep()
             }
             className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all flex items-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            {currentStep === 1 ? "Cancel" : "Back"}
+            {isFirstVisibleStep ? "Cancel" : "Back"}
           </button>
 
           <div className="flex items-center gap-2">
             {/* Step dots */}
             <div className="hidden sm:flex items-center gap-1">
-              {steps.map((s) => (
+              {visibleSteps.map((s) => (
                 <div
                   key={s.id}
                   className={`rounded-full transition-all ${
@@ -1371,13 +2291,13 @@ export default function StudentEnrollmentForm() {
               ))}
             </div>
 
-            {currentStep < steps.length ? (
+            {!isLastVisibleStep ? (
               <button
                 type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
+                onClick={goToNextStep}
                 className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 transition-all shadow-sm flex items-center gap-1.5"
               >
-                Next
+                {isShow ? "Next" : "Next"}
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>

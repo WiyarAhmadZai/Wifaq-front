@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const DAY_LABELS = { saturday: 'Sat', sunday: 'Sun', monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu' };
 const CAT_COLORS = {
@@ -35,6 +36,7 @@ const Card = ({ title, icon, children }) => (
 export default function ClassesShow() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { canUpdate, canDelete } = useResourcePermissions("classes");
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [schedule, setSchedule] = useState(null);
@@ -92,16 +94,20 @@ export default function ClassesShow() {
             Back to Classes
           </button>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate(`/class-management/classes/edit/${id}`)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              Edit
-            </button>
-            <button onClick={handleDelete}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-red-500/60 text-white text-xs font-semibold rounded-xl transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              Delete
-            </button>
+            {canUpdate && (
+              <button onClick={() => navigate(`/class-management/classes/edit/${id}`)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Edit
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={handleDelete}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-red-500/60 text-white text-xs font-semibold rounded-xl transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Delete
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -278,7 +284,7 @@ export default function ClassesShow() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-1.5">
             <p className="text-xs font-bold text-gray-700 mb-3">Quick Actions</p>
             {[
-              { label: 'Edit Class', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', action: () => navigate(`/class-management/classes/edit/${id}`) },
+              ...(canUpdate ? [{ label: 'Edit Class', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', action: () => navigate(`/class-management/classes/edit/${id}`) }] : []),
               { label: 'All Classes', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16', action: () => navigate('/class-management/classes') },
               { label: 'Add New Class', icon: 'M12 4v16m8-8H4', action: () => navigate('/class-management/classes/create') },
             ].map(a => (
@@ -288,11 +294,13 @@ export default function ClassesShow() {
                 {a.label}
               </button>
             ))}
-            <button onClick={handleDelete}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors text-left">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              Delete Class
-            </button>
+            {canDelete && (
+              <button onClick={handleDelete}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors text-left">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Delete Class
+              </button>
+            )}
           </div>
         </div>
       </div>

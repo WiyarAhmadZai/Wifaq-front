@@ -3,6 +3,7 @@ import CrudPage from "../../components/CrudPage";
 export default function Suppliers() {
   return (
     <CrudPage
+      permissionBase="suppliers"
       title="Suppliers"
       apiEndpoint="/purchase/suppliers/index"
       createRoute="/purchase/suppliers/create"

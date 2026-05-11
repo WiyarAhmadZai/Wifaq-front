@@ -1,5 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "../admin/context/AuthContext";
+import PathPermissionGate from "../admin/guards/PathPermissionGate";
+
+const PageFallback = () => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600" />
+      <span className="text-gray-400 text-xs">Loading...</span>
+    </div>
+  </div>
+);
 import { get, put } from "../api/axios";
 import Swal from "sweetalert2";
 
@@ -355,25 +367,34 @@ function NotificationBell() {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  // Mark read in the API + REMOVE from the local list so the bell shows only
+  // fresh notifications. The full history is still visible at /finance/inbox.
   const markAsRead = async (id) => {
     try { await put(`/notifications/${id}/read`); } catch {}
-    setNotifications((p) => p.map((n) => n.id === id ? { ...n, read_at: new Date().toISOString() } : n));
+    setNotifications((p) => p.filter((n) => n.id !== id));
     setUnreadCount((p) => Math.max(0, p - 1));
   };
 
   const markAllRead = async () => {
     try { await put("/notifications/read-all"); } catch {}
-    setNotifications((p) => p.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
+    setNotifications([]);
     setUnreadCount(0);
   };
 
   const handleClick = (n) => {
-    if (!n.read_at) markAsRead(n.id);
     const d = n.data || {};
-    if (d.meeting_id) navigate(`/hr/meetings/show/${d.meeting_id}`);
-    else if (d.staff_task_id) navigate(`/hr/staff-task/show/${d.staff_task_id}`);
-    else if (d.vendor_contract_id) navigate(`/hr/vendor-contracts/show/${d.vendor_contract_id}`);
-    else if (d.agreement_id) navigate(`/hr/agreements/show/${d.agreement_id}`);
+    // Resolve the target page: explicit `link` field first (works for any
+    // notification type that wants to define its own deep link — e.g. the
+    // new fee_invoice_overdue), then fall back to type-specific routing.
+    let target = null;
+    if (d.link) target = d.link;
+    else if (d.invoice_id) target = `/finance/fee-invoices/show/${d.invoice_id}`;
+    else if (d.meeting_id) target = `/hr/meetings/show/${d.meeting_id}`;
+    else if (d.staff_task_id) target = `/hr/staff-task/show/${d.staff_task_id}`;
+    else if (d.vendor_contract_id) target = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
+    else if (d.agreement_id) target = `/hr/agreements/show/${d.agreement_id}`;
+    if (!n.read_at) markAsRead(n.id);
+    if (target) navigate(target);
     setOpen(false);
   };
 
@@ -404,7 +425,31 @@ function NotificationBell() {
     if (data?.type === "agreement") {
       return { bg: "bg-purple-100", color: "text-purple-600", path: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" };
     }
+    if (data?.type === "fee_invoice_overdue") {
+      return { bg: "bg-red-100", color: "text-red-600", path: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" };
+    }
+    if (data?.type === "daily_fee_summary") {
+      return { bg: "bg-amber-100", color: "text-amber-600", path: "M9 17v-2a4 4 0 014-4h4m0 0l-3-3m3 3l-3 3M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" };
+    }
     return { bg: "bg-blue-100", color: "text-blue-600", path: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" };
+  };
+
+  // Build the headline text for a notification card in the bell. Different
+  // notification types carry different fields — render a useful one-liner
+  // instead of falling back to "New notification".
+  const renderMessage = (data) => {
+    if (!data) return "New notification";
+    if (data.type === "fee_invoice_overdue") {
+      const who = data.student_name || `Student #${data.student_id || "?"}`;
+      const days = data.days_overdue || 0;
+      const amt = Number(data.amount_due || 0).toLocaleString();
+      return `${who} — ${days} day${days === 1 ? "" : "s"} overdue · ${amt} AFN`;
+    }
+    if (data.type === "daily_fee_summary") {
+      const s = data.summary || {};
+      return `Daily summary: ${s.overdue_count || 0} overdue, ${s.due_soon_count || 0} due soon`;
+    }
+    return data.message || data.title || "New notification";
   };
 
   return (
@@ -434,17 +479,22 @@ function NotificationBell() {
             )}
           </div>
 
-          {/* List */}
+          {/* List — only unread items are shown in the bell so it always
+              reflects what needs attention. Read history lives at /finance/inbox. */}
           <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center">
-                <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                <p className="text-xs text-gray-400">No notifications yet</p>
-              </div>
-            ) : (
-              notifications.map((n) => {
+            {(() => {
+              const unreadOnly = notifications.filter((n) => !n.read_at);
+              if (unreadOnly.length === 0) {
+                return (
+                  <div className="px-4 py-8 text-center">
+                    <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <p className="text-xs text-gray-400">You're all caught up</p>
+                  </div>
+                );
+              }
+              return unreadOnly.map((n) => {
                 const icon = getIcon(n.data);
                 const isUnread = !n.read_at;
                 return (
@@ -457,7 +507,7 @@ function NotificationBell() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-[11px] leading-relaxed ${isUnread ? "text-gray-800 font-semibold" : "text-gray-600"}`}>
-                        {n.data?.message || "New notification"}
+                        {renderMessage(n.data)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[9px] text-gray-400">{timeAgo(n.created_at)}</span>
@@ -472,8 +522,8 @@ function NotificationBell() {
                     {isUnread && <div className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-2"></div>}
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         </div>
       )}
@@ -484,11 +534,42 @@ function NotificationBell() {
 // ── Profile Button (navigates to /profile page) ─────────────────────────────
 function ProfileButton() {
   const navigate = useNavigate();
+  const auth = useAuth();
+  const [profileData, setProfileData] = useState(null);
+  
+  useEffect(() => {
+    // Fetch current user profile data
+    const fetchProfileData = async () => {
+      try {
+        const response = await get('/profile');
+        setProfileData(response.data.data);
+      } catch (error) {
+        console.error('Profile fetch error:', error);
+      }
+    };
+    
+    fetchProfileData();
+  }, []);
+
+  const getInitial = (name) => {
+    if (!name) return 'U';
+    return name.charAt(0);
+  };
+
   return (
     <button onClick={() => navigate('/profile')}
       className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold hover:bg-teal-700 transition-colors"
-      title="My Profile">
-      A
+      title="My Profile"
+    >
+      {profileData?.user?.profile_photo || profileData?.staff?.profile_photo || profileData?.teacher?.profile_photo || profileData?.student?.profile_photo ? (
+        <img 
+          src={profileData?.user?.profile_photo || profileData?.staff?.profile_photo || profileData?.teacher?.profile_photo || profileData?.student?.profile_photo} 
+          alt="Profile" 
+          className="w-full h-full object-cover rounded-full"
+        />
+      ) : (
+        getInitial(profileData?.user?.name || auth.user?.name)
+      )}
     </button>
   );
 }
@@ -496,11 +577,30 @@ function ProfileButton() {
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { hasPermission, isSuperAdmin } = useAuth();
   const [openMenu, setOpenMenu] = useState([]);
   const [openSubMenu, setOpenSubMenu] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userToggled, setUserToggled] = useState(false);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  /**
+   * Filter a menu list by the current user's permissions.
+   * LOCKDOWN: items without `permission` metadata are hidden for non-super-admins.
+   * Items with children: a parent shows if it has `permission` granted OR any child is visible.
+   */
+  const itemAllowed = (item) => {
+    if (item.children && item.children.length) {
+      const visibleChildren = visible(item.children);
+      if (visibleChildren.length === 0) return false;
+      return true;
+    }
+    if (item.permission) return hasPermission(item.permission);
+    return isSuperAdmin; // untagged → super-admin only
+  };
+  const visible = (items) => items.filter(itemAllowed);
+  // True if the current user can see at least one child of a top-level group.
+  const canSeeGroup = (items) => visible(items).length > 0;
 
   useState(() => {
     if (!userToggled && location.pathname.startsWith("/hr")) {
@@ -522,72 +622,102 @@ export default function Layout() {
   const isActive = (path) => location.pathname === path;
 
   const hrSubMenus = [
-    { label: "Staff", path: "/hr/staff" },
-    { label: "Staff Logs", path: "/hr/staff-logs" },
-    { label: "Salary Snapshot", path: "/hr/salary-snapshot" },
+    { label: "Staff", path: "/hr/staff", permission: "staff.view" },
+    { label: "Staff Logs", path: "/hr/staff-logs", permission: "staff-logs.view" },
+    { label: "Salary Snapshot", path: "/hr/salary-snapshot", permission: "salary-snapshot.view" },
     { label: "Contracts", key: "contracts", children: [
-      { label: "Staff Contract", path: "/hr/contracts" },
-      { label: "Vendor Contract", path: "/hr/vendor-contracts" },
-      { label: "Agreements", path: "/hr/agreements" },
+      { label: "Staff Contract", path: "/hr/contracts", permission: "contracts.view" },
+      { label: "Vendor Contract", path: "/hr/vendor-contracts", permission: "vendor-contracts.view" },
+      { label: "Agreements", path: "/hr/agreements", permission: "agreements.view" },
     ]},
-    { label: "Attendance", path: "/hr/attendance" },
-    { label: "Leave Request", path: "/hr/leave-request" },
-    { label: "Add Vendor", path: "/hr/add-vendor" },
+    { label: "Attendance", path: "/hr/attendance", permission: "attendance.view" },
+    { label: "Leave Request", path: "/hr/leave-request", permission: "leave-request.view" },
+    { label: "Add Vendor", path: "/hr/add-vendor", permission: "vendors.view" },
     { label: "Planner", key: "planner", children: [
-      { label: "Meetings", path: "/hr/meetings" },
-      { label: "Events", path: "/hr/events" },
-      { label: "Staff Task", path: "/hr/staff-task" },
+      { label: "Meetings", path: "/hr/meetings", permission: "meetings.view" },
+      { label: "Events", path: "/hr/events", permission: "events.view" },
+      { label: "Staff Task", path: "/hr/staff-task", permission: "staff-task.view" },
     ]},
-    { label: "Visitor Log", path: "/hr/visitor-log" },
-    { label: "HR Reports", path: "/hr/reports" },
+    { label: "Visitor Log", path: "/hr/visitor-log", permission: "visitor-log.view" },
+    { label: "HR Reports", path: "/hr/reports", permission: "hr-reports.view" },
   ];
 
   const studentsMenus = [
-    { label: "Parents", path: "/student-management/parents" },
-    {
-      label: "Phase 1 - Students Information",
-      path: "/student-management/students",
-    },
-    {
-      label: "Phase 2 - Students Registration",
-      path: "/student-management/student-enrollments",
-    },
+    { label: "Parents", path: "/student-management/parents", permission: "parents.view" },
+    { label: "Phase 1 - Students Information", path: "/student-management/students", permission: "students.view" },
+    { label: "Phase 2 - Students Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
+    { label: "Students List", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
+    { label: "Foundation Requests", path: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   ];
 
   const academic = [
-    { label: "Academic Terms", path: "/student-management/academic-terms" },
-    { label: "Grades", path: "/student-management/grades" },
+    { label: "Academic Terms", path: "/student-management/academic-terms", permission: "academic-terms.view" },
+    { label: "Grades", path: "/student-management/grades", permission: "grades.view" },
   ];
   const transportationMenus = [
-    { label: "Routes", path: "/transportation/routes" },
-    { label: "Vehicles", path: "/transportation/vehicles" },
+    { label: "Routes", path: "/transportation/routes", permission: "routes.view" },
+    { label: "Vehicles", path: "/transportation/vehicles", permission: "vehicles.view" },
   ];
 
   const recruitmentMenus = [
-    { label: "Job Applications", path: "/recruitment/job-requisitions" },
-    { label: "Job Postings", path: "/recruitment/job-postings" },
-    { label: "Applications", path: "/recruitment/applications" },
-    { label: "Candidate Pool", path: "/recruitment/candidate-pool" },
+    { label: "Job Applications", path: "/recruitment/job-requisitions", permission: "job-requisitions.view" },
+    { label: "Job Postings", path: "/recruitment/job-postings", permission: "job-postings.view" },
+    { label: "Applications", path: "/recruitment/applications", permission: "applications.view" },
+    { label: "Candidate Pool", path: "/recruitment/candidate-pool", permission: "candidate-pool.view" },
   ];
 
   const purchaseMenus = [
-    { label: "Purchase Requests", path: "/purchase/purchase-requests" },
-    { label: "Suppliers", path: "/purchase/suppliers" },
-    { label: "Stock / Inventory", path: "/purchase/stock" },
-    { label: "Routine Items", path: "/purchase/routine-items" },
-    { label: "Repair Requests", path: "/purchase/repair-requests" },
-    { label: "Projects", path: "/purchase/projects" },
+    { label: "Purchase Requests", path: "/purchase/purchase-requests", permission: "purchase-requests.view" },
+    { label: "Suppliers", path: "/purchase/suppliers", permission: "suppliers.view" },
+    { label: "Stock / Inventory", path: "/purchase/stock", permission: "stock.view" },
+    { label: "Routine Items", path: "/purchase/routine-items", permission: "routine-items.view" },
+    { label: "Repair Requests", path: "/purchase/repair-requests", permission: "repair-requests.view" },
+    { label: "Projects", path: "/purchase/projects", permission: "projects.view" },
   ];
 
+  const adminMenus = [
+    { label: "Roles", path: "/admin/roles", permission: "roles.view" },
+    { label: "Permissions", path: "/admin/permissions", permission: "permissions.view" },
+    { label: "Users & Access", path: "/admin/users", permission: "users.view" },
+  ];
+
+  const branchesMenus = [
+    { label: "Branches", path: "/branches", permission: "branches.view" },
+  ];
+  const teacherMenus = [
+    { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
+  ];
+  const classMgmtMenus = [
+    { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
+    { label: "Subjects", path: "/class-management/subjects", permission: "subjects.view" },
+    { label: "Grade Subjects", path: "/class-management/grade-subjects", permission: "grade-subjects.view" },
+    { label: "Schedule", path: "/class-management/schedule", permission: "schedule.view" },
+  ];
+
+  // Finance menu — same nested-children shape as hrSubMenus so itemAllowed/visible work.
   const financeMenus = [
-    { label: "Overview", path: "/finance/dashboard" },
-    { label: "Chart of Accounts", path: "/finance/chart-of-accounts" },
-    { label: "Accounts", path: "/finance/accounts" },
-    { label: "Invoices", path: "/finance/invoices" },
-    { label: "Payments", path: "/finance/payments" },
-    { label: "Budgets", path: "/finance/budgets" },
-    // { label: "Fee Invoices", path: "/finance/fee-invoices" },
-    { label: "Fee Payments", path: "/finance/fee-payments" },
+    { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
+    { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },
+    { label: "Daily", key: "finance-daily", children: [
+      { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
+      { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
+      { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
+      { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
+    ]},
+    { label: "Reports", key: "finance-reports", children: [
+      { label: "Class Collection", path: "/finance/reports/class-collection", permission: "fee-invoices.view" },
+    ]},
+    { label: "Bookkeeping", key: "finance-bookkeeping", children: [
+      { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
+      { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
+      { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
+      { label: "Budgets", path: "/finance/budgets", permission: "budgets.view" },
+    ]},
+    { label: "Setup", key: "finance-setup", children: [
+      { label: "Chart of Accounts", path: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
+      { label: "Accounts", path: "/finance/accounts", permission: "accounts.view" },
+      { label: "Parties", path: "/finance/parties", permission: "parties.view" },
+    ]},
   ];
 
   const closeSidebar = () => setSidebarOpen(false);
@@ -675,28 +805,34 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
-          <MenuSection title="HR Management" />
-          <ParentMenu
-            icon={Icons.Departments}
-            label="Branches"
-            isOpen={openMenu.includes("branches")}
-            onClick={() => toggleMenu("branches")}
-          >
-            <SubMenuItem
+          {(canSeeGroup(branchesMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
+          {canSeeGroup(branchesMenus) && (
+            <ParentMenu
+              icon={Icons.Departments}
               label="Branches"
-              to="/branches"
-              active={isActive("/branches")}
-              onClick={closeSidebar}
-            />
-          </ParentMenu>
+              isOpen={openMenu.includes("branches")}
+              onClick={() => toggleMenu("branches")}
+            >
+              {visible(branchesMenus).map((item) => (
+                <SubMenuItem
+                  key={item.path}
+                  label={item.label}
+                  to={item.path}
+                  active={isActive(item.path)}
+                  onClick={closeSidebar}
+                />
+              ))}
+            </ParentMenu>
+          )}
 
+          {canSeeGroup(hrSubMenus) && (
           <ParentMenu
             icon={Icons.HR}
             label="HR Management"
             isOpen={openMenu.includes("hr")}
             onClick={() => toggleMenu("hr")}
           >
-            {hrSubMenus.map((item) =>
+            {visible(hrSubMenus).map((item) =>
               item.children ? (
                 <div key={item.key}>
                   <button
@@ -714,7 +850,7 @@ export default function Layout() {
                   </button>
                   {openSubMenu.includes(item.key) && (
                     <div className="mt-0.5 space-y-0.5">
-                      {item.children.map((child) => (
+                      {visible(item.children).map((child) => (
                         <Link key={child.path} to={child.path} onClick={closeSidebar}
                           className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
                             isActive(child.path) ? "bg-teal-700 text-white" : "text-teal-300 hover:bg-teal-800 hover:text-white"
@@ -736,14 +872,16 @@ export default function Layout() {
               )
             )}
           </ParentMenu>
-          
+          )}
+
+          {canSeeGroup(recruitmentMenus) && (
           <ParentMenu
             icon={Icons.Departments}
             label="Job Applications"
             isOpen={openMenu.includes("recruitment")}
             onClick={() => toggleMenu("recruitment")}
           >
-            {recruitmentMenus.map((item) => (
+            {visible(recruitmentMenus).map((item) => (
               <SubMenuItem
                 key={item.path}
                 label={item.label}
@@ -753,147 +891,152 @@ export default function Layout() {
               />
             ))}
           </ParentMenu>
+          )}
 
-          <MenuSection title="Academic" />
-          <ParentMenu
-            icon={Icons.Teacher}
-            label="Teacher"
-            isOpen={openMenu.includes("teacher-management")}
-            onClick={() => toggleMenu("teacher-management")}
-          >
-            <SubMenuItem
-              label="Teachers"
-              to="/teacher-management/teachers"
-              active={isActive("/teacher-management/teachers")}
-              onClick={closeSidebar}
-            />
-          </ParentMenu>
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus)) && (
+            <MenuSection title="Academic" />
+          )}
+          {canSeeGroup(teacherMenus) && (
+            <ParentMenu
+              icon={Icons.Teacher}
+              label="Teacher"
+              isOpen={openMenu.includes("teacher-management")}
+              onClick={() => toggleMenu("teacher-management")}
+            >
+              {visible(teacherMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
 
-          <ParentMenu
-            icon={Icons.ClassManagement}
-            label="Class Management"
-            isOpen={openMenu.includes("class-management")}
-            onClick={() => toggleMenu("class-management")}
-          >
-            <SubMenuItem
-              label="Classes"
-              to="/class-management/classes"
-              active={isActive("/class-management/classes")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Subjects"
-              to="/class-management/subjects"
-              active={isActive("/class-management/subjects")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Grade Subjects"
-              to="/class-management/grade-subjects"
-              active={isActive("/class-management/grade-subjects")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Exams"
-              to="/class-management/exams"
-              active={isActive("/class-management/exams")}
-              onClick={closeSidebar}
-            />
-            <SubMenuItem
-              label="Schedule"
-              to="/class-management/schedule"
-              active={isActive("/class-management/schedule")}
-              onClick={closeSidebar}
-            />
-          </ParentMenu>
+          {canSeeGroup(classMgmtMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Class Management"
+              isOpen={openMenu.includes("class-management")}
+              onClick={() => toggleMenu("class-management")}
+            >
+              {visible(classMgmtMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
 
-          <ParentMenu
-            icon={Icons.HR}
-            label="Academic"
-            isOpen={openMenu.includes("academic")}
-            onClick={() => toggleMenu("academic")}
-          >
-            {academic.map((item) => (
-              <SubMenuItem
-                key={item.path}
-                label={item.label}
-                to={item.path}
-                active={isActive(item.path)}
-                onClick={closeSidebar}
-              />
-            ))}
-          </ParentMenu>
+          {canSeeGroup(academic) && (
+            <ParentMenu
+              icon={Icons.HR}
+              label="Academic"
+              isOpen={openMenu.includes("academic")}
+              onClick={() => toggleMenu("academic")}
+            >
+              {visible(academic).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
 
-          <ParentMenu
-            icon={Icons.HR}
-            label="Students"
-            isOpen={openMenu.includes("students")}
-            onClick={() => toggleMenu("students")}
-          >
-            {studentsMenus.map((item) => (
-              <SubMenuItem
-                key={item.path}
-                label={item.label}
-                to={item.path}
-                active={isActive(item.path)}
-                onClick={closeSidebar}
-              />
-            ))}
-          </ParentMenu>
+          {canSeeGroup(studentsMenus) && (
+            <ParentMenu
+              icon={Icons.HR}
+              label="Students"
+              isOpen={openMenu.includes("students")}
+              onClick={() => toggleMenu("students")}
+            >
+              {visible(studentsMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
 
-          <MenuSection title="transportation " />
-          <ParentMenu
-            icon={Icons.Departments}
-            label="Transportations"
-            isOpen={openMenu.includes("transportation")}
-            onClick={() => toggleMenu("transportation")}
-          >
-            {transportationMenus.map((item) => (
-              <SubMenuItem
-                key={item.path}
-                label={item.label}
-                to={item.path}
-                active={isActive(item.path)}
-                onClick={closeSidebar}
-              />
-            ))}
-          </ParentMenu>
+          {canSeeGroup(transportationMenus) && (
+            <>
+              <MenuSection title="Transportation" />
+              <ParentMenu
+                icon={Icons.Departments}
+                label="Transportations"
+                isOpen={openMenu.includes("transportation")}
+                onClick={() => toggleMenu("transportation")}
+              >
+                {visible(transportationMenus).map((item) => (
+                  <SubMenuItem key={item.path} label={item.label} to={item.path}
+                               active={isActive(item.path)} onClick={closeSidebar} />
+                ))}
+              </ParentMenu>
+            </>
+          )}
 
-          <MenuSection title="Procurement" />
-          <ParentMenu
-            icon={Icons.Payroll}
-            label="Purchase"
-            isOpen={openMenu.includes("purchase")}
-            onClick={() => toggleMenu("purchase")}
-          >
-            {purchaseMenus.map((item) => (
-              <SubMenuItem
-                key={item.path}
-                label={item.label}
-                to={item.path}
-                active={isActive(item.path)}
-                onClick={closeSidebar}
-              />
-            ))}
-          </ParentMenu>
+          {canSeeGroup(purchaseMenus) && (
+            <>
+              <MenuSection title="Procurement" />
+              <ParentMenu
+                icon={Icons.Payroll}
+                label="Purchase"
+                isOpen={openMenu.includes("purchase")}
+                onClick={() => toggleMenu("purchase")}
+              >
+                {visible(purchaseMenus).map((item) => (
+                  <SubMenuItem key={item.path} label={item.label} to={item.path}
+                               active={isActive(item.path)} onClick={closeSidebar} />
+                ))}
+              </ParentMenu>
+            </>
+          )}
 
-          <MenuSection title="Finance" />
-          <ParentMenu
-            icon={Icons.Payroll}
-            label="Finance"
-            isOpen={openMenu.includes("finance")}
-            onClick={() => toggleMenu("finance")}
-          >
-            {financeMenus.map((item) => (
-              <SubMenuItem
-                key={item.path}
-                label={item.label}
-                to={item.path}
-                active={isActive(item.path)}
-                onClick={closeSidebar}
-              />
-            ))}
-          </ParentMenu>
+          {canSeeGroup(financeMenus) && (
+            <>
+              <MenuSection title="Finance" />
+              <ParentMenu
+                icon={Icons.Payroll}
+                label="Finance"
+                isOpen={openMenu.includes("finance")}
+                onClick={() => toggleMenu("finance")}
+              >
+                {visible(financeMenus).map((item) =>
+                  item.children ? (
+                    <div key={item.key}>
+                      <button
+                        onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
+                          openSubMenu.includes(item.key)
+                            ? "bg-teal-700 text-white"
+                            : "text-teal-200 hover:bg-teal-800 hover:text-white"
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        <svg className={`w-3 h-3 transition-transform ${openSubMenu.includes(item.key) ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {openSubMenu.includes(item.key) && (
+                        <div className="mt-0.5 space-y-0.5">
+                          {visible(item.children).map((child) => (
+                            <Link key={child.path} to={child.path} onClick={closeSidebar}
+                              className={`flex items-center px-3 py-1.5 pl-14 rounded-lg transition-colors text-xs ${
+                                isActive(child.path) ? "bg-teal-700 text-white" : "text-teal-300 hover:bg-teal-800 hover:text-white"
+                              }`}>
+                              <span>{child.label}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <SubMenuItem
+                      key={item.path}
+                      label={item.label}
+                      to={item.path}
+                      active={isActive(item.path)}
+                      onClick={closeSidebar}
+                    />
+                  )
+                )}
+              </ParentMenu>
+            </>
+          )}
 
           {/* <MenuSection title="Operations" />
           <SidebarItem
@@ -918,7 +1061,29 @@ export default function Layout() {
             onClick={closeSidebar}
           /> */}
 
-          <MenuSection title="System" />
+          {visible(adminMenus).length > 0 && (
+            <>
+              <MenuSection title="Administration" />
+              <ParentMenu
+                icon={Icons.Settings}
+                label="Access Control"
+                isOpen={openMenu.includes("admin")}
+                onClick={() => toggleMenu("admin")}
+              >
+                {visible(adminMenus).map((item) => (
+                  <SubMenuItem
+                    key={item.path}
+                    label={item.label}
+                    to={item.path}
+                    active={isActive(item.path)}
+                    onClick={closeSidebar}
+                  />
+                ))}
+              </ParentMenu>
+            </>
+          )}
+
+          {/* <MenuSection title="System" />
           <SidebarItem
             icon={Icons.Settings}
             label="Settings"
@@ -932,7 +1097,7 @@ export default function Layout() {
             to="/support"
             active={isActive("/support")}
             onClick={closeSidebar}
-          />
+          /> */}
         </nav>
 
         {/* User Profile */}
@@ -998,7 +1163,11 @@ export default function Layout() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
-          <Outlet />
+          <Suspense key={location.pathname} fallback={<PageFallback />}>
+            <PathPermissionGate>
+              <Outlet />
+            </PathPermissionGate>
+          </Suspense>
         </div>
       </main>
     </div>

@@ -68,6 +68,8 @@ export default function LeaveRequest() {
       await put(`/hr/leave-requests/${item.id}/status`, { status: "approved" });
       Swal.fire({ icon: "success", title: isOverturn ? "Re-approved" : "Approved", timer: 1000, showConfirmButton: false });
       refresh();
+      // Tell the bell to refresh immediately — the requester just received a notification.
+      window.dispatchEvent(new CustomEvent("wen:notifications-refresh"));
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed", "error");
     }
@@ -83,6 +85,7 @@ export default function LeaveRequest() {
       Swal.fire({ icon: "success", title: "Rejected", timer: 1000, showConfirmButton: false });
       rejectTarget.refresh();
       setRejectTarget(null);
+      window.dispatchEvent(new CustomEvent("wen:notifications-refresh"));
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed", "error");
     }

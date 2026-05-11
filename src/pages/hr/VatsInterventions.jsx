@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, Pill, Section } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const LEVELS = [
   { n: 1, name: "Informal Coaching",  desc: "Private chat. Supervisor notes only — not yet in HR file.", tone: "blue",   timeline: "Within 48h, 2-week check-in" },
@@ -24,13 +26,15 @@ const DIGNITY_ITEMS = [
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
 
 export default function VatsInterventions() {
+  const { canCreate, canDelete } = useResourcePermissions("vats-interventions");
+  const location = useLocation();
   const [items, setItems] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState({ status: "", level: "" });
   const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => { fetchAll(); fetchStaff(); }, [filter]);
+  useEffect(() => { fetchAll(); fetchStaff(); }, [filter, location.key]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -65,10 +69,12 @@ export default function VatsInterventions() {
           title="Interventions — Progressive Discipline"
           subtitle="Five levels of formal correction. Every intervention requires the 6-item Dignity Protocol — no exceptions."
           actions={
-            <button onClick={() => setShowForm(true)}
-              className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">
-              + New Intervention
-            </button>
+            canCreate && (
+              <button onClick={() => setShowForm(true)}
+                className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">
+                + New Intervention
+              </button>
+            )
           }
         />
 
@@ -123,7 +129,7 @@ export default function VatsInterventions() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {items.map(i => <InterventionCard key={i.id} item={i} onDelete={remove} />)}
+            {items.map(i => <InterventionCard key={i.id} item={i} onDelete={canDelete ? remove : null} />)}
           </div>
         )}
 
@@ -168,9 +174,11 @@ function InterventionCard({ item, onDelete }) {
               <span className="text-[10px] text-gray-500">Follow-up: {item.follow_up_on?.split?.("T")[0]}</span>
             )}
           </div>
-          <div className="flex justify-end mt-2">
-            <button onClick={() => onDelete(item.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
-          </div>
+          {onDelete && (
+            <div className="flex justify-end mt-2">
+              <button onClick={() => onDelete(item.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

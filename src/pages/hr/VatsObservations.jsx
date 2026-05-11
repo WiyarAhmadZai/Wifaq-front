@@ -181,7 +181,7 @@ function ObservationCard({ item, onDelete, innerRef, pulse }) {
           <span className="text-xl flex-shrink-0">{c.emoji}</span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
-            <p className="text-[11px] text-gray-500 truncate">by {item.observer?.name || "—"} · {item.observed_on?.split?.("T")[0]}</p>
+            <p className="text-[11px] text-gray-500 truncate">by {item.observer?.name || "—"} · {item.created_at?.split?.("T")[0]}</p>
           </div>
         </div>
         <Pill tone={item.category === "positive" ? "emerald" : item.category === "concern" ? "amber" : "red"}>
@@ -212,7 +212,6 @@ function ObservationForm({ staff, onClose, onSaved }) {
     category: "positive",
     type: "excellence",
     description: "",
-    observed_on: new Date().toISOString().split("T")[0],
   });
 
   const submit = async (e) => {
@@ -269,11 +268,6 @@ function ObservationForm({ staff, onClose, onSaved }) {
               options={TYPES[form.category].map(t => ({ value: t, label: t.replace(/_/g, " ") }))}
               isClearable={false}
             />
-          </Field>
-
-          <Field label="Date">
-            <input type="date" className={inp} value={form.observed_on}
-              onChange={(e) => setForm({ ...form, observed_on: e.target.value })} required />
           </Field>
 
           <Field label="What did you observe?">

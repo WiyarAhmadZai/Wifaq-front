@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, Pill } from "../../components/hr/HrUI";
 import { CardBadge } from "./VatsDashboard";
 import Select2 from "../../components/hr/Select2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const CARDS = [
   { color: "gold",      label: "Gold",      meaning: "Extraordinary all-around excellence — the rarest card.",     positive: true },
@@ -16,12 +18,14 @@ const CARDS = [
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
 
 export default function VatsCards() {
+  const { canCreate, canDelete } = useResourcePermissions("vats-cards");
+  const location = useLocation();
   const [cards, setCards] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => { fetchAll(); fetchStaff(); }, []);
+  useEffect(() => { fetchAll(); fetchStaff(); }, [location.key]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -51,10 +55,12 @@ export default function VatsCards() {
           title="Cards Wallet"
           subtitle="Five-tier recognition & accountability cards. Top three are awards. Last two are formal concerns."
           actions={
-            <button onClick={() => setShowForm(true)}
-              className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">
-              + Issue Card
-            </button>
+            canCreate && (
+              <button onClick={() => setShowForm(true)}
+                className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">
+                + Issue Card
+              </button>
+            )
           }
         />
 
@@ -87,7 +93,7 @@ export default function VatsCards() {
             icon="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
             title="No cards issued yet"
             description="Cards are issued by HR after a pattern is clear (e.g. 10 positive recognition slips → suggest a Green Card)."
-            action={<button onClick={() => setShowForm(true)} className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Issue first card</button>}
+            action={canCreate ? <button onClick={() => setShowForm(true)} className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Issue first card</button> : null}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -105,7 +111,9 @@ export default function VatsCards() {
                   {c.citation && <p className="text-[11px] text-gray-500 mt-1.5 italic border-l-2 border-gray-200 pl-2">{c.citation}</p>}
                   <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
                     <p className="text-[10px] text-gray-400">Issued {c.issued_on?.split?.("T")[0]} by {c.issuer?.name}</p>
-                    <button onClick={() => remove(c.id)} className="text-[10px] text-red-500 hover:underline">Remove</button>
+                    {canDelete && (
+                      <button onClick={() => remove(c.id)} className="text-[10px] text-red-500 hover:underline">Remove</button>
+                    )}
                   </div>
                 </div>
               </div>

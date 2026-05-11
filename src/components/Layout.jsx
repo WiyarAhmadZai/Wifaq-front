@@ -382,10 +382,29 @@ function NotificationBell() {
   const handleClick = (n) => {
     if (!n.read_at) markAsRead(n.id);
     const d = n.data || {};
-    if (d.meeting_id) navigate(`/hr/meetings/show/${d.meeting_id}`);
-    else if (d.staff_task_id) navigate(`/hr/staff-task/show/${d.staff_task_id}`);
-    else if (d.vendor_contract_id) navigate(`/hr/vendor-contracts/show/${d.vendor_contract_id}`);
-    else if (d.agreement_id) navigate(`/hr/agreements/show/${d.agreement_id}`);
+
+    let dest;
+
+    // Leave requests: always land on the list with the row highlighted,
+    // even when the backend payload still carries an old /show/ link.
+    if (d.leave_request_id) {
+      dest = `/hr/leave-request?highlight=${d.leave_request_id}`;
+    } else if (d.link) {
+      dest = d.link;
+    } else if (d.meeting_id) {
+      dest = `/hr/meetings/show/${d.meeting_id}`;
+    } else if (d.staff_task_id) {
+      dest = `/hr/staff-task/show/${d.staff_task_id}`;
+    } else if (d.vendor_contract_id) {
+      dest = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
+    } else if (d.agreement_id) {
+      dest = `/hr/agreements/show/${d.agreement_id}`;
+    }
+
+    if (dest) {
+      const sep = dest.includes("?") ? "&" : "?";
+      navigate(`${dest}${sep}from=notif`);
+    }
     setOpen(false);
   };
 
@@ -594,6 +613,20 @@ export default function Layout() {
     ]},
     { label: "Attendance", path: "/hr/attendance", permission: "attendance.view" },
     { label: "Leave Request", path: "/hr/leave-request", permission: "leave-request.view" },
+    { label: "Holidays", path: "/hr/holidays", permission: "attendance.view" },
+    { label: "Performance (VATS)", key: "vats", children: [
+      { label: "Overview",           path: "/hr/vats",              permission: "staff.view" },
+      { label: "Daily Observations", path: "/hr/vats/observations", permission: "staff.view" },
+      { label: "Recognition Slips",  path: "/hr/vats/slips",        permission: "staff.view" },
+      { label: "Cards Wallet",       path: "/hr/vats/cards",        permission: "staff.view" },
+      { label: "Interventions",      path: "/hr/vats/interventions", permission: "staff.view" },
+    ]},
+    { label: "Welfare (Ihsan)", key: "welfare", children: [
+      { label: "My Check-in",        path: "/hr/welfare/checkin",   permission: "staff.view" },
+      { label: "Welfare Dashboard",  path: "/hr/welfare",           permission: "staff.view" },
+      { label: "Open Alerts",        path: "/hr/welfare/alerts",    permission: "staff.view" },
+      { label: "Benefits Log",       path: "/hr/welfare/benefits",  permission: "staff.view" },
+    ]},
     { label: "Add Vendor", path: "/hr/add-vendor", permission: "vendors.view" },
     { label: "Planner", key: "planner", children: [
       { label: "Meetings", path: "/hr/meetings", permission: "meetings.view" },

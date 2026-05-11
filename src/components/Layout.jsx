@@ -357,8 +357,23 @@ function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // poll every 30s
-    return () => clearInterval(interval);
+    // Poll every 15 seconds so new notifications appear quickly.
+    const interval = setInterval(fetchNotifications, 15000);
+
+    // Listen for in-app events (e.g. after approve/reject in this same tab)
+    // and refresh immediately — no waiting for the next poll cycle.
+    const onRefresh = () => fetchNotifications();
+    window.addEventListener("wen:notifications-refresh", onRefresh);
+
+    // Re-fetch when the tab regains focus (covers cross-tab approvals too).
+    const onVisible = () => { if (!document.hidden) fetchNotifications(); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("wen:notifications-refresh", onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [fetchNotifications]);
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { get, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, Pill, StatGrid } from "../../components/hr/HrUI";
@@ -7,12 +8,13 @@ import Select2 from "../../components/hr/Select2";
 const STATUS_TONE = { open: "amber", in_progress: "blue", resolved: "emerald" };
 
 export default function WelfareAlerts() {
+  const location = useLocation();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState({ status: "" });
   const [editing, setEditing] = useState(null);
 
-  useEffect(() => { fetchAll(); }, [filter]);
+  useEffect(() => { fetchAll(); }, [filter, location.key]);
 
   const fetchAll = async () => {
     setLoading(true);

@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, StatGrid } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
 
@@ -14,6 +16,8 @@ const CONCERN_TARGET  = 3;  // 3 concern slips → suggest coaching
  * who's about to hit a card consideration ("10 positive slips → Green Card").
  */
 export default function VatsSlips() {
+  const { canCreate, canDelete } = useResourcePermissions("vats-slips");
+  const location = useLocation();
   const [slips, setSlips] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,7 +25,7 @@ export default function VatsSlips() {
   const [form, setForm] = useState({ staff_id: "", kind: "positive", reason: "" });
   const [thresholds, setThresholds] = useState([]);
 
-  useEffect(() => { fetchAll(); fetchStaff(); fetchThresholds(); }, [filter]);
+  useEffect(() => { fetchAll(); fetchStaff(); fetchThresholds(); }, [filter, location.key]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -99,7 +103,8 @@ export default function VatsSlips() {
           { label: "Pos:Neg ratio", value: concern > 0 ? (positive / concern).toFixed(1) + ":1" : "∞", tone: "blue", icon: "M16 8v8m-4-5v5m-4-2v2", hint: "Healthy: 3:1+" },
         ]} />
 
-        {/* Quick-record form */}
+        {/* Quick-record form — only for users who can create */}
+        {canCreate && (
         <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
           <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700 mb-3">⚡ Quick Record (10 seconds)</p>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -139,6 +144,7 @@ export default function VatsSlips() {
             </div>
           </div>
         </form>
+        )}
 
         {/* Threshold panels */}
         {(nearCard.length > 0 || nearCoaching.length > 0) && (
@@ -204,7 +210,9 @@ export default function VatsSlips() {
                     <p className="text-xs text-gray-500 truncate">{s.reason}</p>
                   </div>
                   <span className="text-[10px] text-gray-400 hidden sm:block">{s.issued_on?.split?.("T")[0]}</span>
-                  <button onClick={() => remove(s.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
+                  {canDelete && (
+                    <button onClick={() => remove(s.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
+                  )}
                 </div>
               ))}
             </div>

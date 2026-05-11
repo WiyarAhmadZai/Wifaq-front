@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { get, del, put } from "../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../admin/context/AuthContext";
@@ -28,6 +28,12 @@ export default function CrudPage({
    * If omitted, all buttons remain visible (legacy behaviour).
    */
   permissionBase = null,
+  /**
+   * Optional render-prop for extra buttons in the row Actions cell.
+   * Signature: `(item, refresh) => ReactNode`. The `refresh` callback re-fetches
+   * the list — call it after a mutation so the row updates immediately.
+   */
+  rowActions = null,
 }) {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -41,6 +47,14 @@ export default function CrudPage({
   const canUpdate = permCheck("update");
   const canDelete = permCheck("delete");
   const canView = permCheck("view");
+
+  // Highlight support: when arriving with ?highlight=ID, scroll that row into
+  // view and ring it briefly so the user sees exactly which item the
+  // notification was about.
+  const location = useLocation();
+  const highlightId = new URLSearchParams(location.search).get("highlight");
+  const [pulseActive, setPulseActive] = useState(false);
+  const rowRefs = useRef({});
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -85,6 +99,20 @@ export default function CrudPage({
   }, [apiEndpoint, searchQuery, JSON.stringify(baseParams)]);
 
   useEffect(() => { fetchItems(1, ""); }, []);
+
+  // Once items are loaded and the URL carries ?highlight=ID, scroll to that row
+  // and pulse it for ~2.5s.
+  useEffect(() => {
+    if (!highlightId || items.length === 0) return;
+    const target = rowRefs.current[String(highlightId)];
+    if (!target) return;
+    requestAnimationFrame(() => {
+      try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {}
+      setPulseActive(true);
+    });
+    const tmr = setTimeout(() => setPulseActive(false), 2500);
+    return () => clearTimeout(tmr);
+  }, [highlightId, items]);
 
   const handleSearch = (e) => {
     const query = e.target.value;
@@ -206,8 +234,17 @@ export default function CrudPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {items.map((item, index) => (
-                  <tr key={item[idField]} className="hover:bg-gray-50/80 transition-colors">
+                {items.map((item, index) => {
+                  const isHighlighted = highlightId && String(item[idField]) === String(highlightId);
+                  return (
+                  <tr key={item[idField]}
+                    ref={(el) => { if (el) rowRefs.current[String(item[idField])] = el; }}
+                    className={
+                      "transition-shadow duration-500 " +
+                      (isHighlighted && pulseActive
+                        ? "bg-teal-50 outline outline-2 outline-teal-400 outline-offset-[-2px] animate-pulse"
+                        : "hover:bg-gray-50/80")
+                    }>
                     <td className="px-4 py-3 text-xs font-medium text-teal-600">#{String((meta.current_page - 1) * meta.per_page + index + 1).padStart(4, "0")}</td>
                     {listColumns.map(col => (
                       <td key={col.key} className="px-4 py-3 text-sm text-gray-700">
@@ -215,7 +252,8 @@ export default function CrudPage({
                       </td>
                     ))}
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
+                        {rowActions && rowActions(item, () => fetchItems(meta.current_page, searchQuery))}
                         {canView && showRoute && (
                           <button onClick={() => navigate(`${showRoute}/${item[idField]}`)}
                             className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
@@ -243,7 +281,8 @@ export default function CrudPage({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

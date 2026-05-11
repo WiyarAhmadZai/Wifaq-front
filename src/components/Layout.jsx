@@ -367,25 +367,34 @@ function NotificationBell() {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  // Mark read in the API + REMOVE from the local list so the bell shows only
+  // fresh notifications. The full history is still visible at /finance/inbox.
   const markAsRead = async (id) => {
     try { await put(`/notifications/${id}/read`); } catch {}
-    setNotifications((p) => p.map((n) => n.id === id ? { ...n, read_at: new Date().toISOString() } : n));
+    setNotifications((p) => p.filter((n) => n.id !== id));
     setUnreadCount((p) => Math.max(0, p - 1));
   };
 
   const markAllRead = async () => {
     try { await put("/notifications/read-all"); } catch {}
-    setNotifications((p) => p.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
+    setNotifications([]);
     setUnreadCount(0);
   };
 
   const handleClick = (n) => {
-    if (!n.read_at) markAsRead(n.id);
     const d = n.data || {};
-    if (d.meeting_id) navigate(`/hr/meetings/show/${d.meeting_id}`);
-    else if (d.staff_task_id) navigate(`/hr/staff-task/show/${d.staff_task_id}`);
-    else if (d.vendor_contract_id) navigate(`/hr/vendor-contracts/show/${d.vendor_contract_id}`);
-    else if (d.agreement_id) navigate(`/hr/agreements/show/${d.agreement_id}`);
+    // Resolve the target page: explicit `link` field first (works for any
+    // notification type that wants to define its own deep link — e.g. the
+    // new fee_invoice_overdue), then fall back to type-specific routing.
+    let target = null;
+    if (d.link) target = d.link;
+    else if (d.invoice_id) target = `/finance/fee-invoices/show/${d.invoice_id}`;
+    else if (d.meeting_id) target = `/hr/meetings/show/${d.meeting_id}`;
+    else if (d.staff_task_id) target = `/hr/staff-task/show/${d.staff_task_id}`;
+    else if (d.vendor_contract_id) target = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
+    else if (d.agreement_id) target = `/hr/agreements/show/${d.agreement_id}`;
+    if (!n.read_at) markAsRead(n.id);
+    if (target) navigate(target);
     setOpen(false);
   };
 
@@ -416,7 +425,31 @@ function NotificationBell() {
     if (data?.type === "agreement") {
       return { bg: "bg-purple-100", color: "text-purple-600", path: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" };
     }
+    if (data?.type === "fee_invoice_overdue") {
+      return { bg: "bg-red-100", color: "text-red-600", path: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" };
+    }
+    if (data?.type === "daily_fee_summary") {
+      return { bg: "bg-amber-100", color: "text-amber-600", path: "M9 17v-2a4 4 0 014-4h4m0 0l-3-3m3 3l-3 3M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" };
+    }
     return { bg: "bg-blue-100", color: "text-blue-600", path: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" };
+  };
+
+  // Build the headline text for a notification card in the bell. Different
+  // notification types carry different fields — render a useful one-liner
+  // instead of falling back to "New notification".
+  const renderMessage = (data) => {
+    if (!data) return "New notification";
+    if (data.type === "fee_invoice_overdue") {
+      const who = data.student_name || `Student #${data.student_id || "?"}`;
+      const days = data.days_overdue || 0;
+      const amt = Number(data.amount_due || 0).toLocaleString();
+      return `${who} — ${days} day${days === 1 ? "" : "s"} overdue · ${amt} AFN`;
+    }
+    if (data.type === "daily_fee_summary") {
+      const s = data.summary || {};
+      return `Daily summary: ${s.overdue_count || 0} overdue, ${s.due_soon_count || 0} due soon`;
+    }
+    return data.message || data.title || "New notification";
   };
 
   return (
@@ -446,17 +479,22 @@ function NotificationBell() {
             )}
           </div>
 
-          {/* List */}
+          {/* List — only unread items are shown in the bell so it always
+              reflects what needs attention. Read history lives at /finance/inbox. */}
           <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center">
-                <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                <p className="text-xs text-gray-400">No notifications yet</p>
-              </div>
-            ) : (
-              notifications.map((n) => {
+            {(() => {
+              const unreadOnly = notifications.filter((n) => !n.read_at);
+              if (unreadOnly.length === 0) {
+                return (
+                  <div className="px-4 py-8 text-center">
+                    <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <p className="text-xs text-gray-400">You're all caught up</p>
+                  </div>
+                );
+              }
+              return unreadOnly.map((n) => {
                 const icon = getIcon(n.data);
                 const isUnread = !n.read_at;
                 return (
@@ -469,7 +507,7 @@ function NotificationBell() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-[11px] leading-relaxed ${isUnread ? "text-gray-800 font-semibold" : "text-gray-600"}`}>
-                        {n.data?.message || "New notification"}
+                        {renderMessage(n.data)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[9px] text-gray-400">{timeAgo(n.created_at)}</span>
@@ -484,8 +522,8 @@ function NotificationBell() {
                     {isUnread && <div className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-2"></div>}
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         </div>
       )}

@@ -20,6 +20,7 @@ export default function FinanceInbox() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [filter, setFilter] = useState("unread"); // 'unread' | 'read' | 'all'
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -99,16 +100,25 @@ export default function FinanceInbox() {
     }
   };
 
+  // Tab filter: only show items matching the chosen mode.
+  const visibleItems = useMemo(() => {
+    if (filter === "unread") return items.filter((n) => !n.read_at);
+    if (filter === "read")   return items.filter((n) =>  n.read_at);
+    return items;
+  }, [items, filter]);
+
   // Separate the overdue-invoice notifications so we can show them in a
   // dedicated, richer section above the generic "All notifications" list.
   const overdueNotifs = useMemo(
-    () => (items || []).filter((n) => n?.data?.type === "fee_invoice_overdue"),
-    [items]
+    () => (visibleItems || []).filter((n) => n?.data?.type === "fee_invoice_overdue"),
+    [visibleItems]
   );
+
+  const readCount = items.filter((n) => n.read_at).length;
 
   return (
     <div className="px-4 py-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-base font-bold text-gray-800">Finance Inbox</h2>
           <p className="text-xs text-gray-500">Your daily finance alerts and actions</p>
@@ -131,6 +141,25 @@ export default function FinanceInbox() {
             Refresh
           </button>
         </div>
+      </div>
+
+      {/* Unread / Read / All tabs */}
+      <div className="mb-4 inline-flex items-center bg-gray-100 rounded-lg p-0.5">
+        {[
+          ["unread", `Unread (${unreadCount})`],
+          ["read",   `Read (${readCount})`],
+          ["all",    `All (${items.length})`],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              filter === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -244,30 +273,56 @@ export default function FinanceInbox() {
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">All notifications</h3>
-              <span className="text-[10px] text-gray-500">Showing latest 50</span>
+              <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wider">
+                {filter === "unread" ? "Unread notifications" : filter === "read" ? "Read notifications" : "All notifications"}
+              </h3>
+              <span className="text-[10px] text-gray-500">
+                {visibleItems.length} of {items.length}
+              </span>
             </div>
 
-            {items.length === 0 ? (
-              <div className="py-10 text-center text-xs text-gray-400">No notifications yet</div>
+            {visibleItems.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-sm text-gray-700 font-medium">
+                  {filter === "unread" ? "You're all caught up" : "Nothing here"}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {filter === "unread"
+                    ? "All your notifications are read."
+                    : filter === "read"
+                      ? "You haven't read any notifications yet."
+                      : "No notifications yet."}
+                </p>
+              </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {items.map((n) => {
+                {visibleItems.map((n) => {
                   const unread = !n.read_at;
-                  const isDaily = n?.data?.type === "daily_fee_summary";
-                  const title = n?.data?.title || (isDaily ? "Daily fee collection summary" : "Notification");
-                  const message = n?.data?.message || (isDaily ? "Fee summary generated" : "");
+                  const d = n?.data || {};
+                  const isDaily = d.type === "daily_fee_summary";
+                  const isOverdue = d.type === "fee_invoice_overdue";
+                  const title = isOverdue
+                    ? `${d.student_name || "Student"} — ${d.days_overdue || 0} day${(d.days_overdue || 0) === 1 ? "" : "s"} overdue`
+                    : (d.title || (isDaily ? "Daily fee collection summary" : "Notification"));
+                  const message = isOverdue
+                    ? `${d.invoice_number} · ${fmtMoney(d.amount_due)} AFN owed${d.class_name ? ` · ${d.class_name}` : ""}`
+                    : (d.message || (isDaily ? "Fee summary generated" : ""));
+                  const goToTarget = () => {
+                    if (d.link) navigate(d.link);
+                    else if (d.invoice_id) navigate(`/finance/fee-invoices/show/${d.invoice_id}`);
+                    else if (isDaily) openFeeInvoices("overdue");
+                  };
 
                   return (
                     <div key={n.id} className={`px-4 py-3 flex items-start justify-between gap-3 ${unread ? "bg-teal-50/30" : ""}`}>
-                      <div className="min-w-0">
+                      <button onClick={goToTarget} className="min-w-0 flex-1 text-left">
                         <p className={`text-xs ${unread ? "font-semibold text-gray-800" : "text-gray-700"}`}>{title}</p>
                         {message && <p className="text-[11px] text-gray-500 mt-0.5 truncate">{message}</p>}
                         <p className="text-[10px] text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
-                      </div>
+                      </button>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {isDaily && (
-                          <button onClick={() => openFeeInvoices("overdue")} className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-semibold text-gray-700 hover:border-teal-300">
+                        {(isDaily || isOverdue || d.link) && (
+                          <button onClick={goToTarget} className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-semibold text-gray-700 hover:border-teal-300">
                             View
                           </button>
                         )}

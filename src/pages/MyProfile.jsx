@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { get, put, post } from '../api/axios';
 import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
+import Select2 from '../components/hr/Select2';
 
 const CONTRACT_LABELS = {
   full_time: "Full Time", part_time: "Part Time", contract: "Contract",
@@ -221,6 +222,15 @@ export default function MyProfile() {
                 </div>
               </Section>
             )}
+
+            {/* Self-profile (skills, dreams, growth areas) — staff-owned narrative */}
+            {profile.type === 'staff' && profile.is_self && <SelfProfileSection />}
+
+            {/* Leave balance (read-only summary) */}
+            {profile.type === 'staff' && profile.is_self && <LeaveBalanceSection />}
+
+            {/* My leave requests with live status */}
+            {profile.type === 'staff' && profile.is_self && <MyLeaveRequestsSection />}
           </div>
 
           <div className="space-y-4">
@@ -310,6 +320,292 @@ export default function MyProfile() {
   );
 }
 
+/* ─────────────── Self-profile (skills, dreams, growth) ─────────────── */
+
+function SelfProfileSection() {
+  const [data, setData] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    try { const r = await get("/self-profile"); setData(r.data?.data || {}); }
+    catch { setData({}); }
+  };
+
+  const save = async (form) => {
+    setSaving(true);
+    try {
+      const r = await put("/self-profile", form);
+      setData(r.data?.data || form);
+      setEditing(false);
+      Swal.fire({ icon: "success", title: "Saved", timer: 1000, showConfirmButton: false });
+    } catch (err) { Swal.fire("Error", err.response?.data?.message || "Failed", "error"); }
+    finally { setSaving(false); }
+  };
+
+  if (!data) return null;
+
+  return (
+    <Section
+      title="My Story (Self-Profile)"
+      icon="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+    >
+      <div className="flex justify-between items-center mb-4">
+        <span className="text-xs text-gray-500">Tell us who you are and where you want to grow. The appraiser sees this every year.</span>
+        <button onClick={() => setEditing(true)}
+          className="px-3 py-1 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">
+          Edit
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <NarrativeField label="🎓 Education" value={data.education} />
+        <NarrativeField label="🌍 Languages" value={(data.languages || []).join(", ")} />
+        <NarrativeField label="💼 Previous Experience" value={data.previous_experience} />
+        <NarrativeField label="⚡ Skills" value={(data.skills || []).join(", ")} />
+        <NarrativeField label="🏅 Certifications" value={(data.certifications || []).join(", ")} />
+        <NarrativeField label="💪 My Strengths" value={data.strengths} />
+        <NarrativeField label="🌱 What I Want to Grow" value={data.growth_areas} className="md:col-span-2" />
+        <NarrativeField label="🚀 My Aspirations" value={data.aspirations} className="md:col-span-2" />
+      </div>
+
+      {editing && <SelfProfileEditor data={data} onClose={() => setEditing(false)} onSave={save} saving={saving} />}
+    </Section>
+  );
+}
+
+function NarrativeField({ label, value, className = "" }) {
+  return (
+    <div className={`p-3 bg-gray-50 rounded-xl ${className}`}>
+      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-sm text-gray-800 leading-snug whitespace-pre-line">{value || <span className="text-gray-300 italic">Not yet shared</span>}</p>
+    </div>
+  );
+}
+
+function SelfProfileEditor({ data, onClose, onSave, saving }) {
+  const [form, setForm] = useState({
+    education: data.education || "",
+    languages: (data.languages || []).join(", "),
+    previous_experience: data.previous_experience || "",
+    skills: (data.skills || []).join(", "),
+    certifications: (data.certifications || []).join(", "),
+    strengths: data.strengths || "",
+    aspirations: data.aspirations || "",
+    growth_areas: data.growth_areas || "",
+  });
+  const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
+
+  const handle = (e) => {
+    e.preventDefault();
+    onSave({
+      education: form.education,
+      languages: form.languages.split(",").map(s => s.trim()).filter(Boolean),
+      previous_experience: form.previous_experience,
+      skills: form.skills.split(",").map(s => s.trim()).filter(Boolean),
+      certifications: form.certifications.split(",").map(s => s.trim()).filter(Boolean),
+      strengths: form.strengths,
+      aspirations: form.aspirations,
+      growth_areas: form.growth_areas,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-gray-100 bg-teal-600 text-white rounded-t-2xl">
+          <h3 className="text-sm font-bold">Edit My Story</h3>
+          <p className="text-[11px] text-teal-100 mt-0.5">This is your space — tell us who you are.</p>
+        </div>
+        <form onSubmit={handle} className="p-5 space-y-3">
+          <Field2 label="🎓 Education">
+            <textarea rows={2} className={inp} value={form.education} onChange={(e) => setForm({ ...form, education: e.target.value })} placeholder="Degree, college, year…" />
+          </Field2>
+          <Field2 label="🌍 Languages (comma-separated)">
+            <input className={inp} value={form.languages} onChange={(e) => setForm({ ...form, languages: e.target.value })} placeholder="Dari, Pashto, English" />
+          </Field2>
+          <Field2 label="💼 Previous Experience">
+            <textarea rows={3} className={inp} value={form.previous_experience} onChange={(e) => setForm({ ...form, previous_experience: e.target.value })} />
+          </Field2>
+          <Field2 label="⚡ Skills (comma-separated)">
+            <input className={inp} value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="Lesson planning, Excel, public speaking" />
+          </Field2>
+          <Field2 label="🏅 Certifications (comma-separated)">
+            <input className={inp} value={form.certifications} onChange={(e) => setForm({ ...form, certifications: e.target.value })} />
+          </Field2>
+          <Field2 label="💪 My strengths (what do I do best?)">
+            <textarea rows={2} className={inp} value={form.strengths} onChange={(e) => setForm({ ...form, strengths: e.target.value })} />
+          </Field2>
+          <Field2 label="🌱 Where I want to grow (next 12 months)">
+            <textarea rows={2} className={inp} value={form.growth_areas} onChange={(e) => setForm({ ...form, growth_areas: e.target.value })} />
+          </Field2>
+          <Field2 label="🚀 Long-term aspirations">
+            <textarea rows={2} className={inp} value={form.aspirations} onChange={(e) => setForm({ ...form, aspirations: e.target.value })} />
+          </Field2>
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50">
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Field2({ label, children }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+/* ─────────────── My leave requests (with status + rejection reason) ─────────────── */
+
+function MyLeaveRequestsSection() {
+  const navigate = useNavigate();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    get('/hr/leave-requests/mine')
+      .then((r) => setItems(r.data?.data || []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const statusTone = {
+    pending:  { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'Pending'  },
+    approved: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Approved' },
+    rejected: { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'Rejected' },
+  };
+
+  const daysBetween = (fromIso, toIso) => {
+    if (!fromIso) return 0;
+    const from = new Date(fromIso);
+    const to = toIso ? new Date(toIso) : from;
+    return Math.floor((to - from) / 86400000) + 1;
+  };
+
+  return (
+    <Section
+      title="My Leave Requests"
+      icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+    >
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-xs text-gray-500">Your submitted requests and where they stand</span>
+        <button
+          onClick={() => navigate('/hr/leave-request/create')}
+          className="px-3 py-1 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700"
+        >
+          + New request
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-4 text-xs text-gray-400">Loading…</div>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-4">No leave requests yet. Click "New request" to submit one.</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map((r) => {
+            const tone = statusTone[r.status] || statusTone.pending;
+            const days = daysBetween(r.from_date, r.to_date);
+            return (
+              <div key={r.id}
+                className={`${tone.bg} rounded-xl p-3 cursor-pointer hover:shadow-sm transition-shadow`}
+                onClick={() => navigate(`/hr/leave-request/show/${r.id}`)}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-sm font-bold text-gray-800 capitalize flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${tone.dot}`} />
+                    {r.leave_type?.replace(/_/g, ' ')} · {days} day{days === 1 ? '' : 's'}
+                  </p>
+                  <span className={`${tone.text} text-[10px] font-bold uppercase`}>{tone.label}</span>
+                </div>
+                <p className="text-[11px] text-gray-600">
+                  {r.from_date?.split('T')[0]}{r.to_date ? ` → ${r.to_date.split('T')[0]}` : ''}
+                </p>
+                {r.status === 'rejected' && r.rejection_reason && (
+                  <p className="text-[11px] text-red-700 mt-1.5 italic border-l-2 border-red-300 pl-2">
+                    Reason: {r.rejection_reason}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/* ─────────────── Leave balance summary ─────────────── */
+
+function LeaveBalanceSection() {
+  const [data, setData] = useState({ data: [], year: new Date().getFullYear() });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    get("/leave-balances").then(r => setData(r.data || { data: [] })).catch(() => setData({ data: [] })).finally(() => setLoading(false));
+  }, []);
+
+  const tones = {
+    annual: { bg: "bg-emerald-50", text: "text-emerald-700", icon: "🌴" },
+    sick: { bg: "bg-red-50", text: "text-red-700", icon: "🤒" },
+    casual: { bg: "bg-blue-50", text: "text-blue-700", icon: "🌤" },
+    personal: { bg: "bg-purple-50", text: "text-purple-700", icon: "🙏" },
+    maternity: { bg: "bg-pink-50", text: "text-pink-700", icon: "👶" },
+  };
+
+  return (
+    <Section
+      title={`Leave Balance · ${data.year || new Date().getFullYear()}`}
+      icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+      locked
+      lockMessage="Set by HR"
+    >
+      {loading ? (
+        <div className="text-center py-4 text-xs text-gray-400">Loading…</div>
+      ) : !data.data?.length ? (
+        <p className="text-xs text-gray-400 text-center py-4">No leave allocations yet for this year. HR will set them.</p>
+      ) : (
+        <div className="space-y-2">
+          {data.data.map(b => {
+            const t = tones[b.leave_type] || { bg: "bg-gray-50", text: "text-gray-700", icon: "🗓" };
+            const total = parseFloat(b.allocated || 0) + parseFloat(b.carried_over || 0);
+            const used = parseFloat(b.used || 0);
+            const remaining = parseFloat(b.remaining || (total - used));
+            const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+            return (
+              <div key={b.id} className={`${t.bg} rounded-xl p-3`}>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <p className={`text-sm font-bold ${t.text} capitalize flex items-center gap-1.5`}>
+                    <span>{t.icon}</span> {b.leave_type}
+                  </p>
+                  <p className="text-xs">
+                    <span className="font-black text-gray-800">{remaining.toFixed(1)}</span>
+                    <span className="text-gray-500"> / {total.toFixed(1)} days left</span>
+                  </p>
+                </div>
+                <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
+                  <div className="bg-gray-400 h-full transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">{used.toFixed(1)} day(s) used so far</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 /* ─────────────────────── shared ─────────────────────── */
 
 function Section({ title, icon, children, onEdit, editable, locked, lockMessage }) {
@@ -396,10 +692,12 @@ function PersonalModal({ profile, onClose, onSave, saving }) {
         </div>
         <div>
           <label className={lbl}>Blood Type</label>
-          <select className={inp} value={form.blood_type} onChange={(e) => setForm({ ...form, blood_type: e.target.value })}>
-            <option value="">Select…</option>
-            {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
+          <Select2
+            value={form.blood_type}
+            onChange={(v) => setForm({ ...form, blood_type: v })}
+            options={BLOOD_TYPES}
+            placeholder="Select blood type…"
+          />
         </div>
         <div className="flex gap-2 pt-2">
           <button type="button" className={btnSecondary} onClick={onClose}>Cancel</button>
@@ -463,10 +761,12 @@ function EmploymentModal({ profile, onClose, onSave, saving }) {
         </div>
         <div>
           <label className={lbl}>Branch</label>
-          <select className={inp} value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
-            <option value="">Select…</option>
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+          <Select2
+            value={form.branch_id}
+            onChange={(v) => setForm({ ...form, branch_id: v })}
+            options={branches.map(b => ({ value: b.id, label: b.name }))}
+            placeholder="Search branch…"
+          />
         </div>
         <div>
           <label className={lbl}>Role / Position</label>
@@ -474,24 +774,33 @@ function EmploymentModal({ profile, onClose, onSave, saving }) {
         </div>
         <div>
           <label className={lbl}>Contract Type</label>
-          <select className={inp} value={form.contract_type} onChange={(e) => setForm({ ...form, contract_type: e.target.value })}>
-            <option value="">Select…</option>
-            <option value="full_time">Full Time</option>
-            <option value="part_time">Part Time</option>
-            <option value="contract">Contract</option>
-            <option value="temporary">Temporary</option>
-            <option value="internship">Internship</option>
-          </select>
+          <Select2
+            value={form.contract_type}
+            onChange={(v) => setForm({ ...form, contract_type: v })}
+            options={[
+              { value: "full_time", label: "Full Time" },
+              { value: "part_time", label: "Part Time" },
+              { value: "contract", label: "Contract" },
+              { value: "temporary", label: "Temporary" },
+              { value: "internship", label: "Internship" },
+            ]}
+            placeholder="Select contract type…"
+          />
         </div>
         <div>
           <label className={lbl}>Status</label>
-          <select className={inp} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="on_leave">On Leave</option>
-            <option value="suspended">Suspended</option>
-            <option value="terminated">Terminated</option>
-          </select>
+          <Select2
+            value={form.status}
+            onChange={(v) => setForm({ ...form, status: v || "active" })}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+              { value: "on_leave", label: "On Leave" },
+              { value: "suspended", label: "Suspended" },
+              { value: "terminated", label: "Terminated" },
+            ]}
+            isClearable={false}
+          />
         </div>
         <div className="flex gap-2 pt-2">
           <button type="button" className={btnSecondary} onClick={onClose}>Cancel</button>

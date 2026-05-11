@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, put } from "../../api/axios";
+import { get, put, post } from "../../api/axios";
+import Swal from "sweetalert2";
+
+const fmtMoney = (n) => Number(n || 0).toLocaleString();
 
 function timeAgo(date) {
   if (!date) return "";
@@ -71,6 +74,38 @@ export default function FinanceInbox() {
     navigate(`/finance/fee-invoices?status=${encodeURIComponent(status)}`);
   };
 
+  // Manual trigger for the overdue-invoice detection. Bypasses the 30-min
+  // cache the auto-runner uses on every GET /notifications.
+  const [checking, setChecking] = useState(false);
+  const checkOverdueNow = async () => {
+    setChecking(true);
+    try {
+      const res = await post("/financial/fees/check-overdue");
+      const { flipped = 0, notified = 0 } = res.data?.data || {};
+      if (flipped === 0) {
+        Swal.fire("All caught up", "No newly overdue invoices found.", "success");
+      } else {
+        Swal.fire(
+          "Overdue check complete",
+          `${flipped} invoice${flipped === 1 ? "" : "s"} flipped to overdue · ${notified} notification${notified === 1 ? "" : "s"} sent.`,
+          "success"
+        );
+      }
+      await fetchNotifications();
+    } catch (err) {
+      Swal.fire("Check failed", err.response?.data?.message || "Could not run overdue check.", "error");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // Separate the overdue-invoice notifications so we can show them in a
+  // dedicated, richer section above the generic "All notifications" list.
+  const overdueNotifs = useMemo(
+    () => (items || []).filter((n) => n?.data?.type === "fee_invoice_overdue"),
+    [items]
+  );
+
   return (
     <div className="px-4 py-4">
       <div className="flex items-center justify-between mb-4">
@@ -84,6 +119,14 @@ export default function FinanceInbox() {
               Mark all read
             </button>
           )}
+          <button
+            onClick={checkOverdueNow}
+            disabled={checking}
+            className="px-3 py-1.5 bg-white border border-amber-300 text-amber-700 rounded-lg text-xs font-semibold hover:bg-amber-50 disabled:opacity-50"
+            title="Scan invoices whose due date has passed and notify about new overdue ones"
+          >
+            {checking ? "Checking…" : "Check overdue now"}
+          </button>
           <button onClick={fetchNotifications} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700">
             Refresh
           </button>
@@ -128,6 +171,76 @@ export default function FinanceInbox() {
               </div>
             )}
           </div>
+
+          {overdueNotifs.length > 0 && (
+            <div className="bg-white rounded-xl border border-red-200 overflow-hidden mb-4">
+              <div className="px-4 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-semibold text-red-800 uppercase tracking-wider">
+                    Overdue invoices ({overdueNotifs.length})
+                  </h3>
+                  <p className="text-[10px] text-red-700 mt-0.5">
+                    Students whose payment is past due — open the invoice or message the parent.
+                  </p>
+                </div>
+                <button
+                  onClick={() => openFeeInvoices("overdue")}
+                  className="px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-100"
+                >
+                  See all overdue
+                </button>
+              </div>
+              <div className="divide-y divide-gray-100 max-h-[420px] overflow-auto">
+                {overdueNotifs.map((n) => {
+                  const d = n.data || {};
+                  const unread = !n.read_at;
+                  return (
+                    <div key={n.id} className={`px-4 py-3 flex items-start justify-between gap-3 ${unread ? "bg-red-50/30" : ""}`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <p className={`text-xs ${unread ? "font-bold text-red-900" : "font-semibold text-gray-800"}`}>
+                            {d.student_name || `Student #${d.student_id || "?"}`}
+                          </p>
+                          {d.class_name && <span className="text-[10px] text-gray-500">{d.class_name}</span>}
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-700 border border-red-200">
+                            {d.days_overdue || 0} day{(d.days_overdue || 0) === 1 ? "" : "s"} overdue
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-600 mt-0.5">
+                          {d.invoice_number} · Due {d.due_date} ·{" "}
+                          <span className="font-semibold text-red-700">{fmtMoney(d.amount_due)} AFN</span> owed
+                        </p>
+                        {d.parent_phone && (
+                          <p className="text-[10px] text-gray-500 mt-0.5">📱 {d.parent_phone}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {d.invoice_id && (
+                          <button
+                            onClick={() => {
+                              if (unread) markAsRead(n.id);
+                              navigate(`/finance/fee-invoices/show/${d.invoice_id}`);
+                            }}
+                            className="px-2.5 py-1 bg-teal-600 text-white rounded-lg text-[10px] font-semibold hover:bg-teal-700"
+                          >
+                            Open invoice
+                          </button>
+                        )}
+                        {unread && (
+                          <button
+                            onClick={() => markAsRead(n.id)}
+                            className="px-2.5 py-1 bg-white border border-gray-200 text-gray-700 rounded-lg text-[10px] font-semibold hover:border-teal-300"
+                          >
+                            Read
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">

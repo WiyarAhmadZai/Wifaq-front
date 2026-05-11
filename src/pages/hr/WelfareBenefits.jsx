@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, StatGrid } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const TYPES = [
   { value: "grant",          label: "Grant",            color: "emerald", icon: "🎁" },
@@ -17,13 +19,15 @@ const TYPES = [
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
 
 export default function WelfareBenefits() {
+  const { canCreate, canDelete } = useResourcePermissions("welfare-benefits");
+  const location = useLocation();
   const [items, setItems] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState({ type: "" });
 
-  useEffect(() => { fetchAll(); fetchStaff(); }, [filter]);
+  useEffect(() => { fetchAll(); fetchStaff(); }, [filter, location.key]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -58,10 +62,12 @@ export default function WelfareBenefits() {
           title="Welfare Benefits Log"
           subtitle="A record of every act of care: grants, advances, medical help, children's fees, counseling. This is how we honour our obligation to staff."
           actions={
-            <button onClick={() => setShowForm(true)}
-              className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">
-              + Record Help
-            </button>
+            canCreate && (
+              <button onClick={() => setShowForm(true)}
+                className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">
+                + Record Help
+              </button>
+            )
           }
         />
 
@@ -96,11 +102,11 @@ export default function WelfareBenefits() {
             icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
             title="Nothing recorded yet"
             description="Use this log every time WEN provides any kind of support to a staff member — financial, medical, emotional. The total tells our story."
-            action={<button onClick={() => setShowForm(true)} className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Record first benefit</button>}
+            action={canCreate ? <button onClick={() => setShowForm(true)} className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Record first benefit</button> : null}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {items.map(b => <BenefitCard key={b.id} benefit={b} onDelete={remove} />)}
+            {items.map(b => <BenefitCard key={b.id} benefit={b} onDelete={canDelete ? remove : null} />)}
           </div>
         )}
 
@@ -141,7 +147,9 @@ function BenefitCard({ benefit, onDelete }) {
             <p className="text-[10px] text-gray-500">
               {benefit.granted_on?.split?.("T")[0]} · {benefit.approver?.name || "—"}
             </p>
-            <button onClick={() => onDelete(benefit.id)} className="text-[10px] text-red-500 hover:underline">Remove</button>
+            {onDelete && (
+              <button onClick={() => onDelete(benefit.id)} className="text-[10px] text-red-500 hover:underline">Remove</button>
+            )}
           </div>
         </div>
       </div>

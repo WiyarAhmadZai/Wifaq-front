@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, StatGrid, EmptyState, Spinner, Pill } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 const TYPES = {
   positive: ["excellence", "initiative", "growth", "collaboration", "innovation", "dedication"],
@@ -19,13 +21,37 @@ const CATEGORY_STYLE = {
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors";
 
 export default function VatsObservations() {
+  const { canCreate, canDelete } = useResourcePermissions("vats-observations");
+  const location = useLocation();
   const [items, setItems] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState({ category: "", staff_id: "" });
+  const [pulseActive, setPulseActive] = useState(false);
+  const rowRefs = useRef({});
 
-  useEffect(() => { fetchAll(); fetchStaff(); }, [filter]);
+  // Read highlight & from-notif markers each render so they react to URL changes.
+  const searchParams = new URLSearchParams(location.search);
+  const highlightId = searchParams.get("highlight");
+  const fromNotif = searchParams.get("from") === "notif";
+
+  // Re-fetch on filter change AND on every URL change (so clicking a notification
+  // while already on this page shows the latest data instead of stale results).
+  useEffect(() => { fetchAll(); fetchStaff(); }, [filter, location.key]);
+
+  // Scroll the highlighted row into view and ring it briefly.
+  useEffect(() => {
+    if (!fromNotif || !highlightId || items.length === 0) return;
+    const target = rowRefs.current[String(highlightId)];
+    if (!target) return;
+    requestAnimationFrame(() => {
+      try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {}
+      setPulseActive(true);
+    });
+    const tmr = setTimeout(() => setPulseActive(false), 2500);
+    return () => clearTimeout(tmr);
+  }, [fromNotif, highlightId, items]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -60,11 +86,13 @@ export default function VatsObservations() {
           title="Daily Observations"
           subtitle="Specific, factual notes about what staff are doing. These are the building blocks of the year-end appraisal."
           actions={
-            <button onClick={() => setShowForm(true)}
-              className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50 flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-              New
-            </button>
+            canCreate && (
+              <button onClick={() => setShowForm(true)}
+                className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                New
+              </button>
+            )
           }
         />
 
@@ -108,11 +136,22 @@ export default function VatsObservations() {
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"
             title="No observations yet"
             description="Log what you saw today — good or concerning. The year-end appraisal is built from these notes. Try to log a few praise observations every week — recognition is what builds the culture."
-            action={<button onClick={() => setShowForm(true)} className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Log first observation</button>}
+            action={canCreate ? <button onClick={() => setShowForm(true)} className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Log first observation</button> : null}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {items.map(o => <ObservationCard key={o.id} item={o} onDelete={remove} />)}
+            {items.map(o => {
+              const isTarget = String(o.id) === String(highlightId);
+              return (
+                <ObservationCard
+                  key={o.id}
+                  item={o}
+                  onDelete={canDelete ? remove : null}
+                  innerRef={(el) => { if (el) rowRefs.current[String(o.id)] = el; }}
+                  pulse={isTarget && pulseActive}
+                />
+              );
+            })}
           </div>
         )}
 
@@ -128,12 +167,15 @@ export default function VatsObservations() {
   );
 }
 
-function ObservationCard({ item, onDelete }) {
+function ObservationCard({ item, onDelete, innerRef, pulse }) {
   const c = CATEGORY_STYLE[item.category] || CATEGORY_STYLE.positive;
   const name = item.staff?.application?.full_name || item.staff?.employee_id || `Staff #${item.staff_id}`;
 
   return (
-    <div className={`rounded-2xl border ${c.border} ${c.bg} p-4 flex flex-col gap-2 hover:shadow-md transition-shadow`}>
+    <div ref={innerRef}
+      className={`rounded-2xl border ${c.border} ${c.bg} p-4 flex flex-col gap-2 transition-shadow duration-500 ${
+        pulse ? "ring-4 ring-teal-300 ring-offset-2 animate-pulse" : "hover:shadow-md"
+      }`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0 flex-1">
           <span className="text-xl flex-shrink-0">{c.emoji}</span>
@@ -155,7 +197,9 @@ function ObservationCard({ item, onDelete }) {
               Acknowledged
             </span>
           : <span className="text-[10px] text-gray-400">Pending acknowledgement</span>}
-        <button onClick={() => onDelete(item.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
+        {onDelete && (
+          <button onClick={() => onDelete(item.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
+        )}
       </div>
     </div>
   );

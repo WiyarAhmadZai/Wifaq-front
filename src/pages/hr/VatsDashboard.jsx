@@ -117,7 +117,7 @@ export default function VatsDashboard() {
                     </p>
                     <p className="text-[11px] text-gray-500 truncate">{o.description}</p>
                   </div>
-                  <span className="text-[10px] text-gray-400 hidden sm:block">{o.observed_on?.split?.("T")[0]}</span>
+                  <span className="text-[10px] text-gray-400 hidden sm:block">{o.created_at?.split?.("T")[0]}</span>
                 </div>
               ))}
               {obs.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Nothing yet</p>}

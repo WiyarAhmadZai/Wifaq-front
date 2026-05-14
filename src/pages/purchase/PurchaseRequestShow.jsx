@@ -12,7 +12,7 @@ import {
   deleteQuotation,
   setWinningQuote,
 } from "../../api/purchaseRequests";
-import { getAccounts } from "../../api/financial";
+import { getAccounts, getParties } from "../../api/financial";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 
@@ -42,6 +42,7 @@ export default function PurchaseRequestShow() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [staffParties, setStaffParties] = useState([]);
 
   useEffect(() => { fetchPR(); /* eslint-disable-next-line */ }, [id]);
 
@@ -59,6 +60,16 @@ export default function PurchaseRequestShow() {
         setVendors(Array.isArray(rows) ? rows : []);
       })
       .catch(() => setVendors([]));
+
+    // Staff parties for the "who did the purchase" picker in the Complete
+    // modal. We filter to staff-type only so the user can't accidentally
+    // assign a vendor party as the runner.
+    getParties({ party_type: "staff", per_page: 200 })
+      .then((r) => {
+        const rows = r.data?.data?.data || r.data?.data || [];
+        setStaffParties(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => setStaffParties([]));
   }, []);
 
   const fetchPR = async () => {
@@ -226,6 +237,24 @@ export default function PurchaseRequestShow() {
             <div className="text-[10px] text-gray-400">{new Date(pr.procured_at).toLocaleString()}</div>
           </Panel>
         )}
+        {pr.executed_by_party_id && (
+          <Panel label="Purchased by (party)">
+            {pr.executed_by_party?.full_name || `Party #${pr.executed_by_party_id}`}
+            {/* Click-through to that staff party's ledger — handy if the
+                school is also tracking their advances. */}
+            {pr.executed_by_party?.id && (
+              <div className="mt-1 text-[10px]">
+                <a href={`/finance/parties/${pr.executed_by_party.id}/ledger`}
+                  onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${pr.executed_by_party.id}/ledger`); }}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100">
+                  <span className="font-mono">{pr.executed_by_party.party_code}</span>
+                  <span>·</span>
+                  <span>open ledger</span>
+                </a>
+              </div>
+            )}
+          </Panel>
+        )}
         {pr.vendor_id && (
           <Panel label="Vendor">
             {pr.vendor?.name || `#${pr.vendor_id}`}
@@ -248,8 +277,22 @@ export default function PurchaseRequestShow() {
             )}
           </Panel>
         )}
+        {pr.paid_from_party_id && (
+          <Panel label="Settled against (party advance)">
+            {pr.paid_from_party?.full_name || `Party #${pr.paid_from_party_id}`}
+            <div className="mt-1 text-[10px]">
+              <a href={`/finance/parties/${pr.paid_from_party_id}/ledger`}
+                onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${pr.paid_from_party_id}/ledger`); }}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100">
+                <span className="font-mono">{pr.paid_from_party?.party_code}</span>
+                <span>·</span>
+                <span>open ledger</span>
+              </a>
+            </div>
+          </Panel>
+        )}
         {pr.paid_from_account_id && (
-          <Panel label="Paid from">
+          <Panel label="Paid from (account)">
             {pr.paid_from_account?.account_name || `Account #${pr.paid_from_account_id}`}
           </Panel>
         )}
@@ -380,11 +423,18 @@ export default function PurchaseRequestShow() {
         <CompleteModal
           pr={pr}
           accounts={accounts}
+          staffParties={staffParties}
           busy={busy}
           onClose={() => setCompleteOpen(false)}
-          onConfirm={async ({ paidFromAccountId, completedAt }) => {
+          onConfirm={async ({ paidFromPartyId, paidFromAccountId, completedAt, actualAmount, executedByPartyId }) => {
             setCompleteOpen(false);
-            await runAction("Complete", () => completePurchaseRequest(id, { paidFromAccountId, completedAt }));
+            await runAction("Complete", () => completePurchaseRequest(id, {
+              paidFromPartyId,
+              paidFromAccountId,
+              completedAt,
+              actualAmount,
+              executedByPartyId,
+            }));
           }}
         />
       )}
@@ -563,19 +613,62 @@ function AddQuoteForm({ vendors, busy, onAdd }) {
   );
 }
 
-function CompleteModal({ pr, accounts, busy, onClose, onConfirm }) {
+function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm }) {
+  // Default the actual paid amount to the winning quote when one exists;
+  // otherwise fall back to the planned estimated_total. This is the number
+  // we'll post to the journal — the user can override to record receipt
+  // variance.
+  const winningQuote = (pr.quotations || []).find((q) => q.is_winner);
+  const defaultAmount = winningQuote
+    ? Number(winningQuote.quotation_amount)
+    : Number(pr.estimated_total) || 0;
+
+  // Mode: "party" is the primary flow (settle staff advance). "account" is
+  // the fallback (direct cash payment, no party involved).
+  const [mode, setMode] = useState("party");
+  const [paidFromPartyId, setPaidFromPartyId] = useState("");
   const [paidFromAccountId, setPaidFromAccountId] = useState("");
+  const [executedByPartyId, setExecutedByPartyId] = useState("");
+  const [actualAmount, setActualAmount] = useState(defaultAmount);
   const [completedAt, setCompletedAt] = useState(today());
   const [error, setError] = useState(null);
+
+  const amountNum = Number(actualAmount) || 0;
+  const variance = amountNum - (Number(pr.estimated_total) || 0);
+
+  // For party-mode warning: check whether the chosen party has enough
+  // advance balance to cover this purchase. Positive balance = party owes
+  // school (i.e. has an advance to spend).
+  const selectedParty = staffParties.find((p) => String(p.id) === String(paidFromPartyId));
+  const partyBalance = Number(selectedParty?.balance || 0);
+  const shortBalance = mode === "party" && selectedParty && partyBalance < amountNum;
 
   const submit = (e) => {
     e.preventDefault();
     setError(null);
-    if (!paidFromAccountId) {
+    if (mode === "party" && !paidFromPartyId) {
+      setError("Pick the staff party whose advance covers this purchase.");
+      return;
+    }
+    if (mode === "account" && !paidFromAccountId) {
       setError("Pick the cash / bank account that paid for these goods.");
       return;
     }
-    onConfirm({ paidFromAccountId: Number(paidFromAccountId), completedAt });
+    if (amountNum <= 0) {
+      setError("Actual amount must be greater than zero.");
+      return;
+    }
+    onConfirm({
+      paidFromPartyId: mode === "party" ? Number(paidFromPartyId) : null,
+      paidFromAccountId: mode === "account" ? Number(paidFromAccountId) : null,
+      // If the user didn't pick a separate runner, the paying party is the
+      // runner by default. (Server applies the same default — belt-and-suspenders.)
+      executedByPartyId: executedByPartyId
+        ? Number(executedByPartyId)
+        : (mode === "party" && paidFromPartyId ? Number(paidFromPartyId) : null),
+      actualAmount: amountNum,
+      completedAt,
+    });
   };
 
   return (
@@ -588,8 +681,8 @@ function CompleteModal({ pr, accounts, busy, onClose, onConfirm }) {
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none -mt-1">✕</button>
           </div>
           <p className="text-[11px] text-gray-500 leading-relaxed">
-            Mark all items as received and post the journal entry. The selected account is debited
-            for the total ({fmt(pr.estimated_total)} AFN).
+            Mark all items as received and post the journal entry. The selected
+            account is debited for the actual amount paid.
             {pr.items?.some((it) => it.stock_id) && (
               <> Linked stock rows will be incremented automatically.</>
             )}
@@ -599,37 +692,152 @@ function CompleteModal({ pr, accounts, busy, onClose, onConfirm }) {
             <div className="bg-red-50 border border-red-200 text-red-700 text-[11px] rounded-lg px-3 py-2">{error}</div>
           )}
 
-          <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Money paid from *</label>
-            {accounts.length === 0 ? (
-              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                No cash / bank accounts found. Add one under Finance → Setup → Accounts first.
+          {/* Amount + completion date */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Actual amount (AFN) *</label>
+              <input
+                type="number" min="0.01" step="0.01"
+                value={actualAmount}
+                onChange={(e) => setActualAmount(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">
+                {winningQuote
+                  ? <>Default = winning quote ({fmt(winningQuote.quotation_amount)} AFN from {winningQuote.vendor?.name || "vendor"}).</>
+                  : <>Default = estimated total ({fmt(pr.estimated_total)} AFN).</>}
               </p>
-            ) : (
-              <div className="max-h-44 overflow-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
-                {accounts.map((a) => {
-                  const sel = String(paidFromAccountId) === String(a.id);
-                  return (
-                    <button key={a.id} type="button" onClick={() => setPaidFromAccountId(a.id)}
-                      className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
-                        sel ? "bg-teal-50" : "hover:bg-gray-50"
-                      }`}>
-                      <div>
-                        <p className={`text-xs font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{a.account_name}</p>
-                        <p className="text-[10px] text-gray-400 capitalize">{a.account_type}</p>
-                      </div>
-                      <p className="text-[10px] text-gray-500">{fmt(a.current_balance)} AFN</p>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+              {Math.abs(variance) > 0.5 && (
+                <p className={`text-[10px] mt-0.5 ${variance > 0 ? "text-red-700" : "text-emerald-700"}`}>
+                  Variance vs planned: {variance > 0 ? "+" : ""}{fmt(variance)} AFN
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Completion date</label>
+              <input type="date" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
+            </div>
           </div>
 
+          {/* Mode toggle — party (primary) vs account (fallback) */}
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Completion date</label>
-            <input type="date" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Settle against *</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setMode("party")}
+                className={`text-left border rounded-lg p-2.5 transition-colors ${
+                  mode === "party"
+                    ? "bg-teal-600 border-teal-600 text-white"
+                    : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"
+                }`}>
+                <p className={`text-xs font-bold ${mode === "party" ? "text-white" : "text-gray-800"}`}>Staff Party advance</p>
+                <p className={`text-[10px] mt-0.5 ${mode === "party" ? "text-teal-100" : "text-gray-500"}`}>
+                  Primary — clears their advance balance.
+                </p>
+              </button>
+              <button type="button" onClick={() => setMode("account")}
+                className={`text-left border rounded-lg p-2.5 transition-colors ${
+                  mode === "account"
+                    ? "bg-teal-600 border-teal-600 text-white"
+                    : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"
+                }`}>
+                <p className={`text-xs font-bold ${mode === "account" ? "text-white" : "text-gray-800"}`}>Cash / bank account</p>
+                <p className={`text-[10px] mt-0.5 ${mode === "account" ? "text-teal-100" : "text-gray-500"}`}>
+                  Fallback — direct payment to vendor.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* Party picker — visible in party mode */}
+          {mode === "party" && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Staff party *</label>
+              {staffParties.length === 0 ? (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                  No staff parties yet. Create one at Finance → Setup → Parties, then give them an advance first.
+                </p>
+              ) : (
+                <div className="max-h-44 overflow-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
+                  {staffParties.map((p) => {
+                    const sel = String(paidFromPartyId) === String(p.id);
+                    const bal = Number(p.balance || 0);
+                    const ok = bal > 0;
+                    return (
+                      <button key={p.id} type="button" onClick={() => setPaidFromPartyId(p.id)}
+                        className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
+                          sel ? "bg-teal-50" : "hover:bg-gray-50"
+                        }`}>
+                        <div>
+                          <p className={`text-xs font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{p.full_name}</p>
+                          <p className="text-[10px] text-gray-400 font-mono">{p.party_code}</p>
+                        </div>
+                        <p className={`text-[10px] font-semibold ${
+                          ok ? "text-emerald-700" : bal < 0 ? "text-amber-700" : "text-gray-400"
+                        }`}>
+                          {bal > 0 ? `+${fmt(bal)} AFN advance` : bal < 0 ? `${fmt(bal)} AFN (school owes)` : "settled"}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {shortBalance && (
+                <p className="text-[10px] text-amber-700 mt-1.5">
+                  ⚠ Party's current advance ({fmt(partyBalance)} AFN) is less than the purchase amount —
+                  their balance will go negative (school will owe them the difference).
+                </p>
+              )}
+              <p className="text-[10px] text-gray-400 mt-1">
+                Posting Dr Expense / Cr Staff Receivables — settles the party's advance balance.
+              </p>
+            </div>
+          )}
+
+          {/* Account picker — visible in account mode */}
+          {mode === "account" && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Money paid from *</label>
+              {accounts.length === 0 ? (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                  No cash / bank accounts found. Add one under Finance → Setup → Accounts first.
+                </p>
+              ) : (
+                <div className="max-h-44 overflow-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
+                  {accounts.map((a) => {
+                    const sel = String(paidFromAccountId) === String(a.id);
+                    return (
+                      <button key={a.id} type="button" onClick={() => setPaidFromAccountId(a.id)}
+                        className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
+                          sel ? "bg-teal-50" : "hover:bg-gray-50"
+                        }`}>
+                        <div>
+                          <p className={`text-xs font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{a.account_name}</p>
+                          <p className="text-[10px] text-gray-400 capitalize">{a.account_type}</p>
+                        </div>
+                        <p className="text-[10px] text-gray-500">{fmt(a.current_balance)} AFN</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Who physically went and bought it — optional override */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Purchased by (optional)</label>
+            <select value={executedByPartyId}
+              onChange={(e) => setExecutedByPartyId(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500">
+              <option value="">{mode === "party" && paidFromPartyId ? "— same as paying party —" : "— not specified —"}</option>
+              {staffParties.map((p) => (
+                <option key={p.id} value={p.id}>{p.full_name} ({p.party_code})</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Defaults to the paying party. Override only if a different staff member did the legwork.
+            </p>
           </div>
 
           <div className="flex gap-2 pt-2 border-t border-gray-100">

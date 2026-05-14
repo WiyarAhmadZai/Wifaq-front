@@ -14,13 +14,35 @@ export const submitPurchaseRequest   = (id)               => post(`${BASE}/${id}
 export const approvePurchaseRequest  = (id)               => post(`${BASE}/${id}/approve`);
 export const rejectPurchaseRequest   = (id, reason)       => post(`${BASE}/${id}/reject`, { reason });
 export const procurePurchaseRequest  = (id, vendorId)     => post(`${BASE}/${id}/procure`, { vendor_id: vendorId ?? null });
-// Phase B: completion requires the cash/bank account the goods were paid from
-// so the server can post a balanced journal entry. `invoiceId` stays optional.
-export const completePurchaseRequest = (id, { paidFromAccountId, invoiceId = null, completedAt = null } = {}) =>
+// Completion has two payment modes — pass EXACTLY ONE:
+//   paidFromPartyId    — primary flow: settle a staff Party's advance (the
+//                        usual case — school had previously given them cash
+//                        and the PR records what they spent it on).
+//   paidFromAccountId  — fallback: pay the vendor directly from a cash/bank
+//                        account (no party advance involved).
+// Other fields:
+//   actualAmount       — what we actually paid (defaults to winning quote /
+//                        estimated_total on the frontend; override allowed
+//                        for receipt variance).
+//   executedByPartyId  — Staff Party who physically ran the errand. Often
+//                        the same as paidFromPartyId — server defaults to it
+//                        when this is left null.
+//   invoiceId          — optional vendor-invoice link.
+export const completePurchaseRequest = (id, {
+  paidFromPartyId = null,
+  paidFromAccountId = null,
+  invoiceId = null,
+  completedAt = null,
+  actualAmount = null,
+  executedByPartyId = null,
+} = {}) =>
   post(`${BASE}/${id}/complete`, {
+    paid_from_party_id: paidFromPartyId,
     paid_from_account_id: paidFromAccountId,
     invoice_id: invoiceId,
     completed_at: completedAt,
+    actual_amount: actualAmount,
+    executed_by_party_id: executedByPartyId,
   });
 export const cancelPurchaseRequest   = (id, reason)       => post(`${BASE}/${id}/cancel`, { reason: reason ?? null });
 

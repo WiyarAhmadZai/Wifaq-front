@@ -35,6 +35,8 @@ export const completePurchaseRequest = (id, {
   completedAt = null,
   actualAmount = null,
   executedByPartyId = null,
+  vendorInvoiceNumber = null,
+  actualItems = null,
 } = {}) =>
   post(`${BASE}/${id}/complete`, {
     paid_from_party_id: paidFromPartyId,
@@ -43,6 +45,8 @@ export const completePurchaseRequest = (id, {
     completed_at: completedAt,
     actual_amount: actualAmount,
     executed_by_party_id: executedByPartyId,
+    vendor_invoice_number: vendorInvoiceNumber,
+    actual_items: actualItems,
   });
 export const cancelPurchaseRequest   = (id, reason)       => post(`${BASE}/${id}/cancel`, { reason: reason ?? null });
 

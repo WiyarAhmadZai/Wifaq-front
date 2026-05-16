@@ -302,10 +302,56 @@ export default function PurchaseRequestShow() {
             <div className="text-[10px] text-gray-400">{pr.journal_entry?.transaction_date}</div>
           </Panel>
         )}
+        {pr.vendor_invoice_number && (
+          <Panel label="Bill / invoice number">
+            <span className="font-mono">{pr.vendor_invoice_number}</span>
+          </Panel>
+        )}
+        {pr.actual_amount != null && (
+          <Panel label="Actual paid">
+            <span className="font-mono font-semibold">{fmt(pr.actual_amount)} AFN</span>
+            {Number(pr.estimated_total) > 0 && Math.abs(Number(pr.actual_amount) - Number(pr.estimated_total)) > 0.5 && (
+              <div className="text-[10px] text-gray-400">
+                planned {fmt(pr.estimated_total)} AFN
+              </div>
+            )}
+          </Panel>
+        )}
         {pr.invoice_id && (
           <Panel label="Linked invoice">{pr.invoice?.invoice_number || `#${pr.invoice_id}`}</Panel>
         )}
       </div>
+
+      {/* Actual purchased items — the real receipt recorded at completion.
+          Distinct from the planned line items below; this is what was
+          physically bought (may include extras like A4, glass, rent). */}
+      {Array.isArray(pr.actual_items) && pr.actual_items.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
+          <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold text-gray-700">Actual purchased items</p>
+              <p className="text-[10px] text-gray-400">What was physically bought — recorded at completion{pr.vendor_invoice_number ? ` · bill #${pr.vendor_invoice_number}` : ""}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase bg-white border-b border-gray-50">
+            <span>Item</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {pr.actual_items.map((it, idx) => (
+              <div key={idx} className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-xs">
+                <span className="text-gray-800">{it.name}</span>
+                <span className="text-right text-gray-600 font-mono">{fmt(it.quantity)}</span>
+                <span className="text-right text-gray-600 font-mono">{fmt(it.unit_price)}</span>
+                <span className="text-right text-gray-800 font-mono font-semibold">{fmt(it.line_total ?? (Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-end px-4 py-2.5 bg-teal-50 border-t border-teal-100 text-sm">
+            <span className="text-teal-700 font-semibold mr-3">Total paid</span>
+            <span className="font-mono font-bold text-teal-800">{fmt(pr.actual_amount)} AFN</span>
+          </div>
+        </div>
+      )}
 
       {/* Quotations (Phase C).
           Always shown while the PR can still take quotes (draft/pending) so
@@ -431,7 +477,7 @@ export default function PurchaseRequestShow() {
           staffParties={staffParties}
           busy={busy}
           onClose={() => setCompleteOpen(false)}
-          onConfirm={async ({ paidFromPartyId, paidFromAccountId, completedAt, actualAmount, executedByPartyId }) => {
+          onConfirm={async ({ paidFromPartyId, paidFromAccountId, completedAt, actualAmount, executedByPartyId, vendorInvoiceNumber, actualItems }) => {
             setCompleteOpen(false);
             await runAction("Complete", () => completePurchaseRequest(id, {
               paidFromPartyId,
@@ -439,6 +485,8 @@ export default function PurchaseRequestShow() {
               completedAt,
               actualAmount,
               executedByPartyId,
+              vendorInvoiceNumber,
+              actualItems,
             }));
           }}
         />
@@ -619,26 +667,57 @@ function AddQuoteForm({ vendors, busy, onAdd }) {
 }
 
 function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm }) {
-  // Default the actual paid amount to the winning quote when one exists;
-  // otherwise fall back to the planned estimated_total. This is the number
-  // we'll post to the journal — the user can override to record receipt
-  // variance.
-  const winningQuote = (pr.quotations || []).find((q) => q.is_winner);
-  const defaultAmount = winningQuote
-    ? Number(winningQuote.quotation_amount)
-    : Number(pr.estimated_total) || 0;
-
   // Mode: "party" is the primary flow (settle staff advance). "account" is
   // the fallback (direct cash payment, no party involved).
   const [mode, setMode] = useState("party");
   const [paidFromPartyId, setPaidFromPartyId] = useState("");
   const [paidFromAccountId, setPaidFromAccountId] = useState("");
   const [executedByPartyId, setExecutedByPartyId] = useState("");
-  const [actualAmount, setActualAmount] = useState(defaultAmount);
   const [completedAt, setCompletedAt] = useState(today());
+  const [billNumber, setBillNumber] = useState("");
   const [error, setError] = useState(null);
 
-  const amountNum = Number(actualAmount) || 0;
+  // Winning quote = the agreed price with the vendor. The pre-filled receipt
+  // should default to THAT total, not the planned estimate.
+  const winningQuote = (pr.quotations || []).find((q) => q.is_winner);
+  const winningAmount = winningQuote ? Number(winningQuote.quotation_amount) || 0 : 0;
+
+  // Actual purchased items — the REAL receipt. Pre-filled from the planned PR
+  // lines (so the breakdown/quantities are kept) but unit prices are scaled
+  // so the line totals add up to the WINNING QUOTE when one exists. The
+  // runner then just tweaks and adds extras (A4, glass, rent…). The amount
+  // posted is the sum of these — never typed by hand.
+  const [items, setItems] = useState(() => {
+    const planned = (pr.items || []).map((it) => ({
+      name: it.item_name,
+      quantity: Number(it.quantity) || 1,
+      unit_price: Number(it.estimated_unit_price) || 0,
+    }));
+    if (!planned.length) {
+      // No line items — seed a single row at the quote amount if we have one.
+      return [{ name: winningQuote ? `Per quote — ${winningQuote.vendor?.name || "vendor"}` : "", quantity: 1, unit_price: winningAmount || "" }];
+    }
+    const plannedTotal = planned.reduce((s, it) => s + it.quantity * it.unit_price, 0);
+    if (winningAmount > 0 && plannedTotal > 0) {
+      const factor = winningAmount / plannedTotal;
+      return planned.map((it) => ({
+        ...it,
+        unit_price: Math.round(it.unit_price * factor * 100) / 100,
+      }));
+    }
+    return planned;
+  });
+
+  const updateItem = (i, patch) =>
+    setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  const addItem    = () => setItems((arr) => [...arr, { name: "", quantity: 1, unit_price: "" }]);
+  const removeItem = (i) =>
+    setItems((arr) => (arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i)));
+
+  const amountNum = items.reduce(
+    (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
+    0
+  );
   const variance = amountNum - (Number(pr.estimated_total) || 0);
 
   // For party-mode warning: check whether the chosen party has enough
@@ -660,9 +739,16 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
       return;
     }
     if (amountNum <= 0) {
-      setError("Actual amount must be greater than zero.");
+      setError("Add at least one item with a price — the receipt total can't be zero.");
       return;
     }
+    const cleanItems = items
+      .filter((it) => String(it.name).trim())
+      .map((it) => ({
+        name: String(it.name).trim(),
+        quantity: Number(it.quantity) || 1,
+        unit_price: Number(it.unit_price) || 0,
+      }));
     onConfirm({
       paidFromPartyId: mode === "party" ? Number(paidFromPartyId) : null,
       paidFromAccountId: mode === "account" ? Number(paidFromAccountId) : null,
@@ -673,186 +759,235 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
         : (mode === "party" && paidFromPartyId ? Number(paidFromPartyId) : null),
       actualAmount: amountNum,
       completedAt,
+      vendorInvoiceNumber: billNumber.trim() || null,
+      actualItems: cleanItems.length ? cleanItems : null,
     });
   };
 
+  const labelCls = "block text-[11px] font-semibold text-gray-600 mb-1.5";
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-auto"
+    <div className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5 my-8">
-        <form onSubmit={submit} className="space-y-4">
-          <div className="flex items-start justify-between mb-1">
-            <h3 className="text-base font-bold text-teal-700">Complete purchase request</h3>
-            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none -mt-1">✕</button>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+
+        {/* Sticky header */}
+        <div className="flex items-start gap-3 px-6 py-4 border-b border-gray-100 bg-teal-50/50">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-teal-100 text-teal-700">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-          <p className="text-[11px] text-gray-500 leading-relaxed">
-            Mark all items as received and post the journal entry. The selected
-            account is debited for the actual amount paid.
-            {pr.items?.some((it) => it.stock_id) && (
-              <> Linked stock rows will be incremented automatically.</>
-            )}
-          </p>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-[11px] rounded-lg px-3 py-2">{error}</div>
-          )}
-
-          {/* Amount + completion date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Actual amount (AFN) *</label>
-              <input
-                type="number" min="0.01" step="0.01"
-                value={actualAmount}
-                onChange={(e) => setActualAmount(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-              <p className="text-[10px] text-gray-400 mt-1">
-                {winningQuote
-                  ? <>Default = winning quote ({fmt(winningQuote.quotation_amount)} AFN from {winningQuote.vendor?.name || "vendor"}).</>
-                  : <>Default = estimated total ({fmt(pr.estimated_total)} AFN).</>}
-              </p>
-              {Math.abs(variance) > 0.5 && (
-                <p className={`text-[10px] mt-0.5 ${variance > 0 ? "text-red-700" : "text-emerald-700"}`}>
-                  Variance vs planned: {variance > 0 ? "+" : ""}{fmt(variance)} AFN
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Completion date</label>
-              <input type="date" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
-            </div>
-          </div>
-
-          {/* Mode toggle — party (primary) vs account (fallback) */}
-          <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Settle against *</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setMode("party")}
-                className={`text-left border rounded-lg p-2.5 transition-colors ${
-                  mode === "party"
-                    ? "bg-teal-600 border-teal-600 text-white"
-                    : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"
-                }`}>
-                <p className={`text-xs font-bold ${mode === "party" ? "text-white" : "text-gray-800"}`}>Staff Party advance</p>
-                <p className={`text-[10px] mt-0.5 ${mode === "party" ? "text-teal-100" : "text-gray-500"}`}>
-                  Primary — clears their advance balance.
-                </p>
-              </button>
-              <button type="button" onClick={() => setMode("account")}
-                className={`text-left border rounded-lg p-2.5 transition-colors ${
-                  mode === "account"
-                    ? "bg-teal-600 border-teal-600 text-white"
-                    : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"
-                }`}>
-                <p className={`text-xs font-bold ${mode === "account" ? "text-white" : "text-gray-800"}`}>Cash / bank account</p>
-                <p className={`text-[10px] mt-0.5 ${mode === "account" ? "text-teal-100" : "text-gray-500"}`}>
-                  Fallback — direct payment to vendor.
-                </p>
-              </button>
-            </div>
-          </div>
-
-          {/* Party picker — visible in party mode */}
-          {mode === "party" && (
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Staff party *</label>
-              {staffParties.length === 0 ? (
-                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                  No staff parties yet. Create one at Finance → Setup → Parties, then give them an advance first.
-                </p>
-              ) : (
-                <div className="max-h-44 overflow-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
-                  {staffParties.map((p) => {
-                    const sel = String(paidFromPartyId) === String(p.id);
-                    const bal = Number(p.balance || 0);
-                    const ok = bal > 0;
-                    return (
-                      <button key={p.id} type="button" onClick={() => setPaidFromPartyId(p.id)}
-                        className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
-                          sel ? "bg-teal-50" : "hover:bg-gray-50"
-                        }`}>
-                        <div>
-                          <p className={`text-xs font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{p.full_name}</p>
-                          <p className="text-[10px] text-gray-400 font-mono">{p.party_code}</p>
-                        </div>
-                        <p className={`text-[10px] font-semibold ${
-                          ok ? "text-emerald-700" : bal < 0 ? "text-amber-700" : "text-gray-400"
-                        }`}>
-                          {bal > 0 ? `+${fmt(bal)} AFN advance` : bal < 0 ? `${fmt(bal)} AFN (school owes)` : "settled"}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {shortBalance && (
-                <p className="text-[10px] text-amber-700 mt-1.5">
-                  ⚠ Party's current advance ({fmt(partyBalance)} AFN) is less than the purchase amount —
-                  their balance will go negative (school will owe them the difference).
-                </p>
-              )}
-              <p className="text-[10px] text-gray-400 mt-1">
-                Posting Dr Expense / Cr Staff Receivables — settles the party's advance balance.
-              </p>
-            </div>
-          )}
-
-          {/* Account picker — visible in account mode */}
-          {mode === "account" && (
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Money paid from *</label>
-              {accounts.length === 0 ? (
-                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                  No cash / bank accounts found. Add one under Finance → Setup → Accounts first.
-                </p>
-              ) : (
-                <div className="max-h-44 overflow-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
-                  {accounts.map((a) => {
-                    const sel = String(paidFromAccountId) === String(a.id);
-                    return (
-                      <button key={a.id} type="button" onClick={() => setPaidFromAccountId(a.id)}
-                        className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors ${
-                          sel ? "bg-teal-50" : "hover:bg-gray-50"
-                        }`}>
-                        <div>
-                          <p className={`text-xs font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{a.account_name}</p>
-                          <p className="text-[10px] text-gray-400 capitalize">{a.account_type}</p>
-                        </div>
-                        <p className="text-[10px] text-gray-500">{fmt(a.current_balance)} AFN</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Who physically went and bought it — optional override */}
-          <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Purchased by (optional)</label>
-            <select value={executedByPartyId}
-              onChange={(e) => setExecutedByPartyId(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500">
-              <option value="">{mode === "party" && paidFromPartyId ? "— same as paying party —" : "— not specified —"}</option>
-              {staffParties.map((p) => (
-                <option key={p.id} value={p.id}>{p.full_name} ({p.party_code})</option>
-              ))}
-            </select>
-            <p className="text-[10px] text-gray-400 mt-1">
-              Defaults to the paying party. Override only if a different staff member did the legwork.
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold text-teal-700">Complete — goods received</h3>
+            <p className="text-[11px] text-gray-500 leading-snug mt-0.5">
+              Record the real receipt: what was actually bought, the bill number, and who paid.
+              {pr.items?.some((it) => it.stock_id) && <> Linked stock auto-increments.</>}
             </p>
           </div>
+          <button type="button" onClick={onClose}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition flex-shrink-0">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
 
-          <div className="flex gap-2 pt-2 border-t border-gray-100">
-            <button type="submit" disabled={busy}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-semibold disabled:opacity-50">
-              {busy ? "Posting…" : "Confirm — post journal entry"}
-            </button>
+        {/* Context strip */}
+        <div className="px-6 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-[11px]">
+          <span className="text-gray-500">{pr.request_number} · planned <span className="font-mono">{fmt(pr.estimated_total)} AFN</span></span>
+          <span className="text-gray-500">
+            Receipt total{" "}
+            <span className={`font-bold font-mono ${Math.abs(variance) > 0.5 ? (variance > 0 ? "text-red-600" : "text-emerald-600") : "text-gray-800"}`}>
+              {fmt(amountNum)} AFN
+            </span>
+            {Math.abs(variance) > 0.5 && (
+              <span className={variance > 0 ? "text-red-600" : "text-emerald-600"}>
+                {" "}({variance > 0 ? "+" : ""}{fmt(variance)} vs plan)
+              </span>
+            )}
+          </span>
+        </div>
+
+        <form onSubmit={submit} className="flex flex-col min-h-0 flex-1">
+          <div className="px-6 py-5 space-y-5 overflow-y-auto">
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2.5 flex items-start gap-2">
+                <svg className="w-4 h-4 flex-shrink-0 mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Bill number + completion date */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Bill / invoice number</label>
+                <input type="text" value={billNumber} onChange={(e) => setBillNumber(e.target.value)}
+                  maxLength={100} placeholder="Number on the vendor's receipt"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+              </div>
+              <div>
+                <label className={labelCls}>Completion date</label>
+                <input type="date" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+              </div>
+            </div>
+
+            {/* Purchased items — pre-filled from the plan, editable */}
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-700">Purchased items</p>
+                  <p className="text-[10px] text-gray-400">
+                    {winningQuote
+                      ? <>Pre-filled to the winning quote ({fmt(winningAmount)} AFN — {winningQuote.vendor?.name || "vendor"}) — adjust and add extras (A4, glass, rent…)</>
+                      : <>Pre-filled from the request — adjust prices and add extras (A4, glass, rent…)</>}
+                  </p>
+                </div>
+                <button type="button" onClick={addItem}
+                  className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[11px] font-semibold text-teal-600 hover:bg-teal-50 hover:border-teal-200 transition flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Add item
+                </button>
+              </div>
+              <div className="grid grid-cols-[1fr_4rem_6rem_5.5rem_1.5rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-white border-b border-gray-50">
+                <span>Item</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span><span></span>
+              </div>
+              <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
+                {items.map((it, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_4rem_6rem_5.5rem_1.5rem] gap-2 px-4 py-2 items-center">
+                    <input type="text" value={it.name} onChange={(e) => updateItem(i, { name: e.target.value })}
+                      placeholder="e.g. A4 paper / Rent"
+                      className="px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+                    <input type="number" min="0" step="0.01" value={it.quantity} onChange={(e) => updateItem(i, { quantity: e.target.value })}
+                      className="px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+                    <input type="number" min="0" step="0.01" value={it.unit_price} onChange={(e) => updateItem(i, { unit_price: e.target.value })}
+                      className="px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+                    <span className="text-right text-sm font-mono text-gray-700">
+                      {fmt((Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}
+                    </span>
+                    <button type="button" onClick={() => removeItem(i)} disabled={items.length === 1}
+                      className="w-6 h-6 rounded-md flex items-center justify-center text-gray-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent transition">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between px-4 py-3 bg-teal-50 border-t border-teal-100">
+                <span className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide">Total paid (posts to books)</span>
+                <span className="text-lg font-bold font-mono text-teal-800">{fmt(amountNum)} <span className="text-xs font-normal">AFN</span></span>
+              </div>
+            </div>
+
+            {/* Settle against — party (primary) vs account (fallback) */}
+            <div>
+              <label className={labelCls}>Settle against *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setMode("party")}
+                  className={`text-left border rounded-lg p-3 transition-colors ${
+                    mode === "party" ? "bg-teal-600 border-teal-600 text-white" : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"
+                  }`}>
+                  <p className={`text-sm font-bold ${mode === "party" ? "text-white" : "text-gray-800"}`}>Staff Party advance</p>
+                  <p className={`text-[10px] mt-0.5 ${mode === "party" ? "text-teal-100" : "text-gray-500"}`}>Primary — clears their advance balance.</p>
+                </button>
+                <button type="button" onClick={() => setMode("account")}
+                  className={`text-left border rounded-lg p-3 transition-colors ${
+                    mode === "account" ? "bg-teal-600 border-teal-600 text-white" : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"
+                  }`}>
+                  <p className={`text-sm font-bold ${mode === "account" ? "text-white" : "text-gray-800"}`}>Cash / bank account</p>
+                  <p className={`text-[10px] mt-0.5 ${mode === "account" ? "text-teal-100" : "text-gray-500"}`}>Fallback — direct payment to vendor.</p>
+                </button>
+              </div>
+            </div>
+
+            {mode === "party" && (
+              <div>
+                <label className={labelCls}>Staff party *</label>
+                {staffParties.length === 0 ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    No staff parties yet. Create one at Finance → Setup → Parties, then give them an advance first.
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                    {staffParties.map((p) => {
+                      const sel = String(paidFromPartyId) === String(p.id);
+                      const bal = Number(p.balance || 0);
+                      return (
+                        <button key={p.id} type="button" onClick={() => setPaidFromPartyId(p.id)}
+                          className={`w-full text-left px-3 py-2.5 flex items-center justify-between transition-colors ${
+                            sel ? "bg-teal-50 ring-1 ring-inset ring-teal-200" : "hover:bg-gray-50"
+                          }`}>
+                          <div>
+                            <p className={`text-sm font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{p.full_name}</p>
+                            <p className="text-[11px] text-gray-400 font-mono">{p.party_code}</p>
+                          </div>
+                          <p className={`text-[11px] font-semibold ${bal > 0 ? "text-emerald-700" : bal < 0 ? "text-amber-700" : "text-gray-400"}`}>
+                            {bal > 0 ? `+${fmt(bal)} AFN advance` : bal < 0 ? `${fmt(bal)} AFN (school owes)` : "settled"}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {shortBalance && (
+                  <p className="text-[11px] text-amber-700 mt-1.5">
+                    ⚠ Party's advance ({fmt(partyBalance)} AFN) is less than the receipt total — their balance goes negative (school owes them the difference).
+                  </p>
+                )}
+                <p className="text-[10px] text-gray-400 mt-1">Posts Dr Expense / Cr Staff Receivables — settles the advance.</p>
+              </div>
+            )}
+
+            {mode === "account" && (
+              <div>
+                <label className={labelCls}>Money paid from *</label>
+                {accounts.length === 0 ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    No cash / bank accounts found. Add one under Finance → Setup → Accounts first.
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                    {accounts.map((a) => {
+                      const sel = String(paidFromAccountId) === String(a.id);
+                      return (
+                        <button key={a.id} type="button" onClick={() => setPaidFromAccountId(a.id)}
+                          className={`w-full text-left px-3 py-2.5 flex items-center justify-between transition-colors ${
+                            sel ? "bg-teal-50 ring-1 ring-inset ring-teal-200" : "hover:bg-gray-50"
+                          }`}>
+                          <div>
+                            <p className={`text-sm font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{a.account_name}</p>
+                            <p className="text-[11px] text-gray-400 capitalize">{a.account_type}</p>
+                          </div>
+                          <p className="text-[11px] text-gray-500 font-mono">{fmt(a.current_balance)} AFN</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <label className={labelCls}>Purchased by <span className="font-normal text-gray-400">(optional)</span></label>
+              <select value={executedByPartyId} onChange={(e) => setExecutedByPartyId(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500">
+                <option value="">{mode === "party" && paidFromPartyId ? "— same as paying party —" : "— not specified —"}</option>
+                {staffParties.map((p) => (
+                  <option key={p.id} value={p.id}>{p.full_name} ({p.party_code})</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">Defaults to the paying party. Override only if a different staff member did the legwork.</p>
+            </div>
+          </div>
+
+          {/* Sticky footer */}
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50">
             <button type="button" onClick={onClose}
-              className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-xs font-medium">
+              className="px-4 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-sm font-medium transition">
               Cancel
+            </button>
+            <button type="submit" disabled={busy}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold disabled:opacity-50 transition">
+              {busy ? "Posting…" : "Confirm — post journal entry"}
             </button>
           </div>
         </form>

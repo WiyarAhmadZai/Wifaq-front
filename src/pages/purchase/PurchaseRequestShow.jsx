@@ -217,141 +217,50 @@ export default function PurchaseRequestShow() {
         )}
       </div>
 
-      {/* Audit panel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <Panel label="Requester">
-          {pr.requester?.name || "—"}
-          <div className="text-[10px] text-gray-400">{pr.request_date}</div>
-        </Panel>
-        <Panel label="Branch">{pr.branch?.name || "School-wide"}</Panel>
-        {pr.approved_at && (
-          <Panel label={pr.status === "rejected" ? "Rejected by" : "Approved by"}>
-            {pr.approver?.name || "—"}
-            <div className="text-[10px] text-gray-400">{new Date(pr.approved_at).toLocaleString()}</div>
-            {pr.rejection_reason && <div className="text-[10px] text-red-600 mt-0.5">{pr.rejection_reason}</div>}
-          </Panel>
-        )}
-        {pr.procured_at && (
-          <Panel label="Procured by">
-            {pr.procurer?.name || "—"}
-            <div className="text-[10px] text-gray-400">{new Date(pr.procured_at).toLocaleString()}</div>
-          </Panel>
-        )}
-        {pr.executed_by_party_id && (
-          <Panel label="Purchased by (party)">
-            {pr.executed_by_party?.full_name || `Party #${pr.executed_by_party_id}`}
-            {/* Click-through to that staff party's ledger — handy if the
-                school is also tracking their advances. */}
-            {pr.executed_by_party?.id && (
-              <div className="mt-1 text-[10px]">
-                <a href={`/finance/parties/${pr.executed_by_party.id}/ledger`}
-                  onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${pr.executed_by_party.id}/ledger`); }}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100">
-                  <span className="font-mono">{pr.executed_by_party.party_code}</span>
-                  <span>·</span>
-                  <span>open ledger</span>
-                </a>
-              </div>
+      {/* Completed → a clear summary that leads with the core facts.
+          In-progress → the process audit grid (who/where/when). */}
+      {pr.status === "completed"
+        ? <CompletionSummary pr={pr} navigate={navigate} />
+        : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <Panel label="Requester">
+              {pr.requester?.name || "—"}
+              <div className="text-[10px] text-gray-400">{pr.request_date}</div>
+            </Panel>
+            <Panel label="Branch">{pr.branch?.name || "School-wide"}</Panel>
+            {pr.approved_at && (
+              <Panel label={pr.status === "rejected" ? "Rejected by" : "Approved by"}>
+                {pr.approver?.name || "—"}
+                <div className="text-[10px] text-gray-400">{new Date(pr.approved_at).toLocaleString()}</div>
+                {pr.rejection_reason && <div className="text-[10px] text-red-600 mt-0.5">{pr.rejection_reason}</div>}
+              </Panel>
             )}
-          </Panel>
-        )}
-        {pr.vendor_id && (
-          <Panel label="Vendor">
-            {pr.vendor?.name || `#${pr.vendor_id}`}
-            {/* Linked accounts-payable Party for this vendor. Created on the
-                fly when the winning quote is picked, so this badge appears
-                automatically — gives the user a one-click jump to the AP
-                ledger for this vendor. */}
-            {pr.vendor?.party ? (
-              <div className="mt-1 text-[10px]">
-                <a href={`/finance/parties/${pr.vendor.party.id}/ledger`}
-                  onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${pr.vendor.party.id}/ledger`); }}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100">
-                  <span className="font-mono">{pr.vendor.party.party_code}</span>
-                  <span>·</span>
-                  <span>AP ledger</span>
-                </a>
-              </div>
-            ) : (
-              <div className="text-[10px] text-gray-400 mt-1">No Party opened yet</div>
+            {pr.procured_at && (
+              <Panel label="Procured by">
+                {pr.procurer?.name || "—"}
+                <div className="text-[10px] text-gray-400">{new Date(pr.procured_at).toLocaleString()}</div>
+              </Panel>
             )}
-          </Panel>
-        )}
-        {pr.paid_from_party_id && (
-          <Panel label="Settled against (party advance)">
-            {pr.paid_from_party?.full_name || `Party #${pr.paid_from_party_id}`}
-            <div className="mt-1 text-[10px]">
-              <a href={`/finance/parties/${pr.paid_from_party_id}/ledger`}
-                onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${pr.paid_from_party_id}/ledger`); }}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100">
-                <span className="font-mono">{pr.paid_from_party?.party_code}</span>
-                <span>·</span>
-                <span>open ledger</span>
-              </a>
-            </div>
-          </Panel>
-        )}
-        {pr.paid_from_account_id && (
-          <Panel label="Paid from (account)">
-            {pr.paid_from_account?.account_name || `Account #${pr.paid_from_account_id}`}
-          </Panel>
-        )}
-        {pr.journal_entry_id && (
-          <Panel label="Journal entry">
-            <span className="font-mono">{pr.journal_entry?.entry_number || `#${pr.journal_entry_id}`}</span>
-            <div className="text-[10px] text-gray-400">{pr.journal_entry?.transaction_date}</div>
-          </Panel>
-        )}
-        {pr.vendor_invoice_number && (
-          <Panel label="Bill / invoice number">
-            <span className="font-mono">{pr.vendor_invoice_number}</span>
-          </Panel>
-        )}
-        {pr.actual_amount != null && (
-          <Panel label="Actual paid">
-            <span className="font-mono font-semibold">{fmt(pr.actual_amount)} AFN</span>
-            {Number(pr.estimated_total) > 0 && Math.abs(Number(pr.actual_amount) - Number(pr.estimated_total)) > 0.5 && (
-              <div className="text-[10px] text-gray-400">
-                planned {fmt(pr.estimated_total)} AFN
-              </div>
+            {pr.vendor_id && (
+              <Panel label="Vendor">
+                {pr.vendor?.name || `#${pr.vendor_id}`}
+                {pr.vendor?.party ? (
+                  <div className="mt-1 text-[10px]">
+                    <a href={`/finance/parties/${pr.vendor.party.id}/ledger`}
+                      onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${pr.vendor.party.id}/ledger`); }}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100">
+                      <span className="font-mono">{pr.vendor.party.party_code}</span>
+                      <span>·</span>
+                      <span>AP ledger</span>
+                    </a>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-gray-400 mt-1">No Party opened yet</div>
+                )}
+              </Panel>
             )}
-          </Panel>
+          </div>
         )}
-        {pr.invoice_id && (
-          <Panel label="Linked invoice">{pr.invoice?.invoice_number || `#${pr.invoice_id}`}</Panel>
-        )}
-      </div>
-
-      {/* Actual purchased items — the real receipt recorded at completion.
-          Distinct from the planned line items below; this is what was
-          physically bought (may include extras like A4, glass, rent). */}
-      {Array.isArray(pr.actual_items) && pr.actual_items.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
-          <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-gray-700">Actual purchased items</p>
-              <p className="text-[10px] text-gray-400">What was physically bought — recorded at completion{pr.vendor_invoice_number ? ` · bill #${pr.vendor_invoice_number}` : ""}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase bg-white border-b border-gray-50">
-            <span>Item</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {pr.actual_items.map((it, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-xs">
-                <span className="text-gray-800">{it.name}</span>
-                <span className="text-right text-gray-600 font-mono">{fmt(it.quantity)}</span>
-                <span className="text-right text-gray-600 font-mono">{fmt(it.unit_price)}</span>
-                <span className="text-right text-gray-800 font-mono font-semibold">{fmt(it.line_total ?? (Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-end px-4 py-2.5 bg-teal-50 border-t border-teal-100 text-sm">
-            <span className="text-teal-700 font-semibold mr-3">Total paid</span>
-            <span className="font-mono font-bold text-teal-800">{fmt(pr.actual_amount)} AFN</span>
-          </div>
-        </div>
-      )}
 
       {/* Quotations (Phase C).
           Always shown while the PR can still take quotes (draft/pending) so
@@ -1047,6 +956,138 @@ function Panel({ label, children }) {
     <div className="bg-white border border-gray-200 rounded-xl p-3">
       <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-0.5 font-semibold">{label}</p>
       <div className="text-xs text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * What the user sees when a PR is done. One card, top-down: the answer
+ * first (how much was paid, vs plan, against what bill), then the receipt,
+ * then how it was paid and the proof, then the process trail in muted text.
+ */
+function CompletionSummary({ pr, navigate }) {
+  const planned = Number(pr.estimated_total) || 0;
+  const paid = Number(pr.actual_amount) || 0;
+  const variance = paid - planned;
+  const hasVariance = planned > 0 && Math.abs(variance) > 0.5;
+  const items = Array.isArray(pr.actual_items) ? pr.actual_items : [];
+
+  // Small reusable ledger-link chip.
+  const LedgerChip = ({ partyId, code }) => (
+    <a href={`/finance/parties/${partyId}/ledger`}
+      onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${partyId}/ledger`); }}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100 text-[10px]">
+      <span className="font-mono">{code}</span><span>·</span><span>ledger</span>
+    </a>
+  );
+
+  const Row = ({ label, children }) => (
+    <div className="flex items-start gap-3 px-4 py-2.5 border-t border-gray-50 text-xs">
+      <span className="w-28 flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 pt-0.5">{label}</span>
+      <div className="flex-1 text-gray-800">{children}</div>
+    </div>
+  );
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
+      {/* Hero */}
+      <div className="px-5 py-4 bg-emerald-50 border-b border-emerald-100 flex items-start gap-3">
+        <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-emerald-800">
+            Purchase completed{pr.completed_at ? ` · ${new Date(pr.completed_at).toLocaleDateString()}` : ""}
+          </p>
+          <p className="text-xs text-emerald-700/80 mt-0.5">{pr.purpose}</p>
+        </div>
+      </div>
+
+      {/* Headline numbers */}
+      <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
+        <div className="px-4 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Total paid</p>
+          <p className="text-xl font-bold font-mono text-teal-700 mt-0.5">{fmt(paid)} <span className="text-xs font-normal">AFN</span></p>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">vs Planned</p>
+          {hasVariance ? (
+            <p className={`text-xl font-bold font-mono mt-0.5 ${variance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+              {variance > 0 ? "+" : ""}{fmt(variance)}
+              <span className="text-[10px] font-normal text-gray-400 ml-1">{variance > 0 ? "over" : "under"}</span>
+            </p>
+          ) : (
+            <p className="text-xl font-bold font-mono text-gray-400 mt-0.5">on budget</p>
+          )}
+          <p className="text-[10px] text-gray-400 mt-0.5">planned {fmt(planned)} AFN</p>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Bill / invoice #</p>
+          <p className="text-xl font-bold font-mono text-gray-700 mt-0.5 truncate">{pr.vendor_invoice_number || "—"}</p>
+        </div>
+      </div>
+
+      {/* The receipt */}
+      {items.length > 0 && (
+        <div>
+          <div className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase bg-gray-50 border-b border-gray-100">
+            <span>Item bought</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {items.map((it, idx) => (
+              <div key={idx} className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-xs">
+                <span className="text-gray-800">{it.name}</span>
+                <span className="text-right text-gray-600 font-mono">{fmt(it.quantity)}</span>
+                <span className="text-right text-gray-600 font-mono">{fmt(it.unit_price)}</span>
+                <span className="text-right text-gray-800 font-mono font-semibold">{fmt(it.line_total ?? (Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* How it was paid + proof */}
+      <Row label="Paid via">
+        {pr.paid_from_party_id ? (
+          <span className="inline-flex items-center gap-2 flex-wrap">
+            <span>Staff advance — <strong>{pr.paid_from_party?.full_name || `Party #${pr.paid_from_party_id}`}</strong></span>
+            {pr.paid_from_party?.party_code && <LedgerChip partyId={pr.paid_from_party_id} code={pr.paid_from_party.party_code} />}
+          </span>
+        ) : pr.paid_from_account_id ? (
+          <span>Cash / bank — <strong>{pr.paid_from_account?.account_name || `Account #${pr.paid_from_account_id}`}</strong></span>
+        ) : "—"}
+      </Row>
+      <Row label="Purchased by">
+        {pr.executed_by_party_id ? (
+          <span className="inline-flex items-center gap-2 flex-wrap">
+            <strong>{pr.executed_by_party?.full_name || `Party #${pr.executed_by_party_id}`}</strong>
+            {pr.executed_by_party?.party_code && <LedgerChip partyId={pr.executed_by_party_id} code={pr.executed_by_party.party_code} />}
+          </span>
+        ) : (pr.procurer?.name || "—")}
+      </Row>
+      <Row label="Vendor">
+        {pr.vendor_id ? (
+          <span className="inline-flex items-center gap-2 flex-wrap">
+            <strong>{pr.vendor?.name || `#${pr.vendor_id}`}</strong>
+            {pr.vendor?.party && <LedgerChip partyId={pr.vendor.party.id} code={pr.vendor.party.party_code} />}
+          </span>
+        ) : "—"}
+      </Row>
+      <Row label="Journal entry">
+        <span className="font-mono">{pr.journal_entry?.entry_number || (pr.journal_entry_id ? `#${pr.journal_entry_id}` : "—")}</span>
+        {pr.journal_entry?.transaction_date && <span className="text-[10px] text-gray-400 ml-2">{pr.journal_entry.transaction_date}</span>}
+        {pr.invoice_id && <span className="text-[10px] text-gray-400 ml-2">· invoice {pr.invoice?.invoice_number || `#${pr.invoice_id}`}</span>}
+      </Row>
+
+      {/* Process trail — muted, secondary */}
+      <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-[10px] text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
+        <span>Requested by <span className="text-gray-600">{pr.requester?.name || "—"}</span> · {pr.request_date}</span>
+        {pr.approver?.name && <span>Approved by <span className="text-gray-600">{pr.approver.name}</span></span>}
+        {pr.procurer?.name && <span>Procured by <span className="text-gray-600">{pr.procurer.name}</span></span>}
+        {pr.branch?.name && <span>Branch <span className="text-gray-600">{pr.branch.name}</span></span>}
+      </div>
     </div>
   );
 }

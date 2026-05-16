@@ -307,8 +307,13 @@ export default function PurchaseRequestShow() {
         )}
       </div>
 
-      {/* Quotations (Phase C) */}
-      {(pr.quotation_status?.required || (pr.quotations && pr.quotations.length > 0)) && (
+      {/* Quotations (Phase C).
+          Always shown while the PR can still take quotes (draft/pending) so
+          the panel never "disappears" — you can collect quotes on any PR,
+          not just ones over the mandatory threshold. Once approved/onward
+          it stays visible only if quotes were actually recorded (history). */}
+      {(["draft", "pending"].includes(pr.status) ||
+        (pr.quotations && pr.quotations.length > 0)) && (
         <QuotationsPanel
           pr={pr}
           vendors={vendors}

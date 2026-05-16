@@ -601,10 +601,12 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
       name: it.item_name,
       quantity: Number(it.quantity) || 1,
       unit_price: Number(it.estimated_unit_price) || 0,
+      unit: it.unit || "piece",
+      to_stock: true,            // physical goods default into inventory
     }));
     if (!planned.length) {
       // No line items — seed a single row at the quote amount if we have one.
-      return [{ name: winningQuote ? `Per quote — ${winningQuote.vendor?.name || "vendor"}` : "", quantity: 1, unit_price: winningAmount || "" }];
+      return [{ name: winningQuote ? `Per quote — ${winningQuote.vendor?.name || "vendor"}` : "", quantity: 1, unit_price: winningAmount || "", unit: "piece", to_stock: true }];
     }
     const plannedTotal = planned.reduce((s, it) => s + it.quantity * it.unit_price, 0);
 
@@ -636,7 +638,7 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
 
   const updateItem = (i, patch) =>
     setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
-  const addItem    = () => setItems((arr) => [...arr, { name: "", quantity: 1, unit_price: "" }]);
+  const addItem    = () => setItems((arr) => [...arr, { name: "", quantity: 1, unit_price: "", unit: "piece", to_stock: true }]);
   const removeItem = (i) =>
     setItems((arr) => (arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i)));
 
@@ -674,6 +676,8 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
         name: String(it.name).trim(),
         quantity: Number(it.quantity) || 1,
         unit_price: Number(it.unit_price) || 0,
+        unit: (it.unit || "piece").trim() || "piece",
+        to_stock: it.to_stock !== false,
       }));
     onConfirm({
       paidFromPartyId: mode === "party" ? Number(paidFromPartyId) : null,
@@ -767,6 +771,7 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
                     {winningQuote
                       ? <>Pre-filled to the winning quote ({fmt(winningAmount)} AFN — {winningQuote.vendor?.name || "vendor"}) — adjust and add extras (A4, glass, rent…)</>
                       : <>Pre-filled from the request — adjust prices and add extras (A4, glass, rent…)</>}
+                    {" "}Tick <strong>Stock</strong> for physical goods that go into inventory; untick for services / rent.
                   </p>
                 </div>
                 <button type="button" onClick={addItem}
@@ -775,22 +780,30 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
                   Add item
                 </button>
               </div>
-              <div className="grid grid-cols-[1fr_4rem_6rem_5.5rem_1.5rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-white border-b border-gray-50">
-                <span>Item</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span><span></span>
+              <div className="grid grid-cols-[1fr_3.25rem_3.5rem_5rem_5rem_2.75rem_1.5rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-white border-b border-gray-50">
+                <span>Item</span><span className="text-right">Qty</span><span>Unit</span><span className="text-right">Price</span><span className="text-right">Total</span><span className="text-center">Stock</span><span></span>
               </div>
               <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
                 {items.map((it, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_4rem_6rem_5.5rem_1.5rem] gap-2 px-4 py-2 items-center">
+                  <div key={i} className="grid grid-cols-[1fr_3.25rem_3.5rem_5rem_5rem_2.75rem_1.5rem] gap-2 px-4 py-2 items-center">
                     <input type="text" value={it.name} onChange={(e) => updateItem(i, { name: e.target.value })}
                       placeholder="e.g. A4 paper / Rent"
                       className="px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
                     <input type="number" min="0" step="0.01" value={it.quantity} onChange={(e) => updateItem(i, { quantity: e.target.value })}
-                      className="px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+                      className="px-1.5 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+                    <input type="text" value={it.unit} onChange={(e) => updateItem(i, { unit: e.target.value })}
+                      placeholder="pc"
+                      className="px-1.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
                     <input type="number" min="0" step="0.01" value={it.unit_price} onChange={(e) => updateItem(i, { unit_price: e.target.value })}
-                      className="px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+                      className="px-1.5 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
                     <span className="text-right text-sm font-mono text-gray-700">
                       {fmt((Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}
                     </span>
+                    <label className="flex items-center justify-center" title="Add this line to inventory (Stock)">
+                      <input type="checkbox" checked={it.to_stock !== false}
+                        onChange={(e) => updateItem(i, { to_stock: e.target.checked })}
+                        className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500" />
+                    </label>
                     <button type="button" onClick={() => removeItem(i)} disabled={items.length === 1}
                       className="w-6 h-6 rounded-md flex items-center justify-center text-gray-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent transition">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
@@ -1032,16 +1045,25 @@ function CompletionSummary({ pr, navigate }) {
       {/* The receipt */}
       {items.length > 0 && (
         <div>
-          <div className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase bg-gray-50 border-b border-gray-100">
-            <span>Item bought</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span>
+          <div className="grid grid-cols-[1fr_4rem_6.5rem_6.5rem_5rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase bg-gray-50 border-b border-gray-100">
+            <span>Item bought</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span><span className="text-center">Inventory</span>
           </div>
           <div className="divide-y divide-gray-50">
             {items.map((it, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_4rem_7rem_7rem] gap-2 px-4 py-2 text-xs">
+              <div key={idx} className="grid grid-cols-[1fr_4rem_6.5rem_6.5rem_5rem] gap-2 px-4 py-2 text-xs items-center">
                 <span className="text-gray-800">{it.name}</span>
-                <span className="text-right text-gray-600 font-mono">{fmt(it.quantity)}</span>
+                <span className="text-right text-gray-600 font-mono">{fmt(it.quantity)}{it.unit ? ` ${it.unit}` : ""}</span>
                 <span className="text-right text-gray-600 font-mono">{fmt(it.unit_price)}</span>
                 <span className="text-right text-gray-800 font-mono font-semibold">{fmt(it.line_total ?? (Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}</span>
+                <span className="text-center">
+                  {it.to_stock !== false ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      ✓ stocked
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400">expensed</span>
+                  )}
+                </span>
               </div>
             ))}
           </div>

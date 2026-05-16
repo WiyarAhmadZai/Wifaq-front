@@ -698,12 +698,29 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
       return [{ name: winningQuote ? `Per quote — ${winningQuote.vendor?.name || "vendor"}` : "", quantity: 1, unit_price: winningAmount || "" }];
     }
     const plannedTotal = planned.reduce((s, it) => s + it.quantity * it.unit_price, 0);
+
     if (winningAmount > 0 && plannedTotal > 0) {
+      // Estimates were given — scale them so the lines total the quote.
       const factor = winningAmount / plannedTotal;
       return planned.map((it) => ({
         ...it,
         unit_price: Math.round(it.unit_price * factor * 100) / 100,
       }));
+    }
+
+    if (winningAmount > 0 && plannedTotal === 0) {
+      // No estimates were entered (common — requester just listed items).
+      // Distribute the winning quote across the lines weighted by quantity
+      // so the receipt total = the quote and every line has a price the
+      // runner can then fine-tune.
+      const totalQty = planned.reduce((s, it) => s + (it.quantity || 0), 0);
+      return planned.map((it) => {
+        const qty = it.quantity || 1;
+        const lineShare = totalQty > 0
+          ? winningAmount * (qty / totalQty)            // weight by quantity
+          : winningAmount / planned.length;             // equal split fallback
+        return { ...it, unit_price: Math.round((lineShare / qty) * 100) / 100 };
+      });
     }
     return planned;
   });

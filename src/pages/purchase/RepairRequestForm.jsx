@@ -73,7 +73,7 @@ export default function RepairRequestForm() {
   if (loading) return <p className="px-4 py-8 text-center text-xs text-gray-400">Loading…</p>;
 
   return (
-    <div className="px-4 py-4 max-w-3xl mx-auto">
+    <div className="px-4 py-4 mx-auto">
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate("/purchase/repair-requests")}
           className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg">

@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listRoutineItems, deleteRoutineItem } from "../../api/routineItems";
+import { listRoutineItems, deleteRoutineItem, generateRoutineItem } from "../../api/routineItems";
 import { triggerAutoGenerate } from "../../api/repairRequests";
 import Swal from "sweetalert2";
+
+// Linked-stock state badge palette (matches the Stock page).
+const STOCK_STATE = {
+  ok:  { label: "OK",  cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  low: { label: "Low", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  out: { label: "Out", cls: "bg-red-50 text-red-700 border-red-200" },
+};
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -63,6 +70,40 @@ export default function RoutineItems() {
       Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Deleted", timer: 1200, showConfirmButton: false });
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to delete", "error");
+    }
+  };
+
+  // Per-row reorder. Spawns the draft PR + advances this routine's cycle.
+  // If an open PR already exists (409) we offer to force a duplicate.
+  const handleGenerate = async (row, force = false) => {
+    try {
+      const res = await generateRoutineItem(row.id, force);
+      const pr = res.data?.purchase_request;
+      await fetchItems();
+      const r = await Swal.fire({
+        icon: "success",
+        title: "Reorder created",
+        text: `Draft ${pr?.request_number || "purchase request"} is ready for submission.`,
+        showCancelButton: true,
+        confirmButtonText: "Open the PR",
+        cancelButtonText: "Stay here",
+        confirmButtonColor: "#0d9488",
+      });
+      if (r.isConfirmed && pr?.id) navigate(`/purchase/purchase-requests/show/${pr.id}`);
+    } catch (err) {
+      if (err.response?.status === 409) {
+        const r = await Swal.fire({
+          title: "Open PR already exists",
+          text: err.response.data?.message || "There's already an open reorder for this item.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Force a new one",
+          confirmButtonColor: "#ef4444",
+        });
+        if (r.isConfirmed) handleGenerate(row, true);
+        return;
+      }
+      Swal.fire("Failed", err.response?.data?.message || "Could not generate.", "error");
     }
   };
 
@@ -168,7 +209,7 @@ export default function RoutineItems() {
               <th className="text-left px-3 py-2">Unit</th>
               <th className="text-right px-3 py-2">Est. price</th>
               <th className="text-right px-3 py-2">Frequency</th>
-              <th className="text-left px-3 py-2">Last bought</th>
+              <th className="text-left px-3 py-2">Linked stock</th>
               <th className="text-left px-3 py-2">Next due</th>
               <th className="text-center px-3 py-2">Active</th>
               <th className="text-center px-3 py-2">Actions</th>
@@ -190,7 +231,20 @@ export default function RoutineItems() {
                   <td className="px-3 py-2 text-gray-500">{row.unit}</td>
                   <td className="px-3 py-2 text-right text-gray-700">{row.estimated_unit_price ? `${fmt(row.estimated_unit_price)}` : "—"}</td>
                   <td className="px-3 py-2 text-right text-gray-700">every {row.frequency_days}d</td>
-                  <td className="px-3 py-2 text-gray-500">{row.last_purchase_date || "—"}</td>
+                  <td className="px-3 py-2">
+                    {row.stock ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-gray-700">{row.stock.item_name}</span>
+                        <span className="text-[10px] text-gray-400 font-mono">{fmt(row.stock.quantity)} {row.stock.unit}</span>
+                        {(() => {
+                          const ss = STOCK_STATE[row.stock.stock_state] || STOCK_STATE.ok;
+                          return <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${ss.cls}`}>{ss.label}</span>;
+                        })()}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-gray-300">not linked</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     {row.next_due_date ? (
                       <span className={due ? "text-red-700 font-semibold" : "text-gray-700"}>
@@ -209,6 +263,11 @@ export default function RoutineItems() {
                     }`}>{row.is_active ? "Yes" : "No"}</span>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => handleGenerate(row)} disabled={!row.is_active}
+                      title={row.is_active ? "Create the reorder PR now" : "Inactive routine"}
+                      className="px-2 py-1 text-[10px] font-semibold text-white bg-teal-600 rounded hover:bg-teal-700 disabled:opacity-40 mr-2">
+                      Generate PR
+                    </button>
                     <button onClick={() => navigate(`/purchase/routine-items/edit/${row.id}`)}
                       className="text-[10px] text-teal-600 hover:text-teal-800 mr-2">Edit</button>
                     <button onClick={() => handleDelete(row.id)}

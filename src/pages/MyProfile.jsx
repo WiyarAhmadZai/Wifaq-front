@@ -121,6 +121,15 @@ export default function MyProfile() {
   const a = s.application || {};
   const photoUrl = u.profile_photo || s.profile_photo;
 
+  // Three viewing modes:
+  //   isSelf       → owner viewing their own profile (full edit)
+  //   isAdminView  → admin / super-admin / hr-manager viewing any profile (full read, edit admin fields)
+  //   isPublicView → any other authenticated user (read-only, public sections only)
+  const isSelf       = !!profile.is_self;
+  const isAdminView  = !!profile.is_admin_viewer;
+  const isPublicView = !isSelf && !isAdminView;
+  const canSeePrivate = isSelf || isAdminView;
+
   return (
     <div className="min-h-screen bg-gray-50/60">
       {/* Header */}
@@ -131,15 +140,19 @@ export default function MyProfile() {
               <button onClick={() => navigate(-1)} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
               </button>
-              <h1 className="text-sm font-bold text-white">My Profile</h1>
+              <h1 className="text-sm font-bold text-white">
+                {isSelf ? "My Profile" : isAdminView ? "User Profile" : `${u.name?.split(' ')[0] || 'User'}'s Profile`}
+              </h1>
             </div>
-            <button
-              onClick={() => setShowPassword(true)}
-              className="px-3 py-1.5 bg-white text-teal-600 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1.5"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-              Change Password
-            </button>
+            {(isSelf || isAdminView) && (
+              <button
+                onClick={() => setShowPassword(true)}
+                className="px-3 py-1.5 bg-white text-teal-600 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                Change Password
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -147,14 +160,18 @@ export default function MyProfile() {
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black overflow-hidden bg-white/20">
                 {photoUrl ? <img src={photoUrl} alt={u.name} className="w-full h-full object-cover" /> : (u.name?.charAt(0) || 'U')}
               </div>
-              <button onClick={() => document.getElementById('profile-photo-upload').click()}
-                disabled={saving}
-                className="absolute bottom-0 right-0 w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center text-white hover:bg-teal-700 transition-colors shadow-lg disabled:opacity-50"
-                title="Update profile photo">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              </button>
-              <input id="profile-photo-upload" type="file" accept="image/*"
-                onChange={(e) => uploadPhoto(e.target.files[0])} className="hidden" />
+              {isSelf && (
+                <>
+                  <button onClick={() => document.getElementById('profile-photo-upload').click()}
+                    disabled={saving}
+                    className="absolute bottom-0 right-0 w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center text-white hover:bg-teal-700 transition-colors shadow-lg disabled:opacity-50"
+                    title="Update profile photo">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </button>
+                  <input id="profile-photo-upload" type="file" accept="image/*"
+                    onChange={(e) => uploadPhoto(e.target.files[0])} className="hidden" />
+                </>
+              )}
             </div>
             <div className="flex-1">
               <h2 className="text-lg font-black text-white">{u.name || 'N/A'}</h2>
@@ -164,7 +181,9 @@ export default function MyProfile() {
               </p>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 {s.employee_id && <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{s.employee_id}</span>}
-                <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{u.email}</span>
+                {canSeePrivate && (
+                  <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{u.email}</span>
+                )}
                 {s.status && <span className="px-2.5 py-0.5 bg-white/30 text-white text-[11px] font-semibold rounded-full capitalize">{s.status}</span>}
               </div>
             </div>
@@ -175,39 +194,53 @@ export default function MyProfile() {
       <div className="max-w-full mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
-            {/* Personal */}
-            <Section
-              title="Personal Information"
-              icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              onEdit={() => setShowPersonal(true)}
-              editable
-            >
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <Field label="Full Name" value={u.name} />
-                <Field label="Username" value={u.username} />
-                <Field label="Father's Name" value={s.father_name} />
-                <Field label="Date of Birth" value={a.date_of_birth?.split?.('T')[0]} />
-                <Field label="Blood Type" value={s.blood_type} />
-                <Field label="Place of Origin" value={a.place_of_origin} />
+            {/* Public-viewer banner */}
+            {isPublicView && (
+              <div className="bg-teal-50 border border-teal-200 rounded-2xl p-3 flex items-center gap-2.5">
+                <svg className="w-4 h-4 text-teal-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                <p className="text-[11px] text-teal-800">
+                  You're viewing the public part of {u.name?.split(' ')[0] || 'this user'}'s profile. Personal details remain private.
+                </p>
               </div>
-            </Section>
+            )}
 
-            {/* Contact */}
-            <Section
-              title="Contact Information"
-              icon="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-              onEdit={() => setShowContact(true)}
-              editable
-            >
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <Field label="Email" value={u.email} />
-                <Field label="Phone" value={u.phone} />
-                <Field label="WhatsApp" value={u.whatsapp} />
-                <Field label="Current Address" value={a.current_address} className="col-span-2 lg:col-span-3" />
-              </div>
-            </Section>
+            {/* Personal — private */}
+            {canSeePrivate && (
+              <Section
+                title="Personal Information"
+                icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                onEdit={() => setShowPersonal(true)}
+                editable={isSelf || isAdminView}
+              >
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  <Field label="Full Name" value={u.name} />
+                  <Field label="Username" value={u.username} />
+                  <Field label="Father's Name" value={s.father_name} />
+                  <Field label="Date of Birth" value={a.date_of_birth?.split?.('T')[0]} />
+                  <Field label="Blood Type" value={s.blood_type} />
+                  <Field label="Place of Origin" value={a.place_of_origin} />
+                </div>
+              </Section>
+            )}
 
-            {/* Education (read-only — comes from application) */}
+            {/* Contact — private */}
+            {canSeePrivate && (
+              <Section
+                title="Contact Information"
+                icon="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                onEdit={() => setShowContact(true)}
+                editable={isSelf || isAdminView}
+              >
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  <Field label="Email" value={u.email} />
+                  <Field label="Phone" value={u.phone} />
+                  <Field label="WhatsApp" value={u.whatsapp} />
+                  <Field label="Current Address" value={a.current_address} className="col-span-2 lg:col-span-3" />
+                </div>
+              </Section>
+            )}
+
+            {/* Education — semi-public; visible to everyone (it's institutional context) */}
             {profile.type === 'staff' && (
               <Section
                 title="Education & Experience"
@@ -223,14 +256,17 @@ export default function MyProfile() {
               </Section>
             )}
 
-            {/* Self-profile (skills, dreams, growth areas) — staff-owned narrative */}
-            {profile.type === 'staff' && profile.is_self && <SelfProfileSection />}
+            {/* Self-profile — the staff's own public narrative; editable only by the owner */}
+            {profile.type === 'staff' && <SelfProfileSection canEdit={isSelf} initialData={profile.self_profile} />}
 
-            {/* Leave balance (read-only summary) */}
-            {profile.type === 'staff' && profile.is_self && <LeaveBalanceSection />}
+            {/* Leave balance — private (own only) */}
+            {profile.type === 'staff' && isSelf && <LeaveBalanceSection />}
 
-            {/* My leave requests with live status */}
-            {profile.type === 'staff' && profile.is_self && <MyLeaveRequestsSection />}
+            {/* My leave requests — private (own only) */}
+            {profile.type === 'staff' && isSelf && <MyLeaveRequestsSection />}
+
+            {/* Cards received — public recognition, visible to everyone who can open the profile */}
+            {profile.type === 'staff' && <MyCardsSection cards={profile.cards || []} />}
           </div>
 
           <div className="space-y-4">
@@ -322,12 +358,17 @@ export default function MyProfile() {
 
 /* ─────────────── Self-profile (skills, dreams, growth) ─────────────── */
 
-function SelfProfileSection() {
-  const [data, setData] = useState(null);
+function SelfProfileSection({ canEdit = true, initialData = null }) {
+  const [data, setData] = useState(initialData);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { load(); }, []);
+  // Owners fetch from /self-profile (own); viewers receive the data via prop.
+  useEffect(() => {
+    if (initialData) { setData(initialData); return; }
+    if (!canEdit) { setData({}); return; }
+    load();
+  }, [initialData, canEdit]);
 
   const load = async () => {
     try { const r = await get("/self-profile"); setData(r.data?.data || {}); }
@@ -346,18 +387,29 @@ function SelfProfileSection() {
   };
 
   if (!data) return null;
+  // Hide the whole section in public-view mode when the staff hasn't written anything.
+  const hasContent = data && (data.education || (data.languages || []).length || data.previous_experience
+    || (data.skills || []).length || (data.certifications || []).length
+    || data.strengths || data.growth_areas || data.aspirations);
+  if (!canEdit && !hasContent) return null;
 
   return (
     <Section
-      title="My Story (Self-Profile)"
+      title={canEdit ? "My Story (Self-Profile)" : "Their Story"}
       icon="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
     >
       <div className="flex justify-between items-center mb-4">
-        <span className="text-xs text-gray-500">Tell us who you are and where you want to grow. The appraiser sees this every year.</span>
-        <button onClick={() => setEditing(true)}
-          className="px-3 py-1 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">
-          Edit
-        </button>
+        <span className="text-xs text-gray-500">
+          {canEdit
+            ? "Tell us who you are and where you want to grow. The appraiser sees this every year."
+            : "What they've chosen to share about themselves."}
+        </span>
+        {canEdit && (
+          <button onClick={() => setEditing(true)}
+            className="px-3 py-1 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">
+            Edit
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -465,6 +517,111 @@ function Field2({ label, children }) {
     </div>
   );
 }
+
+/* ─────────────── My cards (VATS — Gold / Turquoise / Green / Yellow / Red) ─────────────── */
+
+/**
+ * Tier identity is shown through the emoji and the tier name. Backgrounds use
+ * the system's branded teal palette only (positive) plus a single muted amber
+ * accent for concern cards. No rainbow, no gradients.
+ */
+const CARD_THEMES = {
+  gold:      { emoji: "🥇", label: "Gold",      tone: "Excellence",     positive: true },
+  turquoise: { emoji: "💎", label: "Turquoise", tone: "Character",      positive: true },
+  green:     { emoji: "🟢", label: "Green",     tone: "Performance",    positive: true },
+  yellow:    { emoji: "🟡", label: "Yellow",    tone: "Formal concern", positive: false },
+  red:       { emoji: "🔴", label: "Red",       tone: "Serious",        positive: false },
+};
+
+function MyCardsSection({ cards: cardsProp = null }) {
+  const navigate = useNavigate();
+  // Cards arrive as a prop from the profile payload. Fall back to a fetch
+  // only if the caller didn't pass them (defensive — should never happen).
+  const [cards, setCards] = useState(cardsProp || []);
+  const [loading, setLoading] = useState(cardsProp === null);
+
+  useEffect(() => {
+    if (cardsProp !== null) { setCards(cardsProp); setLoading(false); return; }
+    get('/vats/cards')
+      .then((r) => setCards(r.data?.data || []))
+      .catch(() => setCards([]))
+      .finally(() => setLoading(false));
+  }, [cardsProp]);
+
+  const counts = cards.reduce((acc, c) => { acc[c.color] = (acc[c.color] || 0) + 1; return acc; }, {});
+  const positiveTotal = ['gold', 'turquoise', 'green'].reduce((s, k) => s + (counts[k] || 0), 0);
+  const concernTotal  = ['yellow', 'red'].reduce((s, k) => s + (counts[k] || 0), 0);
+  const total = positiveTotal + concernTotal;
+
+  return (
+    <Section
+      title="Cards Received"
+      icon="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs text-gray-500">A summary of every card you've received.</span>
+        {total > 0 && (
+          <button onClick={() => navigate('/hr/vats/cards')}
+            className="text-[11px] font-semibold text-teal-700 hover:underline flex items-center gap-1">
+            View all
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-4 text-xs text-gray-400">Loading…</div>
+      ) : total === 0 ? (
+        <div className="text-center py-6 px-4 bg-gray-50 rounded-xl">
+          <span className="text-3xl">🎴</span>
+          <p className="text-xs text-gray-500 mt-2 max-w-sm mx-auto">
+            You haven't received any cards yet. Cards are awarded when your work shows a clear, sustained pattern — keep doing your best.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Per-tier count strip (the only on-profile detail) */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+            {Object.entries(CARD_THEMES).map(([color, theme]) => {
+              const n = counts[color] || 0;
+              const has = n > 0;
+              return (
+                <div key={color}
+                  className={`rounded-xl p-3 text-center border ${
+                    has
+                      ? theme.positive ? "bg-teal-50 border-teal-200" : "bg-amber-50 border-amber-200"
+                      : "bg-gray-50 border-gray-100"
+                  }`}>
+                  <p className={`text-2xl ${has ? "" : "opacity-40 grayscale"}`}>{theme.emoji}</p>
+                  <p className={`text-lg font-black mt-0.5 ${
+                    has ? (theme.positive ? "text-teal-800" : "text-amber-800") : "text-gray-400"
+                  }`}>{n}</p>
+                  <p className="text-[9px] uppercase tracking-wider font-bold text-gray-500 mt-0.5">{theme.label}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Compact totals + CTA */}
+          <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-teal-800">
+              <span className="font-bold">{total}</span> total ·
+              <span className="font-bold text-teal-700"> {positiveTotal} recognition</span> ·
+              <span className="font-bold text-amber-700"> {concernTotal} concern</span>
+            </p>
+            <button onClick={() => navigate('/hr/vats/cards')}
+              className="text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 px-3 py-1.5 rounded-lg shadow-sm whitespace-nowrap">
+              See all cards →
+            </button>
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+
 
 /* ─────────────── My leave requests (with status + rejection reason) ─────────────── */
 

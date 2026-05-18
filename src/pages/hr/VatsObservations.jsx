@@ -2,15 +2,39 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
-import { PageHeader, StatGrid, EmptyState, Spinner, Pill } from "../../components/hr/HrUI";
+import { PageHeader, StatGrid, EmptyState, Spinner, Pill, InfoNote } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+import { broadcastVatsChange } from "../../components/hr/useVats";
 
 const TYPES = {
   positive: ["excellence", "initiative", "growth", "collaboration", "innovation", "dedication"],
   concern:  ["performance", "conduct", "attendance", "compliance", "communication", "quality"],
   urgent:   ["safety_violation", "ethical_breach", "misconduct", "abandonment", "insubordination", "student_endangerment"],
 };
+
+// 4D lens — every observation is tagged to exactly one dimension.
+const DIMENSIONS = [
+  { value: "intellectual", label: "Intellectual", dari: "ذهنی", hint: "Work / teaching quality, problem-solving, knowledge" },
+  { value: "character",    label: "Character",    dari: "اخلاقی-معنوی", hint: "Honesty, conduct, Islamic ethos, values alignment" },
+  { value: "practical",    label: "Practical",    dari: "عملی", hint: "Task completion, attendance, responsiveness, skill" },
+  { value: "social",       label: "Social",       dari: "اجتماعی-ساختاری", hint: "Teamwork, communication, institutional contribution" },
+];
+
+// Observation areas — universal conduct + role-specific (matches the framework reference).
+const AREAS = [
+  { group: "Universal conduct — all staff", items: [
+    "Punctuality & Attendance", "Professional Ethics", "Collaboration",
+    "Communication", "Presentation & Dress", "Institutional Loyalty",
+  ]},
+  { group: "Teachers — role-specific", items: [
+    "Teaching Quality", "Classroom Management", "Student Outcomes",
+    "Curriculum Adherence", "Professional Development", "Documentation",
+  ]},
+  { group: "Non-teaching — role-specific", items: [
+    "Administrative", "Support Staff", "Security", "Cleaning",
+  ]},
+];
 
 const CATEGORY_STYLE = {
   positive: { bg: "bg-emerald-50", border: "border-emerald-200", chip: "bg-emerald-600", text: "text-emerald-700", emoji: "🌟" },
@@ -72,6 +96,7 @@ export default function VatsObservations() {
     if (!r.isConfirmed) return;
     await del(`/vats/observations/${id}`);
     fetchAll();
+    broadcastVatsChange();
   };
 
   const positive = items.filter(o => o.category === "positive").length;
@@ -102,6 +127,15 @@ export default function VatsObservations() {
           { label: "⚠ Concern", value: concern, tone: "amber", icon: "M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", hint: "Pattern noticed" },
           { label: "🚨 Urgent", value: urgent, tone: "red", icon: "M4.318 6.318a4.5 4.5 0 016.364 0", hint: "Immediate attention" },
         ]} />
+
+        <InfoNote title="The concept — the 4D lens & why specificity matters">
+          Every observation is tagged to one of the four dimensions — <b>ذهنی Intellectual</b> (work/teaching quality),
+          <b> اخلاقی-معنوی Character</b> (honesty, ethos), <b>عملی Practical</b> (task completion, attendance),
+          <b> اجتماعی-ساختاری Social</b> (teamwork, contribution). Describe the <b>act, not a judgement of the person</b> —
+          a generic note ("good work") carries no weight at appraisal; a specific one becomes evidence.
+          An <b>Urgent</b> observation means same-day escalation to HR &amp; management (safety, ethics, misconduct,
+          post abandonment, gross insubordination).
+        </InfoNote>
 
         {/* Filters */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 mb-4 flex flex-wrap gap-2">
@@ -188,7 +222,17 @@ function ObservationCard({ item, onDelete, innerRef, pulse }) {
           {item.category}
         </Pill>
       </div>
-      <p className={`text-[11px] font-semibold ${c.text} uppercase tracking-wider`}>{item.type?.replace(/_/g, " ")}</p>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className={`text-[11px] font-semibold ${c.text} uppercase tracking-wider`}>{item.type?.replace(/_/g, " ")}</span>
+        {item.dimension && (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800">
+            {DIMENSIONS.find(d => d.value === item.dimension)?.label || item.dimension}
+          </span>
+        )}
+        {item.area && (
+          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{item.area}</span>
+        )}
+      </div>
       <p className="text-[13px] text-gray-700 leading-snug">{item.description}</p>
       <div className="flex items-center justify-between pt-2 mt-1 border-t border-white/60">
         {item.is_acknowledged_by_staff
@@ -210,6 +254,8 @@ function ObservationForm({ staff, onClose, onSaved }) {
   const [form, setForm] = useState({
     staff_id: "",
     category: "positive",
+    dimension: "practical",
+    area: "",
     type: "excellence",
     description: "",
   });
@@ -221,6 +267,8 @@ function ObservationForm({ staff, onClose, onSaved }) {
       await post("/vats/observations", form);
       Swal.fire({ icon: "success", title: "Logged", timer: 1200, showConfirmButton: false });
       onSaved();
+      // An observation is a recognition/concern event — keep dashboard + cards in sync.
+      broadcastVatsChange();
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to save", "error");
     } finally { setSaving(false); }
@@ -270,11 +318,42 @@ function ObservationForm({ staff, onClose, onSaved }) {
             />
           </Field>
 
+          <Field label="4D Dimension">
+            <div className="grid grid-cols-2 gap-2">
+              {DIMENSIONS.map(d => (
+                <button key={d.value} type="button"
+                  onClick={() => setForm({ ...form, dimension: d.value })}
+                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+                    form.dimension === d.value ? "border-teal-600 bg-teal-50" : "border-gray-100 hover:border-gray-200"
+                  }`}>
+                  <p className="text-xs font-bold text-gray-800">
+                    {d.label} <span className="dari text-[11px] text-gray-400 font-normal">{d.dari}</span>
+                  </p>
+                  <p className="text-[10px] text-gray-500 leading-snug mt-0.5">{d.hint}</p>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Observation area">
+            <Select2
+              value={form.area}
+              onChange={(v) => setForm({ ...form, area: v })}
+              options={AREAS.flatMap(g =>
+                g.items.map(i => ({ value: i, label: `${g.group.split(" — ")[0]} · ${i}` }))
+              )}
+              placeholder="Pick the area observed…"
+            />
+          </Field>
+
           <Field label="What did you observe?">
-            <textarea rows={4} className={inp} placeholder="Specific, factual description…"
-              value={form.description}
+            <textarea rows={4} className={inp} placeholder="Describe exactly what you saw — the act, not a judgment of the person."
+              value={form.description} minLength={20}
               onChange={(e) => setForm({ ...form, description: e.target.value })} required />
-            <p className="text-[10px] text-gray-400 mt-1">Tip: write what you actually saw or heard, not your opinion of it.</p>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Specific, factual, minimum 20 characters. A generic note ("good work") carries no weight at appraisal.
+              <span className="ml-1 text-gray-500">{form.description.length} chars</span>
+            </p>
           </Field>
 
           <div className="flex gap-2 pt-2">

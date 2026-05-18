@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listRoutineItems, deleteRoutineItem, generateRoutineItem } from "../../api/routineItems";
+import { listRoutineItems, deleteRoutineItem, recordRoutinePurchase } from "../../api/routineItems";
 import { triggerAutoGenerate } from "../../api/repairRequests";
+import { getAccounts, getParties } from "../../api/financial";
 import Swal from "sweetalert2";
 
 // Linked-stock state badge palette (matches the Stock page).
@@ -31,8 +32,21 @@ export default function RoutineItems() {
   const [filter, setFilter] = useState("all");           // all | due | active | inactive
   const [search, setSearch] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [buyTarget, setBuyTarget] = useState(null);      // routine row → opens Record Purchase modal
+  const [accounts, setAccounts] = useState([]);
+  const [staffParties, setStaffParties] = useState([]);
 
   useEffect(() => { fetchItems(); /* eslint-disable-next-line */ }, [filter]);
+
+  // Payment sources for the Record Purchase modal — loaded once.
+  useEffect(() => {
+    getAccounts({ per_page: 100 })
+      .then((r) => setAccounts(r.data?.data?.data || r.data?.data || []))
+      .catch(() => setAccounts([]));
+    getParties({ party_type: "staff", per_page: 200 })
+      .then((r) => setStaffParties(r.data?.data?.data || r.data?.data || []))
+      .catch(() => setStaffParties([]));
+  }, []);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -73,38 +87,20 @@ export default function RoutineItems() {
     }
   };
 
-  // Per-row reorder. Spawns the draft PR + advances this routine's cycle.
-  // If an open PR already exists (409) we offer to force a duplicate.
-  const handleGenerate = async (row, force = false) => {
-    try {
-      const res = await generateRoutineItem(row.id, force);
-      const pr = res.data?.purchase_request;
-      await fetchItems();
-      const r = await Swal.fire({
-        icon: "success",
-        title: "Reorder created",
-        text: `Draft ${pr?.request_number || "purchase request"} is ready for submission.`,
-        showCancelButton: true,
-        confirmButtonText: "Open the PR",
-        cancelButtonText: "Stay here",
-        confirmButtonColor: "#0d9488",
-      });
-      if (r.isConfirmed && pr?.id) navigate(`/purchase/purchase-requests/show/${pr.id}`);
-    } catch (err) {
-      if (err.response?.status === 409) {
-        const r = await Swal.fire({
-          title: "Open PR already exists",
-          text: err.response.data?.message || "There's already an open reorder for this item.",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonText: "Force a new one",
-          confirmButtonColor: "#ef4444",
-        });
-        if (r.isConfirmed) handleGenerate(row, true);
-        return;
-      }
-      Swal.fire("Failed", err.response?.data?.message || "Could not generate.", "error");
-    }
+  // Called by the Record Purchase modal after a successful one-step buy.
+  const onPurchased = async (pr) => {
+    setBuyTarget(null);
+    await fetchItems();
+    const r = await Swal.fire({
+      icon: "success",
+      title: "Routine purchase recorded",
+      text: `${pr?.request_number || "Purchase"} completed — journal posted and stock updated.`,
+      showCancelButton: true,
+      confirmButtonText: "View the record",
+      cancelButtonText: "Done",
+      confirmButtonColor: "#0d9488",
+    });
+    if (r.isConfirmed && pr?.id) navigate(`/purchase/purchase-requests/show/${pr.id}`);
   };
 
   // Manual run of the daily auto-generator — handy for testing without waiting
@@ -263,10 +259,10 @@ export default function RoutineItems() {
                     }`}>{row.is_active ? "Yes" : "No"}</span>
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => handleGenerate(row)} disabled={!row.is_active}
-                      title={row.is_active ? "Create the reorder PR now" : "Inactive routine"}
+                    <button onClick={() => setBuyTarget(row)} disabled={!row.is_active}
+                      title={row.is_active ? "Record this routine purchase directly" : "Inactive routine"}
                       className="px-2 py-1 text-[10px] font-semibold text-white bg-teal-600 rounded hover:bg-teal-700 disabled:opacity-40 mr-2">
-                      Generate PR
+                      Record Purchase
                     </button>
                     <button onClick={() => navigate(`/purchase/routine-items/edit/${row.id}`)}
                       className="text-[10px] text-teal-600 hover:text-teal-800 mr-2">Edit</button>
@@ -278,6 +274,196 @@ export default function RoutineItems() {
             })}
           </tbody>
         </table>
+      </div>
+
+      {buyTarget && (
+        <RecordPurchaseModal
+          item={buyTarget}
+          accounts={accounts}
+          staffParties={staffParties}
+          onClose={() => setBuyTarget(null)}
+          onDone={onPurchased}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Record Purchase modal — one-step routine buy ───────────────────────── */
+
+function RecordPurchaseModal({ item, accounts, staffParties, onClose, onDone }) {
+  const [qty, setQty] = useState(item.standard_quantity || 1);
+  const [unitPrice, setUnitPrice] = useState(item.estimated_unit_price || "");
+  const [billNo, setBillNo] = useState("");
+  const [date, setDate] = useState(today());
+  const [mode, setMode] = useState("party");           // party (primary) | account
+  const [partyId, setPartyId] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const total = (Number(qty) || 0) * (Number(unitPrice) || 0);
+  const selParty = staffParties.find((p) => String(p.id) === String(partyId));
+  const partyBal = Number(selParty?.balance || 0);
+  const shortBal = mode === "party" && selParty && partyBal < total;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    if (total <= 0) return setError("Quantity × unit price must be greater than zero.");
+    if (mode === "party" && !partyId) return setError("Pick the staff party whose advance covers this.");
+    if (mode === "account" && !accountId) return setError("Pick the cash / bank account that paid.");
+    setBusy(true);
+    try {
+      const res = await recordRoutinePurchase(item.id, {
+        quantity: Number(qty),
+        unit_price: Number(unitPrice) || 0,
+        vendor_invoice_number: billNo.trim() || null,
+        date,
+        paid_from_party_id: mode === "party" ? Number(partyId) : null,
+        paid_from_account_id: mode === "account" ? Number(accountId) : null,
+      });
+      onDone(res.data?.purchase_request);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not record this purchase.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-start gap-3 px-6 py-4 border-b border-gray-100 bg-teal-50/50">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-teal-100 text-teal-700">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-bold text-teal-700">Record routine purchase</h3>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {item.item_name} · pre-authorised recurring buy — posts the books, fills stock, advances the cycle. No approval needed.
+            </p>
+          </div>
+          <button type="button" onClick={onClose}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="flex flex-col min-h-0 flex-1">
+          <div className="px-6 py-5 space-y-4 overflow-y-auto">
+            {error && <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2.5">{error}</div>}
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Quantity *</label>
+                <input type="number" min="0.01" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} required
+                  className="w-full px-3 py-2.5 text-sm text-right font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+                <p className="text-[10px] text-gray-400 mt-1">{item.unit}</p>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Unit price *</label>
+                <input type="number" min="0" step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} required
+                  className="w-full px-3 py-2.5 text-sm text-right font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Total</label>
+                <div className="px-3 py-2.5 text-sm text-right font-mono font-bold text-teal-700 bg-teal-50 rounded-lg">{fmt(total)}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Bill / invoice #</label>
+                <input type="text" value={billNo} onChange={(e) => setBillNo(e.target.value)} maxLength={100}
+                  placeholder="Vendor's receipt number"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Date</label>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Paid via *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setMode("party")}
+                  className={`text-left border rounded-lg p-2.5 transition-colors ${mode === "party" ? "bg-teal-600 border-teal-600 text-white" : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"}`}>
+                  <p className={`text-xs font-bold ${mode === "party" ? "text-white" : "text-gray-800"}`}>Staff advance</p>
+                  <p className={`text-[10px] mt-0.5 ${mode === "party" ? "text-teal-100" : "text-gray-500"}`}>Settles their advance balance</p>
+                </button>
+                <button type="button" onClick={() => setMode("account")}
+                  className={`text-left border rounded-lg p-2.5 transition-colors ${mode === "account" ? "bg-teal-600 border-teal-600 text-white" : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"}`}>
+                  <p className={`text-xs font-bold ${mode === "account" ? "text-white" : "text-gray-800"}`}>Cash / bank</p>
+                  <p className={`text-[10px] mt-0.5 ${mode === "account" ? "text-teal-100" : "text-gray-500"}`}>Paid directly from an account</p>
+                </button>
+              </div>
+            </div>
+
+            {mode === "party" && (
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Staff party *</label>
+                {staffParties.length === 0 ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">No staff parties. Create one under Finance → Parties.</p>
+                ) : (
+                  <div className="max-h-40 overflow-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                    {staffParties.map((p) => {
+                      const sel = String(partyId) === String(p.id);
+                      const bal = Number(p.balance || 0);
+                      return (
+                        <button key={p.id} type="button" onClick={() => setPartyId(p.id)}
+                          className={`w-full text-left px-3 py-2.5 flex items-center justify-between ${sel ? "bg-teal-50 ring-1 ring-inset ring-teal-200" : "hover:bg-gray-50"}`}>
+                          <span className={`text-sm font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{p.full_name}</span>
+                          <span className={`text-[11px] font-mono ${bal > 0 ? "text-emerald-700" : bal < 0 ? "text-amber-700" : "text-gray-400"}`}>
+                            {bal > 0 ? `+${fmt(bal)} advance` : bal < 0 ? `${fmt(bal)} (owed)` : "settled"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {shortBal && (
+                  <p className="text-[10px] text-amber-700 mt-1.5">⚠ Advance ({fmt(partyBal)}) is less than this purchase — their balance will go negative (school will owe them).</p>
+                )}
+              </div>
+            )}
+
+            {mode === "account" && (
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Cash / bank account *</label>
+                {accounts.length === 0 ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">No accounts. Add one under Finance → Setup → Accounts.</p>
+                ) : (
+                  <div className="max-h-40 overflow-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                    {accounts.map((a) => {
+                      const sel = String(accountId) === String(a.id);
+                      return (
+                        <button key={a.id} type="button" onClick={() => setAccountId(a.id)}
+                          className={`w-full text-left px-3 py-2.5 flex items-center justify-between ${sel ? "bg-teal-50 ring-1 ring-inset ring-teal-200" : "hover:bg-gray-50"}`}>
+                          <span className={`text-sm font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{a.account_name}</span>
+                          <span className="text-[11px] text-gray-500 font-mono">{fmt(a.current_balance)} AFN</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
+            <button type="submit" disabled={busy}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold disabled:opacity-50">
+              {busy ? "Recording…" : `Confirm — ${fmt(total)} AFN`}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

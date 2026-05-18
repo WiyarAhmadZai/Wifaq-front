@@ -8,7 +8,9 @@ export const createRoutineItem  = (data)        => post(BASE, data);
 export const updateRoutineItem  = (id, data)    => put(`${BASE}/${id}`, data);
 export const deleteRoutineItem  = (id)          => del(`${BASE}/${id}`);
 
-// Manually spawn the reorder PR for one routine item (advances its cycle).
-// force=true overrides the "already has an open PR" guard.
-export const generateRoutineItem = (id, force = false) =>
-  post(`${BASE}/${id}/generate`, { force });
+// Direct one-step routine purchase: records the buy, posts the books,
+// fills stock, advances the cycle. No requisition workflow.
+// data: { quantity, unit_price, vendor_invoice_number, date,
+//         paid_from_account_id | paid_from_party_id }
+export const recordRoutinePurchase = (id, data) =>
+  post(`${BASE}/${id}/purchase`, data);

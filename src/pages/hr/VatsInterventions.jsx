@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
-import { PageHeader, EmptyState, Spinner, Pill, Section } from "../../components/hr/HrUI";
+import { PageHeader, EmptyState, Spinner, Pill, Section, InfoNote } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -68,6 +68,16 @@ export default function VatsInterventions() {
           icon="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
           title="Interventions — Progressive Discipline"
           subtitle="Five levels of formal correction. Every intervention requires the 6-item Dignity Protocol — no exceptions."
+          children={
+            <div className="bg-white/15 rounded-xl px-4 py-2.5 text-[11px] text-teal-50 leading-relaxed">
+              <strong>The concept.</strong> Discipline is not punishment — it is the institution saying "we believe in
+              who you can be." Every record must state three things: <strong>what occurred · what is expected ·
+              what support is offered</strong> (a problem without expectation and support will not save). Levels run
+              1 Informal → 2 Verbal → 3 Written → 4 Final → 5 Suspension; severe cases (violence, theft, abuse,
+              endangering students) jump straight to Level 5. Even in termination, the final conversation is private,
+              respectful, and with gratitude for service given.
+            </div>
+          }
           actions={
             canCreate && (
               <button onClick={() => setShowForm(true)}

@@ -86,6 +86,16 @@ export default function WelfareCheckin() {
           <p className="text-sm text-gray-500 mt-1">Takes 2 minutes. Tap an emoji for each question.</p>
         </div>
 
+        <div className="rounded-2xl border border-teal-100 bg-teal-50 text-teal-900 p-4 mb-5">
+          <p className="text-xs font-bold uppercase tracking-wider mb-1.5">The concept</p>
+          <p className="text-[12.5px] leading-relaxed">
+            You report across the <b>4D wellbeing</b> lens — <b>spiritual</b>, <b>emotional</b>, <b>physical</b>,
+            <b> professional</b> — plus material and psychological signals. This is the same 4D lens as performance,
+            but <b>completely walled off</b> from it: it measures whether WEN is caring for you, and a low score
+            brings <b>support, never scrutiny</b>.
+          </p>
+        </div>
+
         <form onSubmit={submit} className="space-y-5">
           {/* Period */}
           <Card title="Which month is this for?" icon="📅">

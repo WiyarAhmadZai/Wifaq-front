@@ -108,6 +108,26 @@ export function Section({ title, subtitle, icon, action, children }) {
   );
 }
 
+/**
+ * InfoNote — a compact concept/guidance callout. Used to surface the
+ * VATS principles (4D lens, dignity, performance≠welfare, counting
+ * rules) on the existing pages without changing their layout.
+ */
+export function InfoNote({ tone = "teal", title, children }) {
+  const tones = {
+    teal:  "bg-teal-50 border-teal-100 text-teal-900",
+    amber: "bg-amber-50 border-amber-200 text-amber-900",
+    red:   "bg-red-50 border-red-200 text-red-900",
+    gray:  "bg-gray-50 border-gray-200 text-gray-700",
+  }[tone] || "bg-teal-50 border-teal-100 text-teal-900";
+  return (
+    <div className={`rounded-2xl border ${tones} p-4 mb-5`}>
+      {title && <p className="text-xs font-bold uppercase tracking-wider mb-1.5">{title}</p>}
+      <div className="text-[12.5px] leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
 export function Pill({ tone = "gray", children }) {
   const tones = {
     gray:    "bg-gray-100 text-gray-700",

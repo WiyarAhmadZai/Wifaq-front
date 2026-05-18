@@ -187,6 +187,7 @@ const FeeInvoices = lazy(() => import("./pages/finance/FeeInvoices"));
 const FeeInvoiceForm = lazy(() => import("./pages/finance/FeeInvoiceForm"));
 const FeeInvoiceShow = lazy(() => import("./pages/finance/FeeInvoiceShow"));
 const BillingRun = lazy(() => import("./pages/finance/BillingRun"));
+const Payroll = lazy(() => import("./pages/finance/Payroll"));
 const Cashier = lazy(() => import("./pages/finance/Cashier"));
 const StudentPayments = lazy(() => import("./pages/finance/StudentPayments"));
 const ClassCollectionReport = lazy(() => import("./pages/finance/ClassCollectionReport"));
@@ -427,6 +428,7 @@ function App() {
             <Route path="finance/budgets/create" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/budgets/edit/:id" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/billing-runs" element={<Suspense fallback={<PageLoader />}><BillingRun /></Suspense>} />
+            <Route path="finance/payroll" element={<Suspense fallback={<PageLoader />}><Payroll /></Suspense>} />
             <Route path="finance/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
             <Route path="finance/students/:studentId/payments" element={<Suspense fallback={<PageLoader />}><StudentPayments /></Suspense>} />
             <Route path="finance/reports/class-collection" element={<Suspense fallback={<PageLoader />}><ClassCollectionReport /></Suspense>} />

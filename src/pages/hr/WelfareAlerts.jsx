@@ -4,11 +4,15 @@ import { get, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, Pill, StatGrid } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import { useAuth } from "../../admin/context/AuthContext";
 
 const STATUS_TONE = { open: "amber", in_progress: "blue", resolved: "emerald" };
+const WELFARE_ROLES = ["super-admin", "admin", "hr-manager", "welfare-officer"];
 
 export default function WelfareAlerts() {
   const location = useLocation();
+  const { hasRole } = useAuth() || {};
+  const canManage = WELFARE_ROLES.some((r) => hasRole?.(r));
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState({ status: "" });
@@ -36,7 +40,9 @@ export default function WelfareAlerts() {
         <PageHeader
           icon="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
           title="Welfare Alerts"
-          subtitle="Care signals — never performance signals. Triggered automatically when a check-in shows a low score or a staff member asks for support."
+          subtitle={canManage
+            ? "Care signals — never performance signals. Triggered automatically when a check-in shows a low score or a staff member asks for support."
+            : "Your welfare alerts and their status. The Welfare Officer is following these up privately — this is care, never a performance signal."}
         />
 
         <StatGrid stats={[
@@ -68,17 +74,17 @@ export default function WelfareAlerts() {
           />
         ) : (
           <div className="space-y-3">
-            {alerts.map(a => <AlertCard key={a.id} alert={a} onEdit={() => setEditing(a)} />)}
+            {alerts.map(a => <AlertCard key={a.id} alert={a} canManage={canManage} onEdit={() => canManage && setEditing(a)} />)}
           </div>
         )}
 
-        {editing && <AlertEditor alert={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); fetchAll(); }} />}
+        {editing && canManage && <AlertEditor alert={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); fetchAll(); }} />}
       </div>
     </div>
   );
 }
 
-function AlertCard({ alert, onEdit }) {
+function AlertCard({ alert, onEdit, canManage }) {
   const reasons = (alert.reason || "").split(",").filter(Boolean);
 
   return (
@@ -116,7 +122,9 @@ function AlertCard({ alert, onEdit }) {
               Raised {new Date(alert.created_at).toLocaleDateString()}
               {alert.assignee && ` · assigned to ${alert.assignee.name}`}
             </div>
-            <button onClick={onEdit} className="text-[11px] font-semibold text-teal-700 hover:underline">Update →</button>
+            {canManage
+              ? <button onClick={onEdit} className="text-[11px] font-semibold text-teal-700 hover:underline">Update →</button>
+              : <span className="text-[10px] text-gray-400 italic">Welfare team following up</span>}
           </div>
         </div>
       </div>

@@ -114,6 +114,11 @@ const PUBLIC_PATHS = new Set([
   "/leave-requests",
   "/number-puzzle",
   "/departments",
+  // Welfare alerts & benefits: any authenticated staff may open these to
+  // see THEIR OWN records (notification target). The backend row-scopes
+  // the data — privileged welfare roles see all, staff see only their own.
+  "/hr/welfare/alerts",
+  "/hr/welfare/benefits",
 ]);
 
 /**

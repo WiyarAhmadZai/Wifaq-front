@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { get } from "../../api/axios";
-import { PageHeader, StatGrid, Section, Spinner, EmptyState } from "../../components/hr/HrUI";
+import { PageHeader, StatGrid, Section, Spinner, EmptyState, InfoNote } from "../../components/hr/HrUI";
 
 /**
  * Aggregate-only welfare dashboard for leadership.
@@ -48,6 +48,14 @@ export default function WelfareDashboard() {
             <strong>Privacy guarantee.</strong> Individual check-in data is invisible here, even to leadership. We see <em>aggregate trends</em> so we can act institutionally, never single people out.
           </div>
         </PageHeader>
+
+        <InfoNote title="The concept — Ihsan welfare is walled off from performance">
+          A staff member telling us they are struggling is an <b>act of trust</b>. Welfare data <b>never enters a
+          performance context</b> — enforced at the query level, not just by policy. A low welfare score triggers
+          <b> care, not scrutiny</b>, and routes to the <b>Welfare Officer — never the direct supervisor</b>. The 4D
+          wellbeing (spiritual · emotional · physical · professional) plus material &amp; psychological signals exist
+          to measure whether <b>WEN is fulfilling its obligation to staff</b>, never to assess the staff member.
+        </InfoNote>
 
         <StatGrid stats={[
           {

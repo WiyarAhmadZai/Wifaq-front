@@ -1,257 +1,191 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { listPurchaseRequests, deletePurchaseRequest } from "../../api/purchaseRequests";
 import Swal from "sweetalert2";
 
-const pipelineStages = [
-  { key: "draft", label: "Draft", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
-  { key: "approved", label: "Approved", color: "bg-emerald-500", light: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { key: "completed", label: "Completed", color: "bg-teal-500", light: "bg-teal-50 text-teal-700 border-teal-200" },
-  { key: "rejected", label: "Rejected", color: "bg-red-500", light: "bg-red-50 text-red-700 border-red-200" },
-];
-
-const dummyData = [
-  { id: 1, pr_number: "PR-2026-001", title: "Office Stationery for Q1", requested_by: "Ahmad Rahimi", department: "Admin", status: "approved", priority: "medium", total_amount: 15000, items_count: 5, created_at: "2026-01-15" },
-  { id: 2, pr_number: "PR-2026-002", title: "Computer Lab Equipment", requested_by: "Khalid Amiri", department: "IT", status: "approved", priority: "high", total_amount: 250000, items_count: 8, created_at: "2026-01-28" },
-  { id: 3, pr_number: "PR-2026-003", title: "Cleaning Supplies - Monthly", requested_by: "Zahra Ahmadi", department: "Facilities", status: "completed", priority: "low", total_amount: 8500, items_count: 12, created_at: "2026-02-01" },
-  { id: 4, pr_number: "PR-2026-004", title: "Library Books - Science Section", requested_by: "Maryam Sultani", department: "Library", status: "draft", priority: "medium", total_amount: 45000, items_count: 20, created_at: "2026-02-10" },
-  { id: 5, pr_number: "PR-2026-005", title: "Classroom Furniture Replacement", requested_by: "Mohammad Karimi", department: "Admin", status: "draft", priority: "high", total_amount: 180000, items_count: 15, created_at: "2026-02-20" },
-  { id: 6, pr_number: "PR-2026-006", title: "Sports Equipment", requested_by: "Ali Mohammadi", department: "Sports", status: "approved", priority: "medium", total_amount: 35000, items_count: 10, created_at: "2026-02-25" },
-  { id: 7, pr_number: "PR-2026-007", title: "Printer Cartridges & Paper", requested_by: "Sara Hashimi", department: "Admin", status: "completed", priority: "low", total_amount: 12000, items_count: 6, created_at: "2026-03-01" },
-  { id: 8, pr_number: "PR-2026-008", title: "Lab Chemicals Restock", requested_by: "Hamid Nazari", department: "Science", status: "rejected", priority: "medium", total_amount: 28000, items_count: 8, created_at: "2026-03-05" },
-  { id: 9, pr_number: "PR-2026-009", title: "Security Camera System", requested_by: "Khalid Amiri", department: "IT", status: "draft", priority: "urgent", total_amount: 95000, items_count: 4, created_at: "2026-03-08" },
-  { id: 10, pr_number: "PR-2026-010", title: "Teacher Desk Accessories", requested_by: "Fatima Noori", department: "HR", status: "draft", priority: "low", total_amount: 5500, items_count: 7, created_at: "2026-03-12" },
-];
-
-const statusBadge = (val) => {
-  const stage = pipelineStages.find((s) => s.key === val);
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${stage?.light || "bg-gray-100 text-gray-700 border-gray-200"}`}>
-      {val?.replace(/_/g, " ")}
-    </span>
-  );
+// Status palette — mirrors the backend enum on purchase_requests.status.
+const STATUS = {
+  draft:       { label: "Draft",       cls: "bg-gray-50 text-gray-700 border-gray-200" },
+  pending:     { label: "Pending",     cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  approved:    { label: "Approved",    cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  rejected:    { label: "Rejected",    cls: "bg-red-50 text-red-700 border-red-200" },
+  procurement: { label: "Procuring",   cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  completed:   { label: "Completed",   cls: "bg-teal-50 text-teal-700 border-teal-200" },
+  cancelled:   { label: "Cancelled",   cls: "bg-gray-100 text-gray-500 border-gray-200" },
 };
 
-const priorityBadge = (val) => {
-  const colors = {
-    low: "bg-blue-50 text-blue-700 border-blue-200",
-    medium: "bg-amber-50 text-amber-700 border-amber-200",
-    high: "bg-orange-50 text-orange-700 border-orange-200",
-    urgent: "bg-red-50 text-red-700 border-red-200",
-  };
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${colors[val] || "bg-gray-100 text-gray-700 border-gray-200"}`}>
-      {val}
-    </span>
-  );
+const PRIORITY = {
+  low:    "bg-blue-50 text-blue-700 border-blue-200",
+  medium: "bg-amber-50 text-amber-700 border-amber-200",
+  high:   "bg-red-50 text-red-700 border-red-200",
 };
+
+const FILTER_TABS = ["all", "draft", "pending", "approved", "procurement", "completed"];
+
+const fmt = (n) => Number(n || 0).toLocaleString();
 
 export default function PurchaseRequests() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
-  const [filteredItems, setFilteredItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchItems(); /* eslint-disable-next-line */ }, [filter]);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const response = await get("/purchase/purchase-requests");
-      const data = response.data?.data || response.data || [];
-      const arr = Array.isArray(data) ? data : [];
-      setItems(arr);
-      setFilteredItems(arr);
-    } catch {
-      setItems(dummyData);
-      setFilteredItems(dummyData);
+      const params = { per_page: 100 };
+      if (filter !== "all") params.status = filter;
+      if (search) params.search = search;
+      const response = await listPurchaseRequests(params);
+      // Backend returns a Laravel paginator → rows in response.data.data
+      const rows = response.data?.data?.data || response.data?.data || [];
+      setItems(Array.isArray(rows) ? rows : []);
+    } catch (e) {
+      console.error("Failed to load purchase requests", e);
+      setItems([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSearch = (e) => {
-    const query = e.target.value.toLowerCase();
-    setSearchQuery(query);
-    applyFilters(query, activeFilter);
-  };
-
-  const handleFilter = (status) => {
-    setActiveFilter(status);
-    applyFilters(searchQuery, status);
-  };
-
-  const applyFilters = (query, status) => {
-    let result = items;
-    if (status !== "all") result = result.filter((i) => i.status === status);
-    if (query) {
-      result = result.filter((i) =>
-        ["pr_number", "title", "requested_by", "department"].some((f) =>
-          String(i[f] || "").toLowerCase().includes(query)
-        )
-      );
-    }
-    setFilteredItems(result);
-  };
+  const onSearch = (e) => setSearch(e.target.value);
+  const onSearchSubmit = (e) => { e.preventDefault(); fetchItems(); };
 
   const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: "Are you sure?", text: "You will not be able to recover this record!",
-      icon: "warning", showCancelButton: true, confirmButtonColor: "#0d9488", cancelButtonColor: "#ef4444", confirmButtonText: "Yes, delete it!",
+    const r = await Swal.fire({
+      title: "Delete request?",
+      text: "Only drafts can be deleted.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      confirmButtonText: "Delete",
     });
-    if (result.isConfirmed) {
-      try { await del(`/purchase/purchase-requests/${id}`); } catch { /* demo */ }
-      setItems((prev) => prev.filter((i) => i.id !== id));
-      setFilteredItems((prev) => prev.filter((i) => i.id !== id));
-      Swal.fire("Deleted!", "Purchase request has been deleted.", "success");
+    if (!r.isConfirmed) return;
+    try {
+      await deletePurchaseRequest(id);
+      setItems((p) => p.filter((i) => i.id !== id));
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Deleted", timer: 1200, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to delete", "error");
     }
   };
 
-  const getStageCount = (status) => items.filter((i) => i.status === status).length;
-  const totalAmount = items.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
+  const stats = useMemo(() => {
+    const s = { total: items.length, pending: 0, procurement: 0, completed: 0, value: 0 };
+    items.forEach((i) => {
+      if (s[i.status] !== undefined) s[i.status]++;
+      s.value += Number(i.estimated_total) || 0;
+    });
+    return s;
+  }, [items]);
 
   return (
     <div className="px-4 py-4">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h2 className="text-base font-bold text-gray-800">Purchase Requests</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage procurement requests through the approval pipeline</p>
+          <p className="text-xs text-gray-500">Submit, approve, procure, and close out purchase requests.</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input type="text" value={searchQuery} onChange={handleSearch} placeholder="Search requests..."
-              className="w-full sm:w-64 pl-10 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
-          </div>
-          <button onClick={() => navigate("/purchase/purchase-requests/create")}
-            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Request
-          </button>
-        </div>
+        <button onClick={() => navigate("/purchase/purchase-requests/create")}
+          className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          New Request
+        </button>
       </div>
 
-      {/* Summary Card */}
-      <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-xl p-4 mb-4 text-white">
-        <div className="flex flex-wrap gap-6">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-teal-200">Total Requests</p>
-            <p className="text-2xl font-bold">{items.length}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-teal-200">Total Amount</p>
-            <p className="text-2xl font-bold">{totalAmount.toLocaleString()} <span className="text-sm font-normal">AFN</span></p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-teal-200">Drafts</p>
-            <p className="text-2xl font-bold">{getStageCount("draft")}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-teal-200">Approved</p>
-            <p className="text-2xl font-bold">{getStageCount("approved")}</p>
-          </div>
-        </div>
+      {/* Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        <SummaryCard label="Total" value={stats.total} accent="from-teal-600 to-teal-700" />
+        <SummaryCard label="Pending approval" value={stats.pending} accent="from-amber-500 to-amber-600" />
+        <SummaryCard label="In procurement" value={stats.procurement} accent="from-indigo-500 to-indigo-600" />
+        <SummaryCard label="Total value (AFN)" value={fmt(stats.value)} accent="from-gray-700 to-gray-800" />
       </div>
 
-      {/* Pipeline Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-        {pipelineStages.map((stage) => {
-          const count = getStageCount(stage.key);
-          const isActive = activeFilter === stage.key;
-          return (
-            <button key={stage.key} onClick={() => handleFilter(isActive ? "all" : stage.key)}
-              className={`relative p-3 rounded-xl border-2 transition-all text-left ${
-                isActive ? `${stage.light} border-current ring-2 ring-current/20` : "bg-white border-gray-100 hover:border-gray-200"
+      {/* Filters + search */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="flex gap-1.5 flex-wrap">
+          {FILTER_TABS.map((t) => (
+            <button key={t} onClick={() => setFilter(t)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold capitalize transition-colors ${
+                filter === t ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}>
-              <div className={`w-2 h-2 rounded-full ${stage.color} mb-2`} />
-              <p className="text-lg font-bold text-gray-800">{count}</p>
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{stage.label}</p>
+              {t}
             </button>
-          );
-        })}
+          ))}
+        </div>
+        <form onSubmit={onSearchSubmit} className="flex-1">
+          <input type="text" value={search} onChange={onSearch}
+            onBlur={fetchItems}
+            placeholder="Search by PR number or purpose…"
+            className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
+        </form>
       </div>
 
-      {/* Active Filter */}
-      {activeFilter !== "all" && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-gray-500">Filtering by: <strong className="capitalize">{activeFilter}</strong></span>
-          <button onClick={() => handleFilter("all")} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Clear filter</button>
-        </div>
-      )}
-
-      {/* Table */}
-      {loading ? (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent"></div>
-          <p className="mt-2 text-gray-500 text-xs">Loading...</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
-              <thead className="bg-teal-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">PR #</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Title</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Requested By</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Department</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Priority</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Amount</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Date</th>
-                  <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
+      {/* List */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table className="w-full text-[11px]">
+          <thead className="bg-gray-50 text-gray-500 uppercase text-[9px]">
+            <tr>
+              <th className="text-left px-3 py-2">PR #</th>
+              <th className="text-left px-3 py-2">Purpose</th>
+              <th className="text-left px-3 py-2">Requester</th>
+              <th className="text-center px-3 py-2">Priority</th>
+              <th className="text-right px-3 py-2">Items</th>
+              <th className="text-right px-3 py-2">Total (AFN)</th>
+              <th className="text-center px-3 py-2">Status</th>
+              <th className="text-left px-3 py-2">Date</th>
+              <th className="text-center px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {loading ? (
+              <tr><td colSpan={9} className="text-center py-8 text-xs text-gray-400">Loading…</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={9} className="text-center py-8 text-xs text-gray-400 italic">No purchase requests yet.</td></tr>
+            ) : items.map((pr) => {
+              const st = STATUS[pr.status] || STATUS.draft;
+              return (
+                <tr key={pr.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/purchase/purchase-requests/show/${pr.id}`)}>
+                  <td className="px-3 py-2 font-mono text-[10px] text-gray-700">{pr.request_number}</td>
+                  <td className="px-3 py-2 text-gray-800 max-w-[220px] truncate">{pr.purpose}</td>
+                  <td className="px-3 py-2 text-gray-600">{pr.requester?.name || "—"}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${PRIORITY[pr.priority] || ""}`}>
+                      {pr.priority}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-700">{pr.items?.length ?? 0}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-gray-800">{fmt(pr.estimated_total)}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${st.cls}`}>{st.label}</span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-500">{pr.request_date}</td>
+                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                    {pr.status === "draft" && (
+                      <button onClick={() => handleDelete(pr.id)}
+                        className="text-[10px] text-red-600 hover:text-red-700">Delete</button>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/purchase/purchase-requests/show/${item.id}`)}>
-                    <td className="px-3 py-2.5 text-xs font-medium text-teal-600">{item.pr_number}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-xs font-medium text-gray-800">{item.title}</div>
-                      <div className="text-[10px] text-gray-400">{item.items_count} items</div>
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-gray-600">{item.requested_by}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-600">{item.department}</td>
-                    <td className="px-3 py-2.5">{priorityBadge(item.priority)}</td>
-                    <td className="px-3 py-2.5 text-xs font-medium text-gray-800">{Number(item.total_amount).toLocaleString()} AFN</td>
-                    <td className="px-3 py-2.5">{statusBadge(item.status)}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "-"}</td>
-                    <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/purchase/purchase-requests/show/${item.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded" title="View">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </button>
-                        <button onClick={() => handleDelete(item.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredItems.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-500 text-xs">No purchase requests found</p>
-            </div>
-          )}
-        </div>
-      )}
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, accent }) {
+  return (
+    <div className={`bg-gradient-to-r ${accent} rounded-xl p-3 text-white`}>
+      <p className="text-[10px] uppercase tracking-wider opacity-80">{label}</p>
+      <p className="text-xl font-bold">{value}</p>
     </div>
   );
 }

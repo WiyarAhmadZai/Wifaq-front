@@ -16,6 +16,11 @@ export const getAccount = (id) => get(`${BASE}/accounts/${id}`);
 export const createAccount = (data) => post(`${BASE}/accounts`, data);
 export const updateAccount = (id, data) => put(`${BASE}/accounts/${id}`, data);
 export const deleteAccount = (id) => del(`${BASE}/accounts/${id}`);
+// Cash movements — every call posts a balanced journal entry server-side.
+export const depositToAccount       = (id, data) => post(`${BASE}/accounts/${id}/deposit`, data);
+export const withdrawFromAccount    = (id, data) => post(`${BASE}/accounts/${id}/withdraw`, data);
+export const transferBetweenAccounts = (id, data) => post(`${BASE}/accounts/${id}/transfer`, data);
+export const getAccountMovements    = (id, params = {}) => get(`${BASE}/accounts/${id}/movements`, { params });
 
 // Parties (Students, Employees, Suppliers)
 export const getParties = (params = {}) => get(`${BASE}/parties`, { params });
@@ -23,6 +28,11 @@ export const getParty = (id) => get(`${BASE}/parties/${id}`);
 export const createParty = (data) => post(`${BASE}/parties`, data);
 export const getPartyLedger = (id, params = {}) => get(`${BASE}/parties/${id}/ledger`, { params });
 export const getPartyBalance = (id) => get(`${BASE}/parties/${id}/balance`);
+// The four canonical party-money actions — staff advances flow.
+export const givePartyAdvance       = (id, data) => post(`${BASE}/parties/${id}/advance`, data);
+export const recordPartyExpense     = (id, data) => post(`${BASE}/parties/${id}/expense`, data);
+export const recordPartyRepayment   = (id, data) => post(`${BASE}/parties/${id}/repayment`, data);
+export const recordPartyReimbursement = (id, data) => post(`${BASE}/parties/${id}/reimbursement`, data);
 
 // Journal Entries
 export const getJournalEntries = (params = {}) => get(`${BASE}/journal-entries`, { params });
@@ -59,6 +69,7 @@ export const getBudgetReport = (id) => get(`${BASE}/budgets/${id}/report`);
 
 // Fee Module
 export const getFeeInvoices = (params = {}) => get(`${BASE}/fees/invoices`, { params });
+export const getFeeInvoiceMonths = () => get(`${BASE}/fees/invoices/months`);
 export const getFeeInvoice = (id) => get(`${BASE}/fees/invoices/${id}`);
 export const regenerateFeeInvoice = (id, data) => post(`${BASE}/fees/invoices/${id}/regenerate`, data);
 export const addInvoiceLine = (id, data) => post(`${BASE}/fees/invoices/${id}/lines`, data);

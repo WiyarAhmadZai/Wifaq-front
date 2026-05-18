@@ -753,6 +753,7 @@ export default function Layout() {
     { label: "Daily", key: "finance-daily", children: [
       { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
       { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
+      { label: "Payroll", path: "/finance/payroll", permission: "payments.view" },
       { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
       { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
     ]},

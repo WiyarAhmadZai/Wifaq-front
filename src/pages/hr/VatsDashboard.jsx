@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { get } from "../../api/axios";
-import { PageHeader, StatGrid, Section, Pill, Spinner } from "../../components/hr/HrUI";
+import { PageHeader, StatGrid, Section, Pill, Spinner, InfoNote } from "../../components/hr/HrUI";
+import { useVatsThresholds } from "../../components/hr/useVats";
 
 const CARD_COLORS = [
   { color: "gold",      label: "Gold",      tone: "yellow",  desc: "Extraordinary all-around excellence" },
@@ -14,42 +15,42 @@ const CARD_COLORS = [
 export default function VatsDashboard() {
   const navigate = useNavigate();
   const [obs, setObs] = useState([]);
-  const [slips, setSlips] = useState([]);
   const [cards, setCards] = useState([]);
   const [interventions, setInterventions] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Single source of truth — same data the Cards page acts on.
+  const { totals, eligible, ratio, targets, loading: thrLoading } = useVatsThresholds();
 
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     try {
-      const [o, s, c, i] = await Promise.all([
+      const [o, c, i] = await Promise.all([
         get("/vats/observations?per_page=200"),
-        get("/vats/slips?per_page=200"),
         get("/vats/cards"),
         get("/vats/interventions?per_page=200"),
       ]);
       setObs(o.data?.data || []);
-      setSlips(s.data?.data || []);
       setCards(c.data?.data || []);
       setInterventions(i.data?.data?.data || i.data?.data || []);
     } catch (e) { /* tolerate empty */ }
     finally { setLoading(false); }
   };
 
-  // Aggregate stats
+  // Observation mix (for the chart only — the headline numbers come from thresholds)
   const positive = obs.filter(o => o.category === "positive").length;
   const concern = obs.filter(o => o.category === "concern").length;
   const urgent = obs.filter(o => o.category === "urgent").length;
-  const positiveSlips = slips.filter(s => s.kind === "positive").length;
-  const concernSlips = slips.filter(s => s.kind === "concern").length;
-  const ratio = concern + urgent > 0 ? (positive / (concern + urgent)).toFixed(1) : positive ? "∞" : "—";
   const openInterventions = interventions.filter(i => i.status !== "resolved").length;
+  const ratioStr = ratio === Infinity ? "∞" : ratio === 0 ? "—" : ratio.toFixed(1);
+  const ratioHealthy = ratio === Infinity || ratio >= 3;
+  const pendingCards = totals.pendingPositive + totals.pendingConcern;
 
   // Cards by colour
   const cardsBy = (color) => cards.filter(c => c.color === color).length;
 
-  if (loading) {
+  if (loading || thrLoading) {
     return <div className="flex items-center justify-center py-24"><Spinner /></div>;
   }
 
@@ -75,14 +76,73 @@ export default function VatsDashboard() {
           }
         />
 
+        <InfoNote title="The concept — one person, three systems">
+          Recognition becomes a force only when it accumulates somewhere visible: <b>Observe &amp; Slip → Recognition
+          File → Annual Appraisal → Career outcome</b>. The system recognises first, corrects with dignity, and treats
+          every staff member as a person of inherent worth. Critically, <b>Performance ≠ Welfare</b>: a concern triggers
+          support or correction (never a welfare assumption), and a low welfare score triggers care (never scrutiny) —
+          the two converge only at the Annual Appraisal, held by a senior leader, never the direct supervisor.
+          The healthy-culture target is a <b>3 : 1</b> positive-to-concern ratio.
+        </InfoNote>
+
         <StatGrid
           stats={[
-            { label: "Observations", value: obs.length, tone: "teal", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2", hint: `${positive} positive · ${concern} concern · ${urgent} urgent` },
-            { label: "Pos / Neg ratio", value: ratio + ":1", tone: ratio === "—" || (typeof ratio === "string" && ratio.replace(/[^\d.]/g, "") < 3) ? "amber" : "emerald", icon: "M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", hint: "Healthy target: 3:1 or better" },
-            { label: "Recognition Slips", value: slips.length, tone: "emerald", icon: "M5 13l4 4L19 7", hint: `${positiveSlips} praise · ${concernSlips} concern` },
-            { label: "Open interventions", value: openInterventions, tone: openInterventions > 0 ? "red" : "teal", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z", hint: "Across all 5 levels" },
+            { label: "Recognition events", value: totals.recognition, tone: "emerald", icon: "M5 13l4 4L19 7", hint: `${totals.positiveSlips} slips · ${totals.positiveObs} observations` },
+            { label: "Concern events", value: totals.concern, tone: totals.concern > 0 ? "amber" : "teal", icon: "M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", hint: `${totals.concernSlips} slips · ${totals.concernObs} observations` },
+            { label: "Recognition : Concern", value: ratioStr + (ratioStr === "—" ? "" : ":1"), tone: ratioHealthy ? "emerald" : "amber", icon: "M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", hint: "Healthy target: 3:1 or better" },
+            { label: "Cards waiting to send", value: pendingCards, tone: pendingCards > 0 ? "amber" : "teal", icon: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z", hint: pendingCards > 0 ? "Action needed → Cards page" : "All caught up" },
           ]}
         />
+
+        {/* ── Action Queue — the connective tissue between steps ── */}
+        <Section
+          title="Action Queue"
+          subtitle="Thresholds the system flagged for your judgment — recognition events roll up from slips + observations"
+          icon="M13 10V3L4 14h7v7l9-11h-7z"
+          action={
+            <button onClick={() => navigate("/hr/vats/cards")}
+              className="text-[11px] font-semibold text-teal-700 hover:underline">Open Cards →</button>
+          }
+        >
+          {eligible.length === 0 && openInterventions === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">Nothing waiting. The queue fills as staff cross a {targets.positive}-recognition or {targets.concern}-concern threshold.</p>
+          ) : (
+            <div className="space-y-2">
+              {eligible.slice(0, 6).map((row) => {
+                const card = (row.suggest_cards || [])[0];
+                const isPos = card?.axis === "positive";
+                return (
+                  <div key={row.staff_id}
+                    className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                    onClick={() => navigate("/hr/vats/cards")}>
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isPos ? "bg-teal-600" : "bg-amber-500"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">
+                        Card consideration — {row.name}
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        {row.positive} recognition · {row.concern} concern · ready for {(row.suggest_cards || []).map(c => c.label).join(" + ")}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-semibold text-teal-700 whitespace-nowrap">Send card →</span>
+                  </div>
+                );
+              })}
+              {interventions.filter(i => i.status !== "resolved").slice(0, 3).map((i) => (
+                <div key={`iv-${i.id}`}
+                  className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                  onClick={() => navigate("/hr/vats/interventions")}>
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">Open intervention — {i.staff?.application?.full_name || `Staff #${i.staff_id}`}</p>
+                    <p className="text-[11px] text-gray-500 truncate">L{i.level} · {i.subject}</p>
+                  </div>
+                  <span className="text-[10px] font-semibold text-teal-700 whitespace-nowrap">Review →</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
           <div className="lg:col-span-2 space-y-4">

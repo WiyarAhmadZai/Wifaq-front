@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { get, post } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
@@ -23,6 +24,7 @@ const SCALE_LABELS = ["Very poor", "Poor", "OK", "Good", "Excellent"];
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
 
 export default function WelfareCheckin() {
+  const navigate = useNavigate();
   const today = new Date();
   const [form, setForm] = useState({
     year: today.getFullYear(),
@@ -54,6 +56,8 @@ export default function WelfareCheckin() {
         timer: 2200, showConfirmButton: false,
       });
       fetchHistory();
+      // Take the staff to their alerts so they can track follow-up/status.
+      setTimeout(() => navigate("/hr/welfare/alerts"), 2200);
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to submit", "error");
     } finally { setSaving(false); }

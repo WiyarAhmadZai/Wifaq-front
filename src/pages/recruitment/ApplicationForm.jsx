@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
-import { handleValidationErrors } from "../../utils/formErrors";
+import { handleValidationErrors, fmtDate } from "../../utils/formErrors";
 
+import { DateField } from "../../components/hr/HrUI";
 const STEPS = [
   { num: 1, label: "Job Selection", desc: "Select job posting", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
   { num: 2, label: "Personal Info", desc: "Basic information & introduction", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
@@ -447,7 +448,7 @@ export default function ApplicationForm() {
               </div>
               <div>
                 <Label required>Date of Birth</Label>
-                <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={errors.date_of_birth ? inpError : inp} />
+                <DateField name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={errors.date_of_birth ? inpError : inp} />
                 {errors.date_of_birth && <p className="text-red-500 text-xs mt-1">{errors.date_of_birth}</p>}
               </div>
               <div className="sm:col-span-2">

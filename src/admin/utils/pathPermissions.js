@@ -124,6 +124,10 @@ const PUBLIC_PATHS = new Set([
   // the data — privileged welfare roles see all, staff see only their own.
   "/hr/welfare/alerts",
   "/hr/welfare/benefits",
+  // Staff Tasks list: any authenticated user may open it to see THEIR OWN
+  // tasks + collaboration offered to them. Backend scopes the data; the
+  // create/edit sub-pages stay permission-gated via the RULES prefix.
+  "/hr/staff-task",
 ]);
 
 /**

@@ -5,6 +5,8 @@ import Swal from "sweetalert2";
 import { generateUniformInvoice } from "../../api/financial";
 import { useNavigate } from "react-router-dom";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const statusBadge = (val) => {
   const map = {
     active: "bg-emerald-100 text-emerald-700",
@@ -102,7 +104,7 @@ export default function EnrolledStudents() {
           { key: "full_name", label: "Name", render: (_, item) => `${item.first_name} ${item.last_name}` },
           { key: "school_class", label: "Class", render: (_, item) => item.school_class?.class_name || "—" },
           { key: "family", label: "Family", render: (_, item) => item.family?.father_name || "—" },
-          { key: "date_of_birth", label: "DOB", render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
+          { key: "date_of_birth", label: "DOB", render: (v) => v ? fmtDate(v) : "—" },
           { key: "final_fee", label: "Monthly Fee", render: (v) => v ? `${Number(v).toLocaleString()} AFN` : "—" },
           {
             key: "uniform_invoice",
@@ -124,7 +126,7 @@ export default function EnrolledStudents() {
               );
             },
           },
-          { key: "phase_2_completed_at", label: "Enrolled At", render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
+          { key: "phase_2_completed_at", label: "Enrolled At", render: (v) => v ? fmtDate(v) : "—" },
           { key: "status", label: "Status", render: statusBadge },
           transferColumn,
         ]}

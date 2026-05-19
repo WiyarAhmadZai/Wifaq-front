@@ -4,6 +4,8 @@ import { get, post } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 
+import { fmtDate, fmtDateTime, fmtMonth } from "../../utils/formErrors";
+
 const DIMENSIONS = [
   { key: "spiritual",    label: "Spiritual",    icon: "✨", hint: "Inner peace, sense of meaning, faith" },
   { key: "emotional",    label: "Emotional",    icon: "💙", hint: "Mood, stress level, family situation" },
@@ -114,7 +116,7 @@ export default function WelfareCheckin() {
                   onChange={(v) => setForm({ ...form, month: parseInt(v) })}
                   options={Array.from({ length: 12 }, (_, i) => i + 1).map(m => ({
                     value: m,
-                    label: new Date(2000, m - 1, 1).toLocaleString("en", { month: "long" }),
+                    label: fmtMonth(2000, m - 1, { yearless: true }),
                   }))}
                   isClearable={false}
                 />
@@ -187,7 +189,7 @@ export default function WelfareCheckin() {
                     <span className="text-2xl">{a >= 4 ? "😊" : a >= 3 ? "🙂" : a >= 2 ? "😐" : "😟"}</span>
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-800">
-                        {new Date(c.year, c.month - 1, 1).toLocaleString("en", { month: "long", year: "numeric" })}
+                        {fmtMonth(c.year, c.month - 1)}
                       </p>
                       <p className="text-[11px] text-gray-500">
                         Average {a.toFixed(1)} / 5

@@ -4,6 +4,9 @@ import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from "../../utils/formErrors";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 export default function PlannerForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -111,7 +114,7 @@ export default function PlannerForm() {
     setFormData(prev => ({
       ...prev,
       date: dateValue,
-      day: new Date(dateValue).toLocaleDateString('en-US', { weekday: 'long' })
+      day: fmtDate(dateValue)
     }));
     if (errors.date) {
       setErrors(prev => ({ ...prev, date: null }));
@@ -463,14 +466,12 @@ export default function PlannerForm() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Date
                 </label>
-                <input
-                  type="date"
+                <DateField
                   name="date"
                   value={formData.date}
                   onChange={handleDateChange}
                   required
-                  className={getFieldClass('date')}
-                />
+                  className={getFieldClass('date')} />
                 {errors.date && <p className="mt-1 text-sm text-red-600">{errors.date[0]}</p>}
               </div>
 

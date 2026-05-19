@@ -4,6 +4,8 @@ import { getFeeInvoices, getFeeInvoiceMonths } from "../../api/financial";
 import { del } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 /**
  * Fee Invoices list — clean, line-item-aware view.
  *
@@ -22,8 +24,7 @@ const STATUS = {
 };
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
-const fmtMonth = (d) => (d ? new Date(d).toLocaleString("default", { month: "short", year: "numeric" }) : "—");
-const fmtDate  = (d) => (d ? new Date(d).toLocaleDateString("en-CA") : "—");
+const fmtMonth = (d) => (d ? fmtDate(d) : "—");
 
 // Default WhatsApp template — kept short per user preference (student name + invoice #).
 // Tokens get substituted per recipient: {{student}}, {{invoice}}, {{period}}, {{amount}}, {{balance}}, {{due_date}}.
@@ -288,7 +289,7 @@ export default function FeeInvoices() {
             <option value="all">All months</option>
             {months.map((m) => (
               <option key={m} value={m}>
-                {new Date(m).toLocaleString("default", { month: "long", year: "numeric" })}
+                {fmtDateTime(m)}
               </option>
             ))}
           </select>

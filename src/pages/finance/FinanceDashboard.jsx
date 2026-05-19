@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFinanceDashboard } from "../../api/financial";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const colorMap = {
   emerald: { bg: "bg-emerald-50", icon: "bg-emerald-100 text-emerald-600", text: "text-emerald-600", badge: "bg-emerald-100 text-emerald-700" },
   red: { bg: "bg-red-50", icon: "bg-red-100 text-red-600", text: "text-red-600", badge: "bg-red-100 text-red-700" },
@@ -90,7 +92,7 @@ export default function FinanceDashboard() {
     { label: "Parties & ledger", path: "/finance/parties", color: "amber", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
   ];
 
-  const periodLabel = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+  const periodLabel = fmtDateTime(new Date());
 
   if (loading) {
     return (
@@ -170,7 +172,7 @@ export default function FinanceDashboard() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-gray-800 truncate">Current active budget: {ab.name}</p>
-                <p className="text-[10px] text-gray-500">{ab.start_date} → {ab.end_date} · {abSpent.toLocaleString()} / {abBudgeted.toLocaleString()} AFN used</p>
+                <p className="text-[10px] text-gray-500">{fmtDate(ab.start_date)} → {fmtDate(ab.end_date)} · {abSpent.toLocaleString()} / {abBudgeted.toLocaleString()} AFN used</p>
               </div>
             </div>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${abPct > 90 ? "bg-red-100 text-red-700 border-red-200" : abPct > 70 ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"}`}>
@@ -223,7 +225,7 @@ export default function FinanceDashboard() {
                   <div className="min-w-0 pr-2">
                     <p className="text-xs font-medium text-gray-800 truncate">{tx.description}</p>
                     <p className="text-[10px] text-gray-400">
-                      {tx.transaction_date} · {tx.recorded_by?.name || "—"}
+                      {fmtDate(tx.transaction_date)} · {tx.recorded_by?.name || "—"}
                     </p>
                   </div>
                   <div className="text-right shrink-0">

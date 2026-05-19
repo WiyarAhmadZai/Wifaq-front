@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { get, put, post } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
 
 function timeAgo(date) {
@@ -12,7 +14,7 @@ function timeAgo(date) {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(date).toLocaleDateString();
+  return fmtDate(date);
 }
 
 export default function FinanceInbox() {
@@ -236,7 +238,7 @@ export default function FinanceInbox() {
                           </span>
                         </div>
                         <p className="text-[11px] text-gray-600 mt-0.5">
-                          {d.invoice_number} · Due {d.due_date} ·{" "}
+                          {d.invoice_number} · Due {fmtDate(d.due_date)} ·{" "}
                           <span className="font-semibold text-red-700">{fmtMoney(d.amount_due)} AFN</span> owed
                         </p>
                         {d.parent_phone && (

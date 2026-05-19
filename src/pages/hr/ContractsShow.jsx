@@ -4,6 +4,8 @@ import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const Icons = {
   ArrowLeft: () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -209,7 +211,7 @@ export default function ContractsShow() {
               </h3>
               <p className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">{data.probation_feedback}</p>
               {data.probation_feedback_at && (
-                <p className="text-[10px] text-gray-400 mt-2">Submitted: {new Date(data.probation_feedback_at).toLocaleString()}</p>
+                <p className="text-[10px] text-gray-400 mt-2">Submitted: {fmtDateTime(data.probation_feedback_at)}</p>
               )}
             </div>
           )}
@@ -239,7 +241,7 @@ export default function ContractsShow() {
                       <div className="flex items-center gap-3 text-[10px] text-gray-500">
                         <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
                         <span>•</span>
-                        <span>{c.start_date} → {c.end_date || c.probation_end_date || 'No end'}</span>
+                        <span>{fmtDate(c.start_date)} → {c.end_date || c.probation_end_date || 'No end'}</span>
                         <span>•</span>
                         <span>{c.salary_currency || 'AFN'} {parseFloat(c.salary).toLocaleString()}</span>
                       </div>
@@ -260,16 +262,16 @@ export default function ContractsShow() {
             <div className="space-y-3">
               <div>
                 <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created</p>
-                <p className="text-xs text-gray-800">{data.created_at ? new Date(data.created_at).toLocaleString() : '-'}</p>
+                <p className="text-xs text-gray-800">{data.created_at ? fmtDateTime(data.created_at) : '-'}</p>
               </div>
               <div>
                 <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
-                <p className="text-xs text-gray-800">{data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}</p>
+                <p className="text-xs text-gray-800">{data.updated_at ? fmtDateTime(data.updated_at) : '-'}</p>
               </div>
               {data.approved_at && (
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Approved</p>
-                  <p className="text-xs text-gray-800">{new Date(data.approved_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-800">{fmtDateTime(data.approved_at)}</p>
                 </div>
               )}
             </div>

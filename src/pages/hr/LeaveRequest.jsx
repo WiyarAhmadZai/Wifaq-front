@@ -5,6 +5,8 @@ import { useAuth } from "../../admin/context/AuthContext";
 import { put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const HR_ROLES = ["super-admin", "admin", "hr-manager"];
 
 const statusBadge = (val) => {
@@ -163,16 +165,16 @@ export default function LeaveRequest() {
           {
             key: "from_date",
             label: "From",
-            render: (val) => (val ? new Date(val).toLocaleDateString() : "-"),
+            render: (val) => (val ? fmtDate(val) : "-"),
           },
           {
             key: "to_date",
             label: "To",
             render: (val, item) =>
               val
-                ? new Date(val).toLocaleDateString()
+                ? fmtDate(val)
                 : item.from_date
-                ? new Date(item.from_date).toLocaleDateString()
+                ? fmtDate(item.from_date)
                 : "-",
           },
           {

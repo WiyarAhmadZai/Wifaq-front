@@ -4,6 +4,8 @@ import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const CATEGORY_COLORS = {
   teaching: "bg-blue-100 text-blue-700",
   administration: "bg-purple-100 text-purple-700",
@@ -286,7 +288,7 @@ export default function CandidatePoolShow() {
                         {member.notes || "-"}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-400">
-                        {member.created_at ? new Date(member.created_at).toLocaleDateString() : "-"}
+                        {member.created_at ? fmtDate(member.created_at) : "-"}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">

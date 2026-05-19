@@ -5,6 +5,7 @@ import { getChartOfAccounts } from "../../api/financial";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 // Convenience presets — most schools deal in a handful of standard cycles.
 // Custom values still work; the field is just a number input.
 const FREQUENCY_PRESETS = [
@@ -193,7 +194,7 @@ export default function RoutineItemForm() {
             </div>
             <div>
               <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Last purchase date</label>
-              <input type="date" value={lastPurchaseDate} onChange={(e) => setLastPurchaseDate(e.target.value)}
+              <DateField value={lastPurchaseDate} onChange={(e) => setLastPurchaseDate(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
               <p className="text-[10px] text-gray-400 mt-1">Leave empty → reorder immediately on next scan.</p>
             </div>

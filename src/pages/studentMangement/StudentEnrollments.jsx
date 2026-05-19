@@ -4,6 +4,8 @@ import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const TRANSFER_STEP_SHORT = {
   transfer_agreement: "Agreement done",
   transfer_first_parcha: "First Parcha done",
@@ -272,7 +274,7 @@ export default function StudentEnrollments() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="text-[11px] text-gray-500">
-                          {item.phase_2_completed_at ? new Date(item.phase_2_completed_at).toLocaleDateString() : "—"}
+                          {item.phase_2_completed_at ? fmtDate(item.phase_2_completed_at) : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">

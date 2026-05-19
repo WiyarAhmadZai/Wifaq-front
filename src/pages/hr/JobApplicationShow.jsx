@@ -4,6 +4,8 @@ import { get } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
+import { fmtDate } from "../../utils/formErrors";
+
 export default function JobApplicationShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -46,7 +48,7 @@ export default function JobApplicationShow() {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
+    return fmtDate(dateString);
   };
 
   return (

@@ -4,6 +4,8 @@ import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const statusConfig = {
   draft: { color: "bg-gray-100 text-gray-700", dot: "bg-gray-400", label: "Draft" },
   sent: { color: "bg-blue-100 text-blue-700", dot: "bg-blue-500", label: "Sent" },
@@ -187,7 +189,7 @@ export default function JobOfferShow() {
               <div className="p-4 bg-gray-50 rounded-lg">
                 <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Start Date</p>
                 <p className="text-sm font-medium text-gray-800">
-                  {data.start_date ? new Date(data.start_date).toLocaleDateString() : "-"}
+                  {data.start_date ? fmtDate(data.start_date) : "-"}
                 </p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
@@ -252,7 +254,7 @@ export default function JobOfferShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created</p>
-                  <p className="text-xs font-medium text-gray-800">{data.created_at ? new Date(data.created_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.created_at ? fmtDateTime(data.created_at) : "-"}</p>
                 </div>
               </div>
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
@@ -264,7 +266,7 @@ export default function JobOfferShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
-                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? new Date(data.updated_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? fmtDateTime(data.updated_at) : "-"}</p>
                 </div>
               </div>
             </div>

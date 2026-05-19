@@ -4,6 +4,9 @@ import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const statusBadge = {
   draft: "bg-gray-100 text-gray-700 border-gray-200",
   active: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -21,7 +24,7 @@ const formatDate = (d) => {
 
 const parseDate = (s) => {
   if (!s) return null;
-  const p = s.split("T")[0].split("-");
+  const p = fmtDate(s).split("-");
   const d = new Date(p[0], p[1] - 1, p[2]);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -261,7 +264,7 @@ export default function AgreementsShow() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Created</span>
-                <span className="text-xs font-medium">{data.created_at ? new Date(data.created_at).toLocaleDateString() : "—"}</span>
+                <span className="text-xs font-medium">{data.created_at ? fmtDate(data.created_at) : "—"}</span>
               </div>
             </div>
           </div>
@@ -287,7 +290,7 @@ export default function AgreementsShow() {
             <p className="text-xs text-gray-500 mb-4">{data.agreement_number} — {data.partner_name}</p>
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-700 mb-1">New End Date *</label>
-              <input type="date" value={renewModal.end_date}
+              <DateField value={renewModal.end_date}
                 onChange={(e) => setRenewModal((m) => ({ ...m, end_date: e.target.value }))}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none" />
               <p className="text-[10px] text-gray-400 mt-1">Current end date: {formatDate(data.end_date)}</p>

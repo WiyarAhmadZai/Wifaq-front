@@ -1,5 +1,7 @@
 import CrudPage from "../../components/CrudPage";
 
+import { fmtDate } from "../../utils/formErrors";
+
 // This will be called by CrudPage when rendering status column with onClick handler
 const statusBadge = (val, item, onClick) => (
   <button
@@ -27,7 +29,7 @@ export default function JobRequisitions() {
         { key: "employment_type", label: "Type", render: (val) => <span className="capitalize">{val?.replace(/_/g, " ")}</span> },
         { key: "number_of_positions", label: "Positions" },
         { key: "department", label: "Department" },
-        { key: "deadline_date", label: "Deadline", render: (val) => val ? new Date(val).toLocaleDateString() : "-" },
+        { key: "deadline_date", label: "Deadline", render: (val) => val ? fmtDate(val) : "-" },
         { key: "approval_status", label: "Status", render: statusBadge, isStatus: true },
       ]}
       createRoute="/recruitment/job-requisitions/create"

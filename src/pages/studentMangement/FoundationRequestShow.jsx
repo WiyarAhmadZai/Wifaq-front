@@ -4,6 +4,8 @@ import { get, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const STATUS_BADGE = {
   pending: "bg-amber-100 text-amber-700 border-amber-200",
   approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -189,7 +191,7 @@ export default function FoundationRequestShow() {
           <p className="text-xs text-gray-700">{item.admin_note}</p>
           {item.reviewer && item.reviewed_at && (
             <p className="text-[10px] text-gray-400 mt-2">
-              By {item.reviewer.name} on {new Date(item.reviewed_at).toLocaleDateString()}
+              By {item.reviewer.name} on {fmtDate(item.reviewed_at)}
             </p>
           )}
         </div>
@@ -237,7 +239,7 @@ export default function FoundationRequestShow() {
       )}
 
       <p className="text-[10px] text-gray-400 text-center">
-        Submitted {new Date(item.created_at).toLocaleString()}
+        Submitted {fmtDateTime(item.created_at)}
       </p>
     </div>
   );

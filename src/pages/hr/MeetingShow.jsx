@@ -4,6 +4,9 @@ import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const statusConf = {
   scheduled: { label: "Scheduled", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
   in_progress: { label: "In Progress", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
@@ -385,7 +388,7 @@ export default function MeetingShow() {
   if (!data) return <div className="text-center py-24 text-sm text-gray-400">Meeting not found</div>;
 
   const sc = statusConf[data.status] || statusConf.scheduled;
-  const formatDT = (dt) => dt ? new Date(dt).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+  const formatDT = (dt) => dt ? fmtDateTime(dt) : "-";
   const getDuration = () => {
     if (!data.start_time || !data.end_time) return "-";
     const diff = (new Date(data.end_time) - new Date(data.start_time)) / 60000;
@@ -628,7 +631,7 @@ export default function MeetingShow() {
                           {(note.recorded_by?.name || "?").charAt(0)}
                         </div>
                         <span className="text-[10px] font-medium text-gray-600">{note.recorded_by?.name || "Unknown"}</span>
-                        <span className="text-[9px] text-gray-400">{note.recorded_at ? new Date(note.recorded_at).toLocaleString() : ""}</span>
+                        <span className="text-[9px] text-gray-400">{note.recorded_at ? fmtDateTime(note.recorded_at) : ""}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <button onClick={() => openEditNote(note)} className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
@@ -730,7 +733,7 @@ export default function MeetingShow() {
                             {t.deadline && (
                               <span className="flex items-center gap-1">
                                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                Deadline: {new Date(t.deadline).toLocaleDateString()}
+                                Deadline: {fmtDate(t.deadline)}
                               </span>
                             )}
                           </div>
@@ -782,7 +785,7 @@ export default function MeetingShow() {
                 <div className="flex justify-between"><span className="text-teal-200">Organizer</span><span className="font-medium">{data.organizer?.name || "-"}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Duration</span><span className="font-medium">{getDuration()}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Notes</span><span className="font-medium">{notes.length}</span></div>
-                <div className="flex justify-between"><span className="text-teal-200">Created</span><span className="font-medium">{data.created_at ? new Date(data.created_at).toLocaleDateString() : "-"}</span></div>
+                <div className="flex justify-between"><span className="text-teal-200">Created</span><span className="font-medium">{data.created_at ? fmtDate(data.created_at) : "-"}</span></div>
               </div>
             </div>
           </div>
@@ -854,12 +857,12 @@ export default function MeetingShow() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date *</label>
-                  <input type="date" value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+                  <DateField value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
                 </div>
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Deadline</label>
-                <input type="date" value={taskForm.deadline} onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+                <DateField value={taskForm.deadline} onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Notes</label>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getPayments, deletePayment, clearPayment } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
 const methodColors = {
   cash: "bg-emerald-50 text-emerald-700 border-emerald-200",
   bank: "bg-blue-50 text-blue-700 border-blue-200",
@@ -123,7 +124,7 @@ export default function Payments() {
                     <p className="text-xs font-medium text-gray-800">{pay.supplier}</p>
                     {pay.notes && <p className="text-[10px] text-gray-400">{pay.notes}</p>}
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{pay.payment_date}</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">{fmtDate(pay.payment_date)}</td>
                   <td className="px-4 py-2.5 text-xs font-bold text-gray-800 text-right">{Number(pay.amount).toLocaleString()} AFN</td>
                   <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${methodColors[pay.payment_method] || "bg-gray-50 text-gray-600 border-gray-200"}`}>{pay.payment_method}</span></td>
                   <td className="px-4 py-2.5 text-xs text-gray-600">{pay.account}</td>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
-import { PageHeader, EmptyState, Spinner, StatGrid } from "../../components/hr/HrUI";
+import { PageHeader, EmptyState, Spinner, StatGrid, DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -224,7 +224,7 @@ function BenefitForm({ staff, onClose, onSaved }) {
             </Field>
           </div>
           <Field label="Date">
-            <input type="date" className={inp} value={form.granted_on} onChange={(e) => setForm({ ...form, granted_on: e.target.value })} required />
+            <DateField className={inp} value={form.granted_on} onChange={(e) => setForm({ ...form, granted_on: e.target.value })} required />
           </Field>
           <Field label="Reason">
             <textarea rows={3} className={inp} value={form.reason}

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { deleteRoutineItem, getRoutineItem } from "../../api/routineItems";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
 const fmt = (n) => Number(n || 0).toLocaleString();
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -63,7 +64,7 @@ export default function RoutineItemShow() {
             {row.is_active && (
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                 isDue ? "bg-red-50 text-red-700 border-red-200" : "bg-gray-50 text-gray-600 border-gray-200"
-              }`}>{isDue ? "Due now" : `Next: ${row.next_due_date}`}</span>
+              }`}>{isDue ? "Due now" : `Next: ${fmtDate(row.next_due_date)}`}</span>
             )}
           </div>
           <p className="text-[11px] text-gray-500 mt-0.5">Every {row.frequency_days} day(s) · {fmt(row.standard_quantity)} {row.unit} per cycle</p>
@@ -87,10 +88,10 @@ export default function RoutineItemShow() {
             ? `${fmt(Number(row.estimated_unit_price) * Number(row.standard_quantity))} AFN`
             : "—"}
         </Panel>
-        <Panel label="Last purchase">{row.last_purchase_date || "Never — due immediately"}</Panel>
+        <Panel label="Last purchase">{fmtDate(row.last_purchase_date)}</Panel>
         <Panel label="Next due">
           <span className={isDue ? "text-red-700 font-semibold" : ""}>
-            {row.next_due_date || "Due immediately"}
+            {fmtDate(row.next_due_date)}
           </span>
         </Panel>
         <Panel label="Linked stock row">

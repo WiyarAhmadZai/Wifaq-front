@@ -1,5 +1,7 @@
 import CrudPage from "../../components/CrudPage";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const CATEGORY_COLORS = {
   teaching: "bg-blue-100 text-blue-700",
   administration: "bg-purple-100 text-purple-700",
@@ -40,7 +42,7 @@ export default function CandidatePool() {
           </span>
         )},
         { key: "is_active", label: "Status", render: activeBadge },
-        { key: "created_at", label: "Created", render: (val) => val ? new Date(val).toLocaleDateString() : "-" },
+        { key: "created_at", label: "Created", render: (val) => val ? fmtDate(val) : "-" },
       ]}
       createRoute="/recruitment/candidate-pool/create"
       editRoute="/recruitment/candidate-pool/edit"

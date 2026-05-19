@@ -5,6 +5,7 @@ import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
+import { DateField } from "../../components/hr/HrUI";
 // Department options from backend enum
 const DEPARTMENTS = [
   { value: "", label: "Select Department" },
@@ -467,14 +468,12 @@ export default function JobRequisitionForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Deadline Date
               </label>
-              <input
-                type="date"
+              <DateField
                 name="deadline_date"
                 value={formData.deadline_date}
                 onChange={handleChange}
                 min={new Date().toISOString().split("T")[0]}
-                className={inputClass("deadline_date")}
-              />
+                className={inputClass("deadline_date")} />
               {err("deadline_date") && <p className="text-red-500 text-[10px] mt-1">{err("deadline_date")}</p>}
             </div>
 

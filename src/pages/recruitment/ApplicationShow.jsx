@@ -5,6 +5,9 @@ import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const STEPS = [
   { key: "received", label: "Received", desc: "Application received", color: "blue", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
   { key: "screening", label: "Screening", desc: "Under review", color: "teal", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
@@ -660,8 +663,8 @@ export default function ApplicationShow() {
   const currentStep = STEPS[getCurrentStepIndex()] || STEPS[0];
   const colors = COLOR_STYLES[currentStep.color] || COLOR_STYLES.teal;
 
-  const formatDate = (date) => date ? new Date(date).toLocaleDateString() : "—";
-  const formatDateTime = (date) => date ? new Date(date).toLocaleString() : "—";
+  const formatDate = (date) => date ? fmtDate(date) : "—";
+  const formatDateTime = (date) => date ? fmtDateTime(date) : "—";
 
   if (loading) {
     return (
@@ -1068,12 +1071,10 @@ export default function ApplicationShow() {
                       {/* Interview Date */}
                       <div>
                         <label className="text-xs text-gray-500 mb-1.5 block">Interview Date</label>
-                        <input
-                          type="date"
+                        <DateField
                           value={interviewData.interview_date}
                           onChange={(e) => setInterviewData({ ...interviewData, interview_date: e.target.value })}
-                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                        />
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
                       </div>
 
                       {/* Interview Time */}
@@ -1185,7 +1186,7 @@ export default function ApplicationShow() {
                         </div>
                         <div>
                           <p className="text-xs text-cyan-600 mb-1">Date</p>
-                          <p className="text-sm font-medium text-gray-800">{interviewSchedule.interview_date}</p>
+                          <p className="text-sm font-medium text-gray-800">{fmtDate(interviewSchedule.interview_date)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-cyan-600 mb-1">Time</p>
@@ -1559,12 +1560,10 @@ export default function ApplicationShow() {
                         {/* Start Date */}
                         <div>
                           <label className="text-xs text-gray-500 mb-1.5 block">Start Date *</label>
-                          <input
-                            type="date"
+                          <DateField
                             value={offerData.start_date}
                             onChange={(e) => setOfferData({ ...offerData, start_date: e.target.value })}
-                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                          />
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
                         </div>
 
                         {/* Daily Hours */}

@@ -4,6 +4,8 @@ import { listRoutineItems, deleteRoutineItem, recordRoutinePurchase } from "../.
 import { getAccounts, getParties } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+import { DateField } from "../../components/hr/HrUI";
 // Linked-stock state badge palette (matches the Stock page).
 const STOCK_STATE = {
   ok:  { label: "OK",  cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -210,8 +212,8 @@ export default function RoutineItems() {
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-gray-600">
-                    <p>Last: <span className="text-gray-500">{row.last_purchase_date || "never"}</span></p>
-                    <p className="text-[10px] text-gray-400">Next: {row.next_due_date || "now"}</p>
+                    <p>Last: <span className="text-gray-500">{fmtDate(row.last_purchase_date)}</span></p>
+                    <p className="text-[10px] text-gray-400">Next: {fmtDate(row.next_due_date)}</p>
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     {!row.is_active ? (
@@ -365,7 +367,7 @@ function RecordPurchaseModal({ item, accounts, staffParties, onClose, onDone }) 
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Date</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                <DateField value={date} onChange={(e) => setDate(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
               </div>
             </div>

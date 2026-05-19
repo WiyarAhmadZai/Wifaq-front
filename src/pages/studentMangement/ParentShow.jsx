@@ -4,6 +4,8 @@ import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const Icons = {
   ArrowLeft: () => (
     <svg
@@ -478,13 +480,13 @@ export default function ParentShow() {
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-gray-300 rounded-full"></span>
                 <span>
-                  Created: {new Date(family.created_at).toLocaleString()}
+                  Created: {fmtDateTime(family.created_at)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
                 <span>
-                  Updated: {new Date(family.updated_at).toLocaleString()}
+                  Updated: {fmtDateTime(family.updated_at)}
                 </span>
               </div>
             </div>

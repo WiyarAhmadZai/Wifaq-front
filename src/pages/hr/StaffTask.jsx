@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get, del, put, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { fmtDate } from "../../utils/formErrors";
+
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const statusStyle = { pending: "bg-yellow-50 text-yellow-700", in_progress: "bg-teal-50 text-teal-700", completed: "bg-teal-50 text-teal-700" };
@@ -214,9 +216,9 @@ export default function StaffTask() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-xs text-gray-700">{item.start_date ? new Date(item.start_date).toLocaleDateString() : "—"}</p>
+                      <p className="text-xs text-gray-700">{item.start_date ? fmtDate(item.start_date) : "—"}</p>
                       {item.deadline && (
-                        <p className="text-[10px] text-red-500 font-medium">Due: {new Date(item.deadline).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-red-500 font-medium">Due: {fmtDate(item.deadline)}</p>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">

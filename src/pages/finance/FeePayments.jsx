@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFeePayments } from "../../api/financial";
 
+import { fmtDate } from "../../utils/formErrors";
 const methodLabels = {
   cash: "Cash",
   bank: "Bank",
@@ -107,7 +108,7 @@ export default function FeePayments() {
                       <td className="px-4 py-3 text-xs text-gray-600 font-mono">
                         {payment.fee_invoice?.invoice_number || "—"}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-700">{payment.payment_date}</td>
+                      <td className="px-4 py-3 text-xs text-gray-700">{fmtDate(payment.payment_date)}</td>
                       <td className="px-4 py-3 text-xs font-semibold text-gray-900">
                         {Number(payment.amount_paid).toLocaleString()} AFN
                       </td>

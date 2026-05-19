@@ -4,6 +4,8 @@ import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const Icons = {
   ArrowLeft: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -326,7 +328,7 @@ export default function JobPostingShow() {
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Deadline</p>
                   <p className="text-sm font-medium text-gray-800">
-                    {new Date(data.requisition.deadline_date).toLocaleDateString()}
+                    {fmtDate(data.requisition.deadline_date)}
                   </p>
                 </div>
               )}
@@ -344,13 +346,13 @@ export default function JobPostingShow() {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Created</span>
                 <span className="text-xs font-medium">
-                  {data.created_at ? new Date(data.created_at).toLocaleDateString() : "-"}
+                  {data.created_at ? fmtDate(data.created_at) : "-"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Updated</span>
                 <span className="text-xs font-medium">
-                  {data.updated_at ? new Date(data.updated_at).toLocaleDateString() : "-"}
+                  {data.updated_at ? fmtDate(data.updated_at) : "-"}
                 </span>
               </div>
             </div>

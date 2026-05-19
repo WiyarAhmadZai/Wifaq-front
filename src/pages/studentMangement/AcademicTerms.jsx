@@ -1,5 +1,7 @@
 import CrudPage from "../../components/CrudPage";
 
+import { fmtDate } from "../../utils/formErrors";
+
 export default function AcademicTerms() {
   return (
     <CrudPage
@@ -16,11 +18,7 @@ export default function AcademicTerms() {
           label: "Start Date",
           render: (val) =>
             val
-              ? new Date(val).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })
+              ? fmtDate(val)
               : "—",
         },
         {
@@ -28,11 +26,7 @@ export default function AcademicTerms() {
           label: "End Date",
           render: (val) =>
             val
-              ? new Date(val).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })
+              ? fmtDate(val)
               : "—",
         },
         {

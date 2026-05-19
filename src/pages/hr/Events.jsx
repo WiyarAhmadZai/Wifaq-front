@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate, fmtMonth } from "../../utils/formErrors";
+
 const statusConf = {
   upcoming: { label: "Upcoming", color: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500", bar: "bg-blue-500" },
   ongoing: { label: "Ongoing", color: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500", bar: "bg-amber-500" },
@@ -40,12 +42,12 @@ export default function Events() {
   if (filter !== "all") filtered = filtered.filter((i) => i.status === filter);
   if (search) { const q = search.toLowerCase(); filtered = filtered.filter((i) => (i.title || "").toLowerCase().includes(q) || (i.location || "").toLowerCase().includes(q)); }
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const formatDate = (d) => d ? fmtDate(d) : "";
 
   // ── Calendar helpers ──
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const monthLabel = new Date(calYear, calMonth).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthLabel = fmtMonth(calYear, calMonth);
   const today = new Date();
   const isToday = (day) => today.getDate() === day && today.getMonth() === calMonth && today.getFullYear() === calYear;
 
@@ -180,7 +182,7 @@ export default function Events() {
                           className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
                           <div className={`w-1 h-10 rounded-full ${sc.bar} flex-shrink-0`} />
                           <div className="w-10 h-10 bg-teal-50 rounded-lg flex flex-col items-center justify-center flex-shrink-0 border border-teal-100">
-                            <span className="text-[8px] font-bold text-teal-600 uppercase">{new Date(ev.start_date).toLocaleDateString("en-US", { month: "short" })}</span>
+                            <span className="text-[8px] font-bold text-teal-600 uppercase">{fmtDate(ev.start_date)}</span>
                             <span className="text-sm font-black text-teal-700 -mt-0.5">{new Date(ev.start_date).getDate()}</span>
                           </div>
                           <div className="flex-1 min-w-0">
@@ -244,7 +246,7 @@ export default function Events() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-12 h-12 bg-teal-50 rounded-xl flex flex-col items-center justify-center flex-shrink-0 border border-teal-100">
-                              <span className="text-[8px] font-bold text-teal-600 uppercase">{ev.start_date ? new Date(ev.start_date).toLocaleDateString("en-US", { month: "short" }) : ""}</span>
+                              <span className="text-[8px] font-bold text-teal-600 uppercase">{ev.start_date ? fmtDate(ev.start_date) : ""}</span>
                               <span className="text-lg font-black text-teal-700 -mt-0.5">{ev.start_date ? new Date(ev.start_date).getDate() : ""}</span>
                             </div>
                             <div className="flex-1 min-w-0">

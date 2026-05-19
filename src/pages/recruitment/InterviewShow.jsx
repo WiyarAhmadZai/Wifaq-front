@@ -4,6 +4,8 @@ import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const interviewTypeLabels = {
   phone: { label: "Phone", icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z", bg: "bg-blue-100 text-blue-600" },
   in_person: { label: "In Person", icon: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z", bg: "bg-emerald-100 text-emerald-600" },
@@ -153,7 +155,7 @@ export default function InterviewShow() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Date</p>
-                <p className="text-sm text-gray-800">{scheduledDate ? scheduledDate.toLocaleDateString() : "-"}</p>
+                <p className="text-sm text-gray-800">{scheduledDate ? fmtDate(scheduledDate) : "-"}</p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Time</p>
@@ -244,7 +246,7 @@ export default function InterviewShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created</p>
-                  <p className="text-xs font-medium text-gray-800">{data.created_at ? new Date(data.created_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.created_at ? fmtDateTime(data.created_at) : "-"}</p>
                 </div>
               </div>
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
@@ -256,7 +258,7 @@ export default function InterviewShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
-                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? new Date(data.updated_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? fmtDateTime(data.updated_at) : "-"}</p>
                 </div>
               </div>
             </div>

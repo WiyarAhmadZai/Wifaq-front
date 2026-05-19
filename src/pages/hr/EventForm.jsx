@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+import { DateField } from "../../components/hr/HrUI";
 const ROLE_OPTIONS = ["Coordinator", "Welcoming", "Hospitality", "Registration", "Speaker", "Security", "Logistics", "Photography", "IT Support", "Other"];
 
 export default function EventForm() {
@@ -118,12 +120,12 @@ export default function EventForm() {
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date *</label>
-              <input type="date" name="start_date" value={form.start_date} onChange={handle} className={ic("start_date")} />
+              <DateField name="start_date" value={form.start_date} onChange={handle} className={ic("start_date")} />
               {errors.start_date && <p className="text-red-500 text-[10px] mt-1">{errors.start_date}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Date</label>
-              <input type="date" name="end_date" value={form.end_date} onChange={handle} min={form.start_date} className={ic("end_date")} />
+              <DateField name="end_date" value={form.end_date} onChange={handle} min={form.start_date} className={ic("end_date")} />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Location</label>

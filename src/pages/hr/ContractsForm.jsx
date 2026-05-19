@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 export default function ContractsForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -273,14 +274,12 @@ export default function ContractsForm() {
           {/* Start Date */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-            <input
-              type="date"
+            <DateField
               name="start_date"
               value={formData.start_date}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
             {selectedStaff?.start_date && (
               <p className="text-[10px] text-teal-600 mt-1">
                 Pre-filled from offer start date
@@ -294,13 +293,11 @@ export default function ContractsForm() {
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 End Date <span className="text-gray-400 font-normal">(optional)</span>
               </label>
-              <input
-                type="date"
+              <DateField
                 name="end_date"
                 value={formData.end_date}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-              />
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
             </div>
           )}
 
@@ -326,7 +323,7 @@ export default function ContractsForm() {
             {formData.has_probation && (
               <div className="mt-3">
                 <label className="block text-xs font-medium text-gray-700 mb-1">Probation End Date</label>
-                <input type="date" name="probation_end_date" value={formData.probation_end_date} onChange={handleChange}
+                <DateField name="probation_end_date" value={formData.probation_end_date} onChange={handleChange}
                   className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
                 <p className="text-[10px] text-gray-400 mt-1">Default: 1 month from start date. You can adjust.</p>
               </div>

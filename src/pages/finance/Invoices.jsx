@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getInvoices, deleteInvoice, approveInvoice } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
 const statusConfig = {
   pending: { label: "Pending", color: "bg-amber-50 text-amber-700 border-amber-200" },
   approved: { label: "Approved", color: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -155,8 +156,8 @@ export default function Invoices() {
                     <td className="px-4 py-2.5 text-xs font-medium text-teal-600">{inv.invoice_number}</td>
                     <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{inv.supplier}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-500 max-w-[150px] truncate">{inv.description}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{inv.invoice_date}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{inv.due_date}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{fmtDate(inv.invoice_date)}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{fmtDate(inv.due_date)}</td>
                     <td className="px-4 py-2.5 text-xs font-bold text-gray-800 text-right">{Number(inv.total_amount).toLocaleString()} AFN</td>
                     <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${sc.color}`}>{sc.label}</span></td>
                     <td className="px-4 py-2.5 text-right">

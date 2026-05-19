@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { get } from "../../api/axios";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const CircularProgress = ({ percentage, size = 56, color = "text-teal-600" }) => {
   const sw = 5, r = (size - sw) / 2, c = r * 2 * Math.PI, off = c - (percentage / 100) * c;
   return (
@@ -251,7 +253,7 @@ export default function HRReports() {
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold text-gray-800 truncate">{d.next_meeting.title}</p>
-                    <p className="text-[9px] text-gray-400">{new Date(d.next_meeting.start_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p className="text-[9px] text-gray-400">{fmtDateTime(d.next_meeting.start_time)}</p>
                   </div>
                 </div>
               </div>
@@ -269,7 +271,7 @@ export default function HRReports() {
                 {d.upcoming_events.map((ev) => (
                   <div key={ev.id} className="flex items-center gap-2">
                     <div className={`w-1.5 h-8 rounded-full ${ev.status === "ongoing" ? "bg-amber-500" : "bg-blue-500"}`} />
-                    <div><p className="text-[10px] font-semibold text-gray-800 truncate">{ev.title}</p><p className="text-[9px] text-gray-400">{new Date(ev.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{ev.location ? ` · ${ev.location}` : ""}</p></div>
+                    <div><p className="text-[10px] font-semibold text-gray-800 truncate">{ev.title}</p><p className="text-[9px] text-gray-400">{fmtDate(ev.start_date)}{ev.location ? ` · ${ev.location}` : ""}</p></div>
                   </div>
                 ))}
               </div>

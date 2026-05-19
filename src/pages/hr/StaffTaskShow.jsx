@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { get, del, put, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const Icons = {
@@ -299,8 +301,8 @@ export default function StaffTaskShow() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               <InfoCard icon={Icons.User} label="Assigned By" value={data.assigner?.name || '-'} />
               <InfoCard icon={Icons.Calendar} label="Task Type" value={data.task_type ? data.task_type.charAt(0).toUpperCase() + data.task_type.slice(1) : 'Normal'} />
-              <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date ? new Date(data.start_date).toLocaleDateString() : '-'} />
-              {data.deadline && <InfoCard icon={Icons.Clock} label="Deadline" value={new Date(data.deadline).toLocaleDateString()} />}
+              <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date ? fmtDate(data.start_date) : '-'} />
+              {data.deadline && <InfoCard icon={Icons.Clock} label="Deadline" value={fmtDate(data.deadline)} />}
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center gap-2 text-teal-600 mb-2">
@@ -333,28 +335,28 @@ export default function StaffTaskShow() {
               <TimelineItem
                 icon={Icons.Calendar}
                 label="Assigned On"
-                value={data.created_at ? new Date(data.created_at).toLocaleString() : '-'}
+                value={data.created_at ? fmtDateTime(data.created_at) : '-'}
                 color="teal"
               />
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
               <TimelineItem
                 icon={Icons.Clock}
                 label="Started On"
-                value={data.started_at ? new Date(data.started_at).toLocaleString() : (data.created_at ? new Date(data.created_at).toLocaleString() : 'Not started yet')}
+                value={data.started_at ? fmtDateTime(data.started_at) : (data.created_at ? fmtDateTime(data.created_at) : 'Not started yet')}
                 color={data.started_at || data.created_at ? 'blue' : 'gray'}
               />
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
               <TimelineItem
                 icon={Icons.Clock}
                 label="Completed On"
-                value={data.completed_at ? new Date(data.completed_at).toLocaleString() : 'Not completed yet'}
+                value={data.completed_at ? fmtDateTime(data.completed_at) : 'Not completed yet'}
                 color={data.completed_at ? 'emerald' : 'gray'}
               />
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
               <TimelineItem
                 icon={Icons.Calendar}
                 label="Last Updated"
-                value={data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}
+                value={data.updated_at ? fmtDateTime(data.updated_at) : '-'}
                 color="gray"
               />
             </div>

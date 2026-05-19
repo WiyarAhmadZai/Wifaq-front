@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 export default function AttendanceReport() {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
@@ -99,7 +102,7 @@ export default function AttendanceReport() {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `attendance_report_${filters.from_date}_to_${filters.to_date}.csv`,
+      `attendance_report_${fmtDate(filters.from_date)}_to_${fmtDate(filters.to_date)}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -121,11 +124,7 @@ export default function AttendanceReport() {
 
   const formatDate = (dateString) => {
     if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return fmtDate(dateString);
   };
 
   return (
@@ -169,27 +168,23 @@ export default function AttendanceReport() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               From Date *
             </label>
-            <input
-              type="date"
+            <DateField
               value={filters.from_date}
               onChange={(e) =>
                 setFilters({ ...filters, from_date: e.target.value })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               To Date *
             </label>
-            <input
-              type="date"
+            <DateField
               value={filters.to_date}
               onChange={(e) =>
                 setFilters({ ...filters, to_date: e.target.value })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -6,6 +6,8 @@ import {
 } from "../../api/stock";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+import { DateField } from "../../components/hr/HrUI";
 const fmt = (n) => Number(n || 0).toLocaleString();
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -284,7 +286,7 @@ function MovementModal({ kind, stock, onClose, onDone }) {
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Date</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                <DateField value={date} onChange={(e) => setDate(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
               </div>
             </div>
@@ -377,7 +379,7 @@ function HistoryDrawer({ stock, onClose }) {
                   const meta = MOVE_META[m.type] || MOVE_META.adjustment;
                   return (
                     <tr key={m.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{m.movement_date}</td>
+                      <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{fmtDate(m.movement_date)}</td>
                       <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${meta.cls}`}>{meta.label}</span></td>
                       <td className="px-4 py-2 text-right font-mono text-emerald-700">{m.direction === "in" ? fmt(m.quantity) : ""}</td>
                       <td className="px-4 py-2 text-right font-mono text-red-700">{m.direction === "out" ? fmt(m.quantity) : ""}</td>

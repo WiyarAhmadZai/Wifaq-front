@@ -15,6 +15,8 @@ const PageFallback = () => (
 import { get, put } from "../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../utils/formErrors";
+
 const Icons = {
   Dashboard: () => (
     <svg
@@ -443,7 +445,7 @@ function NotificationBell() {
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return new Date(date).toLocaleDateString();
+    return fmtDate(date);
   };
 
   const getIcon = (data) => {

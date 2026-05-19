@@ -4,6 +4,8 @@ import Swal from "sweetalert2";
 import { get, del } from "../../api/axios";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const TYPE_LABELS = {
   weekly: { label: "Weekly Exam", noPeriod: false },
   monthly: { label: "Monthly Exam", noPeriod: false },
@@ -21,7 +23,6 @@ const STATUS_STYLES = {
 // Single brand color: teal
 const C = { grad: "from-teal-500 to-teal-600", soft: "bg-teal-50", border: "border-teal-200", text: "text-teal-700" };
 
-const fmtDate = (d) => new Date(d).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 const fmtTime = (t) => {
   if (!t) return "—";
   const [h, m] = t.split(":");
@@ -232,12 +233,12 @@ export default function ExamsShow() {
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-wrap gap-6 text-[11px] text-gray-500">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-            <span>Created: {exam.created_at ? new Date(exam.created_at).toLocaleDateString() : "—"}</span>
+            <span>Created: {exam.created_at ? fmtDate(exam.created_at) : "—"}</span>
           </div>
           {exam.updated_at && exam.updated_at !== exam.created_at && (
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
-              <span>Updated: {new Date(exam.updated_at).toLocaleDateString()}</span>
+              <span>Updated: {fmtDate(exam.updated_at)}</span>
             </div>
           )}
         </div>

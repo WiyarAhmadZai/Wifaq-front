@@ -5,6 +5,7 @@ import { getChartOfAccounts } from "../../api/financial";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 const PRIORITIES = [
   { value: "low",    label: "Low",    blurb: "Routine — can wait" },
   { value: "medium", label: "Medium", blurb: "Standard turnaround" },
@@ -132,7 +133,7 @@ export default function PurchaseRequestForm() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Request Date *</label>
-              <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} required
+              <DateField value={requestDate} onChange={(e) => setRequestDate(e.target.value)} required
                 className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
             </div>
             <div className="md:col-span-2">

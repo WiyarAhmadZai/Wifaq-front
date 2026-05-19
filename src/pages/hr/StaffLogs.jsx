@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { get } from '../../api/axios';
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const actionStyle = {
   transfer: 'bg-blue-100 text-blue-700',
   update: 'bg-teal-100 text-teal-700',
@@ -110,7 +112,7 @@ export default function StaffLogs() {
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">{log.notes || '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-700">{log.changed_by_user?.name || '—'}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{log.created_at ? new Date(log.created_at).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{log.created_at ? fmtDateTime(log.created_at) : '—'}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => setViewLog(log)}
                         className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View Details">
@@ -150,7 +152,7 @@ export default function StaffLogs() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-gray-800 capitalize">{viewLog.action} Log Detail</h3>
-                  <p className="text-[11px] text-gray-500 mt-0.5">{viewLog.created_at ? new Date(viewLog.created_at).toLocaleString() : ''}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{viewLog.created_at ? fmtDateTime(viewLog.created_at) : ''}</p>
                 </div>
               </div>
             </div>

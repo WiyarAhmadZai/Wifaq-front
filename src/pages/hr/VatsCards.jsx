@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { FiAward, FiTrendingUp, FiAlertTriangle, FiEdit2, FiTrash2, FiUsers } from "react-icons/fi";
-import { PageHeader, EmptyState, Spinner, Pill, InfoNote } from "../../components/hr/HrUI";
+import { PageHeader, EmptyState, Spinner, Pill, InfoNote, DateField } from "../../components/hr/HrUI";
 import { broadcastVatsChange } from "../../components/hr/useVats";
 import { CardBadge } from "./VatsDashboard";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -476,7 +476,7 @@ function EditCardModal({ card, onClose, onSave }) {
           </div>
           <div>
             <label className={label}>Date sent</label>
-            <input type="date" required
+            <DateField required
               className={inp}
               value={form.issued_on}
               onChange={(e) => setForm({ ...form, issued_on: e.target.value })} />

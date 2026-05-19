@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const pipelineStages = [
   { key: "received", label: "Received", color: "bg-blue-500", light: "bg-blue-50 text-blue-700 border-blue-200" },
   { key: "screening", label: "Screening", color: "bg-amber-500", light: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -195,7 +197,7 @@ export default function Applications() {
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.contact_number}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.source?.replace(/_/g, " ")}</td>
                     <td className="px-3 py-2.5 text-xs">{statusBadge(item.status)}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "-"}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? fmtDate(item.created_at) : "-"}</td>
                     <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => navigate(`/recruitment/applications/show/${item.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded" title="View & Manage">

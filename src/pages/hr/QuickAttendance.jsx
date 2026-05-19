@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 export default function QuickAttendance() {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -199,12 +200,10 @@ export default function QuickAttendance() {
           <label className="text-sm font-medium text-black bg-white">
             Date
           </label>
-          <input
-            type="date"
+          <DateField
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-          />
+            className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
         </div>
       </div>
 

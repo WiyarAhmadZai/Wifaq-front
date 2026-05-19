@@ -4,6 +4,8 @@ import { get, post, put, del, API_BASE_URL } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const steps = [
   {
     id: 1,
@@ -734,7 +736,7 @@ export default function StudentEnrollmentForm() {
                   <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   <span className="text-xs font-medium text-purple-700 uppercase tracking-wide">DOB</span>
                 </div>
-                <p className="font-semibold text-gray-800">{s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString() : "—"}</p>
+                <p className="font-semibold text-gray-800">{s.date_of_birth ? fmtDate(s.date_of_birth) : "—"}</p>
               </div>
               <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
                 <div className="flex items-center gap-2 mb-2">
@@ -1042,13 +1044,13 @@ export default function StudentEnrollmentForm() {
               {s.enrollment_date && (
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
-                  <span>Enrolled: {new Date(s.enrollment_date).toLocaleDateString()}</span>
+                  <span>Enrolled: {fmtDate(s.enrollment_date)}</span>
                 </div>
               )}
               {s.phase_2_completed_at && (
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
-                  <span>Phase 2: {new Date(s.phase_2_completed_at).toLocaleDateString()}</span>
+                  <span>Phase 2: {fmtDate(s.phase_2_completed_at)}</span>
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -1207,7 +1209,7 @@ export default function StudentEnrollmentForm() {
             <div>
               <p className="text-[9px] font-semibold text-gray-500 uppercase">DOB</p>
               <p className="text-xs font-bold text-gray-800 mt-0.5">
-                {selectedStudent.date_of_birth ? new Date(selectedStudent.date_of_birth).toLocaleDateString() : "—"}
+                {selectedStudent.date_of_birth ? fmtDate(selectedStudent.date_of_birth) : "—"}
               </p>
             </div>
             <div>

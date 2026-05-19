@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 
+import { DateField } from "../../components/hr/HrUI";
 const DEMO_STAFF = [
   { id: 1, full_name: "Ahmad Rahimi", staff_code: "WS-2026-001" },
   { id: 2, full_name: "Mohammad Karimi", staff_code: "WS-2026-002" },
@@ -193,7 +194,7 @@ export default function SalarySnapshotForm() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label required>Snapshot Month</Label>
-                  <input type="date" name="snapshot_month" value={form.snapshot_month} onChange={handle} className={inp} />
+                  <DateField name="snapshot_month" value={form.snapshot_month} onChange={handle} className={inp} />
                   <p className="text-[10px] text-gray-400 mt-1">Use the first day of the month</p>
                 </div>
                 <div>

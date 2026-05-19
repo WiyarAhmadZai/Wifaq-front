@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 const TASK_TYPES = [
   { value: "urgent", label: "Urgent", color: "bg-red-100 text-red-700" },
   { value: "high", label: "High", color: "bg-orange-100 text-orange-700" },
@@ -321,7 +322,7 @@ export default function StaffTaskForm() {
           {/* Start Date */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-            <input type="date" name="start_date" value={form.start_date} onChange={handleChange} required className={inp} />
+            <DateField name="start_date" value={form.start_date} onChange={handleChange} required className={inp} />
           </div>
 
           {/* Deadline */}
@@ -329,7 +330,7 @@ export default function StaffTaskForm() {
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Deadline <span className="text-gray-400 font-normal">(optional)</span>
             </label>
-            <input type="date" name="deadline" value={form.deadline} onChange={handleChange} className={inp} />
+            <DateField name="deadline" value={form.deadline} onChange={handleChange} className={inp} />
           </div>
         </div>
 

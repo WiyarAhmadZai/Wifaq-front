@@ -7,6 +7,8 @@ import {
 import { getAccounts, getParties, getChartOfAccounts } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const fmt = (n) => Number(n || 0).toLocaleString();
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -155,13 +157,13 @@ export default function RepairRequestShow() {
 
       {/* Detail panels */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <Panel label="Reported by">{rr.requester?.name || "—"}<div className="text-[10px] text-gray-400">{rr.reported_date}</div></Panel>
+        <Panel label="Reported by">{rr.requester?.name || "—"}<div className="text-[10px] text-gray-400">{fmtDate(rr.reported_date)}</div></Panel>
         <Panel label="Branch">{rr.branch?.name || "School-wide"}</Panel>
         <Panel label="Estimated cost">{rr.estimated_cost ? `${fmt(rr.estimated_cost)} AFN` : "—"}</Panel>
         <Panel label="Wants replacement if unfixable">{rr.create_purchase_request ? "Yes" : "No"}</Panel>
         {rr.approved_at && (
           <Panel label={rr.status === "rejected" ? "Rejected by" : "Approved by"}>
-            {rr.approver?.name || "—"}<div className="text-[10px] text-gray-400">{new Date(rr.approved_at).toLocaleString()}</div>
+            {rr.approver?.name || "—"}<div className="text-[10px] text-gray-400">{fmtDateTime(rr.approved_at)}</div>
             {rr.rejection_reason && <div className="text-[10px] text-red-600 mt-0.5">{rr.rejection_reason}</div>}
           </Panel>
         )}
@@ -181,7 +183,7 @@ export default function RepairRequestShow() {
         {rr.journal_entry_id && (
           <Panel label="Journal entry">
             <span className="font-mono">{rr.journal_entry?.entry_number || `#${rr.journal_entry_id}`}</span>
-            <div className="text-[10px] text-gray-400">{rr.journal_entry?.transaction_date}</div>
+            <div className="text-[10px] text-gray-400">{fmtDate(rr.journal_entry?.transaction_date)}</div>
           </Panel>
         )}
         {rr.generated_purchase_request && (

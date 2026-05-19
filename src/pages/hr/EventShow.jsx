@@ -4,6 +4,8 @@ import { get, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const statusConf = {
   upcoming: { label: "Upcoming", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
   ongoing: { label: "Ongoing", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
@@ -58,7 +60,7 @@ export default function EventShow() {
   if (!data) return <div className="text-center py-24 text-sm text-gray-400">Event not found</div>;
 
   const sc = statusConf[data.status] || statusConf.upcoming;
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "-";
+  const formatDate = (d) => d ? fmtDate(d) : "-";
   const isMultiDay = data.end_date && data.start_date !== data.end_date;
   const roles = data.roles || [];
   const reqs = data.requirements || [];

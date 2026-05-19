@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 export default function VisitorLog() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -149,7 +150,7 @@ export default function VisitorLog() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search visitor, purpose, or met with..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white" />
           </div>
-          <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
+          <DateField value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
             className="px-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white" />
           <button onClick={() => setFilterDate("")} className="px-3 py-2.5 text-xs font-medium text-teal-600 bg-teal-50 border border-teal-200 rounded-xl hover:bg-teal-100">All Dates</button>
         </div>

@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const statusConf = {
   scheduled: { label: "Scheduled", color: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
   in_progress: { label: "In Progress", color: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
@@ -90,7 +93,7 @@ export default function Meetings() {
   const formatDT = (dt) => {
     if (!dt) return "-";
     const d = new Date(dt);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    return fmtDate(d) + " · " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   };
 
   const upcoming = items.filter((i) => i.status === "scheduled" && new Date(i.start_time) > new Date()).length;
@@ -183,7 +186,7 @@ export default function Meetings() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center flex-shrink-0 border ${isEmergency ? "bg-red-50 border-red-100" : "bg-teal-50 border-teal-100"}`}>
-                              <span className={`text-[8px] font-bold uppercase ${isEmergency ? "text-red-600" : "text-teal-600"}`}>{m.start_time ? new Date(m.start_time).toLocaleDateString("en-US", { month: "short" }) : ""}</span>
+                              <span className={`text-[8px] font-bold uppercase ${isEmergency ? "text-red-600" : "text-teal-600"}`}>{m.start_time ? fmtDate(m.start_time) : ""}</span>
                               <span className={`text-sm font-black -mt-0.5 ${isEmergency ? "text-red-700" : "text-teal-700"}`}>{m.start_time ? new Date(m.start_time).getDate() : ""}</span>
                             </div>
                             <div>
@@ -296,12 +299,12 @@ export default function Meetings() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date *</label>
-                  <input type="date" value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+                  <DateField value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
                 </div>
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Deadline</label>
-                <input type="date" value={taskForm.deadline} onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+                <DateField value={taskForm.deadline} onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Notes</label>

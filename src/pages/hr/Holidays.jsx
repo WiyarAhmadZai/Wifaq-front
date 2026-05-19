@@ -5,6 +5,9 @@ import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none";
 
 const TYPE_STYLE = {
@@ -124,7 +127,7 @@ export default function Holidays() {
 
 function HolidayModal({ holiday, onClose, onSaved }) {
   const [form, setForm] = useState(holiday ? {
-    date: holiday.date?.split?.("T")[0] || holiday.date,
+    date: fmtDate(holiday.date) || holiday.date,
     name: holiday.name,
     type: holiday.type,
     recurring: !!holiday.recurring,
@@ -159,7 +162,7 @@ function HolidayModal({ holiday, onClose, onSaved }) {
         </div>
         <form onSubmit={submit} className="p-5 space-y-3">
           <Field label="Date">
-            <input type="date" className={inp} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+            <DateField className={inp} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
           </Field>
           <Field label="Name">
             <input type="text" className={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Eid al-Fitr" />

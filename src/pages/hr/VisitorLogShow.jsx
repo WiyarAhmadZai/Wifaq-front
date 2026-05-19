@@ -4,6 +4,8 @@ import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 export default function VisitorLogShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -95,7 +97,7 @@ export default function VisitorLogShow() {
           <div>
             <h2 className="text-lg font-black text-white">{data.visitor_name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.date ? new Date(data.date).toLocaleDateString() : "-"}</span>
+              <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.date ? fmtDate(data.date) : "-"}</span>
               <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{data.purpose}</span>
               {isInside ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-400 text-white text-[11px] font-semibold rounded-full">
@@ -139,7 +141,7 @@ export default function VisitorLogShow() {
               <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">Visit Information</h3>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
-                  { label: "Date", value: data.date ? new Date(data.date).toLocaleDateString() : "-" },
+                  { label: "Date", value: data.date ? fmtDate(data.date) : "-" },
                   { label: "Visitor Name", value: data.visitor_name },
                   { label: "Phone", value: data.visitor_phone || "-" },
                   { label: "Purpose", value: data.purpose },
@@ -168,7 +170,7 @@ export default function VisitorLogShow() {
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between"><span className="text-teal-200">ID</span><span className="font-medium">#{String(data.id).padStart(4, "0")}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Status</span><span className="font-medium capitalize">{isInside ? "Inside" : "Left"}</span></div>
-                <div className="flex justify-between"><span className="text-teal-200">Created</span><span className="font-medium">{data.created_at ? new Date(data.created_at).toLocaleString() : "-"}</span></div>
+                <div className="flex justify-between"><span className="text-teal-200">Created</span><span className="font-medium">{data.created_at ? fmtDateTime(data.created_at) : "-"}</span></div>
               </div>
             </div>
           </div>

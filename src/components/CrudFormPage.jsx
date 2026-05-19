@@ -4,6 +4,7 @@ import { get, post, put } from '../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from '../utils/formErrors';
 
+import { DateField } from "./hr/HrUI";
 export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, storeEndpoint = null, editEndpoint = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -370,14 +371,12 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
     if (field.type === 'date') {
       return (
         <div>
-          <input
-            type="date"
+          <DateField
             name={field.name}
             value={value}
             onChange={handleChange}
             required={field.required}
-            className={getFieldClass(field.name)}
-          />
+            className={getFieldClass(field.name)} />
           {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );

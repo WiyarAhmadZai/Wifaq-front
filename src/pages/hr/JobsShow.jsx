@@ -4,6 +4,8 @@ import { get } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 export default function JobsShow() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -144,13 +146,13 @@ export default function JobsShow() {
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Application Deadline</p>
               <p className="text-lg font-semibold text-gray-900 mt-1">
-                {job.deadline ? new Date(job.deadline).toLocaleDateString() : 'N/A'}
+                {job.deadline ? fmtDate(job.deadline) : 'N/A'}
               </p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Posted Date</p>
               <p className="text-lg font-semibold text-gray-900 mt-1">
-                {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'N/A'}
+                {job.created_at ? fmtDate(job.created_at) : 'N/A'}
               </p>
             </div>
           </div>
@@ -197,9 +199,9 @@ export default function JobsShow() {
           <div className="border-t border-gray-200 pt-6 mt-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="text-sm text-gray-500">
-                <p>Created: {job.created_at ? new Date(job.created_at).toLocaleString() : 'N/A'}</p>
+                <p>Created: {job.created_at ? fmtDateTime(job.created_at) : 'N/A'}</p>
                 {job.updated_at && job.updated_at !== job.created_at && (
-                  <p className="mt-1">Last Updated: {new Date(job.updated_at).toLocaleString()}</p>
+                  <p className="mt-1">Last Updated: {fmtDateTime(job.updated_at)}</p>
                 )}
               </div>
               <div className="flex gap-2">

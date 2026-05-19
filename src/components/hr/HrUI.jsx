@@ -2,6 +2,122 @@
  * Shared HR UI primitives. Keep them small, accessible, and styled with
  * the brand teal so every HR page looks like one product.
  */
+import { useState, useRef, useEffect } from "react";
+
+/* ============================================================
+ * DateField — drop-in replacement for native
+ *   <input type="date"> / <input type="datetime-local">
+ *
+ * The field DISPLAYS and ACCEPTS day/month/year (DD/MM/YYYY),
+ * but stays a perfect drop-in: `value` is still ISO
+ * (YYYY-MM-DD or YYYY-MM-DDTHH:mm) and `onChange` still fires a
+ * native-shaped event { target: { name, value, type } } with the
+ * ISO value — so every existing form handler keeps working.
+ * The 📅 button opens the browser's real calendar picker.
+ * ============================================================ */
+function isoParts(v) {
+  if (!v) return null;
+  const s = String(v);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+  if (!m) { const d = new Date(s); if (isNaN(d.getTime())) return null;
+    return { y: d.getFullYear(), mo: d.getMonth() + 1, d: d.getDate(), h: d.getHours(), mi: d.getMinutes() }; }
+  return { y: +m[1], mo: +m[2], d: +m[3], h: m[4] ? +m[4] : 0, mi: m[5] ? +m[5] : 0 };
+}
+const p2 = (n) => String(n).padStart(2, "0");
+
+function toDisplay(v, withTime) {
+  const p = isoParts(v);
+  if (!p) return "";
+  const d = `${p2(p.d)}/${p2(p.mo)}/${p.y}`;
+  return withTime ? `${d} ${p2(p.h)}:${p2(p.mi)}` : d;
+}
+/** "dd/mm/yyyy [hh:mm]" → ISO, "" if blank, null if not yet valid. */
+function toIso(text, withTime) {
+  const t = (text || "").trim();
+  if (!t) return "";
+  const m = t.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})(?:[ ,]+(\d{1,2}):(\d{2}))?$/);
+  if (!m) return null;
+  let [, d, mo, y, h, mi] = m;
+  d = +d; mo = +mo; y = +y; if (y < 100) y += 2000;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const base = `${y}-${p2(mo)}-${p2(d)}`;
+  if (!withTime) return base;
+  if (h == null) return `${base}T00:00`;
+  if (+h > 23 || +mi > 59) return null;
+  return `${base}T${p2(+h)}:${p2(+mi)}`;
+}
+
+export function DateField({
+  value, onChange, name, min, max, required, disabled,
+  className = "", placeholder, withTime = false, ...rest
+}) {
+  const hiddenRef = useRef(null);
+  const [text, setText] = useState(toDisplay(value, withTime));
+  const [focused, setFocused] = useState(false);
+
+  // Keep the display in sync when the form sets the value externally.
+  useEffect(() => { if (!focused) setText(toDisplay(value, withTime)); }, [value, withTime, focused]);
+
+  const emit = (iso) =>
+    onChange?.({ target: { name, value: iso, type: withTime ? "datetime-local" : "date" } });
+
+  const onText = (e) => {
+    const t = e.target.value;
+    setText(t);
+    const iso = toIso(t, withTime);
+    if (iso !== null) emit(iso); // valid or cleared; ignore half-typed
+  };
+
+  const openPicker = () => {
+    const el = hiddenRef.current;
+    if (!el || disabled) return;
+    if (typeof el.showPicker === "function") { try { el.showPicker(); return; } catch { /* fall through */ } }
+    el.focus(); el.click();
+  };
+
+  return (
+    <div className="relative">
+      <input
+        {...rest}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        name={name}
+        value={text}
+        disabled={disabled}
+        required={required}
+        placeholder={placeholder || (withTime ? "dd/mm/yyyy hh:mm" : "dd/mm/yyyy")}
+        onChange={onText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); setText(toDisplay(value, withTime)); }}
+        className={className}
+        style={{ paddingRight: "2.2rem" }}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={openPicker}
+        disabled={disabled}
+        title="Open calendar"
+        style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+          background: "none", border: 0, cursor: disabled ? "default" : "pointer",
+          fontSize: 15, lineHeight: 1, opacity: disabled ? 0.4 : 0.7 }}
+      >📅</button>
+      <input
+        ref={hiddenRef}
+        type={withTime ? "datetime-local" : "date"}
+        value={value || ""}
+        min={min}
+        max={max}
+        disabled={disabled}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => emit(e.target.value)}
+        style={{ position: "absolute", width: 1, height: 1, opacity: 0, right: 8, bottom: 0, pointerEvents: "none" }}
+      />
+    </div>
+  );
+}
 
 export function PageHeader({ title, subtitle, icon, actions, children }) {
   return (

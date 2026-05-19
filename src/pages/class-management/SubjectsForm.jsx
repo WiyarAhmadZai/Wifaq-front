@@ -4,6 +4,7 @@ import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from '../../utils/formErrors';
 
+import { DateField } from "../../components/hr/HrUI";
 const CATEGORIES = ['Maarif Subjects', 'Taqwayati Mayari', 'Taqwayati Takhasosi'];
 const FIELDS = ['Mathematics & Engineering', 'Religious Studies', 'Social Sciences', 'Natural Sciences'];
 
@@ -233,11 +234,11 @@ export default function SubjectsForm() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label required>Start Date</Label>
-                  <input type="date" name="start_date" value={form.start_date} onChange={handle} className={inp} />
+                  <DateField name="start_date" value={form.start_date} onChange={handle} className={inp} />
                 </div>
                 <div>
                   <Label required>Expected Completion Date</Label>
-                  <input type="date" name="expected_completion_date" value={form.expected_completion_date} onChange={handle} className={inp} />
+                  <DateField name="expected_completion_date" value={form.expected_completion_date} onChange={handle} className={inp} />
                 </div>
               </div>
               <div>

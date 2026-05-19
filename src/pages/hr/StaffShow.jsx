@@ -5,6 +5,8 @@ const STORAGE_URL = _API.replace(/\/api\/?$/, '');
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
+import { fmtDate } from "../../utils/formErrors";
+
 const DOCUMENT_TYPES = {
   cv_resume: { label: "CV/Resume", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", color: "blue" },
   identity_document: { label: "Identity Document", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2", color: "teal" },
@@ -136,7 +138,7 @@ export default function StaffShow() {
                 <Field label="Full Name" value={app?.full_name || name} />
                 <Field label="Email" value={app?.email} />
                 <Field label="Phone" value={app?.contact_number} />
-                <Field label="Date of Birth" value={app?.date_of_birth?.split('T')[0]} />
+                <Field label="Date of Birth" value={fmtDate(app?.date_of_birth)} />
                 <Field label="Address" value={app?.current_address} />
                 <Field label="Place of Origin" value={app?.place_of_origin} />
                 <Field label="Father's Name" value={data.father_name} />
@@ -159,7 +161,7 @@ export default function StaffShow() {
                     <p className="text-[10px] text-emerald-500 font-semibold uppercase tracking-wider mb-3">Accepted Offer</p>
                     <div className="grid grid-cols-3 gap-4">
                       <Field label="Salary" value={app.offer.salary_amount ? `${app.offer.salary_currency || 'AFN'} ${Number(app.offer.salary_amount).toLocaleString()}` : null} />
-                      <Field label="Start Date" value={app.offer.start_date?.split('T')[0]} />
+                      <Field label="Start Date" value={fmtDate(app.offer.start_date)} />
                       <Field label="Offer Status" value={app.offer.status} />
                     </div>
                   </div>
@@ -170,7 +172,7 @@ export default function StaffShow() {
             {/* Employment Details */}
             <Section title="Employment Details" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <Field label="Hire Date" value={data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
+                <Field label="Hire Date" value={data.created_at ? fmtDate(data.created_at) : '—'} />
                 <Field label="Branch" value={branchName} />
                 <Field label="Department" value={data.department || data.job_requisition?.department} />
                 <Field label="Position Title" value={data.role_title_en?.replace(/_/g, ' ')} />
@@ -200,7 +202,7 @@ export default function StaffShow() {
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-gray-800">{docType.label}</p>
                               <p className="text-[10px] text-gray-500 truncate mt-0.5">{doc.file_url?.split('/').pop()}</p>
-                              {doc.uploaded_at && <p className="text-[10px] text-gray-400 mt-0.5">{new Date(doc.uploaded_at).toLocaleDateString()}</p>}
+                              {doc.uploaded_at && <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.uploaded_at)}</p>}
                               <div className={`mt-2 w-full py-1.5 px-3 ${colors.btn} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all`}>
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -275,9 +277,9 @@ export default function StaffShow() {
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Timeline</p>
               <div className="space-y-3">
                 {[
-                  { label: 'Hired', date: data.created_at ? new Date(data.created_at).toLocaleDateString() : null },
-                  { label: 'Record Created', date: data.created_at ? new Date(data.created_at).toLocaleDateString() : null },
-                  { label: 'Last Updated', date: data.updated_at ? new Date(data.updated_at).toLocaleDateString() : null },
+                  { label: 'Hired', date: data.created_at ? fmtDate(data.created_at) : null },
+                  { label: 'Record Created', date: data.created_at ? fmtDate(data.created_at) : null },
+                  { label: 'Last Updated', date: data.updated_at ? fmtDate(data.updated_at) : null },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
@@ -307,7 +309,7 @@ export default function StaffShow() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">{viewingDoc.label}</h3>
-                  {viewingDoc.uploaded_at && <p className="text-sm text-gray-500">Uploaded: {new Date(viewingDoc.uploaded_at).toLocaleDateString()}</p>}
+                  {viewingDoc.uploaded_at && <p className="text-sm text-gray-500">Uploaded: {fmtDate(viewingDoc.uploaded_at)}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-2">

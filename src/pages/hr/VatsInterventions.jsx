@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
-import { PageHeader, EmptyState, Spinner, Pill, Section, InfoNote } from "../../components/hr/HrUI";
+import { PageHeader, EmptyState, Spinner, Pill, Section, InfoNote, DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -282,10 +282,10 @@ function InterventionForm({ staff, onClose, onSaved }) {
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Opened on">
-                <input type="date" className={inp} value={form.opened_on} onChange={(e) => setForm({ ...form, opened_on: e.target.value })} required />
+                <DateField className={inp} value={form.opened_on} onChange={(e) => setForm({ ...form, opened_on: e.target.value })} required />
               </Field>
               <Field label="Follow-up date (optional)">
-                <input type="date" className={inp} value={form.follow_up_on} onChange={(e) => setForm({ ...form, follow_up_on: e.target.value })} />
+                <DateField className={inp} value={form.follow_up_on} onChange={(e) => setForm({ ...form, follow_up_on: e.target.value })} />
               </Field>
             </div>
             <Field label="Improvement plan (optional)">

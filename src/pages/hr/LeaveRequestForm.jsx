@@ -5,6 +5,9 @@ import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 import { useAuth } from "../../admin/context/AuthContext";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const HR_ROLES = ["super-admin", "admin", "hr-manager"];
 
 const LEAVE_TYPES = [
@@ -117,8 +120,8 @@ export default function LeaveRequestForm() {
       setForm({
         staff_id: d.staff_id || "",
         leave_type: d.leave_type || "",
-        from_date: d.from_date ? d.from_date.split("T")[0] : "",
-        to_date: d.to_date ? d.to_date.split("T")[0] : "",
+        from_date: d.from_date ? fmtDate(d.from_date) : "",
+        to_date: d.to_date ? fmtDate(d.to_date) : "",
         reason: d.reason || "",
         coverage_plan: d.coverage_plan || "",
         status: d.status || "pending",
@@ -351,12 +354,12 @@ export default function LeaveRequestForm() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">From Date *</label>
-                  <input type="date" name="from_date" value={form.from_date} onChange={handleChange} className={inputClass("from_date")} />
+                  <DateField name="from_date" value={form.from_date} onChange={handleChange} className={inputClass("from_date")} />
                   {errors.from_date && <p className="text-red-500 text-[10px] mt-1">{errors.from_date}</p>}
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">To Date</label>
-                  <input type="date" name="to_date" value={form.to_date} onChange={handleChange} min={form.from_date} className={inputClass("to_date")} />
+                  <DateField name="to_date" value={form.to_date} onChange={handleChange} min={form.from_date} className={inputClass("to_date")} />
                   {errors.to_date && <p className="text-red-500 text-[10px] mt-1">{errors.to_date}</p>}
                 </div>
                 <div>
@@ -453,7 +456,7 @@ export default function LeaveRequestForm() {
                 <div><span className="text-teal-200 block text-[9px]">Employee</span><span className="font-medium">{staffName(selectedStaff)}</span></div>
                 <div><span className="text-teal-200 block text-[9px]">Leave Type</span><span className="font-medium capitalize">{form.leave_type}</span></div>
                 <div><span className="text-teal-200 block text-[9px]">Duration</span><span className="font-medium">{totalDays} day{totalDays === 1 ? "" : "s"}</span></div>
-                <div><span className="text-teal-200 block text-[9px]">Dates</span><span className="font-medium">{form.from_date}{form.to_date ? ` to ${form.to_date}` : ""}</span></div>
+                <div><span className="text-teal-200 block text-[9px]">Dates</span><span className="font-medium">{fmtDate(form.from_date)}{form.to_date ? ` to ${fmtDate(form.to_date)}` : ""}</span></div>
               </div>
             </div>
           )}

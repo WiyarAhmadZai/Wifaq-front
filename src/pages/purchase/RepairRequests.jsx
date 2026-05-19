@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { deleteRepairRequest, listRepairRequests } from "../../api/repairRequests";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
 const fmt = (n) => Number(n || 0).toLocaleString();
 
 const STATUS = {
@@ -141,7 +142,7 @@ export default function RepairRequests() {
                       <span className="block text-[9px] text-indigo-600 mt-0.5">↳ {rr.generated_purchase_request.request_number}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-gray-500">{rr.reported_date}</td>
+                  <td className="px-3 py-2 text-gray-500">{fmtDate(rr.reported_date)}</td>
                   <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                     {["pending", "cancelled", "rejected"].includes(rr.status) && (
                       <button onClick={() => handleDelete(rr.id)} className="text-[10px] text-red-600 hover:text-red-800">Delete</button>

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { get } from "../api/axios";
 
+import { fmtDate } from "../utils/formErrors";
+
 /**
  * Role-aware home dashboard. The backend returns only the sections the caller
  * is allowed to see, so this page just renders whatever it gets.
@@ -215,7 +217,7 @@ function timeAgo(iso) {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return fmtDate(iso);
 }
 
 function StatCard({ label, value, icon, tone = "teal" }) {

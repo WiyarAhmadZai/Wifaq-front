@@ -759,6 +759,7 @@ export default function Layout() {
     ]},
     { label: "Reports", key: "finance-reports", children: [
       { label: "Class Collection", path: "/finance/reports/class-collection", permission: "fee-invoices.view" },
+      { label: "Leadership Report", path: "/finance/reports/leadership", permission: "finance.view" },
     ]},
     { label: "Bookkeeping", key: "finance-bookkeeping", children: [
       { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },

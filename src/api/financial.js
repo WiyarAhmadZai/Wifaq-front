@@ -119,6 +119,9 @@ export const getSchoolClasses = (params = {}) => get('/class-management/classes/
 // Dashboard / Summary (aggregated on server)
 export const getFinancialOverview = () => get(`${BASE}/dashboard`);
 
+// Leadership Financial Report — consolidated GL-derived report for a month
+export const getLeadershipReport = (params = {}) => get(`${BASE}/leadership-report`, { params });
+
 /** @deprecated Prefer getFinancialOverview — kept for older callers */
 export const getFinanceDashboard = async () => {
   try {

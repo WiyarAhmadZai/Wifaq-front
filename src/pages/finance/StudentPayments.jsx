@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getFeePayments, getFeeInvoices } from "../../api/financial";
 
+import { fmtDate } from "../../utils/formErrors";
+
 /**
  * Per-student payment + billing coverage view.
  *
@@ -17,7 +19,7 @@ import { getFeePayments, getFeeInvoices } from "../../api/financial";
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
 const fmtDateLong = (d) =>
-  d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  d ? fmtDate(d) : "—";
 
 // IMPORTANT: pull YYYY-MM and YYYY-MM-DD from the *string* directly. Going
 // through `new Date(...).toISOString()` shifts the month by one when the

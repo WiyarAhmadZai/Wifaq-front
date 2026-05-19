@@ -3,6 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const emptyAgenda = { title: "", description: "", assigned_to_id: "", duration_min: "" };
 
 export default function MeetingForm() {
@@ -211,12 +214,12 @@ export default function MeetingForm() {
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date & Time *</label>
-              <input type="datetime-local" name="start_time" value={form.start_time} onChange={handle} className={ic("start_time")} />
+              <DateField name="start_time" value={form.start_time} onChange={handle} className={ic("start_time")} withTime />
               {errors.start_time && <p className="text-red-500 text-[10px] mt-1">{errors.start_time}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Date & Time *</label>
-              <input type="datetime-local" name="end_time" value={form.end_time} onChange={handle} min={form.start_time} className={ic("end_time")} />
+              <DateField name="end_time" value={form.end_time} onChange={handle} min={form.start_time} className={ic("end_time")} withTime />
               {errors.end_time && <p className="text-red-500 text-[10px] mt-1">{errors.end_time}</p>}
             </div>
             <div>
@@ -407,7 +410,7 @@ export default function MeetingForm() {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div><span className="text-teal-200 block text-[9px]">Title</span><span className="font-medium">{form.title}</span></div>
-              <div><span className="text-teal-200 block text-[9px]">When</span><span className="font-medium">{form.start_time ? new Date(form.start_time).toLocaleString() : "-"}</span></div>
+              <div><span className="text-teal-200 block text-[9px]">When</span><span className="font-medium">{form.start_time ? fmtDateTime(form.start_time) : "-"}</span></div>
               <div><span className="text-teal-200 block text-[9px]">Participants</span><span className="font-medium">{participants.length} member{participants.length !== 1 ? "s" : ""}</span></div>
               <div><span className="text-teal-200 block text-[9px]">Agenda Items</span><span className="font-medium">{agendaItems.filter((a) => a.title).length} topic{agendaItems.filter((a) => a.title).length !== 1 ? "s" : ""}{totalDuration > 0 ? ` · ${totalDuration}min` : ""}</span></div>
             </div>

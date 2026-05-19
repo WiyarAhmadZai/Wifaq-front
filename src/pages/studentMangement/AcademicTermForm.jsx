@@ -4,6 +4,7 @@ import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
+import { DateField } from "../../components/hr/HrUI";
 export default function AcademicTermForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -100,12 +101,12 @@ export default function AcademicTermForm() {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-          <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} required className={getFieldClass("start_date")} />
+          <DateField name="start_date" value={formData.start_date} onChange={handleChange} required className={getFieldClass("start_date")} />
           {getFieldError("start_date") && <p className="text-red-500 text-[10px] mt-1">{getFieldError("start_date")}</p>}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">End Date *</label>
-          <input type="date" name="end_date" value={formData.end_date} onChange={handleChange} required className={getFieldClass("end_date")} />
+          <DateField name="end_date" value={formData.end_date} onChange={handleChange} required className={getFieldClass("end_date")} />
           {getFieldError("end_date") && <p className="text-red-500 text-[10px] mt-1">{getFieldError("end_date")}</p>}
         </div>
         <div className="md:col-span-2 flex items-center gap-2">

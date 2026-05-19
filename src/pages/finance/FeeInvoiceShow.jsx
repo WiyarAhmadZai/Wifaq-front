@@ -5,6 +5,8 @@ import { getFeeInvoice, regenerateFeeInvoice } from "../../api/financial";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 /**
  * Single invoice view. Read-only breakdown + payment history. Payments are
  * taken on the Cashier screen — this page just deep-links there with the
@@ -22,8 +24,7 @@ const STATUS = {
 
 const methodLabels = { cash: "Cash", bank: "Bank Transfer", mobile: "Mobile", check: "Check" };
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
-const fmtMonth = (d) => (d ? new Date(d).toLocaleString("default", { month: "long", year: "numeric" }) : "—");
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-CA") : "—");
+const fmtMonth = (d) => (d ? fmtDate(d) : "—");
 const fmtType = (t) => (t || "tuition").replace(/_/g, " ");
 
 export default function FeeInvoiceShow() {

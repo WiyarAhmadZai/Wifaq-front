@@ -4,6 +4,7 @@ import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from "../../utils/formErrors";
 
+import { DateField } from "../../components/hr/HrUI";
 const CATEGORIES = ['Supplier', 'Contractor', 'Consultant', 'Other'];
 const RATINGS = [1, 2, 3, 4, 5];
 const RATING_LABELS = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent' };
@@ -222,7 +223,7 @@ export default function AddVendorForm() {
               </div>
               <div>
                 <Label required>Date Engaged</Label>
-                <input type="date" name="date_engaged" value={form.date_engaged} onChange={handle} className={inp} />
+                <DateField name="date_engaged" value={form.date_engaged} onChange={handle} className={inp} />
               </div>
             </StepCard>
           )}

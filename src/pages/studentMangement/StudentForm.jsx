@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 const STEPS = [
   { num: 1, label: "Student Info", desc: "Family, personal details & class" },
   { num: 2, label: "Financials", desc: "Discounts, fees & support" },
@@ -438,7 +439,7 @@ export default function StudentForm() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Date of Birth *</label>
-                    <input type="date" name="date_of_birth" value={form.date_of_birth} onChange={handle} className={inp("date_of_birth")} />
+                    <DateField name="date_of_birth" value={form.date_of_birth} onChange={handle} className={inp("date_of_birth")} />
                     {err("date_of_birth") && <p className="text-red-500 text-[10px] mt-1">{err("date_of_birth")}</p>}
                   </div>
                   <div>
@@ -511,7 +512,7 @@ export default function StudentForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Enrollment Date *</label>
-                    <input type="date" name="enrollment_date" value={form.enrollment_date} onChange={handle} className={inp("enrollment_date")} />
+                    <DateField name="enrollment_date" value={form.enrollment_date} onChange={handle} className={inp("enrollment_date")} />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Enrollment Type</label>

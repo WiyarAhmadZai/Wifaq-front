@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import { DateField } from "../../components/hr/HrUI";
 import {
   previewBillingRun,
   commitBillingRun,
@@ -219,12 +220,10 @@ export default function BillingRun() {
             </select>
           </Field>
           <Field label="Due Date">
-            <input
-              type="date"
+            <DateField
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-500"
-            />
+              className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
           </Field>
           <Field label="Scope">
             <div className="flex items-center gap-2">

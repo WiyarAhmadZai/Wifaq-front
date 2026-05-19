@@ -788,15 +788,46 @@ function InvoiceCard({ invoice, allocation, setAllocation, fillFull, clear, appl
  * ────────────────────────────────────────────────────────────────────────── */
 const RECEIPT_PRINT_STYLES = `
 @media print {
-  @page { size: A4; margin: 14mm 12mm; }
+  /* Bank-teller slip: A5 is exactly half of an A4 sheet. */
+  @page { size: A5 portrait; margin: 6mm; }
   html, body { background: #fff !important; }
   body * { visibility: hidden !important; }
   [data-print-receipt], [data-print-receipt] * { visibility: visible !important; }
-  [data-print-receipt] { position: absolute; inset: 0; width: 100%; box-shadow: none !important; border: none !important; }
+  [data-print-receipt] {
+    position: absolute; inset: 0;
+    width: 100%; max-width: none !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+  }
+  [data-print-receipt] .rcpt-amt { font-size: 20px !important; }
   .no-print { display: none !important; }
-  .print-shadow-none { box-shadow: none !important; }
 }
 `;
+
+/** Whole-number → English words (for the bank-style "amount in words" line). */
+function amountToWords(num) {
+  num = Math.floor(Math.abs(Number(num) || 0));
+  if (num === 0) return "Zero";
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+    "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const chunk = (n) => {
+    let s = "";
+    if (n >= 100) { s += ones[Math.floor(n / 100)] + " Hundred "; n %= 100; }
+    if (n >= 20) { s += tens[Math.floor(n / 10)] + " "; n %= 10; }
+    if (n > 0) s += ones[n] + " ";
+    return s;
+  };
+  const scales = [["", 1], ["Thousand", 1e3], ["Million", 1e6], ["Billion", 1e9]];
+  let words = "";
+  for (let i = scales.length - 1; i >= 0; i--) {
+    const [name, val] = scales[i];
+    const part = Math.floor(num / val);
+    if (part > 0) { words += chunk(part) + (name ? name + " " : ""); num %= val; }
+  }
+  return words.trim().replace(/\s+/g, " ");
+}
 
 const SCHOOL = {
   name: "Wifaq School",
@@ -860,147 +891,141 @@ function ReceiptPanel({ receipt, onNew }) {
         </button>
       </div>
 
-      {/* The receipt itself — what gets printed */}
+      {/* The receipt — bank-teller slip, A5 (half an A4 sheet) */}
       <div
         data-print-receipt
-        className="bg-white border border-gray-200 rounded-xl shadow-sm max-w-[820px] mx-auto"
+        className="bg-white mx-auto text-gray-900"
+        style={{ width: "148mm", maxWidth: "100%", border: "1.5px solid #111", fontFamily: "'Segoe UI', Arial, sans-serif" }}
       >
-        {/* ── Header: logo + school identity + status stripe ────────────── */}
-        <div className="border-b-4 border-teal-700">
-          <div className="flex items-center justify-between gap-4 px-8 py-5">
-            <div className="flex items-center gap-4">
-              <img
-                src={SCHOOL.logo}
-                alt={SCHOOL.name}
-                className="w-16 h-16 rounded-full object-cover ring-2 ring-teal-700/10"
-                onError={(e) => { e.target.style.display = "none"; }}
-              />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 tracking-tight">{SCHOOL.name}</h1>
-                <p className="text-[11px] text-teal-700 font-semibold italic">{SCHOOL.tagline}</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">
-                  {SCHOOL.address} · {SCHOOL.phone} · {SCHOOL.email}
-                </p>
-              </div>
+        {/* ── Header band ────────────────────────────────────────────────── */}
+        <div className="flex items-stretch border-b-2 border-gray-900">
+          <div className="flex items-center gap-2.5 px-3 py-2 flex-1">
+            <img src={SCHOOL.logo} alt="" className="w-11 h-11 object-cover rounded"
+              onError={(e) => { e.target.style.display = "none"; }} />
+            <div className="leading-tight">
+              <h1 className="text-[15px] font-extrabold tracking-tight">{SCHOOL.name}</h1>
+              <p className="text-[8px] text-gray-600">{SCHOOL.address} · {SCHOOL.phone}</p>
             </div>
-            <div className="text-right">
-              <p className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded-full ring-1 ring-emerald-200">
-                ✓ Paid
-              </p>
-            </div>
+          </div>
+          <div className="flex flex-col items-center justify-center px-4 border-l-2 border-gray-900 bg-gray-100">
+            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-600">Official</p>
+            <p className="text-[12px] font-extrabold uppercase tracking-wide">Payment Receipt</p>
           </div>
         </div>
 
-        {/* ── Title bar: receipt # + date ────────────────────────────────── */}
-        <div className="px-8 py-4 bg-gray-50 border-b border-gray-200 flex items-end justify-between">
-          <div>
-            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Payment Receipt</p>
-            <h2 className="text-2xl font-bold text-gray-900 mt-0.5 tracking-tight">{receiptNo}</h2>
+        {/* ── Receipt no. / date strip ───────────────────────────────────── */}
+        <div className="flex border-b border-gray-900 text-[10px]">
+          <div className="flex-1 px-3 py-1.5 border-r border-gray-900">
+            <span className="text-gray-500 uppercase text-[8px] font-bold tracking-wider">Receipt No.</span>
+            <div className="font-bold font-mono text-[12px]">{receiptNo}</div>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Issued</p>
-            <p className="text-sm font-bold text-gray-800">{fmtDate(receipt.paymentDate)}</p>
+          <div className="flex-1 px-3 py-1.5 border-r border-gray-900">
+            <span className="text-gray-500 uppercase text-[8px] font-bold tracking-wider">Date</span>
+            <div className="font-bold">{fmtDate(receipt.paymentDate)}</div>
           </div>
-        </div>
-
-        {/* ── Body: Issued-To + Payment Details ─────────────────────────── */}
-        <div className="px-8 py-5 grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-gray-200">
-          <div>
-            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest mb-2">Issued to</p>
-            <p className="text-base font-bold text-gray-900">{studentName}</p>
-            <div className="mt-1.5 text-xs text-gray-600 space-y-0.5">
-              {student.student_id && <p><span className="text-gray-400">Student ID:</span> <span className="font-medium text-gray-700">{student.student_id}</span></p>}
-              <p><span className="text-gray-400">Class:</span> <span className="font-medium text-gray-700">{className}</span></p>
-              <p><span className="text-gray-400">Parent:</span> <span className="font-medium text-gray-700">{parentName}</span></p>
-              <p><span className="text-gray-400">Phone:</span> <span className="font-medium text-gray-700">{parentPhone}</span></p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest mb-2">Payment details</p>
-            <div className="text-xs text-gray-600 space-y-0.5">
-              <p><span className="text-gray-400">Method:</span> <span className="font-medium text-gray-700">{METHOD_LABELS[receipt.method] || receipt.method}</span></p>
-              <p><span className="text-gray-400">Account:</span> <span className="font-medium text-gray-700">{receipt.account?.account_name || "—"}</span></p>
-              <p><span className="text-gray-400">Reference:</span> <span className="font-medium text-gray-700">{receipt.reference || "—"}</span></p>
-              <p><span className="text-gray-400">Cashier:</span> <span className="font-medium text-gray-700">{cashierName}</span></p>
-              <p><span className="text-gray-400">Invoices settled:</span> <span className="font-medium text-gray-700">{okItems.length}</span></p>
-            </div>
+          <div className="px-3 py-1.5 flex items-center">
+            <span className="px-2 py-0.5 border border-emerald-700 text-emerald-700 text-[9px] font-extrabold uppercase tracking-wider rounded">✓ Paid</span>
           </div>
         </div>
 
-        {/* ── Settled invoices table ────────────────────────────────────── */}
-        <div className="px-8 py-5">
-          <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest mb-3">Settled invoices</p>
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-teal-700 text-white">
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider w-8">#</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider">Invoice No.</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider">Period</th>
-                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-wider">Amount Paid</th>
+        {/* ── Ruled meta grid (bank-slip boxes) ──────────────────────────── */}
+        <table className="w-full border-collapse text-[10px]">
+          <tbody>
+            <tr>
+              <Cell label="Received from">{studentName}</Cell>
+              <Cell label="Class">{className}</Cell>
+            </tr>
+            <tr>
+              <Cell label="Student ID">{student.student_id || "—"}</Cell>
+              <Cell label="Parent / Guardian">{parentName}</Cell>
+            </tr>
+            <tr>
+              <Cell label="Payment method">{METHOD_LABELS[receipt.method] || receipt.method}</Cell>
+              <Cell label="Account">{receipt.account?.account_name || "—"}</Cell>
+            </tr>
+            <tr>
+              <Cell label="Reference / Cheque #">{receipt.reference || "—"}</Cell>
+              <Cell label="Phone">{parentPhone}</Cell>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── Settled invoices ───────────────────────────────────────────── */}
+        <table className="w-full border-collapse text-[10px] border-t-2 border-gray-900">
+          <thead>
+            <tr className="bg-gray-900 text-white">
+              <th className="px-2 py-1 text-left font-bold w-6 border-r border-gray-700">#</th>
+              <th className="px-2 py-1 text-left font-bold border-r border-gray-700">Invoice No.</th>
+              <th className="px-2 py-1 text-left font-bold border-r border-gray-700">Period</th>
+              <th className="px-2 py-1 text-right font-bold">Amount (AFN)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {okItems.map((r, idx) => (
+              <tr key={r.invoice.id} className="border-b border-gray-300">
+                <td className="px-2 py-1 border-r border-gray-300 text-gray-500">{idx + 1}</td>
+                <td className="px-2 py-1 border-r border-gray-300 font-semibold">{r.invoice.invoice_number}</td>
+                <td className="px-2 py-1 border-r border-gray-300">{fmtMonth(r.invoice.invoice_month)}</td>
+                <td className="px-2 py-1 text-right font-bold font-mono">{fmtMoney(r.amount)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {okItems.map((r, idx) => (
-                <tr key={r.invoice.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="px-3 py-2 border-b border-gray-100 text-gray-500">{idx + 1}</td>
-                  <td className="px-3 py-2 border-b border-gray-100 font-semibold text-teal-700">{r.invoice.invoice_number}</td>
-                  <td className="px-3 py-2 border-b border-gray-100 text-gray-600">{fmtMonth(r.invoice.invoice_month)}</td>
-                  <td className="px-3 py-2 border-b border-gray-100 text-right font-bold text-gray-900">{fmtMoney(r.amount)} AFN</td>
-                </tr>
-              ))}
-              {failed.map((r) => (
-                <tr key={`fail-${r.invoice.id}`} className="bg-red-50">
-                  <td className="px-3 py-2 border-b border-red-100 text-red-500">!</td>
-                  <td className="px-3 py-2 border-b border-red-100 font-semibold text-red-700">{r.invoice.invoice_number}</td>
-                  <td className="px-3 py-2 border-b border-red-100 text-red-600">Failed: {r.message}</td>
-                  <td className="px-3 py-2 border-b border-red-100 text-right text-red-600">{fmtMoney(r.amount)} AFN</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            ))}
+            {failed.map((r) => (
+              <tr key={`fail-${r.invoice.id}`} className="border-b border-gray-300 text-red-700">
+                <td className="px-2 py-1 border-r border-gray-300">!</td>
+                <td className="px-2 py-1 border-r border-gray-300 font-semibold">{r.invoice.invoice_number}</td>
+                <td className="px-2 py-1 border-r border-gray-300" colSpan={1}>Failed: {r.message}</td>
+                <td className="px-2 py-1 text-right font-mono">{fmtMoney(r.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-          {/* ── Total panel ─────────────────────────────────────────────── */}
-          <div className="mt-5 flex justify-end">
-            <div className="w-full max-w-[280px] border-2 border-teal-700 rounded-lg overflow-hidden">
-              <div className="px-4 py-2 bg-teal-700 text-white">
-                <p className="text-[10px] uppercase font-bold tracking-widest">Total Paid</p>
-              </div>
-              <div className="px-4 py-3 bg-white text-right">
-                <p className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                  {fmtMoney(receipt.total)}
-                  <span className="text-sm font-medium text-gray-500 ml-1">AFN</span>
-                </p>
-              </div>
+        {/* ── Amount in figures + words ──────────────────────────────────── */}
+        <div className="flex items-stretch border-t-2 border-gray-900">
+          <div className="flex-1 px-3 py-2 border-r-2 border-gray-900">
+            <p className="text-[8px] text-gray-500 uppercase font-bold tracking-wider">Amount in words</p>
+            <p className="text-[10px] font-semibold leading-snug mt-0.5">
+              {amountToWords(receipt.total)} Afghani only
+            </p>
+          </div>
+          <div className="px-4 py-2 flex flex-col justify-center items-end bg-gray-100">
+            <p className="text-[8px] text-gray-500 uppercase font-bold tracking-wider">Total paid</p>
+            <p className="rcpt-amt text-[22px] font-extrabold leading-none tracking-tight">
+              {fmtMoney(receipt.total)} <span className="text-[11px] font-semibold">AFN</span>
+            </p>
+          </div>
+        </div>
+
+        {/* ── Signatures ─────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 border-t-2 border-gray-900 text-[9px]">
+          <div className="px-3 pt-7 pb-2 border-r border-gray-900">
+            <div className="border-t border-gray-700 pt-1">
+              <span className="text-gray-500 uppercase font-bold tracking-wider">Cashier</span>
+              <div className="font-semibold">{cashierName}</div>
+            </div>
+          </div>
+          <div className="px-3 pt-7 pb-2">
+            <div className="border-t border-gray-700 pt-1">
+              <span className="text-gray-500 uppercase font-bold tracking-wider">Depositor / Guardian</span>
+              <div className="font-semibold">{parentName}</div>
             </div>
           </div>
         </div>
 
-        {/* ── Footer: signatures + thank-you note ───────────────────────── */}
-        <div className="px-8 py-5 border-t border-gray-200 bg-gray-50">
-          <p className="text-xs text-gray-700 mb-6">
-            Thank you for your payment. Please retain this receipt for your records.
-            For any inquiries, contact the school finance office.
-          </p>
-          <div className="grid grid-cols-2 gap-12 mt-8">
-            <div>
-              <div className="border-t border-gray-400 pt-1.5">
-                <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Cashier signature</p>
-                <p className="text-xs text-gray-700 font-medium mt-0.5">{cashierName}</p>
-              </div>
-            </div>
-            <div>
-              <div className="border-t border-gray-400 pt-1.5">
-                <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-widest">Parent / Guardian signature</p>
-                <p className="text-xs text-gray-700 font-medium mt-0.5">{parentName}</p>
-              </div>
-            </div>
-          </div>
-          <p className="text-[9px] text-gray-400 text-center mt-6 italic">
-            This is a computer-generated receipt — {SCHOOL.name} · Finance Office.
-          </p>
-        </div>
+        <p className="text-[8px] text-gray-500 text-center py-1 border-t border-gray-900">
+          Computer-generated receipt · {SCHOOL.name} Finance Office · retain for your records
+        </p>
       </div>
     </>
+  );
+}
+
+/** Ruled label/value cell — the bank-slip box look. */
+function Cell({ label, children }) {
+  return (
+    <td className="border border-gray-400 px-2 py-1 align-top w-1/2">
+      <span className="block text-[8px] text-gray-500 uppercase font-bold tracking-wider">{label}</span>
+      <span className="font-semibold">{children}</span>
+    </td>
   );
 }

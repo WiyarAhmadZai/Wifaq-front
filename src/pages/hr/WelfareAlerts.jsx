@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { get, put } from "../../api/axios";
 import Swal from "sweetalert2";
-import { PageHeader, EmptyState, Spinner, Pill, StatGrid } from "../../components/hr/HrUI";
+import { PageHeader, EmptyState, Spinner, Pill, StatGrid, DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { useAuth } from "../../admin/context/AuthContext";
+
+import { fmtDate } from "../../utils/formErrors";
 
 const STATUS_TONE = { open: "amber", in_progress: "blue", resolved: "emerald" };
 const WELFARE_ROLES = ["super-admin", "admin", "hr-manager", "welfare-officer"];
@@ -119,7 +121,7 @@ function AlertCard({ alert, onEdit, canManage }) {
           )}
           <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
             <div className="text-[10px] text-gray-400">
-              Raised {new Date(alert.created_at).toLocaleDateString()}
+              Raised {fmtDate(alert.created_at)}
               {alert.assignee && ` · assigned to ${alert.assignee.name}`}
             </div>
             {canManage
@@ -184,7 +186,7 @@ function AlertEditor({ alert, onClose, onSaved }) {
           {form.status === "resolved" && (
             <div>
               <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Resolved on</label>
-              <input type="date" className={inp} value={form.resolved_on}
+              <DateField className={inp} value={form.resolved_on}
                 onChange={(e) => setForm({ ...form, resolved_on: e.target.value })} />
             </div>
           )}

@@ -11,6 +11,8 @@ import {
 } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+import { DateField } from "../../components/hr/HrUI";
 const typeConfig = {
   bank:    { label: "Bank",    color: "bg-blue-50 text-blue-700 border-blue-200",       icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z", iconBg: "bg-blue-100 text-blue-600" },
   cash:    { label: "Cash",    color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z", iconBg: "bg-emerald-100 text-emerald-600" },
@@ -364,7 +366,7 @@ function CashMovementModal({
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            <DateField value={date} onChange={(e) => setDate(e.target.value)}
               className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
           </div>
         </div>
@@ -495,7 +497,7 @@ function TransferModal({ fromAccount, allAccounts, onClose, onSuccess }) {
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            <DateField value={date} onChange={(e) => setDate(e.target.value)}
               className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
           </div>
         </div>
@@ -562,7 +564,7 @@ function MovementsModal({ account, onClose }) {
             <tbody className="divide-y divide-gray-50">
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.journal_entry?.transaction_date}</td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtDate(r.journal_entry?.transaction_date)}</td>
                   <td className="px-3 py-2 text-gray-800">{r.description || r.journal_entry?.description}</td>
                   <td className="px-3 py-2 text-right text-emerald-700 font-medium">
                     {Number(r.debit) > 0 ? fmt(r.debit) : ""}

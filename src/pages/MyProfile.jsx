@@ -4,6 +4,7 @@ import { get, put, post } from '../api/axios';
 import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
 import Select2 from '../components/hr/Select2';
+import { fmtDate } from '../utils/formErrors';
 
 const CONTRACT_LABELS = {
   full_time: "Full Time", part_time: "Part Time", contract: "Contract",
@@ -216,7 +217,7 @@ export default function MyProfile() {
                   <Field label="Full Name" value={u.name} />
                   <Field label="Username" value={u.username} />
                   <Field label="Father's Name" value={s.father_name} />
-                  <Field label="Date of Birth" value={a.date_of_birth?.split?.('T')[0]} />
+                  <Field label="Date of Birth" value={fmtDate(a.date_of_birth)} />
                   <Field label="Blood Type" value={s.blood_type} />
                   <Field label="Place of Origin" value={a.place_of_origin} />
                 </div>

@@ -4,6 +4,8 @@ import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
+import { fmtDate } from "../../utils/formErrors";
+
 const getStatusBadge = (status) => ({
   active: 'bg-emerald-100 text-emerald-700',
   inactive: 'bg-gray-100 text-gray-700'
@@ -141,10 +143,10 @@ export default function SubjectsShow() {
               <h3 className="text-sm font-bold text-gray-800">Teaching Timeline</h3>
             </div>
             <div className="p-5 grid grid-cols-2 gap-3">
-              <InfoRow label="Start Date" value={data.start_date?.split('T')[0]} />
-              <InfoRow label="Expected Completion" value={data.expected_completion_date?.split('T')[0]} />
+              <InfoRow label="Start Date" value={fmtDate(data.start_date)} />
+              <InfoRow label="Expected Completion" value={fmtDate(data.expected_completion_date)} />
               <InfoRow label="Weekly Hours" value={data.weekly_hours ? `${data.weekly_hours} hours` : null} highlight />
-              <InfoRow label="Created" value={data.created_at ? new Date(data.created_at).toLocaleDateString() : null} />
+              <InfoRow label="Created" value={data.created_at ? fmtDate(data.created_at) : null} />
             </div>
           </div>
         </div>

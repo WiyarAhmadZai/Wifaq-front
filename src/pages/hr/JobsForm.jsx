@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { get, post, put } from '../../api/axios';
 import Swal from 'sweetalert2';
 
+import { DateField } from "../../components/hr/HrUI";
 export default function JobsForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -288,13 +289,11 @@ export default function JobsForm() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Application Deadline
             </label>
-            <input
-              type="date"
+            <DateField
               name="deadline"
               value={formData.deadline}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm" />
           </div>
 
           <div>

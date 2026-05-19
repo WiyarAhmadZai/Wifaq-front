@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const Icons = {
   Plus: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>),
   Eye: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>),
@@ -39,7 +42,7 @@ const formatDate = (d) => {
 
 const parseDate = (s) => {
   if (!s) return null;
-  const p = s.split("T")[0].split("-");
+  const p = fmtDate(s).split("-");
   const d = new Date(p[0], p[1] - 1, p[2]);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -387,7 +390,7 @@ export default function Agreements() {
             <p className="text-xs text-gray-500 mb-4">{renewModal.agreement?.agreement_number} — {renewModal.agreement?.partner_name}</p>
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-700 mb-1">New End Date *</label>
-              <input type="date" value={renewModal.end_date}
+              <DateField value={renewModal.end_date}
                 onChange={(e) => setRenewModal((m) => ({ ...m, end_date: e.target.value }))}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none" />
               <p className="text-[10px] text-gray-400 mt-1">Current end date: {formatDate(renewModal.agreement?.end_date)}</p>

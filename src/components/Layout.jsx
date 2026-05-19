@@ -720,11 +720,11 @@ export default function Layout() {
 
   const purchaseMenus = [
     { label: "Purchase Requests", path: "/purchase/purchase-requests", permission: "purchase-requests.view" },
-    { label: "Suppliers", path: "/purchase/suppliers", permission: "suppliers.view" },
+    // { label: "Suppliers", path: "/purchase/suppliers", permission: "suppliers.view" },
     { label: "Stock / Inventory", path: "/purchase/stock", permission: "stock.view" },
     { label: "Routine Items", path: "/purchase/routine-items", permission: "routine-items.view" },
     { label: "Repair Requests", path: "/purchase/repair-requests", permission: "repair-requests.view" },
-    { label: "Projects", path: "/purchase/projects", permission: "projects.view" },
+    // { label: "Pr ojects", path: "/purchase/projects", permission: "projects.view" },
   ];
 
   const adminMenus = [
@@ -753,7 +753,7 @@ export default function Layout() {
     { label: "Daily", key: "finance-daily", children: [
       { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
       { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
-      { label: "Payroll", path: "/finance/payroll", permission: "payments.view" },
+      { label: "Payroll", path: "/finance/payroll", permission: "payroll.view" },
       { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
       { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
     ]},
@@ -762,8 +762,8 @@ export default function Layout() {
     ]},
     { label: "Bookkeeping", key: "finance-bookkeeping", children: [
       { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
-      { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
-      { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
+      // { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
+      // { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
       { label: "Budgets", path: "/finance/budgets", permission: "budgets.view" },
     ]},
     { label: "Setup", key: "finance-setup", children: [

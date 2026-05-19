@@ -73,11 +73,16 @@ const RULES = [
   { prefix: "/transportation/routes", permission: "routes.view" },
   { prefix: "/transportation/vehicles", permission: "vehicles.view" },
 
-  // Finance
+  // Finance — mirrors PathPermissionMiddleware. Longest-prefix-first sort
+  // (below) makes the specific keys win over the /finance umbrella.
   { prefix: "/finance/accounts", permission: "accounts.view" },
   { prefix: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
+  { prefix: "/finance/parties", permission: "parties.view" },
+  { prefix: "/finance/journal-entries", permission: "journal-entries.view" },
+  { prefix: "/finance/payroll", permission: "payroll.view" },
   { prefix: "/finance/invoices", permission: "invoices.view" },
-  { prefix: "/finance/fee-invoices", permission: "invoices.view" },
+  { prefix: "/finance/fee-invoices", permission: "fee-invoices.view" },
+  { prefix: "/finance/billing-runs", permission: "fee-invoices.view" },
   { prefix: "/finance/fee-payments", permission: "fee-payments.view" },
   { prefix: "/finance/payments", permission: "payments.view" },
   { prefix: "/finance/budgets", permission: "budgets.view" },

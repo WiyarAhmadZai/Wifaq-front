@@ -4,6 +4,8 @@ import { get } from "../../api/axios";
 import { PageHeader, StatGrid, Section, Pill, Spinner, InfoNote } from "../../components/hr/HrUI";
 import { useVatsThresholds } from "../../components/hr/useVats";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const CARD_COLORS = [
   { color: "gold",      label: "Gold",      tone: "yellow",  desc: "Extraordinary all-around excellence" },
   { color: "turquoise", label: "Turquoise", tone: "teal",    desc: "Character & ethical excellence" },
@@ -177,7 +179,7 @@ export default function VatsDashboard() {
                     </p>
                     <p className="text-[11px] text-gray-500 truncate">{o.description}</p>
                   </div>
-                  <span className="text-[10px] text-gray-400 hidden sm:block">{o.created_at?.split?.("T")[0]}</span>
+                  <span className="text-[10px] text-gray-400 hidden sm:block">{fmtDate(o.created_at)}</span>
                 </div>
               ))}
               {obs.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Nothing yet</p>}
@@ -217,7 +219,7 @@ export default function VatsDashboard() {
                     <Pill tone={["teal","blue","amber","red","gray"][Math.min(i.level - 1, 4)]}>L{i.level}</Pill>
                   </div>
                   <p className="text-[10px] text-gray-500 truncate">
-                    {i.staff?.application?.full_name} · opened {i.opened_on}
+                    {i.staff?.application?.full_name} · opened {fmtDate(i.opened_on)}
                   </p>
                 </div>
               ))}

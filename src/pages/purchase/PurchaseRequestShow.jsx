@@ -16,6 +16,9 @@ import { getAccounts, getParties } from "../../api/financial";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const STATUS = {
   draft:       { label: "Draft",       cls: "bg-gray-100 text-gray-700 border-gray-300" },
   pending:     { label: "Pending",     cls: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -225,20 +228,20 @@ export default function PurchaseRequestShow() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <Panel label="Requester">
               {pr.requester?.name || "—"}
-              <div className="text-[10px] text-gray-400">{pr.request_date}</div>
+              <div className="text-[10px] text-gray-400">{fmtDate(pr.request_date)}</div>
             </Panel>
             <Panel label="Branch">{pr.branch?.name || "School-wide"}</Panel>
             {pr.approved_at && (
               <Panel label={pr.status === "rejected" ? "Rejected by" : "Approved by"}>
                 {pr.approver?.name || "—"}
-                <div className="text-[10px] text-gray-400">{new Date(pr.approved_at).toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400">{fmtDateTime(pr.approved_at)}</div>
                 {pr.rejection_reason && <div className="text-[10px] text-red-600 mt-0.5">{pr.rejection_reason}</div>}
               </Panel>
             )}
             {pr.procured_at && (
               <Panel label="Procured by">
                 {pr.procurer?.name || "—"}
-                <div className="text-[10px] text-gray-400">{new Date(pr.procured_at).toLocaleString()}</div>
+                <div className="text-[10px] text-gray-400">{fmtDateTime(pr.procured_at)}</div>
               </Panel>
             )}
             {pr.vendor_id && (
@@ -479,7 +482,7 @@ function QuotationsPanel({ pr, vendors, busy, onAdd, onDelete, onPickWinner }) {
                   <td className="px-3 py-1.5 text-right text-gray-600">
                     {q.lead_time_days != null ? `${q.lead_time_days} day(s)` : "—"}
                   </td>
-                  <td className="px-3 py-1.5 text-gray-600">{q.submission_date}</td>
+                  <td className="px-3 py-1.5 text-gray-600">{fmtDate(q.submission_date)}</td>
                   <td className="px-3 py-1.5 text-gray-500 max-w-[200px] truncate">{q.notes || "—"}</td>
                   <td className="px-3 py-1.5 text-center">
                     {q.is_winner ? (
@@ -556,7 +559,7 @@ function AddQuoteForm({ vendors, busy, onAdd }) {
         </select>
         <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount *" required
           className="px-2 py-1.5 text-xs text-right border border-gray-200 rounded focus:outline-none focus:border-teal-500" />
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
+        <DateField value={date} onChange={(e) => setDate(e.target.value)} required
           className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:border-teal-500" />
         <input type="number" min="0" step="1" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} placeholder="Lead days"
           className="px-2 py-1.5 text-xs text-right border border-gray-200 rounded focus:outline-none focus:border-teal-500" />
@@ -757,7 +760,7 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
               </div>
               <div>
                 <label className={labelCls}>Completion date</label>
-                <input type="date" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)}
+                <DateField value={completedAt} onChange={(e) => setCompletedAt(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
               </div>
             </div>
@@ -1012,7 +1015,7 @@ function CompletionSummary({ pr, navigate }) {
         </div>
         <div className="min-w-0">
           <p className="text-sm font-bold text-emerald-800">
-            Purchase completed{pr.completed_at ? ` · ${new Date(pr.completed_at).toLocaleDateString()}` : ""}
+            Purchase completed{pr.completed_at ? ` · ${fmtDate(pr.completed_at)}` : ""}
           </p>
           <p className="text-xs text-emerald-700/80 mt-0.5">{pr.purpose}</p>
         </div>
@@ -1099,13 +1102,13 @@ function CompletionSummary({ pr, navigate }) {
       </Row>
       <Row label="Journal entry">
         <span className="font-mono">{pr.journal_entry?.entry_number || (pr.journal_entry_id ? `#${pr.journal_entry_id}` : "—")}</span>
-        {pr.journal_entry?.transaction_date && <span className="text-[10px] text-gray-400 ml-2">{pr.journal_entry.transaction_date}</span>}
+        {pr.journal_entry?.transaction_date && <span className="text-[10px] text-gray-400 ml-2">{fmtDate(pr.journal_entry.transaction_date)}</span>}
         {pr.invoice_id && <span className="text-[10px] text-gray-400 ml-2">· invoice {pr.invoice?.invoice_number || `#${pr.invoice_id}`}</span>}
       </Row>
 
       {/* Process trail — muted, secondary */}
       <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-[10px] text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
-        <span>Requested by <span className="text-gray-600">{pr.requester?.name || "—"}</span> · {pr.request_date}</span>
+        <span>Requested by <span className="text-gray-600">{pr.requester?.name || "—"}</span> · {fmtDate(pr.request_date)}</span>
         {pr.approver?.name && <span>Approved by <span className="text-gray-600">{pr.approver.name}</span></span>}
         {pr.procurer?.name && <span>Procured by <span className="text-gray-600">{pr.procurer.name}</span></span>}
         {pr.branch?.name && <span>Branch <span className="text-gray-600">{pr.branch.name}</span></span>}

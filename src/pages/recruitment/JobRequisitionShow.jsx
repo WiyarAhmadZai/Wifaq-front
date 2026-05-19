@@ -4,6 +4,8 @@ import { get, del, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const Icons = {
   ArrowLeft: () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,10 +152,10 @@ export default function JobRequisitionShow() {
   const formatValue = (key, value) => {
     if (value === null || value === undefined) return "-";
     if (key === "created_at" || key === "updated_at") {
-      return new Date(value).toLocaleString();
+      return fmtDateTime(value);
     }
     if (key === "deadline_date") {
-      return new Date(value).toLocaleDateString();
+      return fmtDate(value);
     }
     if (key === "employment_type") {
       return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -336,7 +338,7 @@ export default function JobRequisitionShow() {
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created On</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.created_at ? new Date(data.created_at).toLocaleString() : "-"}
+                    {data.created_at ? fmtDateTime(data.created_at) : "-"}
                   </p>
                 </div>
               </div>
@@ -348,7 +350,7 @@ export default function JobRequisitionShow() {
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.updated_at ? new Date(data.updated_at).toLocaleString() : "-"}
+                    {data.updated_at ? fmtDateTime(data.updated_at) : "-"}
                   </p>
                 </div>
               </div>

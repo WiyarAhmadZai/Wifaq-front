@@ -4,6 +4,8 @@ import { put } from "../../api/axios";
 import Swal from "sweetalert2";
 import CrudPage from "../../components/CrudPage";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const specialStatusBadge = (val) => {
   if (!val || val === "none") return <span className="text-xs text-gray-400">—</span>;
   const map = {
@@ -243,7 +245,7 @@ export default function Students() {
           { key: "student_id", label: "Student ID" },
           { key: "full_name", label: "Name", render: (_, item) => `${item.first_name} ${item.last_name}` },
           { key: "school_class", label: "Class", render: (_, item) => item.school_class?.class_name || "—" },
-          { key: "date_of_birth", label: "DOB", render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
+          { key: "date_of_birth", label: "DOB", render: (v) => v ? fmtDate(v) : "—" },
           { key: "final_fee", label: "Fee", render: (v) => v ? `${Number(v).toLocaleString()} AFN` : "—" },
           { key: "special_status", label: "Special", render: specialStatusBadge },
           transferColumn,

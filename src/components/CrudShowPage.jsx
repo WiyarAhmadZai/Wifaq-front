@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { get, del } from '../api/axios';
 import Swal from 'sweetalert2';
 
+import { fmtDate, fmtDateTime } from "../utils/formErrors";
+
 const Icons = {
   ArrowLeft: () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,13 +142,13 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
       return value ? 'Yes' : 'No';
     }
     if (field.type === 'date' && value) {
-      return new Date(value).toLocaleDateString();
+      return fmtDate(value);
     }
     if (field.name === 'created_at' && value) {
-      return new Date(value).toLocaleString();
+      return fmtDateTime(value);
     }
     if (field.name === 'updated_at' && value) {
-      return new Date(value).toLocaleString();
+      return fmtDateTime(value);
     }
     return value || '-';
   };
@@ -265,7 +267,7 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created On</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.created_at ? new Date(data.created_at).toLocaleString() : '-'}
+                    {data.created_at ? fmtDateTime(data.created_at) : '-'}
                   </p>
                 </div>
               </div>
@@ -277,7 +279,7 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}
+                    {data.updated_at ? fmtDateTime(data.updated_at) : '-'}
                   </p>
                 </div>
               </div>

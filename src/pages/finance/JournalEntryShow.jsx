@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getJournalEntry, postJournalEntry } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
 export default function JournalEntryShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -69,7 +70,7 @@ export default function JournalEntryShow() {
           </button>
           <div>
             <h2 className="text-base font-bold text-gray-800">{je.entry_number || `JE#${je.id}`}</h2>
-            <p className="text-xs text-gray-500">{je.transaction_date} · {je.status}</p>
+            <p className="text-xs text-gray-500">{fmtDate(je.transaction_date)} · {je.status}</p>
             <p className="text-xs text-gray-700 mt-1">{je.description}</p>
           </div>
         </div>

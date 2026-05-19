@@ -11,7 +11,9 @@ import {
   createFeePayment,
   addPendingCharge,
 } from "../../api/financial";
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
+import { DateField } from "../../components/hr/HrUI";
 /**
  * Cashier — single-screen "settle this student's bill" flow.
  *
@@ -25,8 +27,7 @@ import {
  */
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
-const fmtMonth = (d) => (d ? new Date(d).toLocaleString("default", { month: "short", year: "numeric" }) : "—");
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-CA") : "—");
+const fmtMonth = (d) => (d ? fmtDate(d) : "—");
 
 export default function Cashier() {
   const navigate = useNavigate();
@@ -454,12 +455,10 @@ export default function Cashier() {
                     </Field>
 
                     <Field label="Date">
-                      <input
-                        type="date"
+                      <DateField
                         value={paymentMeta.payment_date}
                         onChange={(e) => setPaymentMeta((p) => ({ ...p, payment_date: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-500"
-                      />
+                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-500" />
                     </Field>
 
                     <Field label="Reference (optional)">

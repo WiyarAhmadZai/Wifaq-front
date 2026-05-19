@@ -5,6 +5,9 @@ import { getFeeInvoices, getAccounts, getFeePayment, createFeePayment, getFeePay
 import { get } from "../../api/axios";
 import { handleValidationErrors } from "../../utils/formErrors";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 function unwrapList(res) {
   const d = res?.data?.data;
   if (!d) return [];
@@ -283,8 +286,8 @@ export default function FeePaymentForm() {
                             <span className="text-gray-600 capitalize">Tuition</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-gray-500">{inv.invoice_month ? new Date(inv.invoice_month).toLocaleDateString("en-CA", { year: "numeric", month: "short" }) : "—"}</td>
-                        <td className="px-3 py-2 text-gray-500">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</td>
+                        <td className="px-3 py-2 text-gray-500">{inv.invoice_month ? fmtDate(inv.invoice_month) : "—"}</td>
+                        <td className="px-3 py-2 text-gray-500">{inv.due_date ? fmtDate(inv.due_date) : "—"}</td>
                         <td className="px-3 py-2 text-right font-medium text-gray-700">{Number(inv.final_amount).toLocaleString()} AFN</td>
                         <td className="px-3 py-2 text-right text-emerald-600">{Number(inv.amount_paid || 0).toLocaleString()} AFN</td>
                         <td className="px-3 py-2 text-right font-bold text-red-600">{due.toLocaleString()} AFN</td>
@@ -322,15 +325,13 @@ export default function FeePaymentForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-semibold text-teal-700 mb-0.5">Payment date *</label>
-                <input
-                  type="date"
+                <DateField
                   name="payment_date"
                   value={formData.payment_date}
                   onChange={handleChange}
                   required={!isView}
                   disabled={isView}
-                  className="w-full px-2 py-1.5 border border-teal-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                />
+                  className="w-full px-2 py-1.5 border border-teal-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-teal-700 mb-0.5">Amount (AFN) *</label>
@@ -452,7 +453,7 @@ export default function FeePaymentForm() {
                     <tbody className="divide-y divide-teal-100">
                       {studentPayments.map((pay) => (
                         <tr key={pay.id} className="text-gray-700 hover:bg-teal-50/30">
-                          <td className="py-2 pr-3">{pay.payment_date ? new Date(pay.payment_date).toLocaleDateString() : "—"}</td>
+                          <td className="py-2 pr-3">{pay.payment_date ? fmtDate(pay.payment_date) : "—"}</td>
                           <td className="py-2 pr-3 font-medium text-teal-700">{pay.receipt_number || "—"}</td>
                           <td className="py-2 pr-3 text-gray-500">{pay.fee_invoice?.invoice_number || pay.fee_invoice_id}</td>
                           <td className="py-2 pr-3 text-right font-medium">{Number(pay.amount_paid || 0).toLocaleString()} AFN</td>

@@ -9,7 +9,9 @@ import {
   recordPartyRepayment,
   recordPartyReimbursement,
 } from "../../api/financial";
+import { fmtDate } from "../../utils/formErrors";
 
+import { DateField } from "../../components/hr/HrUI";
 /**
  * Party ledger — staff advance bookkeeping with four canonical actions:
  *   • Give Advance      → school deposits money with party
@@ -34,7 +36,7 @@ const ENTRY_META = {
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
 const fmtDateLong = (d) =>
-  d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  d ? fmtDate(d) : "—";
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 // Action configs — what the modal needs to render for each one.
@@ -560,7 +562,7 @@ function PartyActionModal({
             {isExpense ? (
               <div>
                 <label className={labelCls}>Date *</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputCls} />
+                <DateField value={date} onChange={(e) => setDate(e.target.value)} required className={inputCls} />
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
@@ -581,7 +583,7 @@ function PartyActionModal({
                 </div>
                 <div>
                   <label className={labelCls}>Date *</label>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputCls} />
+                  <DateField value={date} onChange={(e) => setDate(e.target.value)} required className={inputCls} />
                 </div>
               </div>
             )}

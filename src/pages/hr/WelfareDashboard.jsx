@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { get } from "../../api/axios";
 import { PageHeader, StatGrid, Section, Spinner, EmptyState, InfoNote } from "../../components/hr/HrUI";
 
+import { fmtDate, fmtDateTime, fmtMonth } from "../../utils/formErrors";
+
 /**
  * Aggregate-only welfare dashboard for leadership.
  * Never shows individual rows — privacy is enforced server-side too.
@@ -131,7 +133,7 @@ export default function WelfareDashboard() {
                   return (
                     <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50">
                       <div className="text-center flex-shrink-0">
-                        <p className="text-[10px] uppercase font-semibold text-gray-500">{new Date(m.year, m.month - 1, 1).toLocaleString("en", { month: "short" })}</p>
+                        <p className="text-[10px] uppercase font-semibold text-gray-500">{fmtMonth(m.year, m.month - 1, { yearless: true })}</p>
                         <p className="text-[10px] text-gray-400">{m.year}</p>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -194,5 +196,5 @@ function avgOf(m) {
 }
 
 function monthLabel(m) {
-  return new Date(m.year, m.month - 1, 1).toLocaleString("en", { month: "long", year: "numeric" });
+  return fmtMonth(m.year, m.month - 1);
 }

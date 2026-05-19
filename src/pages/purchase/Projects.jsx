@@ -1,5 +1,7 @@
 import CrudPage from "../../components/CrudPage";
 
+import { fmtDate } from "../../utils/formErrors";
+
 export default function Projects() {
   return (
     <CrudPage
@@ -15,8 +17,8 @@ export default function Projects() {
         { key: "name", label: "Project Name" },
         { key: "manager", label: "Manager" },
         { key: "budget", label: "Budget", render: (val) => val ? `${Number(val).toLocaleString()} AFN` : "-" },
-        { key: "start_date", label: "Start Date", render: (val) => val ? new Date(val).toLocaleDateString() : "-" },
-        { key: "end_date", label: "End Date", render: (val) => val ? new Date(val).toLocaleDateString() : "-" },
+        { key: "start_date", label: "Start Date", render: (val) => val ? fmtDate(val) : "-" },
+        { key: "end_date", label: "End Date", render: (val) => val ? fmtDate(val) : "-" },
         {
           key: "status",
           label: "Status",

@@ -4,6 +4,8 @@ import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 export default function GradeShow() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -107,8 +109,8 @@ export default function GradeShow() {
         <div className="px-6 pb-5 pt-0 border-t border-gray-100 mt-2">
           <div className="flex flex-wrap gap-5 text-xs text-gray-400 pt-4">
             <span>ID: #{grade.id}</span>
-            <span>Created: {new Date(grade.created_at).toLocaleString()}</span>
-            <span>Updated: {new Date(grade.updated_at).toLocaleString()}</span>
+            <span>Created: {fmtDateTime(grade.created_at)}</span>
+            <span>Updated: {fmtDateTime(grade.updated_at)}</span>
           </div>
         </div>
       </div>

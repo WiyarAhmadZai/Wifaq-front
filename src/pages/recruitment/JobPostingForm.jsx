@@ -5,6 +5,8 @@ import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 import Select from "react-select";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
   { value: "published", label: "Published" },
@@ -48,7 +50,7 @@ export default function JobPostingForm() {
       const options = requisitionsArray.map((req) => ({
         value: req.id,
         label: `${req.position_title} - ${req.department}${
-          req.deadline_date ? ` (Deadline: ${new Date(req.deadline_date).toLocaleDateString()})` : ""
+          req.deadline_date ? ` (Deadline: ${fmtDate(req.deadline_date)})` : ""
         }`,
         ...req // Keep original data for reference
       }));

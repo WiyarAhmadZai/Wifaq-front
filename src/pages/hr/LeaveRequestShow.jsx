@@ -6,6 +6,8 @@ import { useAuth } from "../../admin/context/AuthContext";
 import LeaveRejectModal from "../../components/hr/LeaveRejectModal";
 import { useNotificationHighlight } from "../../hooks/useNotificationHighlight";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 const HR_ROLES = ["super-admin", "admin", "hr-manager"];
 
 const statusConf = {
@@ -164,7 +166,7 @@ export default function LeaveRequestShow() {
               <p className={`text-sm font-bold ${sc.text}`}>{sc.label}</p>
               <p className="text-[10px] text-gray-500">
                 {data.reviewed_at
-                  ? `Decided by ${data.reviewer?.name || "—"} on ${new Date(data.reviewed_at).toLocaleString()}`
+                  ? `Decided by ${data.reviewer?.name || "—"} on ${fmtDateTime(data.reviewed_at)}`
                   : "Waiting for HR review"}
                 {arrived && <span className="ml-2 text-teal-600 font-semibold">· opened from notification</span>}
               </p>
@@ -209,8 +211,8 @@ export default function LeaveRequestShow() {
               <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">Leave Details</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Cell label="Type" value={leaveTypeLabel[data.leave_type] || data.leave_type} />
-                <Cell label="From" value={data.from_date ? new Date(data.from_date).toLocaleDateString() : "-"} />
-                <Cell label="To" value={data.to_date ? new Date(data.to_date).toLocaleDateString() : "-"} />
+                <Cell label="From" value={data.from_date ? fmtDate(data.from_date) : "-"} />
+                <Cell label="To" value={data.to_date ? fmtDate(data.to_date) : "-"} />
                 <Cell label="Total Days" value={totalDays} accent />
               </div>
             </div>
@@ -236,8 +238,8 @@ export default function LeaveRequestShow() {
               <div className="space-y-2 text-xs">
                 <Row k="Request ID" v={`#${String(data.id).padStart(4, "0")}`} />
                 <Row k="Status" v={sc.label} />
-                <Row k="Submitted" v={data.created_at ? new Date(data.created_at).toLocaleDateString() : "-"} />
-                {data.reviewed_at && <Row k="Reviewed" v={new Date(data.reviewed_at).toLocaleDateString()} />}
+                <Row k="Submitted" v={data.created_at ? fmtDate(data.created_at) : "-"} />
+                {data.reviewed_at && <Row k="Reviewed" v={fmtDate(data.reviewed_at)} />}
                 {data.reviewer?.name && <Row k="Reviewer" v={data.reviewer.name} />}
               </div>
             </div>

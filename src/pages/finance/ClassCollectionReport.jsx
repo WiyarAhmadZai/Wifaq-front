@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFeeInvoices, getFeeInvoiceMonths } from "../../api/financial";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
 /**
  * Class-level fee-collection report.
  *
@@ -169,7 +171,7 @@ export default function ClassCollectionReport() {
             {months.length === 0 && <option value="">(no periods)</option>}
             {months.map((m) => (
               <option key={m} value={m}>
-                {new Date(m).toLocaleString("default", { month: "long", year: "numeric" })}
+                {fmtDateTime(m)}
               </option>
             ))}
           </select>

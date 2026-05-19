@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { listPurchaseRequests, deletePurchaseRequest } from "../../api/purchaseRequests";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
 // Status palette — mirrors the backend enum on purchase_requests.status.
 const STATUS = {
   draft:       { label: "Draft",       cls: "bg-gray-50 text-gray-700 border-gray-200" },
@@ -164,7 +165,7 @@ export default function PurchaseRequests() {
                   <td className="px-3 py-2 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${st.cls}`}>{st.label}</span>
                   </td>
-                  <td className="px-3 py-2 text-gray-500">{pr.request_date}</td>
+                  <td className="px-3 py-2 text-gray-500">{fmtDate(pr.request_date)}</td>
                   <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                     {pr.status === "draft" && (
                       <button onClick={() => handleDelete(pr.id)}

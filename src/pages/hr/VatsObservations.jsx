@@ -7,6 +7,8 @@ import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 import { broadcastVatsChange } from "../../components/hr/useVats";
 
+import { fmtDate } from "../../utils/formErrors";
+
 const TYPES = {
   positive: ["excellence", "initiative", "growth", "collaboration", "innovation", "dedication"],
   concern:  ["performance", "conduct", "attendance", "compliance", "communication", "quality"],
@@ -215,7 +217,7 @@ function ObservationCard({ item, onDelete, innerRef, pulse }) {
           <span className="text-xl flex-shrink-0">{c.emoji}</span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
-            <p className="text-[11px] text-gray-500 truncate">by {item.observer?.name || "—"} · {item.created_at?.split?.("T")[0]}</p>
+            <p className="text-[11px] text-gray-500 truncate">by {item.observer?.name || "—"} · {fmtDate(item.created_at)}</p>
           </div>
         </div>
         <Pill tone={item.category === "positive" ? "emerald" : item.category === "concern" ? "amber" : "red"}>

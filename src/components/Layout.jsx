@@ -751,7 +751,7 @@ export default function Layout() {
   // Finance menu — same nested-children shape as hrSubMenus so itemAllowed/visible work.
   const financeMenus = [
     { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
-    { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },
+    { label: "Inbox", path: "/finance/inbox", permission: "finance-inbox.view" },
     { label: "Daily", key: "finance-daily", children: [
       { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
       { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },

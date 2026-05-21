@@ -86,6 +86,9 @@ const RULES = [
   { prefix: "/finance/fee-payments", permission: "fee-payments.view" },
   { prefix: "/finance/payments", permission: "payments.view" },
   { prefix: "/finance/budgets", permission: "budgets.view" },
+  { prefix: "/finance/inbox", permission: "finance-inbox.view" },
+  { prefix: "/finance/cashier", permission: "fee-payments.view" },
+  { prefix: "/finance/reports", permission: "finance.view" },
   { prefix: "/finance/dashboard", permission: "finance.view" },
   { prefix: "/finance", permission: "finance.view" },
 

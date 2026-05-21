@@ -161,9 +161,29 @@ export default function Dashboard() {
 
           {finance && (
             <Section title="Finance" icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1" onClick={() => navigate("/finance/fee-payments")} cta="Open →">
-              <Row label="Revenue this month"  value={`${(finance.fee_revenue_month || 0).toLocaleString()} AFN`} highlight="emerald" />
-              <Row label="Revenue all time"    value={`${(finance.fee_revenue_total || 0).toLocaleString()} AFN`} />
-              <Row label="Outstanding fees"    value={`${(finance.outstanding_fees  || 0).toLocaleString()} AFN`} highlight={(finance.outstanding_fees || 0) > 0 ? "red" : null} />
+              <Row
+                label="Revenue this month"
+                value={`${(finance.fee_revenue_month || 0).toLocaleString()} AFN`}
+                highlight="emerald"
+                onClick={() => {
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, "0");
+                  const last = String(new Date(y, now.getMonth() + 1, 0).getDate()).padStart(2, "0");
+                  navigate(`/finance/fee-payments?from_date=${y}-${m}-01&to_date=${y}-${m}-${last}`);
+                }}
+              />
+              <Row
+                label="Revenue all time"
+                value={`${(finance.fee_revenue_total || 0).toLocaleString()} AFN`}
+                onClick={() => navigate("/finance/fee-payments")}
+              />
+              <Row
+                label="Outstanding fees"
+                value={`${(finance.outstanding_fees  || 0).toLocaleString()} AFN`}
+                highlight={(finance.outstanding_fees || 0) > 0 ? "red" : null}
+                onClick={() => navigate("/finance/fee-invoices?status=outstanding")}
+              />
             </Section>
           )}
         </div>
@@ -260,7 +280,7 @@ function MiniStat({ label, value, tone }) {
   );
 }
 
-function Row({ label, value, highlight }) {
+function Row({ label, value, highlight, onClick }) {
   const tones = {
     emerald: "text-emerald-600",
     amber:   "text-amber-600",
@@ -268,9 +288,13 @@ function Row({ label, value, highlight }) {
     blue:    "text-blue-600",
     teal:    "text-teal-600",
   };
+  const clickable = typeof onClick === "function";
   return (
-    <div className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-500">{label}</span>
+    <div
+      onClick={onClick}
+      className={`flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0 ${clickable ? "cursor-pointer hover:bg-teal-50/40 -mx-2 px-2 rounded-md transition-colors group" : ""}`}
+    >
+      <span className={`text-xs ${clickable ? "text-teal-700" : "text-gray-500"}`}>{label}</span>
       <span className={`text-sm font-bold ${highlight ? tones[highlight] : "text-gray-800"}`}>{value ?? "—"}</span>
     </div>
   );

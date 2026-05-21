@@ -95,6 +95,15 @@ export default function Meetings() {
     const d = new Date(dt);
     return fmtDate(d) + " · " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   };
+  const formatTime = (dt) => {
+    if (!dt) return "—";
+    return new Date(dt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  };
+  const monthAbbr = (dt) => {
+    if (!dt) return "";
+    return new Date(dt).toLocaleString("en-US", { month: "short" }).toUpperCase();
+  };
+  const recurrenceLabel = (r) => ({ weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" }[r] || "");
 
   const upcoming = items.filter((i) => i.status === "scheduled" && new Date(i.start_time) > new Date()).length;
 
@@ -182,22 +191,33 @@ export default function Meetings() {
                     return (
                       <tr key={m.id} onClick={() => navigate(`/hr/meetings/show/${m.id}`)}
                         className={`hover:bg-gray-50/60 cursor-pointer transition-colors ${isPast && m.status === "scheduled" ? "opacity-70" : ""}`}>
-                        {/* Date */}
-                        <td className="px-4 py-3">
+                        {/* Date — fixed 220px so it can't push other columns */}
+                        <td className="px-4 py-3 w-[220px]">
                           <div className="flex items-center gap-2.5">
-                            <div className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center flex-shrink-0 border ${isEmergency ? "bg-red-50 border-red-100" : "bg-teal-50 border-teal-100"}`}>
-                              <span className={`text-[8px] font-bold uppercase ${isEmergency ? "text-red-600" : "text-teal-600"}`}>{m.start_time ? fmtDate(m.start_time) : ""}</span>
-                              <span className={`text-sm font-black -mt-0.5 ${isEmergency ? "text-red-700" : "text-teal-700"}`}>{m.start_time ? new Date(m.start_time).getDate() : ""}</span>
+                            <div className={`w-11 h-11 rounded-lg flex flex-col items-center justify-center flex-shrink-0 border ${isEmergency ? "bg-red-50 border-red-100" : "bg-teal-50 border-teal-100"}`}>
+                              <span className={`text-[9px] font-bold uppercase leading-none ${isEmergency ? "text-red-600" : "text-teal-600"}`}>{monthAbbr(m.start_time)}</span>
+                              <span className={`text-base font-black leading-none mt-0.5 ${isEmergency ? "text-red-700" : "text-teal-700"}`}>{m.start_time ? new Date(m.start_time).getDate() : "—"}</span>
                             </div>
-                            <div>
-                              <p className="text-[11px] font-semibold text-gray-700">{formatDT(m.start_time)}</p>
-                              <p className="text-[9px] text-gray-400">→ {formatDT(m.end_time)}</p>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-semibold text-gray-700 truncate">{fmtDate(m.start_time)}</p>
+                              <p className="text-[10px] text-gray-500">{formatTime(m.start_time)} → {formatTime(m.end_time)}</p>
                             </div>
                           </div>
                         </td>
                         {/* Title */}
                         <td className="px-4 py-3">
-                          <p className="text-xs font-bold text-gray-800 truncate max-w-[200px]">{m.title}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-xs font-bold text-gray-800 truncate max-w-[200px]">{m.title}</p>
+                            {m.recurrence && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold">
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                {recurrenceLabel(m.recurrence)}
+                                {m.recurring_occurrences_count > 0 && ` · +${m.recurring_occurrences_count}`}
+                              </span>
+                            )}
+                          </div>
                           {m.organizer?.name && <p className="text-[10px] text-gray-400 truncate">by {m.organizer.name}</p>}
                         </td>
                         {/* Type */}

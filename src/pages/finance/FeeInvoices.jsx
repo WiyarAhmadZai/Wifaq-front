@@ -92,7 +92,12 @@ export default function FeeInvoices() {
     setLoading(true);
     try {
       const params = {};
-      if (filterStatus !== "all") params.status = filterStatus;
+      if (filterStatus === "outstanding") {
+        // Virtual filter: any invoice with a remaining balance.
+        params.statuses = "pending,partial,overdue";
+      } else if (filterStatus !== "all") {
+        params.status = filterStatus;
+      }
       // Backend expects numeric year + month (whereYear / whereMonth).
       // Dropdown values are full ISO dates like "2026-05-01", so split them.
       if (filterMonth !== "all") {
@@ -162,11 +167,12 @@ export default function FeeInvoices() {
   }, [items]);
 
   const filterTabs = [
-    { key: "all",     label: "All",      count: items.length },
-    { key: "pending", label: "Pending",  count: items.filter((i) => i.status === "pending").length },
-    { key: "partial", label: "Partial",  count: items.filter((i) => i.status === "partial").length },
-    { key: "overdue", label: "Overdue",  count: items.filter((i) => i.status === "overdue").length },
-    { key: "paid",    label: "Paid",     count: items.filter((i) => i.status === "paid").length },
+    { key: "all",         label: "All",         count: items.length },
+    { key: "outstanding", label: "Outstanding", count: items.filter((i) => ["pending", "partial", "overdue"].includes(i.status)).length },
+    { key: "pending",     label: "Pending",     count: items.filter((i) => i.status === "pending").length },
+    { key: "partial",     label: "Partial",     count: items.filter((i) => i.status === "partial").length },
+    { key: "overdue",     label: "Overdue",     count: items.filter((i) => i.status === "overdue").length },
+    { key: "paid",        label: "Paid",        count: items.filter((i) => i.status === "paid").length },
   ];
 
   const setStatus = (s) => {

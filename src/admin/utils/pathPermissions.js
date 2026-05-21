@@ -128,7 +128,21 @@ const PUBLIC_PATHS = new Set([
   // tasks + collaboration offered to them. Backend scopes the data; the
   // create/edit sub-pages stay permission-gated via the RULES prefix.
   "/hr/staff-task",
+  // Parties list — any authenticated staff may open it to see THEIR OWN
+  // staff Party (self-service balance / advance history). Backend scopes
+  // the response; privileged users with parties.view see the full list.
+  "/finance/parties",
 ]);
+
+/**
+ * Patterns where ANY authenticated user may visit — backend row-scopes the
+ * data. Use these for "show my own X" detail pages where the id varies.
+ * Sub-pages like /create, /edit/:id stay permission-gated via RULES.
+ */
+const SELF_SCOPED_PATH_PATTERNS = [
+  // Party ledger detail — the staff member's own party ledger
+  /^\/finance\/parties\/\d+\/ledger$/,
+];
 
 /**
  * Derive the action suffix from a sub-path tail.
@@ -168,6 +182,9 @@ function withAction(permission, action) {
  */
 export function permissionForPath(pathname) {
   if (PUBLIC_PATHS.has(pathname)) return { type: "public" };
+  for (const re of SELF_SCOPED_PATH_PATTERNS) {
+    if (re.test(pathname)) return { type: "public" };
+  }
   for (const rule of RULES) {
     if (pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")) {
       const tail = pathname.slice(rule.prefix.length); // "" | "/create" | "/edit/123" | "/show/123"

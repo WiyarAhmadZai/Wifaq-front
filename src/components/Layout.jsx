@@ -412,7 +412,7 @@ function NotificationBell() {
     } else if (d.meeting_id) {
       dest = `/hr/meetings/show/${d.meeting_id}`;
     } else if (d.staff_task_id) {
-      dest = `/hr/staff-task/show/${d.staff_task_id}`;
+      dest = `/hr/staff-task?highlight=${d.staff_task_id}`;
     } else if (d.vendor_contract_id) {
       dest = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
     } else if (d.agreement_id) {
@@ -430,7 +430,7 @@ function NotificationBell() {
     if (d.link) target = d.link;
     else if (d.invoice_id) target = `/finance/fee-invoices/show/${d.invoice_id}`;
     else if (d.meeting_id) target = `/hr/meetings/show/${d.meeting_id}`;
-    else if (d.staff_task_id) target = `/hr/staff-task/show/${d.staff_task_id}`;
+    else if (d.staff_task_id) target = `/hr/staff-task?highlight=${d.staff_task_id}`;
     else if (d.vendor_contract_id) target = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
     else if (d.agreement_id) target = `/hr/agreements/show/${d.agreement_id}`;
     if (!n.read_at) markAsRead(n.id);

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put, API_BASE_URL } from '../../api/axios';
+import { get, del, put, post, API_BASE_URL } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { fmtDate } from "../../utils/formErrors";
+import Select2 from '../../components/hr/Select2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
@@ -14,13 +16,95 @@ const taskTypeStyle = { urgent: "bg-red-100 text-red-700", high: "bg-orange-100 
 
 export default function StaffTask() {
   const navigate = useNavigate();
+  // Canonical permission base = "staff-task" (matches the /hr/staff-task
+  // route + PathPermission middleware). The legacy plural "staff-tasks"
+  // namespace is intentionally NOT honored here, so edit/delete/rating
+  // require the explicit staff-task.{update,delete} permission.
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions('staff-task');
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [staffList, setStaffList] = useState([]);
+  const [collabFor, setCollabFor] = useState(null);   // task being transferred
+  const [collabDept, setCollabDept] = useState("");
+  const [collabTarget, setCollabTarget] = useState("");
+  const [collabBusy, setCollabBusy] = useState(false);
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchItems(); fetchStaffList(); }, []);
+
+  // Pull staff straight from the canonical staff endpoint (same one the
+  // rest of the app uses) so names + departments always come from the DB.
+  const fetchStaffList = async () => {
+    try {
+      const r = await get('/hr/staff/list?per_page=500');
+      const rows = (r.data?.data?.data || r.data?.data || []).map((s) => ({
+        id: s.id,
+        full_name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+        department: s.department || '',
+        employee_id: s.employee_id || '',
+      }));
+      setStaffList(rows);
+    } catch {
+      // Fallback to the task-scoped list if the canonical one is unavailable.
+      try { const r = await get('/hr/staff-tasks/staff-list'); setStaffList(r.data?.data || []); } catch {}
+    }
+  };
+
+  const departments = [...new Set(staffList.map(s => s.department).filter(Boolean))].sort();
+
+  const openCollab = (e, item) => {
+    e.stopPropagation();
+    setCollabFor(item); setCollabDept(""); setCollabTarget("");
+  };
+
+  const submitCollab = async () => {
+    if (!collabTarget) { Swal.fire('Pick a colleague', 'Select the staff member to transfer this task to.', 'info'); return; }
+    setCollabBusy(true);
+    try {
+      await post(`/hr/staff-tasks/${collabFor.id}/collaborate`, { to_staff_id: collabTarget });
+      setCollabFor(null);
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Collaboration requested', text: 'The colleague will be notified to accept the transfer.', timer: 2000, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Could not request collaboration', 'error');
+    } finally { setCollabBusy(false); }
+  };
+
+  const respondCollab = async (e, item, action) => {
+    e.stopPropagation();
+    if (action === 'accept') {
+      const r = await Swal.fire({ title: 'Accept this task?', text: 'It will transfer fully to you — the previous assignee will no longer have it.', icon: 'question', showCancelButton: true, confirmButtonColor: '#0d9488', confirmButtonText: 'Accept & take over' });
+      if (!r.isConfirmed) return;
+    }
+    try {
+      await post(`/hr/staff-tasks/${item.id}/collaboration-response`, { action });
+      fetchItems();
+      Swal.fire({ icon: 'success', title: action === 'accept' ? 'Task transferred to you' : 'Declined', timer: 1800, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed', 'error');
+    }
+  };
+
+  const handleProgress = async (e, item) => {
+    e.stopPropagation();
+    const { value } = await Swal.fire({
+      title: 'Update progress',
+      input: 'range',
+      inputAttributes: { min: 0, max: 100, step: 5 },
+      inputValue: item.progress || 0,
+      showCancelButton: true,
+      confirmButtonColor: '#0d9488',
+    });
+    if (value !== undefined && value !== false && Number(value) !== Number(item.progress || 0)) {
+      try {
+        await put(`/hr/staff-tasks/${item.id}`, { progress: Number(value) });
+        fetchItems();
+      } catch {}
+      Swal.fire({ icon: 'success', title: `Progress: ${value}%`, timer: 1400, showConfirmButton: false });
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
@@ -114,11 +198,13 @@ export default function StaffTask() {
           <h1 className="text-lg font-bold text-gray-800">Staff Tasks</h1>
           <p className="text-xs text-gray-400 mt-0.5">Assign and track staff tasks</p>
         </div>
-        <button onClick={() => navigate("/hr/staff-task/create")}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          New Task
-        </button>
+        {canCreate && (
+          <button onClick={() => navigate("/hr/staff-task/create")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            New Task
+          </button>
+        )}
       </div>
 
       {/* Stat cards */}
@@ -184,6 +270,7 @@ export default function StaffTask() {
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Dates</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Progress</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quality</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -226,6 +313,20 @@ export default function StaffTask() {
                         <span className={`w-1.5 h-1.5 rounded-full ${statusDot[item.status] || "bg-gray-400"}`} />
                         {statusLabel[item.status] || item.status}
                       </span>
+                      {item.collab_status === 'pending' && (
+                        <p className="text-[10px] text-amber-600 font-medium mt-1">
+                          ⇄ Transfer pending → {item.collaborator?.application?.full_name || 'colleague'}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 min-w-[110px]">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-teal-600 rounded-full transition-all"
+                            style={{ width: `${item.progress || 0}%` }} />
+                        </div>
+                        <span className="text-[11px] font-semibold text-gray-600 w-8 text-right">{item.progress || 0}%</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       {item.quality ? (
@@ -236,26 +337,56 @@ export default function StaffTask() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={(e) => handleStatusUpdate(e, item)}
-                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        {item.incoming_collab && (
+                          <>
+                            <button onClick={(e) => respondCollab(e, item, 'accept')}
+                              className="px-2 py-1 text-[11px] font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg" title="Accept transfer">
+                              Accept
+                            </button>
+                            <button onClick={(e) => respondCollab(e, item, 'decline')}
+                              className="px-2 py-1 text-[11px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Decline transfer">
+                              Decline
+                            </button>
+                          </>
+                        )}
+                        {item.collab_status !== 'pending' && (item.mine || item.is_admin_view) && (
+                          <button onClick={(e) => openCollab(e, item)}
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Collaborate — transfer to another staff/department">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                          </button>
+                        )}
+                        <button onClick={(e) => handleProgress(e, item)}
+                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update progress %">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                         </button>
-                        <button onClick={(e) => handleQualityUpdate(e, item)}
-                          className={`p-1.5 rounded-lg transition-colors ${item.status === 'completed' ? 'text-teal-600 hover:bg-teal-50' : 'text-gray-300 cursor-not-allowed'}`} title={item.status === 'completed' ? "Rate Quality" : "Complete task first to rate quality"}>
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                        </button>
+                        {canUpdate && (
+                          <button onClick={(e) => handleStatusUpdate(e, item)}
+                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                          </button>
+                        )}
+                        {canUpdate && (
+                          <button onClick={(e) => handleQualityUpdate(e, item)}
+                            className={`p-1.5 rounded-lg transition-colors ${item.status === 'completed' ? 'text-teal-600 hover:bg-teal-50' : 'text-gray-300 cursor-not-allowed'}`} title={item.status === 'completed' ? "Rate Quality" : "Complete task first to rate quality"}>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                          </button>
+                        )}
                         <button onClick={() => navigate(`/hr/staff-task/show/${item.id}`)}
                           className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                         </button>
-                        <button onClick={() => navigate(`/hr/staff-task/edit/${item.id}`)}
-                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        <button onClick={(e) => handleDelete(e, item.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                        {canUpdate && (
+                          <button onClick={() => navigate(`/hr/staff-task/edit/${item.id}`)}
+                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={(e) => handleDelete(e, item.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -271,11 +402,13 @@ export default function StaffTask() {
               </div>
               <p className="text-sm font-medium text-gray-600">No tasks found</p>
               <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filters</p>
-              <button onClick={() => navigate("/hr/staff-task/create")}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Create First Task
-              </button>
+              {canCreate && (
+                <button onClick={() => navigate("/hr/staff-task/create")}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Create First Task
+                </button>
+              )}
             </div>
           )}
 
@@ -284,6 +417,49 @@ export default function StaffTask() {
               <p className="text-xs text-gray-400">Showing {filtered.length} of {items.length} tasks</p>
             </div>
           )}
+        </div>
+      )}
+
+      {collabFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setCollabFor(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-bold text-gray-800">Collaborate — transfer task</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5 truncate">"{collabFor.task}"</p>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-[12px] text-gray-500">
+                The colleague is notified and must <b>accept</b> before the task fully transfers. Until then it stays with the current assignee.
+              </p>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Department <span className="font-normal text-gray-400">(filter, optional)</span></label>
+                <select value={collabDept} onChange={e => { setCollabDept(e.target.value); setCollabTarget(""); }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">
+                  <option value="">All departments</option>
+                  {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Transfer to <span className="text-red-500">*</span></label>
+                <Select2
+                  value={collabTarget}
+                  onChange={(v) => setCollabTarget(v)}
+                  options={staffList
+                    .filter(s => (!collabDept || s.department === collabDept) && s.id !== collabFor.staff_id)
+                    .map(s => ({ value: s.id, label: `${s.full_name}${s.department ? ` · ${s.department}` : ''}` }))}
+                  placeholder="Select colleague…"
+                />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
+              <button onClick={() => setCollabFor(null)}
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={submitCollab} disabled={collabBusy || !collabTarget}
+                className="flex-1 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50">
+                {collabBusy ? 'Sending…' : 'Request transfer'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

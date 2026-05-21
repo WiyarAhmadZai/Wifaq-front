@@ -7,6 +7,9 @@
  */
 
 const RULES = [
+  // System / personal preferences (auto sign-out timer, etc.)
+  { prefix: "/settings", permission: "settings.view" },
+
   // Admin / access control
   { prefix: "/admin/roles", permission: "roles.view" },
   { prefix: "/admin/permissions", permission: "permissions.view" },
@@ -115,7 +118,6 @@ const PUBLIC_PATHS = new Set([
   "/",
   "/profile",
   "/403",
-  "/settings",
   "/support",
   "/dashboard",
   "/payroll",

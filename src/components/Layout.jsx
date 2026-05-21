@@ -1139,14 +1139,18 @@ export default function Layout() {
             </>
           )}
 
-          <MenuSection title="System" />
-          <SidebarItem
-            icon={Icons.Settings}
-            label="Settings"
-            to="/settings"
-            active={isActive("/settings")}
-            onClick={closeSidebar}
-          />
+          {hasPermission("settings.view") && (
+            <>
+              <MenuSection title="System" />
+              <SidebarItem
+                icon={Icons.Settings}
+                label="Settings"
+                to="/settings"
+                active={isActive("/settings")}
+                onClick={closeSidebar}
+              />
+            </>
+          )}
         </nav>
 
         {/* User Profile */}

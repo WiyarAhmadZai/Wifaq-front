@@ -3,26 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import Select from "react-select";
 import { get, post, put } from "../../api/axios";
 import { listDepartments } from "../../api/departments";
+import { listPositionTitles } from "../../api/positionTitles";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
-
-// Desired Role labels mapping (matching the enum labels)
-const DESIRED_ROLE_LABELS = {
-  motion_graphics_designer: "طراح موشن گرافیک - Motion Graphics Designer",
-  curriculum_expert: "متخصص نصاب - Curriculum Expert",
-  visual_learning_specialist: "متخصص یادگیری بصری - Visual Learning Specialist",
-  school_psychology_counselor: "مشاور روانشناسی مدرسه - School Psychology Counselor",
-  social_religious_studies_teacher: "آموزگار علوم اجتماعی و مذهبی - Social & Religious Studies Teacher",
-  chief_science_teacher_lab_manager: "آموزگار ارشد علوم و مدیر آزمایشگاه - Chief Science Teacher & Lab Manager",
-  dari_pashto_teacher: "آموزگار دری و پشتو - Dari & Pashto Teacher",
-  coding_teacher_computer_lab_manager: "آموزگار کدنویسی و مدیر لابراتوار کمپیوتر - Coding Teacher & Computer Lab Manager",
-  arabic_teacher_wisal: "آموزگار عربی (ویسال) - Arabic Teacher (Wisal)",
-  educational_videographer: "فیلمبردار آموزشی - Educational Videographer",
-  security_guard: "محافظ/نگهبان - Security Guard",
-  other: "سایر - Other",
-};
 
 const EMPLOYMENT_TYPES = [
   { value: "", label: "Select Employment Type" },
@@ -49,6 +34,7 @@ export default function JobRequisitionForm() {
     department: "",
     department_id: "",
     position_title: "",
+    position_title_id: "",
     employment_type: "",
     number_of_positions: 1,
     experience_years: "",
@@ -59,8 +45,8 @@ export default function JobRequisitionForm() {
   });
 
   const [staff, setStaff] = useState([]);
-  const [desiredRoles, setDesiredRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [positionTitles, setPositionTitles] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -69,9 +55,7 @@ export default function JobRequisitionForm() {
     const loadData = async () => {
       await fetchStaff();
       await fetchDepartments();
-      // Fetch enums first to populate dropdown options
-      await fetchEnums();
-      // Then fetch requisition data so dropdowns can match values
+      await fetchPositionTitles();
       if (isEdit) await fetchRequisition();
     };
     loadData();
@@ -87,6 +71,16 @@ export default function JobRequisitionForm() {
     }
   };
 
+  const fetchPositionTitles = async () => {
+    try {
+      const res = await listPositionTitles({ active_only: 1 });
+      setPositionTitles(res.data?.data || res.data || []);
+    } catch (error) {
+      console.error("Failed to fetch position titles", error);
+      setPositionTitles([]);
+    }
+  };
+
   const fetchStaff = async () => {
     try {
       const response = await get("/hr/staff/list");
@@ -97,17 +91,6 @@ export default function JobRequisitionForm() {
     }
   };
 
-  const fetchEnums = async () => {
-    try {
-      const response = await get("/recruitment/job-requisitions/enums");
-      const data = response.data?.data || response.data || {};
-      if (data.desired_roles) {
-        setDesiredRoles(data.desired_roles);
-      }
-    } catch (error) {
-      console.error("Failed to fetch enums", error);
-    }
-  };
 
   const fetchRequisition = async () => {
     setLoading(true);
@@ -116,7 +99,6 @@ export default function JobRequisitionForm() {
       const d = response.data?.data || response.data;
       console.log("Fetched data:", d);
       console.log("Position title value:", d.position_title);
-      console.log("Desired roles available:", desiredRoles);
       console.log("Deadline date raw:", d.deadline_date);
       
       // Handle various date formats from backend
@@ -131,6 +113,7 @@ export default function JobRequisitionForm() {
         department: d.department?.value || d.department || "",
         department_id: d.department_id || "",
         position_title: d.position_title?.value || d.position_title || "",
+        position_title_id: d.position_title_id || d.position_title_obj?.id || "",
         employment_type: d.employment_type?.value || d.employment_type || "",
         number_of_positions: d.number_of_positions || 1,
         experience_years: d.experience_years || "",
@@ -159,7 +142,7 @@ export default function JobRequisitionForm() {
   const validate = () => {
     const newErrors = {};
     if (!formData.department_id) newErrors.department_id = ["Department is required"];
-    if (!formData.position_title) newErrors.position_title = ["Position title is required"];
+    if (!formData.position_title_id) newErrors.position_title_id = ["Position title is required"];
     if (!formData.employment_type) newErrors.employment_type = ["Employment type is required"];
     if (!formData.number_of_positions || formData.number_of_positions < 1) {
       newErrors.number_of_positions = ["Number of positions must be at least 1"];
@@ -197,31 +180,26 @@ export default function JobRequisitionForm() {
       const selectedDept = departments.find(d => String(d.id) === String(formData.department_id));
       const legacyDeptName = selectedDept && legacyEnumValues.includes(selectedDept.name) ? selectedDept.name : null;
 
-      const dataToSend = isEdit
-        ? {
-            // Exclude position_title in edit mode since it's read-only
-            department: legacyDeptName,
-            department_id: formData.department_id || null,
-            employment_type: formData.employment_type,
-            number_of_positions: formData.number_of_positions,
-            experience_years: formData.experience_years || null,
-            justification: formData.justification,
-            deadline_date: formData.deadline_date || null,
-            approval_status: formData.approval_status || 'approved',
-            approved_by: formData.approved_by || null,
-          }
-        : {
-            department: legacyDeptName,
-            department_id: formData.department_id || null,
-            position_title: formData.position_title,
-            employment_type: formData.employment_type,
-            number_of_positions: formData.number_of_positions,
-            experience_years: formData.experience_years || null,
-            justification: formData.justification,
-            deadline_date: formData.deadline_date || null,
-            approval_status: formData.approval_status || 'approved',
-            approved_by: formData.approved_by || null,
-          };
+      // Mirror the selected position title's name into the legacy string column
+      // so older read-paths (lists, emails, exports) continue to work.
+      const selectedTitle = positionTitles.find(t => String(t.id) === String(formData.position_title_id));
+      const legacyTitleName = selectedTitle?.label_native || selectedTitle?.name || null;
+
+      const basePayload = {
+        department: legacyDeptName,
+        department_id: formData.department_id || null,
+        position_title: legacyTitleName,
+        position_title_id: formData.position_title_id || null,
+        employment_type: formData.employment_type,
+        number_of_positions: formData.number_of_positions,
+        experience_years: formData.experience_years || null,
+        justification: formData.justification,
+        deadline_date: formData.deadline_date || null,
+        approval_status: formData.approval_status || 'approved',
+        approved_by: formData.approved_by || null,
+      };
+
+      const dataToSend = basePayload;
       
       if (isEdit) {
         await put(`/recruitment/job-requisitions/${id}`, dataToSend);
@@ -332,77 +310,37 @@ export default function JobRequisitionForm() {
               {err("department_id") && <p className="text-red-500 text-[10px] mt-1">{err("department_id")}</p>}
             </div>
 
-            {/* Position Title */}
+            {/* Position Title — DB-backed Select2 */}
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Position Title {isEdit ? "" : "*"}
+                Position Title *
               </label>
-              {isEdit ? (
-                <input
-                  type="text"
-                  name="position_title"
-                  value={DESIRED_ROLE_LABELS[formData.position_title] || formData.position_title}
-                  readOnly
-                  className={`${inputClass("position_title")} bg-gray-100 cursor-not-allowed`}
-                />
-              ) : (
-                <Select
-                  name="position_title"
-                  value={desiredRoles.find(r => r === formData.position_title) 
-                    ? { value: formData.position_title, label: DESIRED_ROLE_LABELS[formData.position_title] || formData.position_title }
+              <Select
+                name="position_title_id"
+                value={
+                  positionTitles.find((t) => String(t.id) === String(formData.position_title_id))
+                    ? (() => {
+                        const t = positionTitles.find((t) => String(t.id) === String(formData.position_title_id));
+                        return { value: t.id, label: t.label_native || t.name };
+                      })()
                     : null
-                  }
-                  onChange={(selected) => handleChange({ 
-                    target: { name: "position_title", value: selected?.value || "" }
-                  })}
-                  options={desiredRoles.map((role) => ({
-                    value: role,
-                    label: DESIRED_ROLE_LABELS[role] || role,
-                  }))}
-                  placeholder="Select Position Title"
-                  isClearable
-                  className={errors.position_title ? "react-select-error" : ""}
-                  styles={{
-                    control: (base, state) => ({
-                      ...base,
-                      minHeight: "42px",
-                      borderRadius: "0.75rem",
-                      borderColor: errors.position_title ? "#f87171" : state.isFocused ? "#2dd4bf" : "#e5e7eb",
-                      boxShadow: state.isFocused ? "0 0 0 2px rgba(45, 212, 191, 0.2)" : "none",
-                      fontSize: "12px",
-                      backgroundColor: errors.position_title ? "#fef2f2" : "#fff",
-                    }),
-                    placeholder: (base) => ({
-                      ...base,
-                      color: "#9ca3af",
-                      fontSize: "12px",
-                    }),
-                    option: (base, state) => ({
-                      ...base,
-                      fontSize: "12px",
-                      padding: "8px 12px",
-                      backgroundColor: state.isSelected ? "#0d9488" : state.isFocused ? "#ccfbf1" : "#fff",
-                      color: state.isSelected ? "#fff" : "#374151",
-                    }),
-                    singleValue: (base) => ({
-                      ...base,
-                      fontSize: "12px",
-                      color: "#374151",
-                    }),
-                    input: (base) => ({
-                      ...base,
-                      fontSize: "12px",
-                    }),
-                    menu: (base) => ({
-                      ...base,
-                      borderRadius: "0.75rem",
-                      marginTop: "4px",
-                      zIndex: 50,
-                    }),
-                  }}
-                />
+                }
+                onChange={(selected) => {
+                  setFormData((prev) => ({ ...prev, position_title_id: selected?.value || "" }));
+                  if (errors.position_title_id) setErrors((prev) => ({ ...prev, position_title_id: null }));
+                }}
+                options={positionTitles.map((t) => ({
+                  value: t.id,
+                  label: t.label_native || t.name,
+                }))}
+                placeholder="Select Position Title"
+                isClearable
+                classNamePrefix="react-select"
+                noOptionsMessage={() => "No titles yet — add one in Position Titles."}
+              />
+              {err("position_title_id") && (
+                <p className="text-red-500 text-[10px] mt-1">{err("position_title_id")}</p>
               )}
-              {err("position_title") && <p className="text-red-500 text-[10px] mt-1">{err("position_title")}</p>}
             </div>
 
             {/* Employment Type */}

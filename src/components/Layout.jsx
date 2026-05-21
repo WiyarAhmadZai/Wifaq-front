@@ -717,6 +717,7 @@ export default function Layout() {
   ];
 
   const recruitmentMenus = [
+    { label: "Position Titles", path: "/recruitment/position-titles", permission: "position-titles.view" },
     { label: "Job Applications", path: "/recruitment/job-requisitions", permission: "job-requisitions.view" },
     { label: "Job Postings", path: "/recruitment/job-postings", permission: "job-postings.view" },
     { label: "Applications", path: "/recruitment/applications", permission: "applications.view" },

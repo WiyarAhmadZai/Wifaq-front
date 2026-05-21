@@ -15,6 +15,9 @@ const RULES = [
   // Branches
   { prefix: "/branches", permission: "branches.view" },
 
+  // Recruitment — position titles
+  { prefix: "/recruitment/position-titles", permission: "position-titles.view" },
+
   // Teacher management
   { prefix: "/teacher-management/teachers", permission: "teachers.view" },
 

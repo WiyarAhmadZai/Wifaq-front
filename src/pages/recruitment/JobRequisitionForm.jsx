@@ -2,22 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Select from "react-select";
 import { get, post, put } from "../../api/axios";
+import { listDepartments } from "../../api/departments";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
-// Department options from backend enum
-const DEPARTMENTS = [
-  { value: "", label: "Select Department" },
-  { value: "Finance", label: "Finance" },
-  { value: "Human Resources", label: "Human Resources" },
-  { value: "Academic", label: "Academic" },
-  { value: "Administration", label: "Administration" },
-  { value: "IT", label: "IT" },
-  { value: "Operation", label: "Operation" },
-  { value: "Science", label: "Science" },
-  { value: "Languages", label: "Languages" },
-];
 
 // Desired Role labels mapping (matching the enum labels)
 const DESIRED_ROLE_LABELS = {
@@ -58,6 +47,7 @@ export default function JobRequisitionForm() {
 
   const [formData, setFormData] = useState({
     department: "",
+    department_id: "",
     position_title: "",
     employment_type: "",
     number_of_positions: 1,
@@ -70,6 +60,7 @@ export default function JobRequisitionForm() {
 
   const [staff, setStaff] = useState([]);
   const [desiredRoles, setDesiredRoles] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,6 +68,7 @@ export default function JobRequisitionForm() {
   useEffect(() => {
     const loadData = async () => {
       await fetchStaff();
+      await fetchDepartments();
       // Fetch enums first to populate dropdown options
       await fetchEnums();
       // Then fetch requisition data so dropdowns can match values
@@ -84,6 +76,16 @@ export default function JobRequisitionForm() {
     };
     loadData();
   }, [id]);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await listDepartments({ active_only: 1 });
+      setDepartments(res.data?.data || res.data || []);
+    } catch (error) {
+      console.error("Failed to fetch departments", error);
+      setDepartments([]);
+    }
+  };
 
   const fetchStaff = async () => {
     try {
@@ -127,6 +129,7 @@ export default function JobRequisitionForm() {
       
       setFormData({
         department: d.department?.value || d.department || "",
+        department_id: d.department_id || "",
         position_title: d.position_title?.value || d.position_title || "",
         employment_type: d.employment_type?.value || d.employment_type || "",
         number_of_positions: d.number_of_positions || 1,
@@ -155,7 +158,7 @@ export default function JobRequisitionForm() {
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.department) newErrors.department = ["Department is required"];
+    if (!formData.department_id) newErrors.department_id = ["Department is required"];
     if (!formData.position_title) newErrors.position_title = ["Position title is required"];
     if (!formData.employment_type) newErrors.employment_type = ["Employment type is required"];
     if (!formData.number_of_positions || formData.number_of_positions < 1) {
@@ -187,10 +190,18 @@ export default function JobRequisitionForm() {
     setErrors({});
     
     try {
+      // Pull the legacy enum-style name from the selected department, if it
+      // matches one of the historical enum values; otherwise leave it null
+      // so the backend just stores department_id.
+      const legacyEnumValues = ['Finance', 'Human Resources', 'Academic', 'Administration', 'IT', 'Operation', 'Science', 'Languages'];
+      const selectedDept = departments.find(d => String(d.id) === String(formData.department_id));
+      const legacyDeptName = selectedDept && legacyEnumValues.includes(selectedDept.name) ? selectedDept.name : null;
+
       const dataToSend = isEdit
         ? {
             // Exclude position_title in edit mode since it's read-only
-            department: formData.department,
+            department: legacyDeptName,
+            department_id: formData.department_id || null,
             employment_type: formData.employment_type,
             number_of_positions: formData.number_of_positions,
             experience_years: formData.experience_years || null,
@@ -200,7 +211,8 @@ export default function JobRequisitionForm() {
             approved_by: formData.approved_by || null,
           }
         : {
-            department: formData.department,
+            department: legacyDeptName,
+            department_id: formData.department_id || null,
             position_title: formData.position_title,
             employment_type: formData.employment_type,
             number_of_positions: formData.number_of_positions,
@@ -298,18 +310,26 @@ export default function JobRequisitionForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Department *
               </label>
-              <select
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-                required
-                className={inputClass("department")}
-              >
-                {DEPARTMENTS.map((dept) => (
-                  <option key={dept.value} value={dept.value}>{dept.label}</option>
-                ))}
-              </select>
-              {err("department") && <p className="text-red-500 text-[10px] mt-1">{err("department")}</p>}
+              <Select
+                name="department_id"
+                value={
+                  departments.find((d) => String(d.id) === String(formData.department_id))
+                    ? {
+                        value: formData.department_id,
+                        label: departments.find((d) => String(d.id) === String(formData.department_id)).name,
+                      }
+                    : null
+                }
+                onChange={(opt) => {
+                  setFormData((prev) => ({ ...prev, department_id: opt?.value || "" }));
+                  if (errors.department_id) setErrors((prev) => ({ ...prev, department_id: null }));
+                }}
+                options={departments.map((d) => ({ value: d.id, label: d.name }))}
+                placeholder="Select department..."
+                isClearable
+                classNamePrefix="react-select"
+              />
+              {err("department_id") && <p className="text-red-500 text-[10px] mt-1">{err("department_id")}</p>}
             </div>
 
             {/* Position Title */}

@@ -5,6 +5,8 @@ import {
   submitPurchaseRequest,
   approvePurchaseRequest,
   rejectPurchaseRequest,
+  putOnAwaitingPurchaseRequest,
+  resumePurchaseRequest,
   procurePurchaseRequest,
   completePurchaseRequest,
   cancelPurchaseRequest,
@@ -23,6 +25,7 @@ import { useAuth } from "../../admin/context/AuthContext";
 const STATUS = {
   draft:       { label: "Draft",       cls: "bg-gray-100 text-gray-700 border-gray-300" },
   pending:     { label: "Pending",     cls: "bg-amber-100 text-amber-700 border-amber-300" },
+  awaiting:    { label: "On Hold",     cls: "bg-orange-100 text-orange-700 border-orange-300" },
   approved:    { label: "Approved",    cls: "bg-emerald-100 text-emerald-700 border-emerald-300" },
   rejected:    { label: "Rejected",    cls: "bg-red-100 text-red-700 border-red-300" },
   procurement: { label: "Procuring",   cls: "bg-indigo-100 text-indigo-700 border-indigo-300" },
@@ -30,8 +33,8 @@ const STATUS = {
   cancelled:   { label: "Cancelled",   cls: "bg-gray-200 text-gray-600 border-gray-300" },
 };
 
-// Order of the timeline tiles. Rejected/cancelled break the chain — handled
-// specially in the render.
+// Order of the timeline tiles. Rejected/cancelled/awaiting break the chain
+// and are handled specially in the render (off-path detour tile).
 const TIMELINE = ["draft", "pending", "approved", "procurement", "completed"];
 
 const fmt = (n) => Number(n || 0).toLocaleString();
@@ -141,6 +144,43 @@ export default function PurchaseRequestShow() {
     await runAction("Reject", () => rejectPurchaseRequest(id, r.value));
   };
 
+  // Put on hold — ask for a reason (mandatory) and an optional revisit date.
+  // Two-step dialog so we don't cram both inputs into one Swal modal.
+  const onPutOnAwaiting = async () => {
+    const reasonRes = await Swal.fire({
+      title: "Put this request on hold?",
+      text: "The requester will be notified with your reason.",
+      input: "textarea",
+      inputLabel: "Reason (required)",
+      inputPlaceholder: "Why is this being deferred? (e.g. budget review, awaiting more info)",
+      inputValidator: (v) => !v && "A reason is required.",
+      showCancelButton: true,
+      confirmButtonText: "Next",
+      confirmButtonColor: "#ea580c",
+    });
+    if (!reasonRes.isConfirmed) return;
+
+    const dateRes = await Swal.fire({
+      title: "Revisit date (optional)",
+      text: "When do you plan to look at this again? Leave blank for open-ended hold.",
+      input: "date",
+      inputAttributes: { min: new Date().toISOString().slice(0, 10) },
+      showCancelButton: true,
+      confirmButtonText: "Put on hold",
+      confirmButtonColor: "#ea580c",
+    });
+    if (!dateRes.isConfirmed) return;
+
+    await runAction("Put on hold", () =>
+      putOnAwaitingPurchaseRequest(id, reasonRes.value, dateRes.value || null)
+    );
+  };
+
+  const onResume = () => runAction("Resume", () => resumePurchaseRequest(id), {
+    confirm: true,
+    confirmText: "Move this request back to pending so it can be re-decided.",
+  });
+
   const onCancel = async () => {
     const r = await Swal.fire({
       title: "Cancel this request?",
@@ -193,6 +233,32 @@ export default function PurchaseRequestShow() {
         </div>
       )}
 
+      {/* On-hold banner — explains WHY the PR is paused and (if set) WHEN
+          the admin plans to revisit it. Shown for both admins and the
+          requester so the deferral context is always visible. */}
+      {pr.status === "awaiting" && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4 text-[11px] text-orange-900">
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="min-w-0">
+              <p className="font-semibold">
+                This request is on hold
+                {pr.awaiting_by_user?.name ? <> — put on hold by <strong>{pr.awaiting_by_user.name}</strong></> : null}
+                {pr.awaiting_at ? <span className="text-orange-700/80"> · {fmtDate(pr.awaiting_at)}</span> : null}
+              </p>
+              {pr.awaiting_reason && (
+                <p className="mt-1 whitespace-pre-line"><span className="opacity-70">Reason:</span> {pr.awaiting_reason}</p>
+              )}
+              {pr.awaiting_until && (
+                <p className="mt-0.5"><span className="opacity-70">Revisit on:</span> <strong>{fmtDate(pr.awaiting_until)}</strong></p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Timeline */}
       <Timeline pr={pr} />
 
@@ -220,7 +286,24 @@ export default function PurchaseRequestShow() {
             {canApprove && (
               <ActionBtn onClick={onReject}  color="red"     busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Reject</ActionBtn>
             )}
+            {canApprove && (
+              <ActionBtn onClick={onPutOnAwaiting} color="orange" busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Put on hold</ActionBtn>
+            )}
             {canEdit && <ActionBtn onClick={onCancel}  color="gray"    busy={busy}>Cancel</ActionBtn>}
+          </>
+        )}
+        {pr.status === "awaiting" && (
+          <>
+            {canApprove && (
+              <ActionBtn onClick={onResume} color="indigo" busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Resume — back to pending</ActionBtn>
+            )}
+            {canApprove && (
+              <ActionBtn onClick={onApprove} color="emerald" busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Approve</ActionBtn>
+            )}
+            {canApprove && (
+              <ActionBtn onClick={onReject} color="red" busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Reject</ActionBtn>
+            )}
+            {canEdit && <ActionBtn onClick={onCancel} color="gray" busy={busy}>Cancel</ActionBtn>}
           </>
         )}
         {pr.status === "approved" && (
@@ -964,8 +1047,10 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
 }
 
 function Timeline({ pr }) {
-  // Terminal "off-path" states get their own tile at the end of the strip.
-  const isOffPath = ["rejected", "cancelled"].includes(pr.status);
+  // States that don't fit on the main happy-path line get their own tile
+  // appended to the strip. `awaiting` is a temporary detour off `pending`;
+  // `rejected` / `cancelled` are terminal.
+  const isOffPath = ["rejected", "cancelled", "awaiting"].includes(pr.status);
   const stages = isOffPath ? [...TIMELINE, pr.status] : TIMELINE;
   const activeIdx = stages.findIndex((s) => s === pr.status);
 
@@ -1148,6 +1233,7 @@ function ActionBtn({ onClick, color, busy, children, disabledHint }) {
     emerald: "bg-emerald-600 hover:bg-emerald-700",
     indigo:  "bg-indigo-600 hover:bg-indigo-700",
     red:     "bg-red-600 hover:bg-red-700",
+    orange:  "bg-orange-600 hover:bg-orange-700",
     gray:    "bg-gray-500 hover:bg-gray-600",
   };
   return (

@@ -30,6 +30,7 @@ export default function StaffTask() {
   const [collabFor, setCollabFor] = useState(null);   // task being transferred
   const [collabDept, setCollabDept] = useState("");
   const [collabTarget, setCollabTarget] = useState("");
+  const [collabProgress, setCollabProgress] = useState(0); // progress to lock in at handoff
   const [collabBusy, setCollabBusy] = useState(false);
 
   useEffect(() => { fetchItems(); fetchStaffList(); }, []);
@@ -57,16 +58,26 @@ export default function StaffTask() {
   const openCollab = (e, item) => {
     e.stopPropagation();
     setCollabFor(item); setCollabDept(""); setCollabTarget("");
+    setCollabProgress(Number(item.progress || 0));
   };
 
   const submitCollab = async () => {
     if (!collabTarget) { Swal.fire('Pick a colleague', 'Select the staff member to transfer this task to.', 'info'); return; }
     setCollabBusy(true);
     try {
-      await post(`/hr/staff-tasks/${collabFor.id}/collaborate`, { to_staff_id: collabTarget });
+      await post(`/hr/staff-tasks/${collabFor.id}/collaborate`, {
+        to_staff_id: collabTarget,
+        progress: Number(collabProgress),
+      });
       setCollabFor(null);
       fetchItems();
-      Swal.fire({ icon: 'success', title: 'Collaboration requested', text: 'The colleague will be notified to accept the transfer.', timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: 'success',
+        title: 'Collaboration requested',
+        text: `Locked in at ${collabProgress}%. The colleague will be notified and continues from there.`,
+        timer: 2200,
+        showConfirmButton: false,
+      });
     } catch (err) {
       Swal.fire('Error', err.response?.data?.message || 'Could not request collaboration', 'error');
     } finally { setCollabBusy(false); }
@@ -431,6 +442,30 @@ export default function StaffTask() {
               <p className="text-[12px] text-gray-500">
                 The colleague is notified and must <b>accept</b> before the task fully transfers. Until then it stays with the current assignee.
               </p>
+
+              {/* Lock in the progress made before handing off. The collaborator
+                  picks up from this baseline — they won't restart from 0%. */}
+              <div className="bg-teal-50/60 border border-teal-100 rounded-xl p-3">
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <label className="text-[11px] font-semibold text-teal-700 uppercase tracking-wider">
+                    Your progress so far
+                  </label>
+                  <span className="text-sm font-black text-teal-700">{collabProgress}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={collabProgress}
+                  onChange={(e) => setCollabProgress(Number(e.target.value))}
+                  className="w-full accent-teal-600"
+                />
+                <p className="text-[10px] text-teal-700/80 mt-1">
+                  Saved at handoff. Your colleague continues from {collabProgress}% — not from zero.
+                </p>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Department <span className="font-normal text-gray-400">(filter, optional)</span></label>
                 <select value={collabDept} onChange={e => { setCollabDept(e.target.value); setCollabTarget(""); }}

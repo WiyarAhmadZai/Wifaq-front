@@ -30,6 +30,7 @@ export default function MeetingForm() {
   const [participants, setParticipants] = useState([]);
   const [agendaItems, setAgendaItems] = useState([{ ...emptyAgenda }]);
   const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [departments, setDepartments] = useState([]);
   const [filterDeptIds, setFilterDeptIds] = useState([]); // department picker for bulk add
   const [errors, setErrors] = useState({});
@@ -53,6 +54,7 @@ export default function MeetingForm() {
   };
 
   const fetchUsers = async () => {
+    setUsersLoading(true);
     try {
       // Paginated list returns { data: [...], current_page, total, ... }.
       // Asking for a big page so the dropdown has the whole roster.
@@ -61,22 +63,28 @@ export default function MeetingForm() {
       const data = Array.isArray(raw) ? raw : [];
       // Participants are stored as users (FK to users.id), so we use user_id
       // here — staff.id and users.id are not the same thing. Staff without a
-      // linked user account are silently excluded (we can't invite them).
-      setUsers(
-        data
-          .filter((s) => s.user_id)
-          .map((s) => ({
-            id: s.user_id,
-            staff_id: s.id,
-            name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
-            employee_id: s.employee_id || "",
-            department: s.department || s.department_relation?.name || "",
-            department_id: s.department_id || null,
-          }))
-      );
+      // linked user account cannot be invited.
+      const withUser = data
+        .filter((s) => s.user_id)
+        .map((s) => ({
+          id: s.user_id,
+          staff_id: s.id,
+          name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+          employee_id: s.employee_id || "",
+          department: s.department || s.department_relation?.name || "",
+          department_id: s.department_id || null,
+        }));
+      if (data.length > 0 && withUser.length === 0) {
+        console.warn(
+          `MeetingForm: ${data.length} active staff were returned but none have a linked user account. Run migrate:fresh --seed to relink them.`
+        );
+      }
+      setUsers(withUser);
     } catch (e) {
       console.error("MeetingForm fetchUsers failed:", e);
       setUsers([]);
+    } finally {
+      setUsersLoading(false);
     }
   };
 
@@ -352,7 +360,7 @@ export default function MeetingForm() {
                     value={filterDeptIds}
                     onChange={(v) => setFilterDeptIds(Array.isArray(v) ? v : [])}
                     options={departments.map((d) => ({ value: d.id, label: d.name }))}
-                    placeholder={departments.length ? "Pick one or more departments…" : "Loading departments…"}
+                    placeholder={departments.length ? "Pick one or more departments…" : "No departments yet — add some in HR → Departments"}
                   />
                 </div>
                 <button
@@ -402,7 +410,7 @@ export default function MeetingForm() {
                   value: u.id,
                   label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
                 }))}
-                placeholder={users.length ? "Search and pick individual staff…" : "Loading staff…"}
+                placeholder={usersLoading ? "Loading staff…" : users.length ? "Search and pick individual staff…" : "No staff available (run migrate:fresh --seed to link users)"}
               />
               {participants.length === 0 && (
                 <p className="text-xs text-gray-400 italic mt-2">No participants added yet</p>
@@ -450,7 +458,7 @@ export default function MeetingForm() {
                       value={item.assigned_to_id}
                       onChange={(v) => handleAgendaChange(i, "assigned_to_id", v)}
                       options={users.map((u) => ({ value: u.id, label: u.name }))}
-                      placeholder={users.length ? "Search staff…" : "Loading…"}
+                      placeholder={usersLoading ? "Loading…" : users.length ? "Search staff…" : "No staff"}
                     />
                   </div>
                   {/* Duration */}

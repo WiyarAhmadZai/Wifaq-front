@@ -40,6 +40,7 @@ const L = (fn) => {
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Login = lazy(() => import("./pages/Login"));
 const MyProfile = lazy(() => import("./pages/MyProfile"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 // HR — VATS / Welfare / Holidays (new modules)
 const VatsDashboard = lazy(() => import("./pages/hr/VatsDashboard"));
@@ -169,6 +170,7 @@ const JobPostingShow = lazy(() => import("./pages/recruitment/JobPostingShow"));
 const Applications = lazy(() => import("./pages/recruitment/Applications"));
 const ApplicationForm = lazy(() => import("./pages/recruitment/ApplicationForm"));
 const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow"));
+const PublicApplicationForm = lazy(() => import("./pages/recruitment/PublicApplicationForm"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
 const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolShow"));
@@ -256,6 +258,10 @@ function App() {
             <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
             <Route path="/403" element={<Suspense fallback={<PageLoader />}><Forbidden /></Suspense>} />
 
+            {/* Public careers page — shareable link, no login required */}
+            <Route path="/careers/apply" element={<Suspense fallback={<PageLoader />}><PublicApplicationForm /></Suspense>} />
+            <Route path="/apply" element={<Navigate to="/careers/apply" replace />} />
+
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="departments" element={<Navigate to="/hr/departments" replace />} />
@@ -264,7 +270,7 @@ function App() {
             <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
             <Route path="profile/:userId" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
-            <Route path="settings" element={<Placeholder title="Settings" />} />
+            <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="support" element={<Placeholder title="Support" />} />
 
             {/* Teacher Management */}

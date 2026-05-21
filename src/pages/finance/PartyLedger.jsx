@@ -12,6 +12,7 @@ import {
 import { fmtDate } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
+import { useAuth } from "../../admin/context/AuthContext";
 /**
  * Party ledger — staff advance bookkeeping with four canonical actions:
  *   • Give Advance      → school deposits money with party
@@ -82,6 +83,10 @@ const ACTIONS = {
 export default function PartyLedger() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  // Posting any party movement (advance/expense/repayment/reimburse) needs
+  // either parties.create or the catch-all parties.manage.
+  const canPost = hasPermission("parties.create") || hasPermission("parties.manage");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -237,29 +242,32 @@ export default function PartyLedger() {
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <ActionButton
-          label="Give Advance"   subtitle="Deposit money"        tone="blue"
-          onClick={() => setActiveAction(ACTIONS.advance)} disabled={!!activeAction}
-        />
-        <ActionButton
-          label="Record Expense" subtitle="Party spent the money" tone="red"
-          onClick={() => setActiveAction(ACTIONS.expense)} disabled={!!activeAction}
-        />
-        <ActionButton
-          label="Record Repayment" subtitle="Party returned cash" tone="emerald"
-          onClick={() => setActiveAction(ACTIONS.repayment)}
-          disabled={!!activeAction || balance <= 0}
-          disabledHint={balance <= 0 ? "Nothing owed by party" : null}
-        />
-        <ActionButton
-          label="Reimburse" subtitle="School pays party" tone="amber"
-          onClick={() => setActiveAction(ACTIONS.reimbursement)}
-          disabled={!!activeAction || balance >= 0}
-          disabledHint={balance >= 0 ? "Only when school owes" : null}
-        />
-      </div>
+      {/* Action buttons — hidden for users without posting rights;
+          backend would 403 anyway, but a read-only viewer shouldn't see them. */}
+      {canPost && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <ActionButton
+            label="Give Advance"   subtitle="Deposit money"        tone="blue"
+            onClick={() => setActiveAction(ACTIONS.advance)} disabled={!!activeAction}
+          />
+          <ActionButton
+            label="Record Expense" subtitle="Party spent the money" tone="red"
+            onClick={() => setActiveAction(ACTIONS.expense)} disabled={!!activeAction}
+          />
+          <ActionButton
+            label="Record Repayment" subtitle="Party returned cash" tone="emerald"
+            onClick={() => setActiveAction(ACTIONS.repayment)}
+            disabled={!!activeAction || balance <= 0}
+            disabledHint={balance <= 0 ? "Nothing owed by party" : null}
+          />
+          <ActionButton
+            label="Reimburse" subtitle="School pays party" tone="amber"
+            onClick={() => setActiveAction(ACTIONS.reimbursement)}
+            disabled={!!activeAction || balance >= 0}
+            disabledHint={balance >= 0 ? "Only when school owes" : null}
+          />
+        </div>
+      )}
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -302,7 +310,9 @@ export default function PartyLedger() {
                 <tr>
                   <td colSpan={7} className="text-center py-10">
                     <p className="text-sm text-gray-700 font-medium">No transactions yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Click <strong>Give Advance</strong> above to deposit money to this party.</p>
+                    {canPost && (
+                      <p className="text-xs text-gray-400 mt-1">Click <strong>Give Advance</strong> above to deposit money to this party.</p>
+                    )}
                   </td>
                 </tr>
               ) : (

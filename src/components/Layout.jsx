@@ -758,7 +758,7 @@ export default function Layout() {
   // Finance menu — same nested-children shape as hrSubMenus so itemAllowed/visible work.
   const financeMenus = [
     { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
-    { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },
+    { label: "Inbox", path: "/finance/inbox", permission: "finance-inbox.view" },
     { label: "Daily", key: "finance-daily", children: [
       { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
       { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
@@ -1165,21 +1165,18 @@ export default function Layout() {
             </>
           )}
 
-          {/* <MenuSection title="System" />
-          <SidebarItem
-            icon={Icons.Settings}
-            label="Settings"
-            to="/settings"
-            active={isActive("/settings")}
-            onClick={closeSidebar}
-          />
-          <SidebarItem
-            icon={Icons.Support}
-            label="Support"
-            to="/support"
-            active={isActive("/support")}
-            onClick={closeSidebar}
-          /> */}
+          {hasPermission("settings.view") && (
+            <>
+              <MenuSection title="System" />
+              <SidebarItem
+                icon={Icons.Settings}
+                label="Settings"
+                to="/settings"
+                active={isActive("/settings")}
+                onClick={closeSidebar}
+              />
+            </>
+          )}
         </nav>
 
         {/* User Profile */}

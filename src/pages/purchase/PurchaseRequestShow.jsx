@@ -19,6 +19,7 @@ import Swal from "sweetalert2";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
+import { useAuth } from "../../admin/context/AuthContext";
 const STATUS = {
   draft:       { label: "Draft",       cls: "bg-gray-100 text-gray-700 border-gray-300" },
   pending:     { label: "Pending",     cls: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -39,6 +40,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 export default function PurchaseRequestShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  // Two permission gates here:
+  //   • workflow moves (Submit, Procure, Complete, Cancel) → .update
+  //   • approval decisions (Approve, Reject)               → .approve
+  // .manage acts as the catch-all override for both.
+  const canEdit    = hasPermission("purchase-requests.update")  || hasPermission("purchase-requests.manage");
+  const canApprove = hasPermission("purchase-requests.approve") || hasPermission("purchase-requests.manage");
   const [pr, setPr] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -188,35 +196,52 @@ export default function PurchaseRequestShow() {
       {/* Timeline */}
       <Timeline pr={pr} />
 
-      {/* Action bar */}
+      {/* Action bar.
+          Buttons are double-gated:
+            1. The PR's status decides which actions are even meaningful.
+            2. The user's permission decides whether they may run them.
+              · workflow moves (Submit/Procure/Complete/Cancel) → purchase-requests.update
+              · approval decisions (Approve/Reject)             → purchase-requests.approve
+          The role-tier check (tier.can_user_approve) is an *additional* gate
+          on Approve/Reject — even users WITH .approve permission may not be
+          the right tier for THIS specific request. */}
       <div className="bg-white border border-gray-200 rounded-xl p-3 mb-4 flex flex-wrap gap-2">
         {pr.status === "draft" && (
           <>
-            <ActionBtn onClick={onSubmit} color="teal" busy={busy}>Submit for approval</ActionBtn>
-            <ActionBtn onClick={onCancel} color="red" busy={busy}>Cancel</ActionBtn>
+            {canEdit && <ActionBtn onClick={onSubmit} color="teal" busy={busy}>Submit for approval</ActionBtn>}
+            {canEdit && <ActionBtn onClick={onCancel} color="red" busy={busy}>Cancel</ActionBtn>}
           </>
         )}
         {pr.status === "pending" && (
           <>
-            <ActionBtn onClick={onApprove} color="emerald" busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Approve</ActionBtn>
-            <ActionBtn onClick={onReject}  color="red"     busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Reject</ActionBtn>
-            <ActionBtn onClick={onCancel}  color="gray"    busy={busy}>Cancel</ActionBtn>
+            {canApprove && (
+              <ActionBtn onClick={onApprove} color="emerald" busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Approve</ActionBtn>
+            )}
+            {canApprove && (
+              <ActionBtn onClick={onReject}  color="red"     busy={busy || !tier?.can_user_approve} disabledHint={!tier?.can_user_approve ? "Insufficient role" : null}>Reject</ActionBtn>
+            )}
+            {canEdit && <ActionBtn onClick={onCancel}  color="gray"    busy={busy}>Cancel</ActionBtn>}
           </>
         )}
         {pr.status === "approved" && (
           <>
-            <ActionBtn onClick={onProcure} color="indigo" busy={busy}>Move to procurement</ActionBtn>
-            <ActionBtn onClick={onCancel}  color="red"    busy={busy}>Cancel</ActionBtn>
+            {canEdit && <ActionBtn onClick={onProcure} color="indigo" busy={busy}>Move to procurement</ActionBtn>}
+            {canEdit && <ActionBtn onClick={onCancel}  color="red"    busy={busy}>Cancel</ActionBtn>}
           </>
         )}
         {pr.status === "procurement" && (
           <>
-            <ActionBtn onClick={() => setCompleteOpen(true)} color="teal" busy={busy}>Mark goods received — complete</ActionBtn>
-            <ActionBtn onClick={onCancel} color="red" busy={busy}>Cancel</ActionBtn>
+            {canEdit && <ActionBtn onClick={() => setCompleteOpen(true)} color="teal" busy={busy}>Mark goods received — complete</ActionBtn>}
+            {canEdit && <ActionBtn onClick={onCancel} color="red" busy={busy}>Cancel</ActionBtn>}
           </>
         )}
         {["completed", "rejected", "cancelled"].includes(pr.status) && (
           <p className="text-[11px] text-gray-500 self-center">This request is in a terminal state. No further actions.</p>
+        )}
+        {/* Read-only viewer (no .update / .approve) on an active PR — show a
+            single muted hint so they understand why the action bar is empty. */}
+        {!canEdit && !canApprove && !["completed", "rejected", "cancelled"].includes(pr.status) && (
+          <p className="text-[11px] text-gray-500 self-center">You can view this request, but don't have permission to act on it.</p>
         )}
       </div>
 

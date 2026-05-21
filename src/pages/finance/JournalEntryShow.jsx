@@ -4,9 +4,14 @@ import { getJournalEntry, postJournalEntry } from "../../api/financial";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
+import { useAuth } from "../../admin/context/AuthContext";
 export default function JournalEntryShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  // Posting a JE enforces budget rules and flips it to "posted" — it's the
+  // privileged action on this page. Bind to journal-entries.manage.
+  const canPost = hasPermission("journal-entries.manage");
   const [loading, setLoading] = useState(false);
   const [je, setJe] = useState(null);
 
@@ -76,7 +81,7 @@ export default function JournalEntryShow() {
         </div>
 
         <div className="flex items-center gap-2">
-          {je.status === "draft" && (
+          {je.status === "draft" && canPost && (
             <button onClick={handlePost} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium">
               Post
             </button>

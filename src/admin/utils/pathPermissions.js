@@ -7,6 +7,9 @@
  */
 
 const RULES = [
+  // System / personal preferences (auto sign-out timer, etc.)
+  { prefix: "/settings", permission: "settings.view" },
+
   // Admin / access control
   { prefix: "/admin/roles", permission: "roles.view" },
   { prefix: "/admin/permissions", permission: "permissions.view" },
@@ -90,6 +93,9 @@ const RULES = [
   { prefix: "/finance/fee-payments", permission: "fee-payments.view" },
   { prefix: "/finance/payments", permission: "payments.view" },
   { prefix: "/finance/budgets", permission: "budgets.view" },
+  { prefix: "/finance/inbox", permission: "finance-inbox.view" },
+  { prefix: "/finance/cashier", permission: "fee-payments.view" },
+  { prefix: "/finance/reports", permission: "finance.view" },
   { prefix: "/finance/dashboard", permission: "finance.view" },
   { prefix: "/finance", permission: "finance.view" },
 
@@ -116,7 +122,6 @@ const PUBLIC_PATHS = new Set([
   "/",
   "/profile",
   "/403",
-  "/settings",
   "/support",
   "/dashboard",
   "/payroll",
@@ -132,7 +137,21 @@ const PUBLIC_PATHS = new Set([
   // tasks + collaboration offered to them. Backend scopes the data; the
   // create/edit sub-pages stay permission-gated via the RULES prefix.
   "/hr/staff-task",
+  // Parties list — any authenticated staff may open it to see THEIR OWN
+  // staff Party (self-service balance / advance history). Backend scopes
+  // the response; privileged users with parties.view see the full list.
+  "/finance/parties",
 ]);
+
+/**
+ * Patterns where ANY authenticated user may visit — backend row-scopes the
+ * data. Use these for "show my own X" detail pages where the id varies.
+ * Sub-pages like /create, /edit/:id stay permission-gated via RULES.
+ */
+const SELF_SCOPED_PATH_PATTERNS = [
+  // Party ledger detail — the staff member's own party ledger
+  /^\/finance\/parties\/\d+\/ledger$/,
+];
 
 /**
  * Derive the action suffix from a sub-path tail.
@@ -172,6 +191,9 @@ function withAction(permission, action) {
  */
 export function permissionForPath(pathname) {
   if (PUBLIC_PATHS.has(pathname)) return { type: "public" };
+  for (const re of SELF_SCOPED_PATH_PATTERNS) {
+    if (re.test(pathname)) return { type: "public" };
+  }
   for (const rule of RULES) {
     if (pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")) {
       const tail = pathname.slice(rule.prefix.length); // "" | "/create" | "/edit/123" | "/show/123"

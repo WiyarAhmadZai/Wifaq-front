@@ -5,6 +5,7 @@ import {
 } from "../../api/payroll";
 import { getAccounts } from "../../api/financial";
 import Swal from "sweetalert2";
+import { useAuth } from "../../admin/context/AuthContext";
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -17,6 +18,14 @@ const ROW_STATE = {
 };
 
 export default function Payroll() {
+  const { hasPermission } = useAuth();
+  // Two distinct privileged actions on this screen:
+  //   • commit         — accrues salaries + posts JEs
+  //   • pay (all/each) — disburses cash from a bank account
+  // Both gated by payroll.create (or .manage as override). Preview is just a
+  // read query so it stays open to anyone with payroll.view (route gate).
+  const canCommit = hasPermission("payroll.create") || hasPermission("payroll.manage");
+  const canPay    = hasPermission("payroll.create") || hasPermission("payroll.manage");
   const [view, setView] = useState("builder");      // builder | run
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -179,7 +188,7 @@ export default function Payroll() {
             <Stat label="Gross" v={activeRun.total_gross} />
             <Stat label="Deductions" v={activeRun.total_deductions} />
             <Stat label="Net" v={activeRun.total_net} strong />
-            {pendingCount > 0 && (
+            {pendingCount > 0 && canPay && (
               <button onClick={payAll} className="px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-semibold">
                 Pay all ({pendingCount})
               </button>
@@ -220,7 +229,9 @@ export default function Payroll() {
                   </td>
                   <td className="px-3 py-2 text-center">
                     {s.status === "pending"
-                      ? <button onClick={() => paySlipNow(s)} className="px-2 py-1 text-[10px] font-semibold text-white bg-teal-600 rounded hover:bg-teal-700">Pay</button>
+                      ? (canPay
+                          ? <button onClick={() => paySlipNow(s)} className="px-2 py-1 text-[10px] font-semibold text-white bg-teal-600 rounded hover:bg-teal-700">Pay</button>
+                          : <span className="text-[10px] text-gray-400">pending</span>)
                       : <span className="text-[10px] text-gray-400">{s.paid_from_account?.account_name || "paid"}</span>}
                   </td>
                 </tr>
@@ -259,11 +270,14 @@ export default function Payroll() {
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-semibold disabled:opacity-50">
             {loading ? "Loading…" : "Preview"}
           </button>
-          {preview && totals && (
+          {preview && totals && canCommit && (
             <button onClick={commit} disabled={committing || totals.n <= 0}
               className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold disabled:opacity-50">
               {committing ? "Committing…" : `Commit — net ${fmt(totals.n)} AFN`}
             </button>
+          )}
+          {preview && totals && !canCommit && (
+            <p className="text-[11px] text-gray-500 self-center">You can preview payroll, but don't have permission to commit it.</p>
           )}
         </div>
       </div>

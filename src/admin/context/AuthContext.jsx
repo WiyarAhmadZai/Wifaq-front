@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { accessApi } from "../services/accessApi";
 import { hasPermission, hasRole, can, isSuperAdmin } from "../utils/permissions";
+import { useIdleLogout } from "../../hooks/useIdleLogout";
 
 const AuthContext = createContext(null);
 
@@ -38,6 +39,11 @@ export function AuthProvider({ children }) {
     setUser(null);
     window.location.href = "/login";
   }, []);
+
+  // Inactivity auto-logout. Configurable from /settings; 0 disables it.
+  // Only runs once we have an authenticated user — the hook itself becomes
+  // a no-op on the login page.
+  useIdleLogout({ enabled: Boolean(user), onLogout: logout });
 
   const value = useMemo(
     () => ({

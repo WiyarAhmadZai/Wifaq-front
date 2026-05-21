@@ -32,6 +32,11 @@ const fmtMonth = (d) => (d ? fmtDate(d) : "—");
 export default function Cashier() {
   const navigate = useNavigate();
   const [search] = useSearchParams();
+  const { hasPermission } = useAuth();
+  // Recording a payment posts to the ledger and prints a receipt — gated by
+  // fee-payments.create. A view-only viewer can still open the page (it's
+  // public to anyone with fee-payments.view) but the "Take payment" CTA hides.
+  const canTakePayment = hasPermission("fee-payments.create") || hasPermission("fee-payments.manage");
 
   const [students, setStudents] = useState([]);
   const [studentQuery, setStudentQuery] = useState("");
@@ -480,13 +485,19 @@ export default function Cashier() {
                       />
                     </Field>
 
-                    <button
-                      onClick={handleSubmit}
-                      disabled={submitting || totalAllocated <= 0}
-                      className="w-full mt-2 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold disabled:opacity-50"
-                    >
-                      {submitting ? "Recording…" : `Take ${fmtMoney(totalAllocated)} AFN`}
-                    </button>
+                    {canTakePayment ? (
+                      <button
+                        onClick={handleSubmit}
+                        disabled={submitting || totalAllocated <= 0}
+                        className="w-full mt-2 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold disabled:opacity-50"
+                      >
+                        {submitting ? "Recording…" : `Take ${fmtMoney(totalAllocated)} AFN`}
+                      </button>
+                    ) : (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 text-center">
+                        You can view balances but don't have permission to record payments.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

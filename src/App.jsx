@@ -40,6 +40,7 @@ const L = (fn) => {
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Login = lazy(() => import("./pages/Login"));
 const MyProfile = lazy(() => import("./pages/MyProfile"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 // HR — VATS / Welfare / Holidays (new modules)
 const VatsDashboard = lazy(() => import("./pages/hr/VatsDashboard"));
@@ -260,7 +261,7 @@ function App() {
             <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
             <Route path="profile/:userId" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
-            <Route path="settings" element={<Placeholder title="Settings" />} />
+            <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="support" element={<Placeholder title="Support" />} />
 
             {/* Teacher Management */}

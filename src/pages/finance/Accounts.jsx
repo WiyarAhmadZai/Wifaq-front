@@ -13,6 +13,7 @@ import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
 import { DateField } from "../../components/hr/HrUI";
+import { useAuth } from "../../admin/context/AuthContext";
 const typeConfig = {
   bank:    { label: "Bank",    color: "bg-blue-50 text-blue-700 border-blue-200",       icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z", iconBg: "bg-blue-100 text-blue-600" },
   cash:    { label: "Cash",    color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z", iconBg: "bg-emerald-100 text-emerald-600" },
@@ -38,6 +39,11 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 
 export default function Accounts() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const can = (action) => hasPermission(`accounts.${action}`) || hasPermission("accounts.manage");
+  const canCreate = can("create");
+  const canUpdate = can("update");
+  const canDelete = can("delete");
   const [items, setItems] = useState([]);
   const [chart, setChart] = useState([]);          // chart_of_accounts rows → code → id lookup
   const [loading, setLoading] = useState(false);
@@ -112,13 +118,15 @@ export default function Accounts() {
           <h2 className="text-base font-bold text-gray-800">Accounts</h2>
           <p className="text-xs text-gray-500">Bank accounts, cash boxes, and digital wallets. Use Deposit / Withdraw / Transfer to move money.</p>
         </div>
-        <button onClick={() => navigate("/finance/accounts/create")}
-          className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Account
-        </button>
+        {canCreate && (
+          <button onClick={() => navigate("/finance/accounts/create")}
+            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Account
+          </button>
+        )}
       </div>
 
       {/* Summary */}
@@ -163,42 +171,50 @@ export default function Accounts() {
                 <p className="text-[10px] text-gray-400 mt-1">Opening: {fmt(acc.opening_balance)} AFN</p>
               </div>
 
-              {/* Money actions */}
-              <div className="grid grid-cols-3 gap-1.5 mb-2">
-                <button onClick={() => setModal({ kind: "deposit", account: acc })}
-                  className="py-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 flex items-center justify-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m-7 7l7-7 7 7" /></svg>
-                  Deposit
-                </button>
-                <button onClick={() => setModal({ kind: "withdraw", account: acc })}
-                  className="py-1.5 text-[10px] font-semibold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 flex items-center justify-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m-7-7l7 7 7-7" /></svg>
-                  Withdraw
-                </button>
-                <button onClick={() => setModal({ kind: "transfer", account: acc })}
-                  className="py-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m-4 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                  Transfer
-                </button>
-              </div>
+              {/* Money actions — only show if user can post movements */}
+              {canCreate && (
+                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                  <button onClick={() => setModal({ kind: "deposit", account: acc })}
+                    className="py-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 flex items-center justify-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m-7 7l7-7 7 7" /></svg>
+                    Deposit
+                  </button>
+                  <button onClick={() => setModal({ kind: "withdraw", account: acc })}
+                    className="py-1.5 text-[10px] font-semibold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 flex items-center justify-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m-7-7l7 7 7-7" /></svg>
+                    Withdraw
+                  </button>
+                  <button onClick={() => setModal({ kind: "transfer", account: acc })}
+                    className="py-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m-4 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    Transfer
+                  </button>
+                </div>
+              )}
 
               <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100">
                 <button onClick={() => setModal({ kind: "movements", account: acc })} className="flex-1 py-1 text-[10px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100">History</button>
-                <button onClick={() => navigate(`/finance/accounts/edit/${acc.id}`)} className="flex-1 py-1 text-[10px] font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100">Edit</button>
-                <button onClick={() => handleDelete(acc.id)} className="flex-1 py-1 text-[10px] font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">Delete</button>
+                {canUpdate && (
+                  <button onClick={() => navigate(`/finance/accounts/edit/${acc.id}`)} className="flex-1 py-1 text-[10px] font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100">Edit</button>
+                )}
+                {canDelete && (
+                  <button onClick={() => handleDelete(acc.id)} className="flex-1 py-1 text-[10px] font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">Delete</button>
+                )}
               </div>
             </div>
           );
         })}
 
         {/* Add new card */}
-        <button onClick={() => navigate("/finance/accounts/create")}
-          className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-teal-400 hover:bg-teal-50 transition-all text-gray-400 hover:text-teal-600 min-h-[180px]">
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-xs font-medium">Add New Account</span>
-        </button>
+        {canCreate && (
+          <button onClick={() => navigate("/finance/accounts/create")}
+            className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:border-teal-400 hover:bg-teal-50 transition-all text-gray-400 hover:text-teal-600 min-h-[180px]">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="text-xs font-medium">Add New Account</span>
+          </button>
+        )}
       </div>
 
       {loading && <p className="text-center text-xs text-gray-400 py-4">Loading…</p>}

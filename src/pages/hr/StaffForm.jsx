@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, API_BASE_URL } from "../../api/axios";
+import { listDepartments } from "../../api/departments";
 import Swal from "sweetalert2";
 
 const STEPS = [
@@ -120,18 +121,20 @@ export default function StaffForm() {
   const [hiredApplicants, setHiredApplicants] = useState([]);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   const [form, setForm] = useState({
     application_id: "",
     father_name: "", blood_type: "",
     profile_photo: null,
-    branch_id: "", job_requisition_id: "",
+    branch_id: "", department_id: "", job_requisition_id: "",
     role_title_en: "", status: "active",
   });
 
   useEffect(() => {
     fetchHiredApplicants();
     fetchBranches();
+    fetchDepartments();
     if (isEdit) loadStaff();
   }, [id]);
 
@@ -150,6 +153,15 @@ export default function StaffForm() {
     try { const res = await get('/branches/list'); setBranches(res.data?.data || res.data || []); } catch { setBranches([]); }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const res = await listDepartments({ active_only: 1 });
+      setDepartments(res.data?.data || res.data || []);
+    } catch {
+      setDepartments([]);
+    }
+  };
+
   const loadStaff = async () => {
     setLoading(true);
     try {
@@ -162,6 +174,7 @@ export default function StaffForm() {
         blood_type: d.blood_type || "",
         branch_id: d.branch_id || "",
         department: d.department || "",
+        department_id: d.department_id || "",
         role_title_en: d.role_title_en || "",
         contract_type: d.contract_type || "",
         status: d.status || "active",
@@ -480,7 +493,12 @@ export default function StaffForm() {
                 </div>
                 <div>
                   <Label>Department</Label>
-                  <input type="text" value={selectedApplicant?.department || "—"} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
+                  <SearchSelect
+                    options={departments.map(d => ({ value: d.id, label: d.name }))}
+                    value={form.department_id}
+                    onChange={v => set('department_id', v)}
+                    placeholder={selectedApplicant?.department ? `From requisition: ${selectedApplicant.department}` : "Select department..."}
+                  />
                 </div>
                 <div>
                   <Label>Position Title</Label>
@@ -505,7 +523,7 @@ export default function StaffForm() {
                   { label: "Email", value: selectedApplicant?.email },
                   { label: "Phone", value: selectedApplicant?.contact_number },
                   { label: "Position", value: form.role_title_en },
-                  { label: "Department", value: selectedApplicant?.department },,
+                  { label: "Department", value: departments.find(d => String(d.id) === String(form.department_id))?.name || selectedApplicant?.department },
                   { label: "Branch", value: branches.find(b => String(b.id) === String(form.branch_id))?.name },
                   { label: "Contract Type", value: CONTRACT_LABELS[selectedApplicant?.employment_type] || selectedApplicant?.employment_type },
                   { label: "Father's Name", value: form.father_name },

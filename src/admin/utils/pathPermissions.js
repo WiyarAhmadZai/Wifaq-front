@@ -18,6 +18,9 @@ const RULES = [
   // Branches
   { prefix: "/branches", permission: "branches.view" },
 
+  // Recruitment — position titles
+  { prefix: "/recruitment/position-titles", permission: "position-titles.view" },
+
   // Teacher management
   { prefix: "/teacher-management/teachers", permission: "teachers.view" },
 
@@ -33,6 +36,7 @@ const RULES = [
   { prefix: "/hr/staff-logs", permission: "staff-logs.view" },
   { prefix: "/hr/staff-task", permission: "staff-task.view" },
   { prefix: "/hr/staff", permission: "staff.view" },
+  { prefix: "/hr/departments", permission: "departments.view" },
   { prefix: "/hr/contracts", permission: "contracts.view" },
   { prefix: "/hr/vendor-contracts", permission: "vendor-contracts.view" },
   { prefix: "/hr/agreements", permission: "agreements.view" },

@@ -347,6 +347,8 @@ function NotificationBell() {
   const ref = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
+    // Don't poll while the tab is in the background — it just adds load.
+    if (document.hidden) return;
     try {
       const res = await get("/notifications");
       const data = res.data;
@@ -359,8 +361,9 @@ function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll every 15 seconds so new notifications appear quickly.
-    const interval = setInterval(fetchNotifications, 15000);
+    // Poll once a minute (was 15s — too chatty). Tab-focus + in-app events
+    // already refresh instantly, so a slower poll loses nothing.
+    const interval = setInterval(fetchNotifications, 60000);
 
     // Listen for in-app events (e.g. after approve/reject in this same tab)
     // and refresh immediately — no waiting for the next poll cycle.
@@ -714,6 +717,7 @@ export default function Layout() {
   ];
 
   const recruitmentMenus = [
+    { label: "Position Titles", path: "/recruitment/position-titles", permission: "position-titles.view" },
     { label: "Job Applications", path: "/recruitment/job-requisitions", permission: "job-requisitions.view" },
     { label: "Job Postings", path: "/recruitment/job-postings", permission: "job-postings.view" },
     { label: "Applications", path: "/recruitment/applications", permission: "applications.view" },
@@ -737,6 +741,9 @@ export default function Layout() {
 
   const branchesMenus = [
     { label: "Branches", path: "/branches", permission: "branches.view" },
+  ];
+  const departmentsMenus = [
+    { label: "Departments", path: "/hr/departments", permission: "departments.view" },
   ];
   const teacherMenus = [
     { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
@@ -861,7 +868,7 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
-          {(canSeeGroup(branchesMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
+          {(canSeeGroup(branchesMenus) || canSeeGroup(departmentsMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
           {canSeeGroup(branchesMenus) && (
             <ParentMenu
               icon={Icons.Departments}
@@ -870,6 +877,25 @@ export default function Layout() {
               onClick={() => toggleMenu("branches")}
             >
               {visible(branchesMenus).map((item) => (
+                <SubMenuItem
+                  key={item.path}
+                  label={item.label}
+                  to={item.path}
+                  active={isActive(item.path)}
+                  onClick={closeSidebar}
+                />
+              ))}
+            </ParentMenu>
+          )}
+
+          {canSeeGroup(departmentsMenus) && (
+            <ParentMenu
+              icon={Icons.Departments}
+              label="Departments"
+              isOpen={openMenu.includes("departments")}
+              onClick={() => toggleMenu("departments")}
+            >
+              {visible(departmentsMenus).map((item) => (
                 <SubMenuItem
                   key={item.path}
                   label={item.label}
@@ -1216,7 +1242,7 @@ export default function Layout() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
-          <Suspense key={location.pathname} fallback={<PageFallback />}>
+          <Suspense fallback={<PageFallback />}>
             <PathPermissionGate>
               <Outlet />
             </PathPermissionGate>

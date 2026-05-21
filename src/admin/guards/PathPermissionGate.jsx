@@ -22,9 +22,15 @@ export default function PathPermissionGate({ children }) {
   // a ping-pong loop with /login (which redirects back to / when token is set).
   const hasToken = Boolean(localStorage.getItem("token"));
   if (loading || (hasToken && !user)) {
+    // Identical markup/size/position to App PageLoader & Layout PageFallback
+    // so the auth → chunk → data phases overlay in the SAME spot — the user
+    // sees one steady spinner instead of it jumping down 2–3 times.
     return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-teal-100 border-t-teal-600" />
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600" />
+          <span className="text-gray-400 text-xs">Loading...</span>
+        </div>
       </div>
     );
   }

@@ -47,7 +47,7 @@ export default function Dashboard() {
     );
   }
 
-  const { me, overview, hr, vats, welfare, leave, recruitment, finance, me_section, charts, recent_activity } = data;
+  const { me, overview, hr, vats, welfare, leave, recruitment, finance, income_expense, me_section, charts, recent_activity } = data;
   const roleLabel = me.is_super_admin ? "Super Admin"
     : me.is_hr ? "HR / Admin"
     : me.is_finance ? "Finance"
@@ -161,12 +161,65 @@ export default function Dashboard() {
 
           {finance && (
             <Section title="Finance" icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1" onClick={() => navigate("/finance/fee-payments")} cta="Open →">
-              <Row label="Revenue this month"  value={`${(finance.fee_revenue_month || 0).toLocaleString()} AFN`} highlight="emerald" />
-              <Row label="Revenue all time"    value={`${(finance.fee_revenue_total || 0).toLocaleString()} AFN`} />
-              <Row label="Outstanding fees"    value={`${(finance.outstanding_fees  || 0).toLocaleString()} AFN`} highlight={(finance.outstanding_fees || 0) > 0 ? "red" : null} />
+              <Row
+                label="Revenue this month"
+                value={`${(finance.fee_revenue_month || 0).toLocaleString()} AFN`}
+                highlight="emerald"
+                onClick={() => {
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, "0");
+                  const last = String(new Date(y, now.getMonth() + 1, 0).getDate()).padStart(2, "0");
+                  navigate(`/finance/fee-payments?from_date=${y}-${m}-01&to_date=${y}-${m}-${last}`);
+                }}
+              />
+              <Row
+                label="Revenue all time"
+                value={`${(finance.fee_revenue_total || 0).toLocaleString()} AFN`}
+                onClick={() => navigate("/finance/fee-payments")}
+              />
+              <Row
+                label="Outstanding fees"
+                value={`${(finance.outstanding_fees  || 0).toLocaleString()} AFN`}
+                highlight={(finance.outstanding_fees || 0) > 0 ? "red" : null}
+                onClick={() => navigate("/finance/fee-invoices?status=outstanding")}
+              />
             </Section>
           )}
         </div>
+
+        {/* ─── Income & Expense (admins only) ─── */}
+        {income_expense && (
+          <div className="mb-5">
+            <Section
+              title="Income & Expense"
+              icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              onClick={() => navigate("/finance/reports/leadership")}
+              cta="Open report →"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <IncomeExpenseCard
+                  title="Today"
+                  subtitle={income_expense.period?.daily_label}
+                  data={income_expense.daily}
+                  onClick={() => navigate("/finance/journal-entries")}
+                />
+                <IncomeExpenseCard
+                  title="This month"
+                  subtitle={income_expense.period?.monthly_label}
+                  data={income_expense.monthly}
+                  onClick={() => navigate("/finance/reports/leadership")}
+                />
+                <IncomeExpenseCard
+                  title="This quarter"
+                  subtitle={income_expense.period?.quarterly_label}
+                  data={income_expense.quarterly}
+                  onClick={() => navigate("/finance/reports/leadership")}
+                />
+              </div>
+            </Section>
+          </div>
+        )}
 
         {/* ─── Departments + Recent activity ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -260,7 +313,7 @@ function MiniStat({ label, value, tone }) {
   );
 }
 
-function Row({ label, value, highlight }) {
+function Row({ label, value, highlight, onClick }) {
   const tones = {
     emerald: "text-emerald-600",
     amber:   "text-amber-600",
@@ -268,10 +321,49 @@ function Row({ label, value, highlight }) {
     blue:    "text-blue-600",
     teal:    "text-teal-600",
   };
+  const clickable = typeof onClick === "function";
   return (
-    <div className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-500">{label}</span>
+    <div
+      onClick={onClick}
+      className={`flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0 ${clickable ? "cursor-pointer hover:bg-teal-50/40 -mx-2 px-2 rounded-md transition-colors group" : ""}`}
+    >
+      <span className={`text-xs ${clickable ? "text-teal-700" : "text-gray-500"}`}>{label}</span>
       <span className={`text-sm font-bold ${highlight ? tones[highlight] : "text-gray-800"}`}>{value ?? "—"}</span>
+    </div>
+  );
+}
+
+function IncomeExpenseCard({ title, subtitle, data, onClick }) {
+  const income  = Number(data?.income  || 0);
+  const expense = Number(data?.expense || 0);
+  const net     = Number(data?.net     ?? (income - expense));
+  const netTone = net > 0 ? "text-emerald-700" : net < 0 ? "text-red-700" : "text-gray-700";
+  const netBg   = net > 0 ? "bg-emerald-50 ring-emerald-200" : net < 0 ? "bg-red-50 ring-red-200" : "bg-gray-50 ring-gray-200";
+  return (
+    <div
+      onClick={onClick}
+      className={`rounded-xl border border-gray-100 p-3 ${onClick ? "cursor-pointer hover:border-teal-300 hover:shadow-sm transition" : ""}`}
+    >
+      <div className="flex items-baseline justify-between">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-700">{title}</p>
+        {subtitle && <p className="text-[10px] text-gray-400">{subtitle}</p>}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="rounded-lg p-2 bg-emerald-50 ring-1 ring-emerald-100">
+          <p className="text-[9px] font-bold uppercase text-emerald-700">Income</p>
+          <p className="text-base font-black text-emerald-800 mt-0.5">{income.toLocaleString()} <span className="text-[10px] font-normal text-emerald-600">AFN</span></p>
+        </div>
+        <div className="rounded-lg p-2 bg-red-50 ring-1 ring-red-100">
+          <p className="text-[9px] font-bold uppercase text-red-700">Expense</p>
+          <p className="text-base font-black text-red-800 mt-0.5">{expense.toLocaleString()} <span className="text-[10px] font-normal text-red-600">AFN</span></p>
+        </div>
+      </div>
+      <div className={`mt-2 rounded-lg p-2 ring-1 ${netBg} flex items-baseline justify-between`}>
+        <p className="text-[9px] font-bold uppercase text-gray-600">Net</p>
+        <p className={`text-sm font-black ${netTone}`}>
+          {net >= 0 ? "+" : "−"}{Math.abs(net).toLocaleString()} <span className="text-[10px] font-normal text-gray-500">AFN</span>
+        </p>
+      </div>
     </div>
   );
 }

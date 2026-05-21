@@ -5,6 +5,7 @@ import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
 import Select2 from '../components/hr/Select2';
 import { fmtDate } from '../utils/formErrors';
+import { listDepartments } from '../api/departments';
 
 const CONTRACT_LABELS = {
   full_time: "Full Time", part_time: "Part Time", contract: "Contract",
@@ -334,6 +335,7 @@ export default function MyProfile() {
           onSave={async (form) => {
             const ok = await updateSection({
               'staff_data.department': form.department,
+              'staff_data.department_id': form.department_id || null,
               'staff_data.role_title_en': form.role_title_en,
               'staff_data.contract_type': form.contract_type,
               'staff_data.status': form.status,
@@ -898,8 +900,10 @@ function ContactModal({ profile, onClose, onSave, saving }) {
 
 function EmploymentModal({ profile, onClose, onSave, saving }) {
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [form, setForm] = useState({
     department: profile.staff?.department || '',
+    department_id: profile.staff?.department_id || '',
     role_title_en: profile.staff?.role_title_en || '',
     contract_type: profile.staff?.contract_type || '',
     status: profile.staff?.status || '',
@@ -908,6 +912,9 @@ function EmploymentModal({ profile, onClose, onSave, saving }) {
 
   useEffect(() => {
     get('/branches/list').then(r => setBranches(r.data?.data || r.data || [])).catch(() => setBranches([]));
+    listDepartments({ active_only: 1 })
+      .then(r => setDepartments(r.data?.data || r.data || []))
+      .catch(() => setDepartments([]));
   }, []);
 
   return (
@@ -915,7 +922,12 @@ function EmploymentModal({ profile, onClose, onSave, saving }) {
       <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} className="space-y-3">
         <div>
           <label className={lbl}>Department</label>
-          <input className={inp} value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+          <Select2
+            value={form.department_id}
+            onChange={(v) => setForm({ ...form, department_id: v })}
+            options={departments.map(d => ({ value: d.id, label: d.name }))}
+            placeholder="Search department…"
+          />
         </div>
         <div>
           <label className={lbl}>Branch</label>

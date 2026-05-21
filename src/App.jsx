@@ -140,6 +140,10 @@ const TeachersShow = lazy(() => import("./pages/teacher-management/teacher/Teach
 const Branches = lazy(() => import("./pages/branches/Branches"));
 const BranchForm = lazy(() => import("./pages/branches/BranchForm"));
 const BranchShow = lazy(() => import("./pages/branches/BranchShow"));
+const Departments = lazy(() => import("./pages/hr/Departments"));
+const DepartmentForm = lazy(() => import("./pages/hr/DepartmentForm"));
+const PositionTitles = lazy(() => import("./pages/recruitment/PositionTitles"));
+const PositionTitleForm = lazy(() => import("./pages/recruitment/PositionTitleForm"));
 
 // Class Management
 const Classes = lazy(() => import("./pages/class-management/Classes"));
@@ -260,7 +264,7 @@ function App() {
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-            <Route path="departments" element={<Placeholder title="Departments" />} />
+            <Route path="departments" element={<Navigate to="/hr/departments" replace />} />
             <Route path="payroll" element={<Placeholder title="Payroll" />} />
             <Route path="leave-requests" element={<Placeholder title="Leave Requests" />} />
             <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
@@ -281,6 +285,12 @@ function App() {
             <Route path="branches/create" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/edit/:id" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/show/:id" element={<Suspense fallback={<PageLoader />}><BranchShow /></Suspense>} />
+            <Route path="hr/departments" element={<Suspense fallback={<PageLoader />}><Departments /></Suspense>} />
+            <Route path="hr/departments/create" element={<Suspense fallback={<PageLoader />}><DepartmentForm /></Suspense>} />
+            <Route path="hr/departments/edit/:id" element={<Suspense fallback={<PageLoader />}><DepartmentForm /></Suspense>} />
+            <Route path="recruitment/position-titles" element={<Suspense fallback={<PageLoader />}><PositionTitles /></Suspense>} />
+            <Route path="recruitment/position-titles/create" element={<Suspense fallback={<PageLoader />}><PositionTitleForm /></Suspense>} />
+            <Route path="recruitment/position-titles/edit/:id" element={<Suspense fallback={<PageLoader />}><PositionTitleForm /></Suspense>} />
             <Route path="class-management/classes" element={<Suspense fallback={<PageLoader />}><Classes /></Suspense>} />
             <Route path="class-management/classes/create" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />
             <Route path="class-management/classes/edit/:id" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { getFeePayments } from "../../api/financial";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -12,6 +12,10 @@ const methodLabels = {
 
 export default function FeePayments() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const fromDate = searchParams.get("from_date") || "";
+  const toDate = searchParams.get("to_date") || "";
+
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +24,10 @@ export default function FeePayments() {
     (async () => {
       setLoading(true);
       try {
-        const res = await getFeePayments({ per_page: 50 });
+        const params = { per_page: 50 };
+        if (fromDate) params.from_date = fromDate;
+        if (toDate) params.to_date = toDate;
+        const res = await getFeePayments(params);
         const raw = res.data?.data;
         const rows = raw?.data ?? raw ?? [];
         if (!cancelled) {
@@ -36,7 +43,16 @@ export default function FeePayments() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fromDate, toDate]);
+
+  const clearDateFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("from_date");
+    next.delete("to_date");
+    setSearchParams(next);
+  };
+
+  const totalShown = payments.reduce((s, p) => s + Number(p.amount_paid || 0), 0);
 
   const badge = (method) => {
     const label = methodLabels[method] || method;
@@ -53,7 +69,7 @@ export default function FeePayments() {
 
   return (
     <div className="px-4 py-4 mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-bold text-gray-800">Fee payments</h2>
           <p className="text-xs text-gray-500 mt-0.5">Receipts applied to student fee invoices</p>
@@ -66,6 +82,32 @@ export default function FeePayments() {
           Take payment
         </button>
       </div>
+
+      {(fromDate || toDate) && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+          <div className="flex items-center gap-2 text-xs text-emerald-800">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>
+              Filtered:&nbsp;
+              <strong>{fromDate ? fmtDate(fromDate) : "…"} → {toDate ? fmtDate(toDate) : "…"}</strong>
+              {!loading && (
+                <span className="ml-2 text-emerald-700">
+                  · {payments.length} payment{payments.length === 1 ? "" : "s"} · {totalShown.toLocaleString()} AFN
+                </span>
+              )}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={clearDateFilter}
+            className="text-[11px] font-semibold text-emerald-700 hover:underline"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">

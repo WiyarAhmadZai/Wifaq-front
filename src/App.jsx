@@ -166,6 +166,7 @@ const JobPostingShow = lazy(() => import("./pages/recruitment/JobPostingShow"));
 const Applications = lazy(() => import("./pages/recruitment/Applications"));
 const ApplicationForm = lazy(() => import("./pages/recruitment/ApplicationForm"));
 const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow"));
+const PublicApplicationForm = lazy(() => import("./pages/recruitment/PublicApplicationForm"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
 const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolShow"));
@@ -252,6 +253,10 @@ function App() {
           <Routes>
             <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
             <Route path="/403" element={<Suspense fallback={<PageLoader />}><Forbidden /></Suspense>} />
+
+            {/* Public careers page — shareable link, no login required */}
+            <Route path="/careers/apply" element={<Suspense fallback={<PageLoader />}><PublicApplicationForm /></Suspense>} />
+            <Route path="/apply" element={<Navigate to="/careers/apply" replace />} />
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />

@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
 import { DateField } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
 const ROLE_OPTIONS = ["Coordinator", "Welcoming", "Hospitality", "Registration", "Speaker", "Security", "Logistics", "Photography", "IT Support", "Other"];
 
 export default function EventForm() {
@@ -17,6 +18,7 @@ export default function EventForm() {
   const [roles, setRoles] = useState([]);
   const [requirements, setRequirements] = useState([{ description: "", assigned_to_id: "" }]);
   const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,13 +30,38 @@ export default function EventForm() {
   useEffect(() => { fetchUsers(); if (isEdit) loadEvent(); }, [id]);
 
   const fetchUsers = async () => {
+    setUsersLoading(true);
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const bp = user.branch_id ? `&branch_id=${user.branch_id}` : "";
-      const res = await get(`/hr/staff/list?per_page=1000&status=active${bp}`);
-      const data = res.data?.data || res.data || [];
-      setUsers(Array.isArray(data) ? data.map((s) => ({ id: s.id, name: s.application?.full_name || s.full_name || `Staff #${s.employee_id}`, employee_id: s.employee_id, department: s.department || "" })) : []);
-    } catch { setUsers([]); }
+      // Paginated response — peel both possible shapes. No branch filter, the
+      // backend already scopes by the caller's branch when appropriate.
+      const res = await get(`/hr/staff/list?per_page=1000&status=active`);
+      const raw = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+      const data = Array.isArray(raw) ? raw : [];
+      // Backend FKs (main_responsible_id, event_roles.user_id,
+      // event_requirements.assigned_to_id) all point at users.id, so we use
+      // staff.user_id — not staff.id. Staff with no linked user account are
+      // skipped (they have no inbox to receive event role assignments).
+      const withUser = data
+        .filter((s) => s.user_id)
+        .map((s) => ({
+          id: s.user_id,
+          name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+          employee_id: s.employee_id || "",
+          department: s.department || s.department_relation?.name || "",
+          department_id: s.department_id || null,
+        }));
+      if (data.length > 0 && withUser.length === 0) {
+        console.warn(
+          `EventForm: ${data.length} active staff were returned but none have a linked user account. Run migrate:fresh --seed to relink them.`
+        );
+      }
+      setUsers(withUser);
+    } catch (e) {
+      console.error("EventForm fetchUsers failed:", e);
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
   };
 
   const loadEvent = async () => {
@@ -54,7 +81,7 @@ export default function EventForm() {
   // Roles
   const addRole = () => {
     if (!roleForm.user_id || !roleForm.role_name) { Swal.fire("Required", "Select a person and role", "warning"); return; }
-    const user = users.find((u) => u.id === Number(roleForm.user_id));
+    const user = users.find((u) => String(u.id) === String(roleForm.user_id));
     setRoles((p) => [...p, { ...roleForm, userName: user?.name || "" }]);
     setRoleForm({ user_id: "", role_name: "", notes: "" });
     setShowRoleForm(false);
@@ -133,10 +160,15 @@ export default function EventForm() {
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Main Responsible</label>
-              <select name="main_responsible_id" value={form.main_responsible_id} onChange={handle} className={ic("main_responsible_id")}>
-                <option value="">Select person in charge...</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
+              <Select2
+                value={form.main_responsible_id}
+                onChange={(v) => setForm((p) => ({ ...p, main_responsible_id: v }))}
+                options={users.map((u) => ({
+                  value: u.id,
+                  label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+                }))}
+                placeholder={usersLoading ? "Loading staff…" : users.length ? "Select person in charge…" : "No staff available (run migrate:fresh --seed to link users)"}
+              />
             </div>
             {isEdit && (
               <div>
@@ -187,19 +219,26 @@ export default function EventForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-semibold text-teal-700 mb-1">Person *</label>
-                    <select value={roleForm.user_id} onChange={(e) => setRoleForm((p) => ({ ...p, user_id: e.target.value }))}
-                      className="w-full px-2.5 py-2 border border-teal-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-400 focus:outline-none bg-white">
-                      <option value="">Select person...</option>
-                      {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={roleForm.user_id}
+                      onChange={(v) => setRoleForm((p) => ({ ...p, user_id: v }))}
+                      options={users.map((u) => ({
+                        value: u.id,
+                        label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+                      }))}
+                      placeholder={usersLoading ? "Loading…" : users.length ? "Search staff…" : "No staff"}
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-teal-700 mb-1">Role *</label>
-                    <select value={roleForm.role_name} onChange={(e) => setRoleForm((p) => ({ ...p, role_name: e.target.value }))}
-                      className="w-full px-2.5 py-2 border border-teal-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-400 focus:outline-none bg-white">
-                      <option value="">Select role...</option>
-                      {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={roleForm.role_name}
+                      onChange={(v) => setRoleForm((p) => ({ ...p, role_name: v }))}
+                      options={ROLE_OPTIONS.map((r) => ({ value: r, label: r }))}
+                      placeholder="Select role…"
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-teal-700 mb-1">Instructions</label>
@@ -274,11 +313,16 @@ export default function EventForm() {
                       placeholder="What is needed..." className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-amber-400 focus:outline-none" />
                   </div>
                   <div>
-                    <select value={req.assigned_to_id} onChange={(e) => handleReqChange(i, "assigned_to_id", e.target.value)}
-                      className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-amber-400 focus:outline-none">
-                      <option value="">Assign to...</option>
-                      {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={req.assigned_to_id}
+                      onChange={(v) => handleReqChange(i, "assigned_to_id", v)}
+                      options={users.map((u) => ({
+                        value: u.id,
+                        label: `${u.name}${u.department ? ` · ${u.department}` : ""}`,
+                      }))}
+                      placeholder={usersLoading ? "Loading…" : users.length ? "Assign to…" : "No staff"}
+                    />
                   </div>
                 </div>
                 {requirements.length > 1 && (

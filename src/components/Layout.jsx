@@ -347,6 +347,8 @@ function NotificationBell() {
   const ref = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
+    // Don't poll while the tab is in the background — it just adds load.
+    if (document.hidden) return;
     try {
       const res = await get("/notifications");
       const data = res.data;
@@ -359,8 +361,9 @@ function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll every 15 seconds so new notifications appear quickly.
-    const interval = setInterval(fetchNotifications, 15000);
+    // Poll once a minute (was 15s — too chatty). Tab-focus + in-app events
+    // already refresh instantly, so a slower poll loses nothing.
+    const interval = setInterval(fetchNotifications, 60000);
 
     // Listen for in-app events (e.g. after approve/reject in this same tab)
     // and refresh immediately — no waiting for the next poll cycle.
@@ -1219,7 +1222,7 @@ export default function Layout() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
-          <Suspense key={location.pathname} fallback={<PageFallback />}>
+          <Suspense fallback={<PageFallback />}>
             <PathPermissionGate>
               <Outlet />
             </PathPermissionGate>

@@ -43,6 +43,7 @@ export default function Events() {
   if (search) { const q = search.toLowerCase(); filtered = filtered.filter((i) => (i.title || "").toLowerCase().includes(q) || (i.location || "").toLowerCase().includes(q)); }
 
   const formatDate = (d) => d ? fmtDate(d) : "";
+  const monthAbbr = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short" }).toUpperCase() : "";
 
   // ── Calendar helpers ──
   const firstDay = new Date(calYear, calMonth, 1).getDay();
@@ -181,9 +182,9 @@ export default function Events() {
                         <div key={ev.id} onClick={() => navigate(`/hr/events/show/${ev.id}`)}
                           className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
                           <div className={`w-1 h-10 rounded-full ${sc.bar} flex-shrink-0`} />
-                          <div className="w-10 h-10 bg-teal-50 rounded-lg flex flex-col items-center justify-center flex-shrink-0 border border-teal-100">
-                            <span className="text-[8px] font-bold text-teal-600 uppercase">{fmtDate(ev.start_date)}</span>
-                            <span className="text-sm font-black text-teal-700 -mt-0.5">{new Date(ev.start_date).getDate()}</span>
+                          <div className="w-11 h-11 bg-teal-50 rounded-lg flex flex-col items-center justify-center flex-shrink-0 border border-teal-100">
+                            <span className="text-[9px] font-bold text-teal-600 uppercase leading-none">{monthAbbr(ev.start_date)}</span>
+                            <span className="text-base font-black text-teal-700 leading-none mt-0.5">{ev.start_date ? new Date(ev.start_date).getDate() : "—"}</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold text-gray-800 truncate">{ev.title}</p>
@@ -246,8 +247,8 @@ export default function Events() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-12 h-12 bg-teal-50 rounded-xl flex flex-col items-center justify-center flex-shrink-0 border border-teal-100">
-                              <span className="text-[8px] font-bold text-teal-600 uppercase">{ev.start_date ? fmtDate(ev.start_date) : ""}</span>
-                              <span className="text-lg font-black text-teal-700 -mt-0.5">{ev.start_date ? new Date(ev.start_date).getDate() : ""}</span>
+                              <span className="text-[10px] font-bold text-teal-600 uppercase leading-none">{monthAbbr(ev.start_date)}</span>
+                              <span className="text-lg font-black text-teal-700 leading-none mt-0.5">{ev.start_date ? new Date(ev.start_date).getDate() : "—"}</span>
                             </div>
                             <div className="flex-1 min-w-0">
                               <h3 className="text-sm font-bold text-gray-800 truncate">{ev.title}</h3>

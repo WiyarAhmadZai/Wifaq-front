@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, put } from '../../api/axios';
 import Swal from 'sweetalert2';
+
+const RATING_LABELS = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent' };
 
 const DEMO_VENDORS = [
   { id: 1, name: 'ABC Supplies Ltd.', category: 'supplier', work_type: 'Office Supplies', contact: '+93 700 111 222', address: 'Street 1, Kabul', quality_rating: 4, price_rating: 3, deadline_rating: 5, response_rating: 4, payment_terms: 'Net 30', recommended_by: 'Finance Dept', date_engaged: '2025-06-15', notes: '' },
@@ -15,6 +17,11 @@ export default function AddVendor() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+
+  // Rate / set terms modal
+  const [rateFor, setRateFor] = useState(null);   // vendor being rated
+  const [rateForm, setRateForm] = useState({ quality_rating: '', price_rating: '', deadline_rating: '', response_rating: '', payment_terms: '', notes: '' });
+  const [rateBusy, setRateBusy] = useState(false);
 
   useEffect(() => { fetchItems(); }, []);
 
@@ -33,6 +40,42 @@ export default function AddVendor() {
     if (result.isConfirmed) {
       try { await del(`/hr/vendors/${id}`); fetchItems(); } catch { setItems(prev => prev.filter(v => v.id !== id)); }
       Swal.fire({ icon: 'success', title: 'Deleted!', timer: 1500, showConfirmButton: false });
+    }
+  };
+
+  const openRate = (e, vendor) => {
+    e.stopPropagation();
+    setRateFor(vendor);
+    setRateForm({
+      quality_rating: vendor.quality_rating || '',
+      price_rating: vendor.price_rating || '',
+      deadline_rating: vendor.deadline_rating || '',
+      response_rating: vendor.response_rating || '',
+      payment_terms: vendor.payment_terms || '',
+      notes: vendor.notes || '',
+    });
+  };
+
+  const submitRate = async () => {
+    if (!rateFor) return;
+    setRateBusy(true);
+    try {
+      // Strip empty strings so backend nullable-integer validation accepts them.
+      const payload = Object.fromEntries(
+        Object.entries(rateForm).filter(([, v]) => v !== "" && v !== null && v !== undefined)
+      );
+      // Cast numeric ratings to int so the JSON body matches integer rules.
+      ['quality_rating', 'price_rating', 'deadline_rating', 'response_rating'].forEach((k) => {
+        if (payload[k] !== undefined) payload[k] = Number(payload[k]);
+      });
+      await put(`/hr/vendors/${rateFor.id}`, payload);
+      setRateFor(null);
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Ratings & terms saved', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Could not save ratings', 'error');
+    } finally {
+      setRateBusy(false);
     }
   };
 
@@ -137,6 +180,9 @@ export default function AddVendor() {
                           <button onClick={() => navigate(`/hr/add-vendor/edit/${v.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           </button>
+                          <button onClick={(e) => openRate(e, v)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors" title="Rate / set terms">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                          </button>
                           <button onClick={() => handleDelete(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
@@ -157,6 +203,81 @@ export default function AddVendor() {
           </div>
         )}
       </div>
+
+      {/* Rate / set terms modal — replaces the old "Ratings & Terms" step
+          from the create form. Lets you update ratings + payment terms + notes
+          on an existing vendor without going through the multi-step form. */}
+      {rateFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRateFor(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-bold text-gray-800">Rate vendor & set terms</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5 truncate">{rateFor.name}{rateFor.category ? ` · ${rateFor.category}` : ''}</p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { key: 'quality_rating',  label: 'Quality' },
+                  { key: 'price_rating',    label: 'Price Fair' },
+                  { key: 'deadline_rating', label: 'Deadline' },
+                  { key: 'response_rating', label: 'Response' },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{f.label} (1–5)</label>
+                    <select
+                      value={rateForm[f.key]}
+                      onChange={(e) => setRateForm((p) => ({ ...p, [f.key]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white"
+                    >
+                      <option value="">—</option>
+                      {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} — {RATING_LABELS[n]}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Payment Terms</label>
+                <textarea
+                  rows={2}
+                  value={rateForm.payment_terms}
+                  onChange={(e) => setRateForm((p) => ({ ...p, payment_terms: e.target.value }))}
+                  placeholder="e.g. Net 30, 50% upfront"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Notes</label>
+                <textarea
+                  rows={3}
+                  value={rateForm.notes}
+                  onChange={(e) => setRateForm((p) => ({ ...p, notes: e.target.value }))}
+                  placeholder="Additional notes…"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
+              <button
+                onClick={() => setRateFor(null)}
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitRate}
+                disabled={rateBusy}
+                className="flex-1 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50"
+              >
+                {rateBusy ? 'Saving…' : 'Save ratings & terms'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

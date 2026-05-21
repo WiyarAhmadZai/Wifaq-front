@@ -741,6 +741,9 @@ export default function Layout() {
   const branchesMenus = [
     { label: "Branches", path: "/branches", permission: "branches.view" },
   ];
+  const departmentsMenus = [
+    { label: "Departments", path: "/hr/departments", permission: "departments.view" },
+  ];
   const teacherMenus = [
     { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
   ];
@@ -864,7 +867,7 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
-          {(canSeeGroup(branchesMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
+          {(canSeeGroup(branchesMenus) || canSeeGroup(departmentsMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
           {canSeeGroup(branchesMenus) && (
             <ParentMenu
               icon={Icons.Departments}
@@ -873,6 +876,25 @@ export default function Layout() {
               onClick={() => toggleMenu("branches")}
             >
               {visible(branchesMenus).map((item) => (
+                <SubMenuItem
+                  key={item.path}
+                  label={item.label}
+                  to={item.path}
+                  active={isActive(item.path)}
+                  onClick={closeSidebar}
+                />
+              ))}
+            </ParentMenu>
+          )}
+
+          {canSeeGroup(departmentsMenus) && (
+            <ParentMenu
+              icon={Icons.Departments}
+              label="Departments"
+              isOpen={openMenu.includes("departments")}
+              onClick={() => toggleMenu("departments")}
+            >
+              {visible(departmentsMenus).map((item) => (
                 <SubMenuItem
                   key={item.path}
                   label={item.label}

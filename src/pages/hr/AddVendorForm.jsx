@@ -9,10 +9,11 @@ const CATEGORIES = ['Supplier', 'Contractor', 'Consultant', 'Other'];
 const RATINGS = [1, 2, 3, 4, 5];
 const RATING_LABELS = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent' };
 
+// Ratings & Terms used to be Step 3 but it's now handled via the list's
+// "Rate / set terms" action button so the create flow stays short.
 const STEPS = [
   { num: 1, label: "Basic Info", desc: "Name, category & work type", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" },
   { num: 2, label: "Contact & Address", desc: "Contact details & location", icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" },
-  { num: 3, label: "Ratings & Terms", desc: "Performance ratings & payment", icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" },
 ];
 
 const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400';
@@ -125,8 +126,14 @@ export default function AddVendorForm() {
     if (step !== STEPS.length) return;
     setSaving(true);
     try {
-      if (isEdit) await put(`/hr/vendors/${id}`, form);
-      else await post('/hr/vendors', form);
+      // Strip empty strings so backend nullable-integer rules don't reject "".
+      // Ratings / payment_terms / notes are filled in via the list action; the
+      // create flow only touches the first two steps.
+      const payload = Object.fromEntries(
+        Object.entries(form).filter(([, v]) => v !== "" && v !== null && v !== undefined)
+      );
+      if (isEdit) await put(`/hr/vendors/${id}`, payload);
+      else await post('/hr/vendors', payload);
       Swal.fire({ icon: 'success', title: isEdit ? 'Vendor Updated!' : 'Vendor Created!', timer: 2000, showConfirmButton: false });
       navigate('/hr/add-vendor');
     } catch (error) {
@@ -228,57 +235,6 @@ export default function AddVendorForm() {
             </StepCard>
           )}
 
-          {/* Step 3: Ratings & Terms */}
-          {step === 3 && (
-            <StepCard step={cur}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div>
-                  <Label>Quality (1-5)</Label>
-                  <SearchSelect options={RATING_OPTIONS} value={form.quality_rating ? `${form.quality_rating} - ${RATING_LABELS[form.quality_rating]}` : ''} onChange={v => set('quality_rating', v ? parseInt(v) : '')} placeholder="Select rating..." />
-                </div>
-                <div>
-                  <Label>Price Fair (1-5)</Label>
-                  <SearchSelect options={RATING_OPTIONS} value={form.price_rating ? `${form.price_rating} - ${RATING_LABELS[form.price_rating]}` : ''} onChange={v => set('price_rating', v ? parseInt(v) : '')} placeholder="Select rating..." />
-                </div>
-                <div>
-                  <Label>Deadline (1-5)</Label>
-                  <SearchSelect options={RATING_OPTIONS} value={form.deadline_rating ? `${form.deadline_rating} - ${RATING_LABELS[form.deadline_rating]}` : ''} onChange={v => set('deadline_rating', v ? parseInt(v) : '')} placeholder="Select rating..." />
-                </div>
-                <div>
-                  <Label>Response (1-5)</Label>
-                  <SearchSelect options={RATING_OPTIONS} value={form.response_rating ? `${form.response_rating} - ${RATING_LABELS[form.response_rating]}` : ''} onChange={v => set('response_rating', v ? parseInt(v) : '')} placeholder="Select rating..." />
-                </div>
-              </div>
-              <div>
-                <Label required>Payment Terms</Label>
-                <textarea name="payment_terms" value={form.payment_terms} onChange={handle} rows={2} className={`${inp} resize-none`} placeholder="e.g. Net 30, 50% upfront" />
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <textarea name="notes" value={form.notes} onChange={handle} rows={3} className={`${inp} resize-none`} placeholder="Additional notes..." />
-              </div>
-
-              {/* Review Summary */}
-              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
-                <p className="text-xs font-bold text-gray-700">Review Summary</p>
-                {[
-                  { label: 'Name', value: form.name },
-                  { label: 'Category', value: form.category },
-                  { label: 'Work Type', value: form.work_type || '—' },
-                  { label: 'Contact', value: form.contact || '—' },
-                  { label: 'Recommended By', value: form.recommended_by || '—' },
-                  { label: 'Date Engaged', value: form.date_engaged || '—' },
-                  { label: 'Quality', value: form.quality_rating ? `${form.quality_rating} - ${RATING_LABELS[form.quality_rating]}` : '—' },
-                  { label: 'Price', value: form.price_rating ? `${form.price_rating} - ${RATING_LABELS[form.price_rating]}` : '—' },
-                ].map(r => (
-                  <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
-                    <span className="text-xs text-gray-500">{r.label}</span>
-                    <span className="text-xs font-semibold text-gray-800">{r.value}</span>
-                  </div>
-                ))}
-              </div>
-            </StepCard>
-          )}
 
           {/* Navigation */}
           <div className="flex items-center justify-between">

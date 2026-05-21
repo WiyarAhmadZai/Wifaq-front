@@ -167,11 +167,6 @@ export default function Login() {
                 )}
               </button>
             </form>
-
-            <div className="mt-4 text-center text-xs text-gray-500">
-              <p>Default credentials:</p>
-              <p className="font-mono text-[10px] mt-0.5">admin@wifaq.edu / password</p>
-            </div>
           </div>
         </div>
 

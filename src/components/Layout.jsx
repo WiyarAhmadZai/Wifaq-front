@@ -1139,7 +1139,7 @@ export default function Layout() {
             </>
           )}
 
-          {/* <MenuSection title="System" />
+          <MenuSection title="System" />
           <SidebarItem
             icon={Icons.Settings}
             label="Settings"
@@ -1147,13 +1147,6 @@ export default function Layout() {
             active={isActive("/settings")}
             onClick={closeSidebar}
           />
-          <SidebarItem
-            icon={Icons.Support}
-            label="Support"
-            to="/support"
-            active={isActive("/support")}
-            onClick={closeSidebar}
-          /> */}
         </nav>
 
         {/* User Profile */}

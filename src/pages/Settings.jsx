@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Swal from "sweetalert2";
 import {
   readIdleMinutes,
   writeIdleMinutes,
@@ -11,16 +12,39 @@ import {
 const PRESETS = [1, 2, 5, 10, 15, 30, 60, 120];
 
 export default function Settings() {
-  const [minutes, setMinutes] = useState(() => readIdleMinutes());
-  const [savedAt, setSavedAt] = useState(null);
+  // `stored` is what's persisted; `minutes` is the (possibly unsaved) value
+  // in the custom-input box. Splitting them lets us show "unsaved changes"
+  // hint and only mark the row as "saved" when the user actually commits.
+  const [stored, setStored] = useState(() => readIdleMinutes());
+  const [minutes, setMinutes] = useState(stored);
+  const [justSavedValue, setJustSavedValue] = useState(null);
+
+  // Briefly flash the Save button back to its idle state after a confirmation.
+  useEffect(() => {
+    if (justSavedValue === null) return undefined;
+    const t = setTimeout(() => setJustSavedValue(null), 2000);
+    return () => clearTimeout(t);
+  }, [justSavedValue]);
 
   const save = (value) => {
     const safe = writeIdleMinutes(value);
+    setStored(safe);
     setMinutes(safe);
-    setSavedAt(new Date());
+    setJustSavedValue(safe);
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: "success",
+      title: safe === 0
+        ? "Auto sign-out disabled"
+        : `Auto sign-out set to ${formatMinutes(safe)}`,
+      timer: 2000,
+      showConfirmButton: false,
+    });
   };
 
-  const isDisabled = minutes === 0;
+  const isDisabled = stored === 0;
+  const hasUnsaved = minutes !== stored;
 
   return (
     <div className="px-4 py-6 max-w-3xl mx-auto">
@@ -48,12 +72,15 @@ export default function Settings() {
                 Current setting
               </p>
               <p className={`text-2xl font-bold mt-1 ${isDisabled ? "text-gray-400" : "text-teal-700"}`}>
-                {isDisabled ? "Never" : formatMinutes(minutes)}
+                {isDisabled ? "Never" : formatMinutes(stored)}
               </p>
             </div>
-            {savedAt && (
-              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                Saved {savedAt.toLocaleTimeString()}
+            {justSavedValue !== null && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                Saved
               </span>
             )}
           </div>
@@ -63,7 +90,7 @@ export default function Settings() {
           </p>
           <div className="flex flex-wrap gap-2 mb-5">
             {PRESETS.map((p) => {
-              const active = minutes === p;
+              const active = stored === p;
               return (
                 <button
                   key={p}
@@ -106,9 +133,23 @@ export default function Settings() {
               />
               <button
                 onClick={() => save(minutes)}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-semibold"
+                disabled={!hasUnsaved && justSavedValue === null}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                  justSavedValue !== null
+                    ? "bg-emerald-600 text-white"
+                    : hasUnsaved
+                      ? "bg-teal-600 text-white hover:bg-teal-700"
+                      : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                }`}
               >
-                Save
+                {justSavedValue !== null ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Saved
+                  </>
+                ) : hasUnsaved ? "Save changes" : "Saved"}
               </button>
               <button
                 onClick={() => save(DEFAULT_IDLE_MINUTES)}
@@ -118,6 +159,11 @@ export default function Settings() {
                 Reset
               </button>
             </div>
+            {hasUnsaved && (
+              <p className="text-[11px] text-amber-700 mt-2 font-medium">
+                ⚠ Unsaved changes — press <strong>Save changes</strong> to apply.
+              </p>
+            )}
             <p className="text-[10px] text-gray-400 mt-2">
               Enter <strong>0</strong> to disable. Max 720 minutes (12 hours).
             </p>

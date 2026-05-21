@@ -7,6 +7,7 @@ import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import { listDepartments } from "../../api/departments";
 const emptyAgenda = { title: "", description: "", assigned_to_id: "", duration_min: "" };
 
 export default function MeetingForm() {
@@ -22,19 +23,34 @@ export default function MeetingForm() {
     location: "",
     status: "scheduled",
     meeting_type: "routine",
+    recurrence: "",            // "" | weekly | monthly | yearly
+    recurrence_until: "",      // YYYY-MM-DD
   });
 
   const [participants, setParticipants] = useState([]);
   const [agendaItems, setAgendaItems] = useState([{ ...emptyAgenda }]);
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [filterDeptIds, setFilterDeptIds] = useState([]); // department picker for bulk add
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchUsers();
+    fetchDepartments();
     if (isEdit) loadMeeting();
   }, [id]);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await listDepartments({ active_only: 1 });
+      setDepartments(res.data?.data || res.data || []);
+    } catch (e) {
+      console.error("MeetingForm fetchDepartments failed:", e);
+      setDepartments([]);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -43,17 +59,43 @@ export default function MeetingForm() {
       const res = await get(`/hr/staff/list?per_page=1000&status=active`);
       const raw = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
       const data = Array.isArray(raw) ? raw : [];
-      setUsers(data.map((s) => ({
-        id: s.id,
-        name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
-        employee_id: s.employee_id || "",
-        department: s.department || s.department_obj?.name || "",
-      })));
+      // Participants are stored as users (FK to users.id), so we use user_id
+      // here — staff.id and users.id are not the same thing. Staff without a
+      // linked user account are silently excluded (we can't invite them).
+      setUsers(
+        data
+          .filter((s) => s.user_id)
+          .map((s) => ({
+            id: s.user_id,
+            staff_id: s.id,
+            name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+            employee_id: s.employee_id || "",
+            department: s.department || s.department_relation?.name || "",
+            department_id: s.department_id || null,
+          }))
+      );
     } catch (e) {
       console.error("MeetingForm fetchUsers failed:", e);
       setUsers([]);
     }
   };
+
+  // Bulk-add every active staff in the picked departments (skips already-added).
+  const addParticipantsFromDepartments = () => {
+    if (!filterDeptIds.length) return;
+    const want = users.filter((u) => filterDeptIds.includes(u.department_id));
+    if (!want.length) return;
+    setParticipants((prev) => {
+      const existing = new Set(prev.map((p) => p.id));
+      const merged = [...prev];
+      want.forEach((u) => {
+        if (!existing.has(u.id)) merged.push({ id: u.id, name: u.name });
+      });
+      return merged;
+    });
+  };
+
+  const clearAllParticipants = () => setParticipants([]);
 
   const loadMeeting = async () => {
     setLoading(true);
@@ -68,6 +110,8 @@ export default function MeetingForm() {
         location: d.location || "",
         status: d.status || "scheduled",
         meeting_type: d.meeting_type || "routine",
+        recurrence: d.recurrence || "",
+        recurrence_until: d.recurrence_until ? String(d.recurrence_until).substring(0, 10) : "",
       });
       if (d.participants?.length) {
         setParticipants(d.participants.map((p) => ({
@@ -123,8 +167,12 @@ export default function MeetingForm() {
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSaving(true);
+    // Recurrence only makes sense for routine meetings; drop it otherwise.
+    const isRoutine = form.meeting_type === "routine";
     const payload = {
       ...form,
+      recurrence: isRoutine && form.recurrence ? form.recurrence : null,
+      recurrence_until: isRoutine && form.recurrence && form.recurrence_until ? form.recurrence_until : null,
       participants: participants.map((p) => p.id),
       agenda_items: agendaItems.filter((a) => a.title.trim()),
     };
@@ -215,7 +263,7 @@ export default function MeetingForm() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setForm((p) => ({ ...p, meeting_type: "emergency" }))}
+                  onClick={() => setForm((p) => ({ ...p, meeting_type: "emergency", recurrence: "", recurrence_until: "" }))}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 border ${form.meeting_type === "emergency" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:border-red-300"}`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -223,6 +271,44 @@ export default function MeetingForm() {
                 </button>
               </div>
             </div>
+
+            {/* Recurrence — only when this is a routine meeting */}
+            {form.meeting_type === "routine" && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Repeats</label>
+                  <select
+                    name="recurrence"
+                    value={form.recurrence}
+                    onChange={handle}
+                    className={ic("recurrence")}
+                  >
+                    <option value="">Does not repeat</option>
+                    <option value="weekly">Weekly (same day &amp; time)</option>
+                    <option value="monthly">Monthly (same date &amp; time)</option>
+                    <option value="yearly">Yearly (same date &amp; time)</option>
+                  </select>
+                </div>
+                {form.recurrence && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                      Repeat until <span className="text-red-500">*</span>
+                    </label>
+                    <DateField
+                      name="recurrence_until"
+                      value={form.recurrence_until}
+                      onChange={handle}
+                      min={form.start_time ? form.start_time.substring(0, 10) : undefined}
+                      className={ic("recurrence_until")}
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Occurrences will be generated up to and including this date.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
             {isEdit && (
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Status</label>
@@ -252,26 +338,76 @@ export default function MeetingForm() {
               <p className="text-[10px] text-teal-600">{participants.length} member{participants.length !== 1 ? "s" : ""} added</p>
             </div>
           </div>
-          <div className="p-5">
-            <Select2
-              isMulti
-              value={participants.map((p) => p.id)}
-              onChange={(ids) => {
-                const arr = Array.isArray(ids) ? ids : [];
-                setParticipants(arr.map((id) => {
-                  const u = users.find((x) => String(x.id) === String(id));
-                  return { id, name: u?.name || `Staff #${id}` };
-                }));
-              }}
-              options={users.map((u) => ({
-                value: u.id,
-                label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
-              }))}
-              placeholder={users.length ? "Search staff to add as participants…" : "Loading staff…"}
-            />
-            {participants.length === 0 && (
-              <p className="text-xs text-gray-400 italic mt-2">No participants added yet</p>
-            )}
+          <div className="p-5 space-y-3">
+            {/* Bulk-add by department */}
+            <div className="bg-teal-50/40 border border-teal-100 rounded-xl p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700 mb-2">
+                Bulk add by department
+              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <Select2
+                    isMulti
+                    size="sm"
+                    value={filterDeptIds}
+                    onChange={(v) => setFilterDeptIds(Array.isArray(v) ? v : [])}
+                    options={departments.map((d) => ({ value: d.id, label: d.name }))}
+                    placeholder={departments.length ? "Pick one or more departments…" : "Loading departments…"}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={addParticipantsFromDepartments}
+                  disabled={!filterDeptIds.length}
+                  className="px-3 py-2 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add all
+                </button>
+                {participants.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllParticipants}
+                    className="px-3 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:border-red-300 hover:text-red-600"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+              {filterDeptIds.length > 0 && (
+                <p className="text-[10px] text-teal-700 mt-1.5">
+                  {users.filter((u) => filterDeptIds.includes(u.department_id)).length} staff match the selected department{filterDeptIds.length === 1 ? "" : "s"}
+                </p>
+              )}
+            </div>
+
+            {/* Individual picker (also a Select2 — same options, multi-select) */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                Selected participants
+              </p>
+              <Select2
+                isMulti
+                value={participants.map((p) => p.id)}
+                onChange={(ids) => {
+                  const arr = Array.isArray(ids) ? ids : [];
+                  setParticipants(arr.map((id) => {
+                    const u = users.find((x) => String(x.id) === String(id));
+                    return { id, name: u?.name || `Staff #${id}` };
+                  }));
+                }}
+                options={users.map((u) => ({
+                  value: u.id,
+                  label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+                }))}
+                placeholder={users.length ? "Search and pick individual staff…" : "Loading staff…"}
+              />
+              {participants.length === 0 && (
+                <p className="text-xs text-gray-400 italic mt-2">No participants added yet</p>
+              )}
+            </div>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
@@ -6,13 +6,13 @@ import Swal from "sweetalert2";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
 const emptyAgenda = { title: "", description: "", assigned_to_id: "", duration_min: "" };
 
 export default function MeetingForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
-  const participantRef = useRef(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -27,8 +27,6 @@ export default function MeetingForm() {
   const [participants, setParticipants] = useState([]);
   const [agendaItems, setAgendaItems] = useState([{ ...emptyAgenda }]);
   const [users, setUsers] = useState([]);
-  const [participantSearch, setParticipantSearch] = useState("");
-  const [showParticipantDrop, setShowParticipantDrop] = useState(false);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,26 +36,21 @@ export default function MeetingForm() {
     if (isEdit) loadMeeting();
   }, [id]);
 
-  useEffect(() => {
-    const close = (e) => { if (participantRef.current && !participantRef.current.contains(e.target)) setShowParticipantDrop(false); };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
   const fetchUsers = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const branchParam = user.branch_id ? `&branch_id=${user.branch_id}` : "";
-      const res = await get(`/hr/staff/list?per_page=1000&status=active${branchParam}`);
-      const data = res.data?.data || res.data || [];
-      // Map staff to user-like objects for participants
-      setUsers(Array.isArray(data) ? data.map((s) => ({
+      // Paginated list returns { data: [...], current_page, total, ... }.
+      // Asking for a big page so the dropdown has the whole roster.
+      const res = await get(`/hr/staff/list?per_page=1000&status=active`);
+      const raw = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+      const data = Array.isArray(raw) ? raw : [];
+      setUsers(data.map((s) => ({
         id: s.id,
-        name: s.application?.full_name || s.full_name || `Staff #${s.employee_id}`,
-        employee_id: s.employee_id,
-        department: s.department || "",
-      })) : []);
-    } catch {
+        name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+        employee_id: s.employee_id || "",
+        department: s.department || s.department_obj?.name || "",
+      })));
+    } catch (e) {
+      console.error("MeetingForm fetchUsers failed:", e);
       setUsers([]);
     }
   };
@@ -101,23 +94,6 @@ export default function MeetingForm() {
   const handle = (e) => {
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
     if (errors[e.target.name]) setErrors((p) => ({ ...p, [e.target.name]: null }));
-  };
-
-  // Participants
-  const filteredUsers = users.filter((u) => {
-    const q = participantSearch.toLowerCase();
-    const alreadyAdded = participants.some((p) => p.id === u.id);
-    return !alreadyAdded && (!q || u.name.toLowerCase().includes(q) || u.employee_id.toLowerCase().includes(q));
-  });
-
-  const addParticipant = (user) => {
-    setParticipants((p) => [...p, { id: user.id, name: user.name }]);
-    setParticipantSearch("");
-    setShowParticipantDrop(false);
-  };
-
-  const removeParticipant = (userId) => {
-    setParticipants((p) => p.filter((u) => u.id !== userId));
   };
 
   // Agenda
@@ -277,53 +253,24 @@ export default function MeetingForm() {
             </div>
           </div>
           <div className="p-5">
-            {/* Search to add */}
-            <div className="relative mb-3" ref={participantRef}>
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input type="text" value={participantSearch} onChange={(e) => { setParticipantSearch(e.target.value); setShowParticipantDrop(true); }}
-                  onFocus={() => setShowParticipantDrop(true)} placeholder="Search staff to add as participant..."
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 focus:outline-none" />
-              </div>
-              {showParticipantDrop && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-auto">
-                  {filteredUsers.length === 0 ? (
-                    <p className="px-4 py-3 text-xs text-gray-400">No staff available</p>
-                  ) : (
-                    filteredUsers.slice(0, 15).map((u) => (
-                      <div key={u.id} onClick={() => addParticipant(u)}
-                        className="px-4 py-2.5 cursor-pointer hover:bg-teal-50 border-b border-gray-50 last:border-0 flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                          {u.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-800">{u.name}</p>
-                          <p className="text-[10px] text-gray-400">{u.employee_id} · {u.department}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Participant chips */}
-            {participants.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {participants.map((p) => (
-                  <div key={p.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-full">
-                    <div className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[8px] font-bold">
-                      {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                    </div>
-                    <span className="text-[11px] font-medium text-teal-800">{p.name}</span>
-                    <button type="button" onClick={() => removeParticipant(p.id)} className="text-teal-400 hover:text-red-500 ml-0.5">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic">No participants added yet</p>
+            <Select2
+              isMulti
+              value={participants.map((p) => p.id)}
+              onChange={(ids) => {
+                const arr = Array.isArray(ids) ? ids : [];
+                setParticipants(arr.map((id) => {
+                  const u = users.find((x) => String(x.id) === String(id));
+                  return { id, name: u?.name || `Staff #${id}` };
+                }));
+              }}
+              options={users.map((u) => ({
+                value: u.id,
+                label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+              }))}
+              placeholder={users.length ? "Search staff to add as participants…" : "Loading staff…"}
+            />
+            {participants.length === 0 && (
+              <p className="text-xs text-gray-400 italic mt-2">No participants added yet</p>
             )}
           </div>
         </div>
@@ -362,11 +309,13 @@ export default function MeetingForm() {
                   {/* Assigned to */}
                   <div className="sm:col-span-3">
                     <label className="block text-[10px] font-semibold text-gray-500 mb-1">Presenter</label>
-                    <select value={item.assigned_to_id} onChange={(e) => handleAgendaChange(i, "assigned_to_id", e.target.value)}
-                      className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-400 focus:outline-none">
-                      <option value="">Select...</option>
-                      {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={item.assigned_to_id}
+                      onChange={(v) => handleAgendaChange(i, "assigned_to_id", v)}
+                      options={users.map((u) => ({ value: u.id, label: u.name }))}
+                      placeholder={users.length ? "Search staff…" : "Loading…"}
+                    />
                   </div>
                   {/* Duration */}
                   <div className="sm:col-span-2">

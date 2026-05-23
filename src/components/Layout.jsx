@@ -387,17 +387,20 @@ function NotificationBell() {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  // Mark read in the API + REMOVE from the local list so the bell shows only
-  // fresh notifications. The full history is still visible at /finance/inbox.
+  // Mark read in the API but KEEP the row in the local list — the user
+  // asked for the notification to stay visible (just styled as read) instead
+  // of vanishing the moment they click. The badge still decrements.
   const markAsRead = async (id) => {
     try { await put(`/notifications/${id}/read`); } catch {}
-    setNotifications((p) => p.filter((n) => n.id !== id));
+    const nowIso = new Date().toISOString();
+    setNotifications((p) => p.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: nowIso } : n)));
     setUnreadCount((p) => Math.max(0, p - 1));
   };
 
   const markAllRead = async () => {
     try { await put("/notifications/read-all"); } catch {}
-    setNotifications([]);
+    const nowIso = new Date().toISOString();
+    setNotifications((p) => p.map((n) => (n.read_at ? n : { ...n, read_at: nowIso })));
     setUnreadCount(0);
   };
 
@@ -522,12 +525,12 @@ function NotificationBell() {
             )}
           </div>
 
-          {/* List — only unread items are shown in the bell so it always
-              reflects what needs attention. Read history lives at /finance/inbox. */}
+          {/* List — show every notification (read + unread). Clicking marks
+              the row as read but keeps it visible; the dot + bold styling
+              flip off so the user still sees their history at a glance. */}
           <div className="max-h-80 overflow-y-auto">
             {(() => {
-              const unreadOnly = notifications.filter((n) => !n.read_at);
-              if (unreadOnly.length === 0) {
+              if (notifications.length === 0) {
                 return (
                   <div className="px-4 py-8 text-center">
                     <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -537,7 +540,7 @@ function NotificationBell() {
                   </div>
                 );
               }
-              return unreadOnly.map((n) => {
+              return notifications.map((n) => {
                 const icon = getIcon(n.data);
                 const isUnread = !n.read_at;
                 return (

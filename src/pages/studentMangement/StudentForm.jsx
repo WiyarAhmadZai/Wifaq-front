@@ -56,6 +56,11 @@ export default function StudentForm() {
     discount_percent: 0,
     foundation_help_requested: false,
     foundation_help_requested_amount: "",
+    // Admission fee — one-time charge added as a pending charge that gets
+    // rolled into the student's next billing run. Off by default; turning
+    // the radio ON opens the amount input (defaults to 2000 AFN).
+    apply_admission_fee: false,
+    admission_fee: 2000,
   });
 
   const [families, setFamilies] = useState([]);
@@ -214,8 +219,13 @@ export default function StudentForm() {
         employee_parent_staff_id: form.special_status === "employee_child" ? form.employee_parent_staff_id : null,
         foundation_help_requested_amount: form.foundation_help_requested ? form.foundation_help_requested_amount : null,
         child_order_in_family: form.is_fourth_child ? 4 : null,
+        // Only post the admission fee when the user explicitly enabled it.
+        // Backend treats `null` as "no admission charge"; a positive number
+        // queues a one-time pending charge for the next billing run.
+        admission_fee: form.apply_admission_fee ? Number(form.admission_fee) || 0 : null,
       };
       delete payload.is_fourth_child;
+      delete payload.apply_admission_fee;
 
       let savedStudent = null;
       if (isEdit) {
@@ -256,6 +266,8 @@ export default function StudentForm() {
           discount_percent: 0,
           foundation_help_requested: false,
           foundation_help_requested_amount: "",
+          apply_admission_fee: false,
+          admission_fee: 2000,
         });
         setFamilySearch(savedFamilyLabel);
         setFeeBreakdown(null);
@@ -736,6 +748,54 @@ export default function StudentForm() {
                     )}
                   </div>
                 )}
+
+                {/* ━━━━━━━ 5. ADMISSION FEE (one-time charge) ━━━━━━━
+                    A radio-style toggle: OFF by default → no admission fee.
+                    Turn it ON to apply one. The amount input only shows
+                    when the toggle is on. The backend queues this as a
+                    pending charge that's billed on the next invoice run. */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase">Admission Fee (one-time)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button"
+                      onClick={() => set("apply_admission_fee", false)}
+                      className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all flex items-center gap-2
+                        ${!form.apply_admission_fee
+                          ? "bg-gray-100 border-gray-400 text-gray-800 ring-2 ring-gray-200"
+                          : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"}`}>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                        ${!form.apply_admission_fee ? "border-gray-700" : "border-gray-300"}`}>
+                        {!form.apply_admission_fee && <span className="w-2 h-2 rounded-full bg-gray-700" />}
+                      </span>
+                      No admission fee
+                    </button>
+                    <button type="button"
+                      onClick={() => set("apply_admission_fee", true)}
+                      className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all flex items-center gap-2
+                        ${form.apply_admission_fee
+                          ? "bg-teal-50 border-teal-500 text-teal-800 ring-2 ring-teal-200"
+                          : "bg-white border-gray-200 text-gray-500 hover:border-teal-300"}`}>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                        ${form.apply_admission_fee ? "border-teal-600" : "border-gray-300"}`}>
+                        {form.apply_admission_fee && <span className="w-2 h-2 rounded-full bg-teal-600" />}
+                      </span>
+                      Apply admission fee
+                    </button>
+                  </div>
+
+                  {form.apply_admission_fee && (
+                    <div className="pt-2">
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Amount (AFN)</label>
+                      <input type="number" name="admission_fee" value={form.admission_fee}
+                        onChange={handle} placeholder="2000" min={0} step={50}
+                        className={inp("admission_fee")} />
+                      <p className="text-[10px] text-teal-600 mt-1">
+                        Default 2,000 AFN. Lower for sibling/scholarship discount, or set 0 to waive.
+                        Billed automatically on the student's next invoice.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}

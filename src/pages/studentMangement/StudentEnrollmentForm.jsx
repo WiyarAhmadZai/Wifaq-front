@@ -551,44 +551,12 @@ export default function StudentEnrollmentForm() {
       await put(`/student-management/students/update/${targetId}`, enrollmentPayload);
 
       // Mark the student as phase_2 complete — transitions to enrolled list.
-      // Prompt for the admission fee first so the admin can override the default
-      // (or waive it for sibling/scholarship cases). The amount becomes a
-      // pending_charge that gets billed on the student's next invoice.
+      // The admission fee is now captured in Phase 1 (StudentForm step 2),
+      // so Phase 2 just flips the status without any extra prompt. If a
+      // pending admission charge was queued at registration, the backend
+      // already created it; this endpoint is now idempotent and harmless.
       if (!isEdit || selectedStudent?.registration_status !== "phase_2") {
-        const { value: admissionFee, isConfirmed } = await Swal.fire({
-          title: "Admission fee",
-          html: `
-            <p style="text-align:left;font-size:12px;color:#475569;margin-bottom:8px">
-              One-time charge applied to this student's next bill. Default <strong>2,000 AFN</strong>.
-              <br/>Lower it for a discount, or set <strong>0</strong> to waive entirely.
-            </p>
-            <input id="adm-fee" type="number" class="swal2-input"
-                   placeholder="Amount (AFN)" value="2000" min="0" step="50" />
-          `,
-          focusConfirm: false,
-          showCancelButton: true,
-          confirmButtonColor: "#0d9488",
-          confirmButtonText: "Apply & complete enrollment",
-          cancelButtonText: "Cancel enrollment",
-          preConfirm: () => {
-            const raw = document.getElementById("adm-fee").value;
-            const n = Number(raw);
-            if (Number.isNaN(n) || n < 0) {
-              Swal.showValidationMessage("Enter 0 or a positive number");
-              return false;
-            }
-            return n;
-          },
-        });
-        if (!isConfirmed) {
-          // Admin backed out — DON'T mark as phase_2 yet, but the form save above
-          // already persisted the rest of their edits. They can retry later.
-          setSaving(false);
-          return;
-        }
-        await put(`/student-management/students/${targetId}/complete-phase-2`, {
-          admission_fee: admissionFee,
-        });
+        await put(`/student-management/students/${targetId}/complete-phase-2`);
       }
 
       Swal.fire("Success", isEdit ? "Enrollment updated successfully" : "Student officially enrolled (Phase 2 complete)", "success");

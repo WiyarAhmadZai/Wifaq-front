@@ -13,6 +13,12 @@ export const deletePurchaseRequest  = (id)          => del(`${BASE}/${id}`);
 export const submitPurchaseRequest   = (id)               => post(`${BASE}/${id}/submit`);
 export const approvePurchaseRequest  = (id)               => post(`${BASE}/${id}/approve`);
 export const rejectPurchaseRequest   = (id, reason)       => post(`${BASE}/${id}/reject`, { reason });
+// Hold the decision until a later date. `awaitingUntil` is optional — pass
+// null for an open-ended hold. Notifies the requester with the reason.
+export const putOnAwaitingPurchaseRequest = (id, reason, awaitingUntil = null) =>
+  post(`${BASE}/${id}/awaiting`, { reason, awaiting_until: awaitingUntil });
+// Resume an awaiting PR back to pending so it can be re-decided.
+export const resumePurchaseRequest   = (id)               => post(`${BASE}/${id}/resume`);
 export const procurePurchaseRequest  = (id, vendorId)     => post(`${BASE}/${id}/procure`, { vendor_id: vendorId ?? null });
 // Completion has two payment modes — pass EXACTLY ONE:
 //   paidFromPartyId    — primary flow: settle a staff Party's advance (the

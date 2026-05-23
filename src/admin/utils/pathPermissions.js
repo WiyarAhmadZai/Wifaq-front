@@ -151,6 +151,15 @@ const PUBLIC_PATHS = new Set([
 const SELF_SCOPED_PATH_PATTERNS = [
   // Party ledger detail — the staff member's own party ledger
   /^\/finance\/parties\/\d+\/ledger$/,
+  // Meetings list + show — backend row-scopes to organizer + participants
+  // so any authenticated user can land on their invite from a notification.
+  /^\/hr\/meetings$/,
+  /^\/hr\/meetings\/show\/\d+$/,
+  // Events list + show — same row-scoping pattern as meetings: creator,
+  // main-responsible, role assignees, requirement assignees can read.
+  // /create + /edit/:id stay permission-gated via the RULES table.
+  /^\/hr\/events$/,
+  /^\/hr\/events\/show\/\d+$/,
 ];
 
 /**

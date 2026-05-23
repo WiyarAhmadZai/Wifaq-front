@@ -89,7 +89,9 @@ export default function LeaveRequestForm() {
   };
 
   // Non-HR path — fetch the caller's own profile, derive their staff record,
-  // and lock the form's staff_id to that. No staff dropdown is rendered.
+  // and lock the form's staff_id to that. Even if there's no staff record yet
+  // we still build a card from the user info so the form is usable; the
+  // backend will accept the user-id fallback (see LeaveRequestController).
   const bindSelfStaff = async () => {
     try {
       const res = await get("/profile");
@@ -106,9 +108,24 @@ export default function LeaveRequestForm() {
         };
         setSelectedStaff(synthesized);
         setForm((p) => ({ ...p, staff_id: staff.id }));
+      } else if (data?.user) {
+        // No staff row — show what we have so the form is still usable.
+        // The backend lazy-creates a Staff row on /profile fetch, so this
+        // branch is the no-staff fallback (e.g. lazy-create failed for some
+        // reason). We still let the user submit; backend resolves staff
+        // server-side from the authenticated user.
+        setSelectedStaff({
+          id: null,
+          employee_id: "—",
+          department: data.user.branch?.name || "—",
+          role_title_en: "—",
+          application: { full_name: data.user.name },
+          full_name: data.user.name,
+        });
+        // Leave staff_id empty; backend will fall back to the logged-in user.
       }
     } catch {
-      // Tolerate — submit handler will surface a meaningful error if staff_id is empty.
+      // Tolerate — submit handler will surface a meaningful error if needed.
     }
   };
 
@@ -155,9 +172,11 @@ export default function LeaveRequestForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validate
+    // Validate. HR users must pick a staff member; regular users submit on
+    // their own behalf so a missing staff_id is fine — the backend resolves
+    // it from the authenticated user.
     const errs = {};
-    if (!form.staff_id) errs.staff_id = "Please select a staff member";
+    if (isHr && !form.staff_id) errs.staff_id = "Please select a staff member";
     if (!form.leave_type) errs.leave_type = "Leave type is required";
     if (!form.from_date) errs.from_date = "Start date is required";
     if (totalDays < 1) errs.from_date = "Dates produce zero days";
@@ -272,7 +291,7 @@ export default function LeaveRequestForm() {
             ) : (
               !selectedStaff && (
                 <p className="text-amber-600 text-xs">
-                  We couldn't link your account to a staff record. Please ask HR to make sure your user is linked to a staff entry.
+                  Loading your profile… if this persists, refresh the page.
                 </p>
               )
             )}

@@ -99,7 +99,7 @@ export default function JournalEntryShow() {
                 <th className="px-4 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Debit</th>
                 <th className="px-4 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Credit</th>
                 <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Party</th>
-                <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Account ID</th>
+                <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Cash / Bank</th>
                 <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Description</th>
               </tr>
             </thead>
@@ -110,8 +110,19 @@ export default function JournalEntryShow() {
                   <td className="px-4 py-2.5 text-xs text-gray-700">{l.chart_account?.code} - {l.chart_account?.name}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-600 text-right">{Number(l.debit || 0).toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-600 text-right">{Number(l.credit || 0).toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{l.party_id || "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{l.account_id || "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">
+                    {l.party ? (
+                      <span>
+                        <span className="font-medium text-gray-800">{l.party.full_name || `Party #${l.party_id}`}</span>
+                        {l.party.party_code && (
+                          <span className="block text-[10px] text-gray-400 font-mono">{l.party.party_code}</span>
+                        )}
+                      </span>
+                    ) : l.party_id ? `#${l.party_id}` : "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">
+                    {l.account?.account_name || (l.account_id ? `#${l.account_id}` : "—")}
+                  </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{l.description || "—"}</td>
                 </tr>
               ))}

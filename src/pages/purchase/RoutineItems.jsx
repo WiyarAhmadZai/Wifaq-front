@@ -39,8 +39,10 @@ export default function RoutineItems() {
   useEffect(() => { fetchItems(); /* eslint-disable-next-line */ }, [filter]);
 
   // Payment sources for the Record Purchase modal — loaded once.
+  // Routine purchases (cleaning supplies, paper, etc.) come from operating
+  // cash only: 1101 Cash on Hand, 1102 Petty Cash, 1111 Operating Bank.
   useEffect(() => {
-    getAccounts({ per_page: 100 })
+    getAccounts({ per_page: 100, chart_codes: "1101,1102,1111" })
       .then((r) => setAccounts(r.data?.data?.data || r.data?.data || []))
       .catch(() => setAccounts([]));
     getParties({ party_type: "staff", per_page: 200 })

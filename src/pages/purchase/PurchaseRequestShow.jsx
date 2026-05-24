@@ -743,7 +743,11 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
 
   const updateItem = (i, patch) =>
     setItems((arr) => arr.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
-  const addItem    = () => setItems((arr) => [...arr, { name: "", quantity: 1, unit_price: "", unit: "piece", to_stock: true }]);
+  // New rows default to `to_stock: false` (Service). Most last-minute
+  // additions on the Complete modal are services / one-offs (rent, fuel,
+  // transport, glass-of-tea-for-the-runner) — not physical inventory.
+  // The user has to deliberately click "Item" if they want stock tracking.
+  const addItem    = () => setItems((arr) => [...arr, { name: "", quantity: 1, unit_price: "", unit: "piece", to_stock: false }]);
   const removeItem = (i) =>
     setItems((arr) => (arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i)));
 
@@ -876,7 +880,7 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
                     {winningQuote
                       ? <>Pre-filled to the winning quote ({fmt(winningAmount)} AFN — {winningQuote.vendor?.name || "vendor"}) — adjust and add extras (A4, glass, rent…)</>
                       : <>Pre-filled from the request — adjust prices and add extras (A4, glass, rent…)</>}
-                    {" "}Tick <strong>Stock</strong> for physical goods that go into inventory; untick for services / rent.
+                    {" "}Set each line's <strong>Type</strong>: <span className="text-emerald-700 font-semibold">Item</span> goes into stock, <span className="text-amber-700 font-semibold">Service</span> is just an expense (rent, fuel, transport).
                   </p>
                 </div>
                 <button type="button" onClick={addItem}
@@ -885,14 +889,22 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
                   Add item
                 </button>
               </div>
-              <div className="grid grid-cols-[1fr_3.25rem_3.5rem_5rem_5rem_2.75rem_1.5rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-white border-b border-gray-50">
-                <span>Item</span><span className="text-right">Qty</span><span>Unit</span><span className="text-right">Price</span><span className="text-right">Total</span><span className="text-center">Stock</span><span></span>
+              {/* Column widths: Item gets the rest; Type is widened to fit the
+                  2-button toggle that replaces the old "Stock" checkbox. */}
+              <div className="grid grid-cols-[1fr_3.25rem_3.5rem_5rem_5rem_6.5rem_1.5rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-white border-b border-gray-50">
+                <span>Item</span><span className="text-right">Qty</span><span>Unit</span><span className="text-right">Price</span><span className="text-right">Total</span><span className="text-center">Type</span><span></span>
               </div>
               <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
-                {items.map((it, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_3.25rem_3.5rem_5rem_5rem_2.75rem_1.5rem] gap-2 px-4 py-2 items-center">
+                {items.map((it, i) => {
+                  const isService = it.to_stock === false;
+                  return (
+                  <div key={i}
+                    className={`grid grid-cols-[1fr_3.25rem_3.5rem_5rem_5rem_6.5rem_1.5rem] gap-2 px-4 py-2 items-center ${
+                      isService ? "bg-amber-50/40" : ""
+                    }`}
+                  >
                     <input type="text" value={it.name} onChange={(e) => updateItem(i, { name: e.target.value })}
-                      placeholder="e.g. A4 paper / Rent"
+                      placeholder={isService ? "e.g. Rent / Fuel / Transport" : "e.g. A4 paper / Markers"}
                       className="px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
                     <input type="number" min="0" step="0.01" value={it.quantity} onChange={(e) => updateItem(i, { quantity: e.target.value })}
                       className="px-1.5 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500" />
@@ -904,17 +916,34 @@ function CompleteModal({ pr, accounts, staffParties, busy, onClose, onConfirm })
                     <span className="text-right text-sm font-mono text-gray-700">
                       {fmt((Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}
                     </span>
-                    <label className="flex items-center justify-center" title="Add this line to inventory (Stock)">
-                      <input type="checkbox" checked={it.to_stock !== false}
-                        onChange={(e) => updateItem(i, { to_stock: e.target.checked })}
-                        className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500" />
-                    </label>
+                    {/* Two-button toggle replaces the easy-to-miss checkbox.
+                        Item → to_stock: true  (adds to inventory on complete)
+                        Service → to_stock: false (rent, fuel, taxi — expensed only). */}
+                    <div className="flex items-center justify-center bg-gray-100 rounded-md p-0.5" role="group" aria-label="Line type">
+                      <button type="button"
+                        onClick={() => updateItem(i, { to_stock: true })}
+                        title="Physical inventory — adds to Stock"
+                        className={`px-1.5 py-0.5 text-[10px] font-semibold rounded transition-colors ${
+                          !isService ? "bg-emerald-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                        }`}>
+                        Item
+                      </button>
+                      <button type="button"
+                        onClick={() => updateItem(i, { to_stock: false })}
+                        title="Service / one-off (rent, fuel, transport) — expensed only, not stocked"
+                        className={`px-1.5 py-0.5 text-[10px] font-semibold rounded transition-colors ${
+                          isService ? "bg-amber-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                        }`}>
+                        Service
+                      </button>
+                    </div>
                     <button type="button" onClick={() => removeItem(i)} disabled={items.length === 1}
                       className="w-6 h-6 rounded-md flex items-center justify-center text-gray-300 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent transition">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="flex items-center justify-between px-4 py-3 bg-teal-50 border-t border-teal-100">
                 <span className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide">Total paid (posts to books)</span>
@@ -1153,7 +1182,7 @@ function CompletionSummary({ pr, navigate }) {
       {items.length > 0 && (
         <div>
           <div className="grid grid-cols-[1fr_4rem_6.5rem_6.5rem_5rem] gap-2 px-4 py-2 text-[10px] font-semibold text-gray-400 uppercase bg-gray-50 border-b border-gray-100">
-            <span>Item bought</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span><span className="text-center">Inventory</span>
+            <span>Item bought</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Total</span><span className="text-center">Type</span>
           </div>
           <div className="divide-y divide-gray-50">
             {items.map((it, idx) => (
@@ -1165,10 +1194,12 @@ function CompletionSummary({ pr, navigate }) {
                 <span className="text-center">
                   {it.to_stock !== false ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      ✓ stocked
+                      Item
                     </span>
                   ) : (
-                    <span className="text-[10px] text-gray-400">expensed</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                      Service
+                    </span>
                   )}
                 </span>
               </div>

@@ -68,9 +68,11 @@ export default function PurchaseRequestShow() {
       .then((r) => setAccounts(r.data?.data?.data || r.data?.data || []))
       .catch(() => setAccounts([]));
 
-    // Vendors for the quotation picker. The Add-Vendor page in HR posts to
-    // /hr/vendors, so that's the index endpoint we list from.
-    get("/hr/vendors", { params: { per_page: 200 } })
+    // Suppliers for the quotation picker. The Purchase → Suppliers module
+    // is the source of truth for quote candidates; the older HR Vendor list
+    // is no longer used here. Quote rows still reference `vendor_id` for
+    // historical reasons but the FK now points at the `suppliers` table.
+    get("/purchase/suppliers/index")
       .then((r) => {
         const rows = r.data?.data?.data || r.data?.data || r.data || [];
         setVendors(Array.isArray(rows) ? rows : []);
@@ -355,20 +357,10 @@ export default function PurchaseRequestShow() {
               </Panel>
             )}
             {pr.vendor_id && (
-              <Panel label="Vendor">
+              <Panel label="Supplier">
                 {pr.vendor?.name || `#${pr.vendor_id}`}
-                {pr.vendor?.party ? (
-                  <div className="mt-1 text-[10px]">
-                    <a href={`/finance/parties/${pr.vendor.party.id}/ledger`}
-                      onClick={(e) => { e.preventDefault(); navigate(`/finance/parties/${pr.vendor.party.id}/ledger`); }}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full hover:bg-indigo-100">
-                      <span className="font-mono">{pr.vendor.party.party_code}</span>
-                      <span>·</span>
-                      <span>AP ledger</span>
-                    </a>
-                  </div>
-                ) : (
-                  <div className="text-[10px] text-gray-400 mt-1">No Party opened yet</div>
+                {pr.vendor?.phone && (
+                  <div className="text-[10px] text-gray-400 mt-0.5">{pr.vendor.phone}</div>
                 )}
               </Panel>
             )}
@@ -563,7 +555,7 @@ function QuotationsPanel({ pr, vendors, busy, onAdd, onDelete, onPickWinner }) {
         <table className="w-full text-[11px]">
           <thead className="bg-gray-50 text-gray-500 uppercase text-[9px]">
             <tr>
-              <th className="text-left px-3 py-1.5">Vendor</th>
+              <th className="text-left px-3 py-1.5">Supplier</th>
               <th className="text-right px-3 py-1.5">Amount (AFN)</th>
               <th className="text-right px-3 py-1.5">Lead time</th>
               <th className="text-left px-3 py-1.5">Submitted</th>
@@ -578,9 +570,9 @@ function QuotationsPanel({ pr, vendors, busy, onAdd, onDelete, onPickWinner }) {
               return (
                 <tr key={q.id} className={q.is_winner ? "bg-emerald-50/40" : "hover:bg-gray-50"}>
                   <td className="px-3 py-1.5 text-gray-800 font-medium">
-                    {q.vendor?.name || `Vendor #${q.vendor_id}`}
-                    {q.vendor?.category && (
-                      <span className="text-[10px] text-gray-400 ml-1">· {q.vendor.category}</span>
+                    {q.vendor?.name || `Supplier #${q.vendor_id}`}
+                    {q.vendor?.phone && (
+                      <span className="text-[10px] text-gray-400 ml-1">· {q.vendor.phone}</span>
                     )}
                   </td>
                   <td className="px-3 py-1.5 text-right font-semibold text-gray-800">
@@ -660,11 +652,11 @@ function AddQuoteForm({ vendors, busy, onAdd }) {
       <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
         <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} required
           className="sm:col-span-2 px-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:border-teal-500">
-          <option value="">— Vendor *</option>
+          <option value="">— Supplier *</option>
           {vendors.length === 0 ? (
-            <option disabled>No more vendors to quote</option>
+            <option disabled>No more suppliers to quote — add one under Purchase → Suppliers</option>
           ) : vendors.map((v) => (
-            <option key={v.id} value={v.id}>{v.name}{v.category ? ` (${v.category})` : ""}</option>
+            <option key={v.id} value={v.id}>{v.name}{v.phone ? ` (${v.phone})` : ""}</option>
           ))}
         </select>
         <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount *" required
@@ -1204,11 +1196,11 @@ function CompletionSummary({ pr, navigate }) {
           </span>
         ) : (pr.procurer?.name || "—")}
       </Row>
-      <Row label="Vendor">
+      <Row label="Supplier">
         {pr.vendor_id ? (
           <span className="inline-flex items-center gap-2 flex-wrap">
             <strong>{pr.vendor?.name || `#${pr.vendor_id}`}</strong>
-            {pr.vendor?.party && <LedgerChip partyId={pr.vendor.party.id} code={pr.vendor.party.party_code} />}
+            {pr.vendor?.phone && <span className="text-[10px] text-gray-500">· {pr.vendor.phone}</span>}
           </span>
         ) : "—"}
       </Row>

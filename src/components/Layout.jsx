@@ -824,7 +824,7 @@ export default function Layout() {
 
   const purchaseMenus = [
     { label: "Purchase Requests", path: "/purchase/purchase-requests", permission: "purchase-requests.view" },
-    // { label: "Suppliers", path: "/purchase/suppliers", permission: "suppliers.view" },
+    { label: "Suppliers", path: "/purchase/suppliers", permission: "suppliers.view" },
     { label: "Stock / Inventory", path: "/purchase/stock", permission: "stock.view" },
     { label: "Routine Items", path: "/purchase/routine-items", permission: "routine-items.view" },
     { label: "Repair Requests", path: "/purchase/repair-requests", permission: "repair-requests.view" },

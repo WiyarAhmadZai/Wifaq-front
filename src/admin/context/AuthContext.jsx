@@ -60,6 +60,9 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem("token");
+    // Reset the once-per-session "you have unread popups" flag so the next
+    // login shows the floating notification cards again.
+    sessionStorage.removeItem("wen:notif-popups-seen");
     setUser(null);
     window.location.href = "/login";
   }, []);

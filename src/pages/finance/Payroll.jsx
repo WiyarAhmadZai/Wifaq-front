@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   listPayrollRuns, getPayrollRun, previewPayroll,
   commitPayroll, payPayrollRun, payPayslip,
@@ -559,20 +560,45 @@ function PayrollReceiptModal({ receipt, run, onClose }) {
     ? `PAYRUN-${run?.id || "?"}-${receipt.paidAt.toISOString().slice(0, 10).replace(/-/g, "")}`
     : `PAY-${receipt.slip.id}-${receipt.paidAt.toISOString().slice(0, 10).replace(/-/g, "")}`;
 
-  return (
+  // Portal the entire modal to <body> so it's NOT nested inside #root.
+  // That lets the print CSS `display: none` everything under #root without
+  // killing the receipt, and the printer never sees the underlying page
+  // layout (which was generating 4–5 phantom pages with visibility:hidden).
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 print:bg-white print:p-0"
+      className="payroll-print-host fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 print:bg-white print:p-0 print:static print:block"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      {/* Print-only CSS — when the user clicks Print, only #payroll-receipt
-          stays visible. A5 portrait keeps it teller-receipt sized. */}
+      {/* Print-only CSS:
+            1) Hide the entire React app root (#root) so its layout is gone.
+            2) Reset the modal overlay from `position: fixed; full-screen` to
+               normal flow so the printer treats the receipt as the whole page.
+            3) Strip the rounded card chrome (max-height, shadow, border-radius)
+               so the receipt isn't a tiny box on a giant page. */}
       <style>{`
         @media print {
-          body * { visibility: hidden !important; }
-          #payroll-receipt, #payroll-receipt * { visibility: visible !important; }
-          #payroll-receipt { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; box-shadow: none !important; border: none !important; }
-          .print\\:hidden { display: none !important; }
           @page { size: A5 portrait; margin: 8mm; }
+          body { background: white !important; }
+          body > #root { display: none !important; }
+          .payroll-print-host {
+            position: static !important;
+            padding: 0 !important;
+            background: white !important;
+            backdrop-filter: none !important;
+          }
+          .payroll-print-host > div {
+            max-height: none !important;
+            max-width: none !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+          }
+          #payroll-receipt {
+            padding: 0 !important;
+            overflow: visible !important;
+          }
+          .print\\:hidden { display: none !important; }
         }
       `}</style>
 
@@ -652,7 +678,8 @@ function PayrollReceiptModal({ receipt, run, onClose }) {
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

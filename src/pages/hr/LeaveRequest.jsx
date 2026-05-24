@@ -48,8 +48,12 @@ function daysBetween(fromIso, toIso) {
 }
 
 export default function LeaveRequest() {
-  const { hasRole } = useAuth();
+  const { hasRole, hasPermission } = useAuth();
   const isHr = HR_ROLES.some((r) => hasRole(r));
+  // Approve/Reject buttons require the explicit permission. Strip
+  // `leave-request.approve` from a user and the buttons disappear, even
+  // if they're in an HR role.
+  const canApprove = hasPermission("leave-request.approve") || hasPermission("leave-request.manage");
   const [rejectTarget, setRejectTarget] = useState(null); // { item, refresh }
 
   const approve = async (item, refresh) => {
@@ -100,7 +104,7 @@ export default function LeaveRequest() {
    *   rejected → Approve (HR can change their mind)
    */
   const renderRowActions = (item, refresh) => {
-    if (!isHr) return null;
+    if (!canApprove) return null;
     const showApprove = item.status === "pending" || item.status === "rejected";
     const showReject = item.status === "pending" || item.status === "approved";
     return (
@@ -134,6 +138,7 @@ export default function LeaveRequest() {
   return (
     <>
       <CrudPage
+        permissionBase="leave-request"
         title={isHr ? "Leave Requests" : "My Leave Requests"}
         apiEndpoint="/hr/leave-requests"
         createRoute="/hr/leave-request/create"

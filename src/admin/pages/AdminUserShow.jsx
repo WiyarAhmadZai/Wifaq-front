@@ -34,7 +34,11 @@ export default function AdminUserShow() {
         const data = u.data?.data;
         setUser(data);
         setSelectedRoles(new Set(data.roles || []));
-        setDirectPermissions(new Set(data.direct_permissions || []));
+        // Initialize the picker with ALL effective permissions checked
+        // (role-inherited + direct). The admin can uncheck any of them;
+        // role-inherited ones that get unchecked drop the role automatically
+        // on save and the remaining role grants are kept as direct.
+        setDirectPermissions(new Set(data.all_permissions || data.direct_permissions || []));
         setRoles(r.data?.data || []);
         setAllPermissions(p.data?.data || []);
       } catch {
@@ -72,8 +76,24 @@ export default function AdminUserShow() {
       const data = res.data?.data;
       setUser(data);
       setSelectedRoles(new Set(data.roles || []));
-      setDirectPermissions(new Set(data.direct_permissions || []));
-      Swal.fire({ icon: "success", title: "Access updated", timer: 1200, showConfirmButton: false });
+      // Re-seed the picker with the new effective set so what's checked
+      // matches what's actually granted after the save.
+      setDirectPermissions(new Set(data.all_permissions || data.direct_permissions || []));
+      // If the admin just edited their OWN access, tell AuthContext to
+      // refetch /access/me so the new permissions take effect immediately
+      // (otherwise it would wait for the next focus or interval tick).
+      if (isEditingSelf) {
+        window.dispatchEvent(new CustomEvent("wen:auth-refresh"));
+      }
+      Swal.fire({
+        icon: "success",
+        title: "Access updated",
+        text: isEditingSelf
+          ? "Your permissions refreshed."
+          : "The user's UI will update on their next poll (within ~20 s) or instantly when they refresh.",
+        timer: 2200,
+        showConfirmButton: false,
+      });
     } catch (e) {
       Swal.fire("Error", e.response?.data?.message || "Failed", "error");
     } finally {

@@ -56,7 +56,8 @@ export default function FeePaymentForm() {
       setLoading(true);
       try {
         const [accRes, stuRes] = await Promise.all([
-          getAccounts({ per_page: 100 }),
+          // Manual fee payments deposit to the Fees Collection Bank (1113).
+          getAccounts({ per_page: 100, chart_codes: "1113" }),
           get("/student-management/students/list", { params: { registration_status: "phase_2", per_page: 1000 } }),
         ]);
 

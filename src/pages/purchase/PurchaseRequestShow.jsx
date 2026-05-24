@@ -61,8 +61,10 @@ export default function PurchaseRequestShow() {
   useEffect(() => { fetchPR(); /* eslint-disable-next-line */ }, [id]);
 
   // Cash/bank accounts needed for the Complete dialog — load once.
+  // Vendor bills come out of operating cash (1101 Cash on Hand, 1102 Petty
+  // Cash, 1111 Operating Bank). Backend enforces the same set.
   useEffect(() => {
-    getAccounts({ per_page: 100 })
+    getAccounts({ per_page: 100, chart_codes: "1101,1102,1111" })
       .then((r) => setAccounts(r.data?.data?.data || r.data?.data || []))
       .catch(() => setAccounts([]));
 

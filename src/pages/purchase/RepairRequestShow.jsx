@@ -37,7 +37,8 @@ export default function RepairRequestShow() {
   useEffect(() => { fetchRR(); /* eslint-disable-next-line */ }, [id]);
 
   useEffect(() => {
-    getAccounts({ per_page: 100 }).then((r) => setAccounts(r.data?.data?.data || r.data?.data || [])).catch(() => {});
+    // Repair payments come out of operating cash only (1101 / 1102 / 1111).
+    getAccounts({ per_page: 100, chart_codes: "1101,1102,1111" }).then((r) => setAccounts(r.data?.data?.data || r.data?.data || [])).catch(() => {});
     getParties({ per_page: 200 }).then((r) => setParties(r.data?.data?.data || r.data?.data || [])).catch(() => {});
     getChartOfAccounts().then((r) => {
       const all = r.data?.data || [];

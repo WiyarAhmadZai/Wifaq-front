@@ -50,7 +50,9 @@ export default function Payroll() {
 
   useEffect(() => {
     fetchRuns();
-    getAccounts({ per_page: 100 })
+    // Salaries are only ever paid from the Payroll Bank (chart 1112). The
+    // backend enforces the same in PayrollService::paySlip().
+    getAccounts({ per_page: 100, chart_codes: "1112" })
       .then((r) => setAccounts(r.data?.data?.data || r.data?.data || []))
       .catch(() => setAccounts([]));
   }, []);

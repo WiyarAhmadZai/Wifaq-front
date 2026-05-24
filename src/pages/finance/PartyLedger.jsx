@@ -111,7 +111,10 @@ export default function PartyLedger() {
 
   useEffect(() => {
     load();
-    getAccounts({ per_page: 100 })
+    // Party movements (advance / repayment / reimburse) flow through
+    // operating cash only — never payroll or fees-collection accounts.
+    // Same gate enforced server-side in PartyLedgerService.
+    getAccounts({ per_page: 100, chart_codes: "1101,1102,1111" })
       .then((r) => setCashAccounts(r.data?.data?.data || r.data?.data || []))
       .catch(() => setCashAccounts([]));
     getChartOfAccounts({ per_page: 500 })

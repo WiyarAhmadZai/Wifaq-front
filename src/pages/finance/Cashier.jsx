@@ -68,7 +68,9 @@ export default function Cashier() {
     get("/student-management/students/list", { params: { registration_status: "phase_2", per_page: 1000 } })
       .then((r) => setStudents(Array.isArray(r.data?.data) ? r.data.data : []))
       .catch(() => setStudents([]));
-    getAccounts({ per_page: 100 })
+    // Fee receipts must deposit to the Fees Collection Bank (chart 1113).
+    // Same gate enforced by FeePaymentController on the backend.
+    getAccounts({ per_page: 100, chart_codes: "1113" })
       .then((r) => setAccounts(r.data?.data?.data || r.data?.data || []))
       .catch(() => setAccounts([]));
     getFeeItems()

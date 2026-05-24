@@ -59,30 +59,55 @@ export default function Dashboard() {
       <div className="max-w-full mx-auto">
 
         {/* ─── Greeting hero ─── */}
-        <div className="bg-gradient-to-br from-teal-700 to-teal-600 rounded-2xl px-5 py-5 mb-5 text-white shadow-sm flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center text-2xl font-black overflow-hidden flex-shrink-0">
-            {me.photo ? <img src={me.photo} alt={me.name} className="w-full h-full object-cover" /> : (me.name?.charAt(0) || "U")}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-teal-100">{greeting()}</p>
-            <h1 className="text-lg font-black truncate">{me.name}</h1>
-            <p className="text-xs text-teal-100 mt-0.5 truncate">{roleLabel}{me.staff_id ? ` · Staff #${me.staff_id}` : ""}</p>
-          </div>
-          {me_section?.unread_notifications > 0 && (
-            <div className="bg-white/15 rounded-xl px-3 py-2 text-center flex-shrink-0">
-              <p className="text-[10px] text-teal-100">Unread</p>
-              <p className="text-xl font-black">{me_section.unread_notifications}</p>
+        <div className="relative bg-gradient-to-br from-teal-700 via-teal-600 to-emerald-600 rounded-2xl px-5 py-5 mb-5 text-white shadow-md overflow-hidden">
+          {/* Decorative blobs */}
+          <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-emerald-300/20 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white/15 ring-1 ring-white/25 flex items-center justify-center text-2xl font-black overflow-hidden flex-shrink-0 shadow-inner">
+              {me.photo ? <img src={me.photo} alt={me.name} className="w-full h-full object-cover" /> : (me.name?.charAt(0) || "U")}
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] text-teal-100">{greeting()}</p>
+              <h1 className="text-lg font-black truncate">{me.name}</h1>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/15 ring-1 ring-white/25">
+                  {roleLabel}
+                </span>
+                {me.staff_id && (
+                  <span className="text-[10px] text-teal-100">Staff #{me.staff_id}</span>
+                )}
+                <span className="text-[10px] text-teal-100 ml-1">
+                  · {new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "short", day: "numeric" })}
+                </span>
+              </div>
+            </div>
+            {me_section?.unread_notifications > 0 && (
+              <div className="bg-white/15 ring-1 ring-white/25 rounded-xl px-3 py-2 text-center flex-shrink-0">
+                <p className="text-[10px] text-teal-100">Unread</p>
+                <p className="text-xl font-black leading-none mt-0.5">{me_section.unread_notifications}</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* ─── Overview strip (HR / finance) ─── */}
-        {overview && (
+        {/* ─── Overview strip — each tile is permission-gated server-side,
+                so a key only exists when the user is allowed to see it. ─── */}
+        {overview && Object.keys(overview).length > 0 && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-            <StatCard label="Total Staff"    value={overview.staff}    tone="teal"    icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857" />
-            <StatCard label="Total Students" value={overview.students} tone="blue"    icon="M12 14l9-5-9-5-9 5 9 5z" />
-            <StatCard label="Teachers"       value={overview.teachers} tone="purple"  icon="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4" />
-            <StatCard label="Branches"       value={overview.branches} tone="emerald" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            {overview.staff != null && (
+              <StatCard label="Total Staff"    value={overview.staff}    tone="teal"    icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857" onClick={() => navigate("/hr/staff")} />
+            )}
+            {overview.students != null && (
+              <StatCard label="Total Students" value={overview.students} tone="blue"    icon="M12 14l9-5-9-5-9 5 9 5z" onClick={() => navigate("/student-management/students")} />
+            )}
+            {overview.teachers != null && (
+              <StatCard label="Teachers"       value={overview.teachers} tone="purple"  icon="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4" onClick={() => navigate("/teacher-management/teachers")} />
+            )}
+            {overview.branches != null && (
+              <StatCard label="Branches"       value={overview.branches} tone="emerald" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" onClick={() => navigate("/branches")} />
+            )}
           </div>
         )}
 
@@ -273,21 +298,28 @@ function timeAgo(iso) {
   return fmtDate(iso);
 }
 
-function StatCard({ label, value, icon, tone = "teal" }) {
+function StatCard({ label, value, icon, tone = "teal", onClick }) {
   const tones = {
-    teal:    { bg: "bg-teal-50",    text: "text-teal-700",    accent: "bg-teal-600" },
-    emerald: { bg: "bg-emerald-50", text: "text-emerald-700", accent: "bg-emerald-600" },
-    blue:    { bg: "bg-blue-50",    text: "text-blue-700",    accent: "bg-blue-600" },
-    purple:  { bg: "bg-purple-50",  text: "text-purple-700",  accent: "bg-purple-600" },
-    amber:   { bg: "bg-amber-50",   text: "text-amber-700",   accent: "bg-amber-500" },
-    red:     { bg: "bg-red-50",     text: "text-red-700",     accent: "bg-red-600" },
-  }[tone] || { bg: "bg-gray-50", text: "text-gray-700", accent: "bg-gray-600" };
+    teal:    { bg: "bg-teal-50",    text: "text-teal-700",    accent: "bg-teal-600",    ring: "hover:ring-teal-300" },
+    emerald: { bg: "bg-emerald-50", text: "text-emerald-700", accent: "bg-emerald-600", ring: "hover:ring-emerald-300" },
+    blue:    { bg: "bg-blue-50",    text: "text-blue-700",    accent: "bg-blue-600",    ring: "hover:ring-blue-300" },
+    purple:  { bg: "bg-purple-50",  text: "text-purple-700",  accent: "bg-purple-600",  ring: "hover:ring-purple-300" },
+    amber:   { bg: "bg-amber-50",   text: "text-amber-700",   accent: "bg-amber-500",   ring: "hover:ring-amber-300" },
+    red:     { bg: "bg-red-50",     text: "text-red-700",     accent: "bg-red-600",     ring: "hover:ring-red-300" },
+  }[tone] || { bg: "bg-gray-50", text: "text-gray-700", accent: "bg-gray-600", ring: "hover:ring-gray-300" };
+  const clickable = typeof onClick === "function";
   return (
-    <div className={`${tones.bg} rounded-2xl p-4 border border-white/40`}>
+    <div
+      onClick={onClick}
+      className={`relative ${tones.bg} rounded-2xl p-4 border border-white/40 overflow-hidden transition-all duration-200 ${
+        clickable ? `cursor-pointer hover:shadow-md hover:-translate-y-0.5 ring-1 ring-transparent ${tones.ring}` : ""
+      }`}
+    >
+      <span className={`absolute inset-y-0 left-0 w-1 ${tones.accent}`} />
       <div className="flex items-center justify-between">
         <p className={`text-[10px] font-bold uppercase tracking-wider ${tones.text}`}>{label}</p>
         {icon && (
-          <div className={`w-7 h-7 ${tones.accent} text-white rounded-lg flex items-center justify-center`}>
+          <div className={`w-7 h-7 ${tones.accent} text-white rounded-lg flex items-center justify-center shadow-sm`}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} /></svg>
           </div>
         )}
@@ -370,18 +402,25 @@ function IncomeExpenseCard({ title, subtitle, data, onClick }) {
 
 function Section({ title, icon, children, onClick, cta, className = "" }) {
   return (
-    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden ${className}`}>
-      <div className="px-4 py-3 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden ${className}`}>
+      <div className="px-4 py-3 bg-gradient-to-r from-teal-50 via-teal-50/70 to-emerald-50 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
           {icon && (
-            <svg className="w-4 h-4 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
-            </svg>
+            <div className="w-7 h-7 rounded-lg bg-white shadow-sm ring-1 ring-teal-100 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
+              </svg>
+            </div>
           )}
           <h3 className="text-sm font-bold text-teal-800">{title}</h3>
         </div>
         {onClick && cta && (
-          <button onClick={onClick} className="text-[11px] font-semibold text-teal-700 hover:underline">{cta}</button>
+          <button
+            onClick={onClick}
+            className="text-[11px] font-semibold text-teal-700 hover:text-teal-900 hover:bg-white/60 px-2 py-1 rounded-md transition-colors"
+          >
+            {cta}
+          </button>
         )}
       </div>
       <div className="p-4">{children}</div>

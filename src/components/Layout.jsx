@@ -344,6 +344,10 @@ function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Floating welcome cards — populated once per browser session with the
+  // unread notifications so the user sees what they missed at a glance.
+  const [popups, setPopups] = useState([]);
+  const popupsSeededRef = useRef(false);
   const ref = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
@@ -352,8 +356,19 @@ function NotificationBell() {
     try {
       const res = await get("/notifications");
       const data = res.data;
-      setNotifications(data?.data || []);
+      const items = data?.data || [];
+      setNotifications(items);
       setUnreadCount(data?.unread_count || 0);
+
+      // Once per session: push the unread items as floating cards. Capped at
+      // 5 so it never feels like a wall of alerts. sessionStorage so they
+      // don't reappear on every full reload within the same tab session.
+      if (!popupsSeededRef.current && !sessionStorage.getItem("wen:notif-popups-seen")) {
+        const unread = items.filter((n) => !n.read_at).slice(0, 5);
+        if (unread.length > 0) setPopups(unread);
+        popupsSeededRef.current = true;
+        sessionStorage.setItem("wen:notif-popups-seen", "1");
+      }
     } catch {
       // silently fail
     }
@@ -498,17 +513,97 @@ function NotificationBell() {
     return data.message || data.title || "New notification";
   };
 
+  const dismissPopup = (id) => setPopups((p) => p.filter((n) => n.id !== id));
+  const dismissAllPopups = () => setPopups([]);
+
+  const handlePopupClick = (n) => {
+    // Treat as a regular notification click: marks read + navigates.
+    handleClick(n);
+    dismissPopup(n.id);
+  };
+
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
-        className="relative p-2 text-gray-600 hover:text-gray-800 transition-colors">
+      <button
+        onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
+        className={`relative p-2 text-gray-600 hover:text-gray-800 transition-colors ${unreadCount > 0 ? "wen-bell-pulse" : ""}`}
+        aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+      >
         <Icons.Bell />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
+          <>
+            {/* "Bulb on" effect: a soft glowing halo behind the bell, pulsing
+                in sync with the bell tilt so the icon reads as alive / alert. */}
+            <span className="absolute inset-0 rounded-full bg-red-500/50 blur-md animate-ping pointer-events-none" />
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white animate-pulse">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          </>
         )}
       </button>
+
+      {/* Local keyframes — Tailwind doesn't ship a "bell-ring" by default. */}
+      <style>{`
+        @keyframes wen-bell-ring {
+          0%, 50%, 100% { transform: rotate(0deg); }
+          10%, 30% { transform: rotate(-12deg); }
+          20%, 40% { transform: rotate(12deg); }
+        }
+        .wen-bell-pulse > svg { animation: wen-bell-ring 1.6s ease-in-out infinite; transform-origin: 50% 4px; }
+      `}</style>
+
+      {/* Login-time popup stack — floats top-right, each card closable. */}
+      {popups.length > 0 && (
+        <div className="fixed top-16 right-4 z-[100] w-80 space-y-2 pointer-events-none">
+          {popups.length > 1 && (
+            <div className="flex justify-end pointer-events-auto">
+              <button
+                onClick={dismissAllPopups}
+                className="text-[10px] font-semibold text-gray-500 bg-white/90 backdrop-blur px-2 py-1 rounded-full border border-gray-200 shadow-sm hover:text-gray-800"
+              >
+                Dismiss all ({popups.length})
+              </button>
+            </div>
+          )}
+          {popups.map((n) => {
+            const icon = getIcon(n.data);
+            return (
+              <div
+                key={n.id}
+                className="pointer-events-auto bg-white rounded-xl shadow-lg border border-gray-100 p-3 flex items-start gap-3 animate-[fadeIn_.3s_ease-out] hover:shadow-xl transition-shadow"
+                style={{ animation: "wen-slide-in 0.35s ease-out" }}
+              >
+                <div className={`w-8 h-8 rounded-lg ${icon.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                  <svg className={`w-4 h-4 ${icon.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon.path} />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handlePopupClick(n)}>
+                  <p className="text-[11px] leading-relaxed text-gray-800 font-semibold">
+                    {renderMessage(n.data)}
+                  </p>
+                  <p className="text-[9px] text-gray-400 mt-1">{timeAgo(n.created_at)} · click to open</p>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); dismissPopup(n.id); }}
+                  className="text-gray-300 hover:text-red-500 p-1 -mt-1 -mr-1 flex-shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+          <style>{`
+            @keyframes wen-slide-in {
+              from { opacity: 0; transform: translateY(-8px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
+        </div>
+      )}
 
       {open && (
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">

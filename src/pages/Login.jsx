@@ -33,6 +33,10 @@ export default function Login() {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
+      // Reset the once-per-session popup flag so the just-logged-in user
+      // sees their unread notifications as floating cards on the dashboard.
+      sessionStorage.removeItem("wen:notif-popups-seen");
+
       // Pull the full user profile (with roles + permissions) into AuthContext
       // BEFORE navigating, otherwise the path gate sees user=null and redirects
       // back to /login → infinite loop.

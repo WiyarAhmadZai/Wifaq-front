@@ -32,6 +32,30 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     loadMe();
+
+    // Permissions can change mid-session (an admin grants/revokes a role).
+    // Re-fetch /access/me on every tab focus and once every 2 minutes so the
+    // logged-in user picks up new permissions without having to log out and
+    // back in. Also re-fetch on demand via the `wen:auth-refresh` event so
+    // the admin permissions modal can trigger an immediate refresh when the
+    // current user just edited their own access.
+    const onVisible = () => { if (!document.hidden) loadMe(); };
+    const onFocus = () => loadMe();
+    const onCustom = () => loadMe();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("wen:auth-refresh", onCustom);
+    // Poll every 5 s so an admin's grant/revoke reaches the affected user
+    // almost immediately. /access/me is a small, cheap call and the backend
+    // busts Spatie's cache on every hit, so this stays correct.
+    const interval = setInterval(loadMe, 5 * 1000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("wen:auth-refresh", onCustom);
+      clearInterval(interval);
+    };
   }, [loadMe]);
 
   const logout = useCallback(() => {

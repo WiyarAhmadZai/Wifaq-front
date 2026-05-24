@@ -235,10 +235,11 @@ export default function Payroll() {
                 <tr key={s.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-800">
                     {/* Full staff name on top, employee_id on the second
-                        line. Party code intentionally NOT shown — payroll
-                        no longer flows through Party (see PayrollService). */}
-                    {s.staff?.full_name || [s.staff?.first_name, s.staff?.last_name].filter(Boolean).join(" ") || s.staff?.employee_id || `Staff #${s.staff_id}`}
-                    {s.staff?.employee_id && (
+                        line. `full_name` is a Staff accessor backed by the
+                        linked Application; party code intentionally NOT
+                        shown — payroll no longer flows through Party. */}
+                    {s.staff?.full_name || s.staff?.employee_id || `Staff #${s.staff_id}`}
+                    {s.staff?.employee_id && s.staff?.full_name && (
                       <span className="block text-[10px] text-gray-400 font-mono">{s.staff.employee_id}</span>
                     )}
                   </td>
@@ -658,8 +659,12 @@ function SinglePayslipBody({ slip }) {
     <>
       <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Paid to</p>
       <p className="text-sm font-bold mb-3">
-        {slip.staff?.first_name || ""} {slip.staff?.last_name || ""}
-        {slip.staff?.employee_id && <span className="block text-[10px] text-gray-500 font-normal">{slip.staff.employee_id}</span>}
+        {/* Staff `full_name` is an accessor on the Staff model — reads from
+            the hire-time Application. Falls back to employee_id if absent. */}
+        {slip.staff?.full_name || slip.staff?.employee_id || `Staff #${slip.staff_id}`}
+        {slip.staff?.employee_id && slip.staff?.full_name && (
+          <span className="block text-[10px] text-gray-500 font-normal">{slip.staff.employee_id}</span>
+        )}
       </p>
 
       <div className="border-t border-gray-200 pt-3 text-[11px] space-y-1">
@@ -690,11 +695,11 @@ function BulkPayslipsBody({ payslips }) {
           {payslips.map((p) => (
             <tr key={p.id}>
               <td className="py-1.5">
-                {p.staff?.employee_id || `#${p.staff_id}`}
-                {(p.staff?.first_name || p.staff?.last_name) && (
-                  <span className="block text-[9px] text-gray-500">
-                    {p.staff?.first_name || ""} {p.staff?.last_name || ""}
-                  </span>
+                {/* Name on top, employee_id underneath — easier for the
+                    payee to verify they're on the right line at a glance. */}
+                {p.staff?.full_name || p.staff?.employee_id || `Staff #${p.staff_id}`}
+                {p.staff?.employee_id && p.staff?.full_name && (
+                  <span className="block text-[9px] text-gray-500">{p.staff.employee_id}</span>
                 )}
               </td>
               <td className="py-1.5 text-right font-semibold">{fmt(p.net_pay)}</td>

@@ -235,8 +235,15 @@ export default function Payroll() {
               {slips.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-800">
-                    {s.staff?.employee_id || `#${s.staff_id}`}
-                    <span className="block text-[10px] text-gray-400 font-mono">{s.party?.party_code}</span>
+                    {/* Full staff name on top, employee_id + party_code on
+                        the second line so the column is human-readable but
+                        the audit refs are still there for finance staff. */}
+                    {[s.staff?.first_name, s.staff?.last_name].filter(Boolean).join(" ") || s.staff?.employee_id || `Staff #${s.staff_id}`}
+                    <span className="block text-[10px] text-gray-400 font-mono">
+                      {s.staff?.employee_id}
+                      {s.staff?.employee_id && s.party?.party_code && " · "}
+                      {s.party?.party_code}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(s.gross_salary)}</td>
                   <td className="px-3 py-2 text-right font-mono text-gray-600">{fmt(s.allowances_total)}</td>

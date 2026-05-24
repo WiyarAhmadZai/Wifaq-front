@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
  * Grid of permissions grouped by module. The selected set is held by the parent.
  * Expects:
  *   permissions: array of { id, name } from /access/permissions
- *   value: Set<string> | string[] of selected permission names
+ *   value: Set<string> | string[] of selected permission names (whether they
+ *     originally came from a role or were direct — the admin can toggle any)
  *   onChange: (newSet: Set<string>) => void
  *   readOnly: boolean (optional)
  */
@@ -47,7 +48,9 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
   const toggleGroup = (group, allChecked) => {
     if (readOnly) return;
     const next = new Set(selected);
-    group.items.forEach((p) => (allChecked ? next.delete(p.name) : next.add(p.name)));
+    group.items.forEach((p) => {
+      if (allChecked) next.delete(p.name); else next.add(p.name);
+    });
     onChange(next);
   };
 

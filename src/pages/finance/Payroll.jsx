@@ -186,8 +186,8 @@ export default function Payroll() {
       if (r.status !== "ready" || edits[r.staff_id]?.skip) return;
       const man = (edits[r.staff_id]?.manual || []).reduce((s, m) => s + (Number(m.amount) || 0), 0);
       g += Number(r.gross_salary); a += Number(r.allowances_total);
-      d += Number(r.advance_offset) + man;
-      n += Number(r.gross_salary) + Number(r.allowances_total) - Number(r.advance_offset) - man;
+      d += man;
+      n += Number(r.gross_salary) + Number(r.allowances_total) - man;
     });
     return { g, a, d, n };
   }, [preview, edits]);
@@ -224,7 +224,6 @@ export default function Payroll() {
                 <th className="text-left px-3 py-2">Staff</th>
                 <th className="text-right px-3 py-2">Gross</th>
                 <th className="text-right px-3 py-2">Allowances</th>
-                <th className="text-right px-3 py-2">Advance offset</th>
                 <th className="text-right px-3 py-2">Manual ded.</th>
                 <th className="text-right px-3 py-2">Net pay</th>
                 <th className="text-center px-3 py-2">Status</th>
@@ -235,19 +234,16 @@ export default function Payroll() {
               {slips.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-800">
-                    {/* Full staff name on top, employee_id + party_code on
-                        the second line so the column is human-readable but
-                        the audit refs are still there for finance staff. */}
-                    {[s.staff?.first_name, s.staff?.last_name].filter(Boolean).join(" ") || s.staff?.employee_id || `Staff #${s.staff_id}`}
-                    <span className="block text-[10px] text-gray-400 font-mono">
-                      {s.staff?.employee_id}
-                      {s.staff?.employee_id && s.party?.party_code && " · "}
-                      {s.party?.party_code}
-                    </span>
+                    {/* Full staff name on top, employee_id on the second
+                        line. Party code intentionally NOT shown — payroll
+                        no longer flows through Party (see PayrollService). */}
+                    {s.staff?.full_name || [s.staff?.first_name, s.staff?.last_name].filter(Boolean).join(" ") || s.staff?.employee_id || `Staff #${s.staff_id}`}
+                    {s.staff?.employee_id && (
+                      <span className="block text-[10px] text-gray-400 font-mono">{s.staff.employee_id}</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(s.gross_salary)}</td>
                   <td className="px-3 py-2 text-right font-mono text-gray-600">{fmt(s.allowances_total)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-amber-700">{s.advance_offset > 0 ? `−${fmt(s.advance_offset)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono text-amber-700">{s.manual_deductions_total > 0 ? `−${fmt(s.manual_deductions_total)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-teal-700">{fmt(s.net_pay)}</td>
                   <td className="px-3 py-2 text-center">
@@ -338,7 +334,6 @@ export default function Payroll() {
                 <th className="text-left px-3 py-2">Dept</th>
                 <th className="text-right px-3 py-2">Gross</th>
                 <th className="text-right px-3 py-2">Allowances</th>
-                <th className="text-right px-3 py-2">Advance offset</th>
                 <th className="text-left px-3 py-2">Manual deduction</th>
                 <th className="text-right px-3 py-2">Net pay</th>
                 <th className="text-center px-3 py-2">Status / Skip</th>
@@ -346,13 +341,13 @@ export default function Payroll() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {preview.rows.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400 italic">No active staff for this period.</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-xs text-gray-400 italic">No active staff for this period.</td></tr>
               ) : preview.rows.map((r) => {
                 const st = ROW_STATE[r.status] || ROW_STATE.ready;
                 const e = edits[r.staff_id] || {};
                 const man = (e.manual?.[0]?.amount) || 0;
                 const net = r.status === "ready"
-                  ? Number(r.gross_salary) + Number(r.allowances_total) - Number(r.advance_offset) - Number(man)
+                  ? Number(r.gross_salary) + Number(r.allowances_total) - Number(man)
                   : 0;
                 const skipped = !!e.skip;
                 return (
@@ -363,7 +358,6 @@ export default function Payroll() {
                     <td className="px-3 py-2 text-gray-500">{r.department || "—"}</td>
                     <td className="px-3 py-2 text-right font-mono">{r.status === "ready" ? fmt(r.gross_salary) : "—"}</td>
                     <td className="px-3 py-2 text-right font-mono text-gray-600">{r.status === "ready" ? fmt(r.allowances_total) : "—"}</td>
-                    <td className="px-3 py-2 text-right font-mono text-amber-700">{r.advance_offset > 0 ? `−${fmt(r.advance_offset)}` : "—"}</td>
                     <td className="px-3 py-2">
                       {r.status === "ready" && !skipped ? (
                         <div className="flex gap-1">
@@ -397,7 +391,7 @@ export default function Payroll() {
                   <td colSpan={2} className="px-3 py-2 text-right text-[10px] uppercase text-gray-500">Totals</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.g)}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.a)}</td>
-                  <td colSpan={2} className="px-3 py-2 text-right font-mono text-amber-700">−{fmt(totals.d)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-amber-700">{totals.d > 0 ? `−${fmt(totals.d)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-teal-700">{fmt(totals.n)}</td>
                   <td></td>
                 </tr>
@@ -671,7 +665,6 @@ function SinglePayslipBody({ slip }) {
       <div className="border-t border-gray-200 pt-3 text-[11px] space-y-1">
         <Line label="Gross salary"        value={slip.gross_salary} />
         <Line label="Allowances"          value={slip.allowances_total} />
-        <Line label="Advance offset"      value={-Number(slip.advance_offset || 0)} muted={!Number(slip.advance_offset)} />
         <Line label="Manual deductions"   value={-Number(slip.manual_deductions_total || 0)} muted={!Number(slip.manual_deductions_total)} />
         <div className="border-t border-gray-300 mt-2 pt-2 flex items-center justify-between font-bold">
           <span>Net pay</span>

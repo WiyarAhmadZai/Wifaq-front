@@ -39,6 +39,15 @@ export default function Payroll() {
   const [activeRun, setActiveRun] = useState(null);
   const [accounts, setAccounts] = useState([]);
 
+  // Payment dialog state. We drive the account-picker and the receipt with
+  // plain React state instead of SweetAlert popups so we can ship a richer
+  // UI (account tiles with balances, a printable A5 receipt afterwards).
+  //   picker  = { kind: 'one'|'all', slip?, payslips? } | null
+  //   receipt = { kind, payslips, account, paidAt }    | null
+  const [picker, setPicker] = useState(null);
+  const [paying, setPaying] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+
   useEffect(() => {
     fetchRuns();
     getAccounts({ per_page: 100 })
@@ -115,46 +124,58 @@ export default function Payroll() {
     }
   };
 
-  const pickAccount = async (title) => {
+  // Open the redesigned account-picker for a single payslip.
+  const paySlipNow = (slip) => {
     if (accounts.length === 0) {
       Swal.fire("No accounts", "Add a cash/bank account first.", "warning");
-      return null;
+      return;
     }
-    const { value } = await Swal.fire({
-      title,
-      input: "select",
-      inputOptions: Object.fromEntries(accounts.map((a) => [a.id, `${a.account_name} (${fmt(a.current_balance)} AFN)`])),
-      inputPlaceholder: "Pick the paying account",
-      showCancelButton: true,
-      confirmButtonColor: "#0d9488",
-      inputValidator: (v) => !v && "Pick an account",
-    });
-    return value || null;
+    setPicker({ kind: "one", slip });
   };
 
-  const paySlipNow = async (slip) => {
-    const accId = await pickAccount(`Pay ${fmt(slip.net_pay)} AFN — payslip #${slip.id}`);
-    if (!accId) return;
-    try {
-      await payPayslip(slip.id, { paid_from_account_id: Number(accId) });
-      await openRun(activeRun.id);
-      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Paid", timer: 1300, showConfirmButton: false });
-    } catch (e) {
-      Swal.fire("Failed", e.response?.data?.message || "Payment failed.", "error");
-    }
-  };
-
-  const payAll = async () => {
+  // Open the picker for the bulk "pay everyone pending" flow.
+  const payAll = () => {
     const pending = (activeRun.payslips || []).filter((s) => s.status === "pending");
     if (pending.length === 0) return;
-    const accId = await pickAccount(`Pay all ${pending.length} pending payslips`);
-    if (!accId) return;
+    if (accounts.length === 0) {
+      Swal.fire("No accounts", "Add a cash/bank account first.", "warning");
+      return;
+    }
+    setPicker({ kind: "all", payslips: pending });
+  };
+
+  // Confirm handler shared by both single + bulk flows. On success we close
+  // the picker, refresh the run so balances/statuses update, and open the
+  // printable receipt for the user to keep or hand to the staff member.
+  const confirmPayment = async (accountId) => {
+    if (!picker) return;
+    const account = accounts.find((a) => String(a.id) === String(accountId));
+    setPaying(true);
     try {
-      await payPayrollRun(activeRun.id, { paid_from_account_id: Number(accId) });
-      await openRun(activeRun.id);
-      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "All paid", timer: 1500, showConfirmButton: false });
+      if (picker.kind === "one") {
+        await payPayslip(picker.slip.id, { paid_from_account_id: Number(accountId) });
+      } else {
+        await payPayrollRun(activeRun.id, { paid_from_account_id: Number(accountId) });
+      }
+      // Refresh activeRun so the table reflects "paid".
+      const r = await getPayrollRun(activeRun.id);
+      const fresh = r.data?.data || null;
+      setActiveRun(fresh);
+
+      // Open the printable receipt.
+      setReceipt({
+        kind: picker.kind,
+        slip: picker.kind === "one" ? picker.slip : null,
+        payslips: picker.kind === "all" ? picker.payslips : [picker.slip],
+        account,
+        paidAt: new Date(),
+        run: fresh,
+      });
+      setPicker(null);
     } catch (e) {
       Swal.fire("Failed", e.response?.data?.message || "Payment failed.", "error");
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -239,6 +260,25 @@ export default function Payroll() {
             </tbody>
           </table>
         </div>
+
+        {picker && (
+          <AccountPickerModal
+            picker={picker}
+            accounts={accounts}
+            paying={paying}
+            run={activeRun}
+            onConfirm={confirmPayment}
+            onClose={() => !paying && setPicker(null)}
+          />
+        )}
+
+        {receipt && (
+          <PayrollReceiptModal
+            receipt={receipt}
+            run={activeRun}
+            onClose={() => setReceipt(null)}
+          />
+        )}
       </div>
     );
   }
@@ -399,6 +439,281 @@ function Stat({ label, v, strong }) {
     <div>
       <p className="text-[9px] uppercase tracking-wider text-gray-400">{label}</p>
       <p className={`font-mono ${strong ? "text-base font-bold text-teal-700" : "text-xs text-gray-700"}`}>{fmt(v)}</p>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────── Account picker
+// Custom replacement for the old Swal.fire({input:'select'}) — gives us
+// account tiles with balances, the amount being paid up top, and a clean
+// list UX. Closes on backdrop click (when not mid-request).
+function AccountPickerModal({ picker, accounts, paying, run, onConfirm, onClose }) {
+  const isBulk = picker.kind === "all";
+  const slips = isBulk ? picker.payslips : [picker.slip];
+  const total = slips.reduce((s, p) => s + Number(p.net_pay || 0), 0);
+  const [selected, setSelected] = useState(null);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        {/* Header — teal gradient with the amount called out */}
+        <div className="px-6 py-5 bg-gradient-to-br from-teal-600 to-emerald-700 text-white">
+          <p className="text-[10px] uppercase font-bold tracking-wider text-teal-100">
+            {isBulk ? `Pay ${slips.length} payslips` : `Pay payslip #${picker.slip.id}`}
+          </p>
+          <p className="text-3xl font-bold mt-1 font-mono">{fmt(total)} <span className="text-sm font-normal">AFN</span></p>
+          {!isBulk && (
+            <p className="text-[11px] text-teal-100 mt-1">
+              {picker.slip.staff?.employee_id ? `to ${picker.slip.staff.employee_id}` : ""}
+              {run && ` · ${MONTHS[run.period_month - 1]} ${run.period_year}`}
+            </p>
+          )}
+        </div>
+
+        {/* Body — account tile list */}
+        <div className="p-5">
+          <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 mb-3">
+            Pay from which account?
+          </p>
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {accounts.map((a) => {
+              const sel = String(selected) === String(a.id);
+              const insufficient = Number(a.current_balance) < total;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setSelected(a.id)}
+                  className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-3 ${
+                    sel
+                      ? "bg-teal-50 border-teal-500 ring-2 ring-teal-200"
+                      : "bg-white border-gray-200 hover:border-teal-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      sel ? "border-teal-600" : "border-gray-300"
+                    }`}>
+                      {sel && <span className="w-2 h-2 rounded-full bg-teal-600" />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold truncate ${sel ? "text-teal-800" : "text-gray-800"}`}>{a.account_name}</p>
+                      <p className="text-[11px] text-gray-400 capitalize">{a.account_type}</p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`text-xs font-mono font-semibold ${insufficient ? "text-amber-700" : "text-gray-700"}`}>
+                      {fmt(a.current_balance)} AFN
+                    </p>
+                    {insufficient && (
+                      <p className="text-[9px] text-amber-700 mt-0.5">⚠ short of total</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+          <button
+            type="button"
+            disabled={paying}
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!selected || paying}
+            onClick={() => onConfirm(selected)}
+            className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50"
+          >
+            {paying ? "Processing…" : `Pay ${fmt(total)} AFN`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────── Printable receipt
+// Bank-style A5 receipt. Single mode shows one staff member's breakdown
+// (gross / allowances / deductions / net). Bulk mode shows a table of all
+// payees with their net amounts and a grand total. Print button uses
+// window.print(); the @media-print rules below hide everything except this
+// receipt, so the printed page is just the bill.
+function PayrollReceiptModal({ receipt, run, onClose }) {
+  const isBulk = receipt.kind === "all";
+  const total = receipt.payslips.reduce((s, p) => s + Number(p.net_pay || 0), 0);
+  const refNumber = isBulk
+    ? `PAYRUN-${run?.id || "?"}-${receipt.paidAt.toISOString().slice(0, 10).replace(/-/g, "")}`
+    : `PAY-${receipt.slip.id}-${receipt.paidAt.toISOString().slice(0, 10).replace(/-/g, "")}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 print:bg-white print:p-0"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* Print-only CSS — when the user clicks Print, only #payroll-receipt
+          stays visible. A5 portrait keeps it teller-receipt sized. */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #payroll-receipt, #payroll-receipt * { visibility: visible !important; }
+          #payroll-receipt { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; box-shadow: none !important; border: none !important; }
+          .print\\:hidden { display: none !important; }
+          @page { size: A5 portrait; margin: 8mm; }
+        }
+      `}</style>
+
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Header bar — hidden during print */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50 print:hidden">
+          <h3 className="text-sm font-bold text-gray-800">Payment receipt</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* The actual receipt */}
+        <div id="payroll-receipt" className="p-6 overflow-y-auto bg-white text-gray-800" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+          <div className="text-center border-b-2 border-gray-300 border-double pb-3 mb-4">
+            <h2 className="text-base font-bold tracking-wide">WIFAQ SCHOOL</h2>
+            <p className="text-[10px] text-gray-500">PAYROLL DISBURSEMENT RECEIPT</p>
+          </div>
+
+          {/* Meta */}
+          <div className="grid grid-cols-2 gap-y-1 text-[11px] mb-4">
+            <span className="text-gray-500">Receipt #</span>
+            <span className="text-right font-semibold">{refNumber}</span>
+
+            <span className="text-gray-500">Date</span>
+            <span className="text-right">{receipt.paidAt.toLocaleDateString()} {receipt.paidAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+
+            <span className="text-gray-500">Period</span>
+            <span className="text-right">
+              {run ? `${MONTHS[run.period_month - 1]} ${run.period_year}` : "—"}
+            </span>
+
+            <span className="text-gray-500">Paid from</span>
+            <span className="text-right font-semibold">{receipt.account?.account_name || "—"}</span>
+          </div>
+
+          {/* Body — single payslip breakdown OR bulk table */}
+          {!isBulk ? (
+            <SinglePayslipBody slip={receipt.slip} />
+          ) : (
+            <BulkPayslipsBody payslips={receipt.payslips} />
+          )}
+
+          {/* Grand total */}
+          <div className="mt-4 pt-3 border-t-2 border-gray-300 border-double flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-700">Total paid</span>
+            <span className="text-lg font-bold">{fmt(total)} AFN</span>
+          </div>
+
+          {/* Signatures */}
+          <div className="mt-8 grid grid-cols-2 gap-6 text-[10px] text-gray-500">
+            <div>
+              <div className="border-t border-gray-400 pt-1">Payer signature</div>
+            </div>
+            <div>
+              <div className="border-t border-gray-400 pt-1 text-right">Recipient signature</div>
+            </div>
+          </div>
+
+          <p className="text-[9px] text-gray-400 text-center mt-6">
+            This receipt is generated automatically. Verify the amount above before signing.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SinglePayslipBody({ slip }) {
+  return (
+    <>
+      <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Paid to</p>
+      <p className="text-sm font-bold mb-3">
+        {slip.staff?.first_name || ""} {slip.staff?.last_name || ""}
+        {slip.staff?.employee_id && <span className="block text-[10px] text-gray-500 font-normal">{slip.staff.employee_id}</span>}
+      </p>
+
+      <div className="border-t border-gray-200 pt-3 text-[11px] space-y-1">
+        <Line label="Gross salary"        value={slip.gross_salary} />
+        <Line label="Allowances"          value={slip.allowances_total} />
+        <Line label="Advance offset"      value={-Number(slip.advance_offset || 0)} muted={!Number(slip.advance_offset)} />
+        <Line label="Manual deductions"   value={-Number(slip.manual_deductions_total || 0)} muted={!Number(slip.manual_deductions_total)} />
+        <div className="border-t border-gray-300 mt-2 pt-2 flex items-center justify-between font-bold">
+          <span>Net pay</span>
+          <span>{fmt(slip.net_pay)} AFN</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BulkPayslipsBody({ payslips }) {
+  return (
+    <>
+      <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Payees ({payslips.length})</p>
+      <table className="w-full text-[11px] border-t border-b border-gray-200">
+        <thead>
+          <tr className="text-left text-[9px] uppercase tracking-wider text-gray-500 border-b border-gray-100">
+            <th className="py-1.5">Staff</th>
+            <th className="py-1.5 text-right">Net</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {payslips.map((p) => (
+            <tr key={p.id}>
+              <td className="py-1.5">
+                {p.staff?.employee_id || `#${p.staff_id}`}
+                {(p.staff?.first_name || p.staff?.last_name) && (
+                  <span className="block text-[9px] text-gray-500">
+                    {p.staff?.first_name || ""} {p.staff?.last_name || ""}
+                  </span>
+                )}
+              </td>
+              <td className="py-1.5 text-right font-semibold">{fmt(p.net_pay)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+function Line({ label, value, muted }) {
+  const negative = Number(value) < 0;
+  return (
+    <div className={`flex items-center justify-between ${muted ? "text-gray-400" : ""}`}>
+      <span>{label}</span>
+      <span className={negative ? "text-amber-700" : ""}>
+        {negative ? "−" : ""}{fmt(Math.abs(Number(value) || 0))}
+      </span>
     </div>
   );
 }

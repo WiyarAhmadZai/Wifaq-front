@@ -160,6 +160,13 @@ const SELF_SCOPED_PATH_PATTERNS = [
   // /create + /edit/:id stay permission-gated via the RULES table.
   /^\/hr\/events$/,
   /^\/hr\/events\/show\/\d+$/,
+  // Contracts list + show — staff member can read their own contract row.
+  // Backend row-scopes the response so privacy is preserved.
+  /^\/hr\/contracts$/,
+  /^\/hr\/contracts\/show\/\d+$/,
+  // VATS cards — any staff member can land here from a yellow-card
+  // notification; the backend row-scopes to their own cards (HR sees all).
+  /^\/hr\/vats\/cards$/,
 ];
 
 /**

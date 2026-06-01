@@ -36,7 +36,7 @@ export default function CrudPage({
   rowActions = null,
 }) {
   const navigate = useNavigate();
-  const { hasPermission, user } = useAuth();
+  const { hasPermission } = useAuth();
 
   // Permission resolution. If no base provided → all true (legacy behavior).
   const permCheck = (action) => {
@@ -47,20 +47,6 @@ export default function CrudPage({
   const canUpdate = permCheck("update");
   const canDelete = permCheck("delete");
   const canView = permCheck("view");
-
-  // Dev-mode tracing — open the browser console on the affected user's
-  // page and you'll see exactly what permissions arrived, which keys the
-  // gate checked, and why each button does or doesn't render. Strips out
-  // of production builds because `import.meta.env.DEV` is statically false.
-  if (import.meta.env?.DEV && permissionBase) {
-    // eslint-disable-next-line no-console
-    console.log(`[CrudPage:${permissionBase}] gates`, {
-      isSuperAdmin: user?.is_super_admin,
-      roles: user?.roles,
-      yourPermissions: user?.permissions?.filter((p) => p.startsWith(`${permissionBase}.`)),
-      canCreate, canUpdate, canDelete, canView,
-    });
-  }
 
   // Highlight support: when arriving with ?highlight=ID, scroll that row into
   // view and ring it briefly so the user sees exactly which item the
@@ -174,24 +160,6 @@ export default function CrudPage({
 
   return (
     <div className="px-4 py-5 space-y-5">
-      {/* Dev-only permission debug chip — appears bottom-right so you can see
-          exactly what the gate is seeing right now. Stripped out of prod. */}
-      {import.meta.env?.DEV && permissionBase && (
-        <div className="fixed bottom-3 right-3 z-50 max-w-xs bg-gray-900/95 text-white rounded-xl shadow-xl px-3 py-2 text-[10px] leading-relaxed pointer-events-auto select-text">
-          <p className="font-bold text-amber-300">[perm gate · {permissionBase}]</p>
-          <p>super-admin: <span className={user?.is_super_admin ? "text-red-300" : "text-gray-300"}>{String(!!user?.is_super_admin)}</span></p>
-          <p>roles: <span className="text-gray-300">{(user?.roles || []).join(", ") || "—"}</span></p>
-          <p>your {permissionBase}.* perms: <span className="text-emerald-300">
-            {(user?.permissions || []).filter((p) => p.startsWith(`${permissionBase}.`)).join(", ") || "(none)"}
-          </span></p>
-          <p>
-            canCreate=<span className={canCreate ? "text-emerald-300" : "text-red-300"}>{String(canCreate)}</span>
-            {" "}canUpdate=<span className={canUpdate ? "text-emerald-300" : "text-red-300"}>{String(canUpdate)}</span>
-            {" "}canDelete=<span className={canDelete ? "text-emerald-300" : "text-red-300"}>{String(canDelete)}</span>
-          </p>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

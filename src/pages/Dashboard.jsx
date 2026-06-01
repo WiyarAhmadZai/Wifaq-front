@@ -119,9 +119,13 @@ export default function Dashboard() {
             onClick={() => navigate("/profile")}
             cta="Open my profile →"
           >
-            <Row label="My pending leave requests"  value={leave?.mine_pending ?? 0} highlight={(leave?.mine_pending ?? 0) > 0 ? "amber" : null} />
+            <Row label="My pending leave requests"  value={leave?.mine_pending ?? 0} highlight={(leave?.mine_pending ?? 0) > 0 ? "amber" : null} onClick={() => navigate("/hr/leave-request")} />
+            <Row label="Approved this year"         value={leave?.mine_approved ?? 0} />
             <Row label="Total leave requests"       value={leave?.mine_total ?? 0} />
             <Row label="Unread notifications"       value={me_section?.unread_notifications ?? 0} highlight={(me_section?.unread_notifications ?? 0) > 0 ? "blue" : null} />
+            {leave?.my_balance && (
+              <MyLeaveBalanceTile balance={leave.my_balance} onClick={() => navigate("/profile")} />
+            )}
           </Section>
 
           {charts?.observations_last_6_months && (
@@ -163,6 +167,9 @@ export default function Dashboard() {
                 <MiniStat label="Approved" value={leave.approved_this_mo} tone="emerald" />
                 <MiniStat label="Rejected" value={leave.rejected_this_mo} tone="red" />
               </div>
+              {leave.approved_this_year != null && (
+                <Row label={`Approved in ${new Date().getFullYear()}`} value={leave.approved_this_year} highlight="emerald" />
+              )}
               {charts?.leave_by_status && <LeaveDonut data={charts.leave_by_status} />}
             </Section>
           )}
@@ -341,6 +348,55 @@ function MiniStat({ label, value, tone }) {
     <div className={`rounded-lg p-2 text-center ${tones}`}>
       <p className="text-[9px] font-bold uppercase">{label}</p>
       <p className="text-base font-black text-gray-800">{value ?? 0}</p>
+    </div>
+  );
+}
+
+function MyLeaveBalanceTile({ balance, onClick }) {
+  const used         = Number(balance?.used_days || 0);
+  const allowance    = Number(balance?.allowance_days || 0);
+  const remaining    = Number(balance?.remaining_days || 0);
+  const isConfigured = balance?.is_configured ?? allowance > 0;
+  const isOver       = !!balance?.is_over;
+  const percent      = Number(balance?.percent_used || 0);
+
+  const bar = !isConfigured ? "bg-blue-400"
+    : isOver || percent >= 90 ? "bg-red-500"
+    : percent >= 60 ? "bg-amber-500" : "bg-emerald-500";
+
+  return (
+    <div
+      onClick={onClick}
+      className={`mt-2 rounded-lg p-2.5 bg-teal-50/40 border border-teal-100 ${onClick ? "cursor-pointer hover:bg-teal-50 transition-colors" : ""}`}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700">Leave balance</span>
+        <span className="text-[10px] font-semibold text-gray-600">{isConfigured ? `${percent}% used` : "Not configured"}</span>
+      </div>
+
+      {/* Three-up: Used / Remaining / Total — matches the profile widget so
+          the numbers stay consistent between the two surfaces. */}
+      <div className="grid grid-cols-3 gap-1.5 mb-2">
+        <div className="rounded bg-teal-100/60 px-1.5 py-1 text-center">
+          <p className="text-[8px] font-bold uppercase tracking-wider text-teal-700">Used</p>
+          <p className="text-sm font-black text-teal-800 leading-tight">{used}</p>
+        </div>
+        <div className={`rounded px-1.5 py-1 text-center ${isOver ? "bg-red-100/70" : "bg-emerald-100/60"}`}>
+          <p className={`text-[8px] font-bold uppercase tracking-wider ${isOver ? "text-red-700" : "text-emerald-700"}`}>Left</p>
+          <p className={`text-sm font-black leading-tight ${isOver ? "text-red-800" : "text-emerald-800"}`}>{isConfigured ? remaining : "—"}</p>
+        </div>
+        <div className="rounded bg-gray-100 px-1.5 py-1 text-center">
+          <p className="text-[8px] font-bold uppercase tracking-wider text-gray-600">Total</p>
+          <p className="text-sm font-black text-gray-800 leading-tight">{isConfigured ? allowance : "—"}</p>
+        </div>
+      </div>
+
+      <div className="h-1.5 bg-white rounded-full overflow-hidden">
+        <div className={`h-full ${bar} transition-all duration-500`} style={{ width: `${Math.min(100, percent)}%` }} />
+      </div>
+      {isOver && (
+        <p className="text-[10px] font-bold text-red-600 mt-1.5">⚠ Over by {balance?.over_by_days || 0} day{(balance?.over_by_days || 0) === 1 ? "" : "s"}</p>
+      )}
     </div>
   );
 }

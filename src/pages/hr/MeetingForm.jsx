@@ -18,11 +18,13 @@ export default function MeetingForm() {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    start_time: "",
-    end_time: "",
+    meeting_date: "",   // YYYY-MM-DD — single date the meeting takes place
+    start_time: "",     // HH:MM — clock time only
+    end_time: "",       // HH:MM — clock time only
     location: "",
     status: "scheduled",
     meeting_type: "routine",
+    reminder_minutes_before: 180, // 3 hours — editable per meeting
     recurrence: "",            // "" | weekly | monthly | yearly
     recurrence_until: "",      // YYYY-MM-DD
   });
@@ -110,14 +112,23 @@ export default function MeetingForm() {
     try {
       const res = await get(`/meetings/${id}`);
       const d = res.data?.data || res.data;
+      // Backend stores start_time / end_time as full datetimes; split them
+      // into date + HH:MM so the new three-field UI can edit them.
+      const startIso = d.start_time ? String(d.start_time).replace(" ", "T") : "";
+      const endIso   = d.end_time   ? String(d.end_time).replace(" ", "T")   : "";
       setForm({
         title: d.title || "",
         description: d.description || "",
-        start_time: d.start_time ? d.start_time.replace(" ", "T").substring(0, 16) : "",
-        end_time: d.end_time ? d.end_time.replace(" ", "T").substring(0, 16) : "",
+        meeting_date: startIso ? startIso.substring(0, 10) : "",
+        start_time: startIso ? startIso.substring(11, 16) : "",
+        end_time:   endIso   ? endIso.substring(11, 16)   : "",
         location: d.location || "",
         status: d.status || "scheduled",
         meeting_type: d.meeting_type || "routine",
+        reminder_minutes_before:
+          d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
+            ? 180
+            : Number(d.reminder_minutes_before),
         recurrence: d.recurrence || "",
         recurrence_until: d.recurrence_until ? String(d.recurrence_until).substring(0, 10) : "",
       });
@@ -170,15 +181,30 @@ export default function MeetingForm() {
     e.preventDefault();
     const errs = {};
     if (!form.title) errs.title = "Title is required";
+    if (!form.meeting_date) errs.meeting_date = "Date is required";
     if (!form.start_time) errs.start_time = "Start time is required";
     if (!form.end_time) errs.end_time = "End time is required";
+    if (form.start_time && form.end_time && form.end_time <= form.start_time) {
+      errs.end_time = "End time must be after start time";
+    }
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSaving(true);
     // Recurrence only makes sense for routine meetings; drop it otherwise.
     const isRoutine = form.meeting_type === "routine";
+    const reminderMinutes = isRoutine
+      ? Math.max(0, Math.min(10080, Number(form.reminder_minutes_before) || 0))
+      : 0;
+    // The API still expects full datetimes — stitch the single date with the
+    // two clock times before sending.
+    const startDateTime = `${form.meeting_date} ${form.start_time}:00`;
+    const endDateTime   = `${form.meeting_date} ${form.end_time}:00`;
+    const { meeting_date, ...rest } = form;
     const payload = {
-      ...form,
+      ...rest,
+      start_time: startDateTime,
+      end_time: endDateTime,
+      reminder_minutes_before: reminderMinutes,
       recurrence: isRoutine && form.recurrence ? form.recurrence : null,
       recurrence_until: isRoutine && form.recurrence && form.recurrence_until ? form.recurrence_until : null,
       participants: participants.map((p) => p.id),
@@ -244,14 +270,19 @@ export default function MeetingForm() {
               <input type="text" name="title" value={form.title} onChange={handle} placeholder="e.g. Weekly Staff Meeting" className={ic("title")} />
               {errors.title && <p className="text-red-500 text-[10px] mt-1">{errors.title}</p>}
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Meeting Date *</label>
+              <DateField name="meeting_date" value={form.meeting_date} onChange={handle} className={ic("meeting_date")} />
+              {errors.meeting_date && <p className="text-red-500 text-[10px] mt-1">{errors.meeting_date}</p>}
+            </div>
             <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date & Time *</label>
-              <DateField name="start_time" value={form.start_time} onChange={handle} className={ic("start_time")} withTime />
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Time *</label>
+              <input type="time" name="start_time" value={form.start_time} onChange={handle} className={ic("start_time")} />
               {errors.start_time && <p className="text-red-500 text-[10px] mt-1">{errors.start_time}</p>}
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Date & Time *</label>
-              <DateField name="end_time" value={form.end_time} onChange={handle} min={form.start_time} className={ic("end_time")} withTime />
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Time *</label>
+              <input type="time" name="end_time" value={form.end_time} onChange={handle} min={form.start_time || undefined} className={ic("end_time")} />
               {errors.end_time && <p className="text-red-500 text-[10px] mt-1">{errors.end_time}</p>}
             </div>
             <div>
@@ -280,6 +311,58 @@ export default function MeetingForm() {
               </div>
             </div>
 
+            {/* Reminder lead-time — routine meetings only */}
+            {form.meeting_type === "routine" && (
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                  Notify participants before
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={[0, 15, 30, 60, 120, 180, 360, 720, 1440].includes(
+                      Number(form.reminder_minutes_before)
+                    ) ? String(form.reminder_minutes_before) : "custom"}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v !== "custom") {
+                        setForm((p) => ({ ...p, reminder_minutes_before: Number(v) }));
+                      }
+                    }}
+                    className={ic("reminder_minutes_before")}
+                  >
+                    <option value="0">No reminder</option>
+                    <option value="15">15 minutes before</option>
+                    <option value="30">30 minutes before</option>
+                    <option value="60">1 hour before</option>
+                    <option value="120">2 hours before</option>
+                    <option value="180">3 hours before (default)</option>
+                    <option value="360">6 hours before</option>
+                    <option value="720">12 hours before</option>
+                    <option value="1440">1 day before</option>
+                    <option value="custom">Custom…</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10080}
+                    value={form.reminder_minutes_before ?? 0}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        reminder_minutes_before: e.target.value === "" ? 0 : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="minutes"
+                    className="w-24 px-2.5 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 focus:outline-none"
+                    title="Minutes before start time"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  All participants get an in-app notification at this lead time. Set to 0 to disable.
+                </p>
+              </div>
+            )}
+
             {/* Recurrence — only when this is a routine meeting */}
             {form.meeting_type === "routine" && (
               <>
@@ -306,7 +389,7 @@ export default function MeetingForm() {
                       name="recurrence_until"
                       value={form.recurrence_until}
                       onChange={handle}
-                      min={form.start_time ? form.start_time.substring(0, 10) : undefined}
+                      min={form.meeting_date || undefined}
                       className={ic("recurrence_until")}
                     />
                     <p className="text-[10px] text-gray-500 mt-1">
@@ -495,7 +578,7 @@ export default function MeetingForm() {
         </div>
 
         {/* Summary */}
-        {form.title && form.start_time && (
+        {form.title && form.meeting_date && form.start_time && (
           <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
             <h3 className="text-xs font-bold mb-3 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -503,7 +586,7 @@ export default function MeetingForm() {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div><span className="text-teal-200 block text-[9px]">Title</span><span className="font-medium">{form.title}</span></div>
-              <div><span className="text-teal-200 block text-[9px]">When</span><span className="font-medium">{form.start_time ? fmtDateTime(form.start_time) : "-"}</span></div>
+              <div><span className="text-teal-200 block text-[9px]">When</span><span className="font-medium">{form.meeting_date && form.start_time ? `${fmtDate(form.meeting_date)} · ${form.start_time}${form.end_time ? "–" + form.end_time : ""}` : "-"}</span></div>
               <div><span className="text-teal-200 block text-[9px]">Participants</span><span className="font-medium">{participants.length} member{participants.length !== 1 ? "s" : ""}</span></div>
               <div><span className="text-teal-200 block text-[9px]">Agenda Items</span><span className="font-medium">{agendaItems.filter((a) => a.title).length} topic{agendaItems.filter((a) => a.title).length !== 1 ? "s" : ""}{totalDuration > 0 ? ` · ${totalDuration}min` : ""}</span></div>
             </div>

@@ -251,6 +251,46 @@ export default function MeetingShow() {
     if (r.isConfirmed) { try { await del(`/meetings/${id}`); } catch {} navigate("/hr/meetings"); }
   };
 
+  const handleCopy = async () => {
+    const r = await Swal.fire({
+      title: "Copy this meeting?",
+      text: `A duplicate of "${data?.title}" will be created on the same weekday & time, with the date moved forward. You can then adjust the date before saving.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      confirmButtonText: "Create copy",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      const res = await post(`/meetings/${id}/copy`);
+      const created = res.data?.data;
+      Swal.fire({ icon: "success", title: "Copy created", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+      if (created?.id) navigate(`/hr/meetings/edit/${created.id}`);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to copy meeting", "error");
+    }
+  };
+
+  const handleContinue = async () => {
+    const r = await Swal.fire({
+      title: "Continue in a follow-up?",
+      html: `This will schedule a follow-up session of <b>"${data?.title}"</b> on the same weekday & time next week, carry over the participants, agenda and pending action items, and notify everyone.<br/><br/>This session will be marked <b>completed</b>.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      confirmButtonText: "Schedule follow-up",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      const res = await post(`/meetings/${id}/continue`);
+      const created = res.data?.data;
+      Swal.fire({ icon: "success", title: res.data?.message || "Follow-up scheduled", timer: 2200, showConfirmButton: false, toast: true, position: "top-end" });
+      if (created?.id) navigate(`/hr/meetings/show/${created.id}`);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to schedule follow-up", "error");
+    }
+  };
+
   // ── Propose agenda item (participant flow) ──
   const isOrganizer = data && currentUser?.id && data.organizer_id === currentUser.id;
   const isParticipant = data && currentUser?.id && (data.participants || []).some((p) => p.id === currentUser.id);
@@ -411,6 +451,12 @@ export default function MeetingShow() {
             <p className="text-xs text-teal-100 mt-0.5">#{String(data.id).padStart(4, "0")}</p>
           </div>
           {canUpdate && (
+            <button onClick={handleContinue} className="px-3 py-1.5 bg-white text-teal-700 hover:bg-teal-50 text-xs font-bold rounded-xl">Continue →</button>
+          )}
+          {canUpdate && (
+            <button onClick={handleCopy} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Copy</button>
+          )}
+          {canUpdate && (
             <button onClick={() => navigate(`/hr/meetings/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
           )}
           {canDelete && (
@@ -453,6 +499,34 @@ export default function MeetingShow() {
       </div>
 
       <div className="px-4 py-5 space-y-4">
+        {/* Continuation chain — links to earlier / later sessions of this discussion */}
+        {(data.continued_from || (data.continuations && data.continuations.length > 0)) && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-2">
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+              Continued Discussion
+            </p>
+            {data.continued_from && (
+              <button onClick={() => navigate(`/hr/meetings/show/${data.continued_from.id}`)}
+                className="w-full flex items-center gap-2 text-left text-xs text-indigo-700 hover:text-indigo-900 hover:underline">
+                <span className="text-indigo-400">←</span>
+                <span className="font-semibold">Continues from:</span>
+                <span className="truncate">{data.continued_from.title}</span>
+                <span className="text-indigo-400 ml-auto whitespace-nowrap">{fmtDate(data.continued_from.start_time)}</span>
+              </button>
+            )}
+            {(data.continuations || []).map((c) => (
+              <button key={c.id} onClick={() => navigate(`/hr/meetings/show/${c.id}`)}
+                className="w-full flex items-center gap-2 text-left text-xs text-indigo-700 hover:text-indigo-900 hover:underline">
+                <span className="text-indigo-400">→</span>
+                <span className="font-semibold">Continued in:</span>
+                <span className="truncate">{c.title}</span>
+                <span className="text-indigo-400 ml-auto whitespace-nowrap">{fmtDate(c.start_time)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Time & Location */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">

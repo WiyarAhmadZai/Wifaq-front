@@ -48,6 +48,29 @@ export default function Meetings() {
     }
   };
 
+  const handleCopy = async (meeting) => {
+    const r = await Swal.fire({
+      title: "Copy this meeting?",
+      text: `A duplicate of "${meeting.title}" will be created on the same weekday & time, with the date moved forward. You can then adjust the date before saving.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      confirmButtonText: "Create copy",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      const res = await post(`/meetings/${meeting.id}/copy`);
+      const created = res.data?.data;
+      Swal.fire({ icon: "success", title: "Copy created", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+      // Drop straight into the edit screen so the date can be adjusted and
+      // participants notified on save.
+      if (created?.id) navigate(`/hr/meetings/edit/${created.id}`);
+      else fetchItems();
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to copy meeting", "error");
+    }
+  };
+
   const openAssignTask = async (meeting) => {
     try {
       const res = await get("/hr/staff-tasks/staff-list");
@@ -267,6 +290,9 @@ export default function Meetings() {
                             </button>
                             <button onClick={() => openAssignTask(m)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Assign task from meeting">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                            </button>
+                            <button onClick={() => handleCopy(m)} className="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg" title="Copy meeting">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                             </button>
                             <button onClick={() => navigate(`/hr/meetings/edit/${m.id}`)} className="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg" title="Edit">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>

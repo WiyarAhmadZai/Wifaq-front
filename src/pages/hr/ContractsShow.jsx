@@ -60,6 +60,74 @@ const InfoCard = ({ icon: Icon, label, value }) => (
   </div>
 );
 
+/**
+ * Big lifecycle banner. The backend now sends:
+ *   data.lifecycle_state  →  "ok" | "expiring" | "expired" | "terminated" | "draft"
+ *   data.days_until_expiry →  signed integer (negative = expired)
+ *   data.is_expiring_soon  →  bool (≤ 30 d remaining, not yet expired)
+ *   data.is_expired        →  bool
+ * Anything we render below is driven from these so the banner stays in sync
+ * with reality even when the row sat in the DB past its end date.
+ */
+const LifecycleBanner = ({ data, canUpdate, onRenew }) => {
+  const state    = data.lifecycle_state || (data.is_expired ? "expired" : "ok");
+  const days     = data.days_until_expiry;
+  const endDate  = data.end_date || (data.has_probation ? data.probation_end_date : null);
+
+  // Map state → look + headline. Keeping a single dictionary so the JSX
+  // stays small and the visual hierarchy is obvious.
+  const themes = {
+    expired:    { bg: "from-red-50 to-rose-50",      border: "border-red-200",     dot: "bg-red-500",     text: "text-red-800",     pill: "bg-red-100 text-red-700",     headline: "This contract has expired",                ctaTone: "bg-red-600 hover:bg-red-700",       ctaLabel: "Renew or create new contract" },
+    expiring:   { bg: "from-amber-50 to-orange-50",  border: "border-amber-200",   dot: "bg-amber-500",   text: "text-amber-800",   pill: "bg-amber-100 text-amber-700", headline: `Expires in ${Math.max(0, days)} day${days === 1 ? "" : "s"}`, ctaTone: "bg-amber-600 hover:bg-amber-700",   ctaLabel: "Renew now" },
+    terminated: { bg: "from-gray-100 to-gray-50",    border: "border-gray-300",    dot: "bg-gray-500",    text: "text-gray-700",    pill: "bg-gray-200 text-gray-700",   headline: "This contract was terminated",             ctaTone: "bg-teal-600 hover:bg-teal-700",     ctaLabel: "Create new contract" },
+    draft:      { bg: "from-indigo-50 to-blue-50",   border: "border-indigo-200",  dot: "bg-indigo-500",  text: "text-indigo-800",  pill: "bg-indigo-100 text-indigo-700", headline: "Draft — not yet active",                  ctaTone: "",                                  ctaLabel: null },
+    ok:         { bg: "from-emerald-50 to-teal-50",  border: "border-emerald-200", dot: "bg-emerald-500", text: "text-emerald-800", pill: "bg-emerald-100 text-emerald-700", headline: days != null ? `Active · ${days} day${days === 1 ? "" : "s"} remaining` : "Active · no end date", ctaTone: "", ctaLabel: null },
+  };
+  const t = themes[state] || themes.ok;
+
+  return (
+    <div className={`mb-5 rounded-2xl border ${t.border} bg-gradient-to-br ${t.bg} px-5 py-4`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`relative flex h-3 w-3 flex-shrink-0`}>
+            {state === "expiring" && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${t.dot} opacity-60`} />}
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${t.dot}`} />
+          </span>
+          <div className="min-w-0">
+            <p className={`text-sm font-bold ${t.text}`}>{t.headline}</p>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-gray-600">
+              {endDate && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${t.pill}`}>
+                  End: {endDate}
+                </span>
+              )}
+              {state === "expired" && days != null && days < 0 && (
+                <span className="text-red-700 font-semibold">Expired {Math.abs(days)} day{Math.abs(days) === 1 ? "" : "s"} ago</span>
+              )}
+              {data.contract_type && (
+                <span className="px-2 py-0.5 rounded-full bg-white/70 text-gray-700 text-[10px] font-semibold border border-white">
+                  {String(data.contract_type).replace(/_/g, " ")}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        {canUpdate && t.ctaLabel && (
+          <button
+            onClick={onRenew}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm flex items-center gap-2 ${t.ctaTone} ${state === "expired" ? "animate-pulse" : ""}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {t.ctaLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function ContractsShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -169,6 +237,11 @@ export default function ContractsShow() {
           )}
         </div>
       </div>
+
+      {/* Lifecycle banner — single source of truth for "what's going on with
+          this contract right now". Backend supplies lifecycle_state + the
+          countdown so the banner stays accurate even after refresh. */}
+      <LifecycleBanner data={data} canUpdate={canUpdate} onRenew={() => setShowRenewModal(true)} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">

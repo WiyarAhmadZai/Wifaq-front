@@ -426,40 +426,36 @@ function NotificationBell() {
   const handleClick = (n) => {
     const d = n.data || {};
 
-    let dest;
-
-    // Leave requests: always land on the list with the row highlighted,
-    // even when the backend payload still carries an old /show/ link.
-    if (d.leave_request_id) {
-      dest = `/hr/leave-request?highlight=${d.leave_request_id}`;
-    } else if (d.link) {
-      dest = d.link;
-    } else if (d.meeting_id) {
-      dest = `/hr/meetings/show/${d.meeting_id}`;
-    } else if (d.staff_task_id) {
-      dest = `/hr/staff-task?highlight=${d.staff_task_id}`;
-    } else if (d.vendor_contract_id) {
-      dest = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
-    } else if (d.agreement_id) {
-      dest = `/hr/agreements/show/${d.agreement_id}`;
-    }
-
-    if (dest) {
-      const sep = dest.includes("?") ? "&" : "?";
-      navigate(`${dest}${sep}from=notif`);
-    }
-    // Resolve the target page: explicit `link` field first (works for any
-    // notification type that wants to define its own deep link — e.g. the
-    // new fee_invoice_overdue), then fall back to type-specific routing.
+    // Routing priority: the notification's explicit `link` field always
+    // wins (so a VATS yellow-card notification with `link: '/hr/vats/cards'`
+    // doesn't get hijacked by its own `leave_request_id`). Fall back to
+    // type-specific routing only when no link was supplied.
     let target = null;
-    if (d.link) target = d.link;
-    else if (d.invoice_id) target = `/finance/fee-invoices/show/${d.invoice_id}`;
-    else if (d.meeting_id) target = `/hr/meetings/show/${d.meeting_id}`;
-    else if (d.staff_task_id) target = `/hr/staff-task?highlight=${d.staff_task_id}`;
-    else if (d.vendor_contract_id) target = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
-    else if (d.agreement_id) target = `/hr/agreements/show/${d.agreement_id}`;
+    if (d.link) {
+      target = d.link;
+    } else if (d.leave_request_id) {
+      target = `/hr/leave-request?highlight=${d.leave_request_id}`;
+    } else if (d.invoice_id) {
+      target = `/finance/fee-invoices/show/${d.invoice_id}`;
+    } else if (d.meeting_id) {
+      target = `/hr/meetings/show/${d.meeting_id}`;
+    } else if (d.event_id) {
+      target = `/hr/events/show/${d.event_id}`;
+    } else if (d.staff_task_id) {
+      target = `/hr/staff-task?highlight=${d.staff_task_id}`;
+    } else if (d.vendor_contract_id) {
+      target = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
+    } else if (d.staff_contract_id) {
+      target = `/hr/contracts/show/${d.staff_contract_id}`;
+    } else if (d.agreement_id) {
+      target = `/hr/agreements/show/${d.agreement_id}`;
+    }
+
     if (!n.read_at) markAsRead(n.id);
-    if (target) navigate(target);
+    if (target) {
+      const sep = target.includes("?") ? "&" : "?";
+      navigate(`${target}${sep}from=notif`);
+    }
     setOpen(false);
   };
 
@@ -530,6 +526,13 @@ function NotificationBell() {
     }
     if (data?.type === "vendor_contract") {
       return { bg: "bg-orange-100", color: "text-orange-600", path: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" };
+    }
+    if (data?.type === "staff_contract") {
+      if (data.action === "signed")     return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
+      if (data.action === "terminated") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
+      if (data.action === "expired")    return { bg: "bg-amber-100", color: "text-amber-600", path: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" };
+      if (data.action === "renewed")    return { bg: "bg-blue-100", color: "text-blue-600", path: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" };
+      return { bg: "bg-teal-100", color: "text-teal-600", path: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" };
     }
     if (data?.type === "agreement") {
       return { bg: "bg-purple-100", color: "text-purple-600", path: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" };

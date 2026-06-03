@@ -261,6 +261,11 @@ export default function MyProfile() {
             {/* Self-profile — the staff's own public narrative; editable only by the owner */}
             {profile.type === 'staff' && <SelfProfileSection canEdit={isSelf} initialData={profile.self_profile} />}
 
+            {/* Annual leave usage from the contract (single progress bar) */}
+            {profile.type === 'staff' && (isSelf || isAdminView) && s.leave_balance && (
+              <AnnualLeaveUsageCard balance={s.leave_balance} />
+            )}
+
             {/* Leave balance — private (own only) */}
             {profile.type === 'staff' && isSelf && <LeaveBalanceSection />}
 
@@ -701,6 +706,129 @@ function MyLeaveRequestsSection() {
           })}
         </div>
       )}
+    </Section>
+  );
+}
+
+/* ─────────────── Annual leave usage progress bar (from contract) ─────────────── */
+function AnnualLeaveUsageCard({ balance }) {
+  const allowance     = Number(balance?.allowance_days || 0);
+  const used          = Number(balance?.used_days || 0);
+  const remaining     = Number(balance?.remaining_days || 0);
+  const overBy        = Number(balance?.over_by_days || 0);
+  const isOver        = !!balance?.is_over;
+  const isConfigured  = balance?.is_configured ?? allowance > 0;
+  const percent       = Number(balance?.percent_used || 0);
+  const cards         = Number(balance?.yellow_cards_issued || 0);
+  const approvedCount = Number(balance?.approved_count || 0);
+  const year          = balance?.year || new Date().getFullYear();
+
+  // Color hierarchy: blue for unconfigured, green < 60 %, amber < 90 %, red ≥ 90 % or over.
+  const tone = !isConfigured
+    ? { bar: "bg-blue-400",  chip: "bg-blue-50 text-blue-700 ring-blue-200" }
+    : isOver || percent >= 90
+      ? { bar: "bg-red-500",    chip: "bg-red-50 text-red-700 ring-red-200" }
+      : percent >= 60
+        ? { bar: "bg-amber-500", chip: "bg-amber-50 text-amber-700 ring-amber-200" }
+        : { bar: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 ring-emerald-200" };
+
+  return (
+    <Section
+      title={`Annual Leave Usage · ${year}`}
+      icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+      locked
+      lockMessage="From contract"
+    >
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-2xl font-black text-gray-800 leading-none">
+              {used}<span className="text-gray-400 font-bold text-lg"> / {isConfigured ? allowance : "—"}</span>
+              <span className="text-[11px] font-semibold text-gray-500 ml-1.5">days</span>
+            </p>
+            <p className="text-[10px] text-gray-500 mt-1">
+              {isConfigured ? (
+                <>
+                  Calculation: <strong>{allowance}</strong> total − <strong>{used}</strong> used = <strong>{remaining}</strong> remaining
+                  {isOver && <span className="text-red-600 font-bold"> · over by {overBy} day{overBy === 1 ? "" : "s"}</span>}
+                </>
+              ) : (
+                <>{approvedCount} approved request{approvedCount === 1 ? "" : "s"} this year</>
+              )}
+            </p>
+          </div>
+          {isConfigured && (
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ring-1 ${tone.chip}`}>
+              {percent}% used
+            </span>
+          )}
+          {!isConfigured && (
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ring-1 ${tone.chip}`}>
+              Not configured
+            </span>
+          )}
+        </div>
+
+        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${tone.bar} transition-all duration-500`}
+            style={{ width: `${Math.min(100, percent)}%` }}
+          />
+        </div>
+
+        {/* Three-up breakdown so the user instantly sees used, remaining,
+            and total numbers without having to do the math. */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-teal-50 ring-1 ring-teal-100 px-2 py-1.5 text-center">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-teal-700">Used</p>
+            <p className="text-lg font-black text-teal-800 leading-tight">{used}</p>
+            <p className="text-[9px] text-teal-700">day{used === 1 ? "" : "s"}</p>
+          </div>
+          <div className={`rounded-lg ${isOver ? "bg-red-50 ring-red-100" : "bg-emerald-50 ring-emerald-100"} ring-1 px-2 py-1.5 text-center`}>
+            <p className={`text-[9px] font-bold uppercase tracking-wider ${isOver ? "text-red-700" : "text-emerald-700"}`}>Remaining</p>
+            <p className={`text-lg font-black leading-tight ${isOver ? "text-red-800" : "text-emerald-800"}`}>{isConfigured ? remaining : "—"}</p>
+            <p className={`text-[9px] ${isOver ? "text-red-700" : "text-emerald-700"}`}>day{remaining === 1 ? "" : "s"}</p>
+          </div>
+          <div className="rounded-lg bg-gray-50 ring-1 ring-gray-100 px-2 py-1.5 text-center">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-600">Total</p>
+            <p className="text-lg font-black text-gray-800 leading-tight">{isConfigured ? allowance : "—"}</p>
+            <p className="text-[9px] text-gray-600">day{allowance === 1 ? "" : "s"}</p>
+          </div>
+        </div>
+
+        {/* Yellow card cadence — informational, derived from approved count. */}
+        {cards > 0 && (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+            <span className="text-base">🟡</span>
+            <p className="text-[11px] text-amber-800">
+              <strong>{cards}</strong> yellow card{cards === 1 ? "" : "s"} this year — policy threshold reached for every 8 approvals.
+            </p>
+          </div>
+        )}
+
+        {isOver && isConfigured && (
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
+            <svg className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-[11px] text-red-800">
+              Annual allowance exceeded — HR has been notified. A VATS yellow card was auto-issued.
+            </p>
+          </div>
+        )}
+
+        {!isConfigured && (
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2">
+            <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-[11px] text-blue-800">
+              No annual leave allowance set yet. HR will assign one when your active contract is created.
+              Until then, usage is tracked but no over-allowance card is issued.
+            </p>
+          </div>
+        )}
+      </div>
     </Section>
   );
 }

@@ -22,6 +22,7 @@ export default function ContractsForm() {
     allowances: {},
     expected_time: "",
     benefits: {},
+    annual_leave_days: 20,
     status: "draft",
   });
 
@@ -107,6 +108,7 @@ export default function ContractsForm() {
         allowances: data.allowances || {},
         expected_time: data.expected_time || "",
         benefits: data.benefits || {},
+        annual_leave_days: data.annual_leave_days ?? 20,
         status: data.status || "draft",
       });
       if (data.staff) {
@@ -226,23 +228,33 @@ export default function ContractsForm() {
                 {filteredStaff.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-gray-500">No staff found</div>
                 ) : (
-                  filteredStaff.map((staff) => (
-                    <div
-                      key={staff.id}
-                      onClick={() => handleStaffSelect(staff)}
-                      className={`px-3 py-2 cursor-pointer hover:bg-teal-50 border-b border-gray-100 last:border-0 ${formData.staff_id === staff.id ? "bg-teal-50" : ""}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 text-xs font-bold">
-                          {staff.full_name?.charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-800 truncate">{staff.full_name}</p>
-                          <p className="text-[10px] text-gray-500">{staff.employee_id} • {staff.department || "No Dept"}</p>
+                  filteredStaff.map((staff) => {
+                    const isAdminReg = staff.source === "admin-registered";
+                    return (
+                      <div
+                        key={staff.id}
+                        onClick={() => handleStaffSelect(staff)}
+                        className={`px-3 py-2 cursor-pointer hover:bg-teal-50 border-b border-gray-100 last:border-0 ${formData.staff_id === staff.id ? "bg-teal-50" : ""}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full ${isAdminReg ? "bg-indigo-100 text-indigo-600" : "bg-teal-100 text-teal-600"} flex items-center justify-center text-xs font-bold`}>
+                            {staff.full_name?.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-medium text-gray-800 truncate">{staff.full_name}</p>
+                              {isAdminReg && (
+                                <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  user
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-500">{staff.employee_id} • {staff.department || "No Dept"}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -375,6 +387,27 @@ export default function ContractsForm() {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
             />
+          </div>
+
+          {/* Annual leave days — every approved leave request consumes from
+              this pool. Going over triggers a VATS yellow-card workflow. */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Annual leave days <span className="text-gray-400 font-normal">(per year)</span>
+            </label>
+            <input
+              type="number"
+              name="annual_leave_days"
+              min="0"
+              max="365"
+              value={formData.annual_leave_days}
+              onChange={handleChange}
+              placeholder="e.g. 20"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+            />
+            <p className="text-[10px] text-gray-500 mt-1">
+              Default 20. The staff member can take up to this many leave days a year before a VATS yellow card is auto-issued.
+            </p>
           </div>
         </div>
 

@@ -227,6 +227,22 @@ export default function MeetingShow() {
   const [taskForm, setTaskForm] = useState({ staff_id: "", task: "", task_type: "normal", start_date: "", deadline: "", notes: "" });
   const [assigningTask, setAssigningTask] = useState(false);
 
+  // Backend-driven gate flags. Populated from the meeting show response so
+  // the UI hides edit/delete/notes-edit/assign-task buttons when the current
+  // user is just a participant (no meetings.* permission), or once the
+  // meeting start time has passed.
+  const [perms, setPerms] = useState({
+    can_manage: false,
+    is_locked: false,
+    can_edit: false,
+    can_delete: false,
+    can_assign_task: false,
+    can_add_note: false,
+    can_edit_note: false,
+    can_delete_note: false,
+    can_add_agenda: false,
+  });
+
   const loadMeeting = useCallback(() => {
     return get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data));
   }, [id]);
@@ -328,7 +344,9 @@ export default function MeetingShow() {
   // ── Propose agenda item (participant flow) ──
   const isOrganizer = data && currentUser?.id && data.organizer_id === currentUser.id;
   const isParticipant = data && currentUser?.id && (data.participants || []).some((p) => p.id === currentUser.id);
-  const canProposeAgenda = isOrganizer || isParticipant;
+  // Adding / proposing agenda items requires the meeting to still be in the
+  // future. Backend can_add_agenda combines participant-or-manager + not-locked.
+  const canProposeAgenda = perms.can_add_agenda;
 
   const submitProposeAgenda = async () => {
     if (!proposeForm.title.trim()) {
@@ -493,8 +511,14 @@ export default function MeetingShow() {
           {canUpdate && (
             <button onClick={() => navigate(`/hr/meetings/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
           )}
-          {canDelete && (
+          {canDelete && perms.can_delete && (
             <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+          )}
+          {perms.is_locked && (
+            <span className="px-2.5 py-1 bg-amber-500/80 text-white text-[10px] font-semibold rounded-xl flex items-center gap-1" title="Meeting has started — editing is locked">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+              Locked
+            </span>
           )}
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
@@ -699,7 +723,11 @@ export default function MeetingShow() {
                   <div className="space-y-3">
                     {data.agenda_items.map((a, i) => {
                       const submitterName = a.submitted_by?.name;
-                      const canRemove = isOrganizer || (a.submitted_by_id && currentUser?.id === a.submitted_by_id);
+                      const isMine = a.submitted_by_id && currentUser?.id === a.submitted_by_id;
+                      // Author can always remove their own; managers (creator
+                      // / admin / meetings.* perm) can remove any. After the
+                      // meeting starts nothing can be removed.
+                      const canRemove = !perms.is_locked && (isMine || perms.can_manage);
                       return (
                       <div key={a.id || i} className="flex gap-3 group">
                         <div className="w-6 h-6 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</div>
@@ -743,7 +771,7 @@ export default function MeetingShow() {
                     <p className="text-[10px] text-amber-600">{notes.length} note{notes.length !== 1 ? "s" : ""} recorded</p>
                   </div>
                 </div>
-                {!showNoteForm && (
+                {!showNoteForm && perms.can_add_note && (
                   <button onClick={openNewNote}
                     className="px-2.5 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-[10px] font-medium flex items-center gap-1 transition-colors">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -812,7 +840,9 @@ export default function MeetingShow() {
                   <div className="text-center py-6">
                     <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     <p className="text-xs text-gray-400">No notes recorded yet</p>
-                    <button onClick={openNewNote} className="mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700">Take first notes</button>
+                    {perms.can_add_note && (
+                      <button onClick={openNewNote} className="mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700">Take first notes</button>
+                    )}
                   </div>
                 )}
 
@@ -828,12 +858,16 @@ export default function MeetingShow() {
                         <span className="text-[9px] text-gray-400">{note.recorded_at ? fmtDateTime(note.recorded_at) : ""}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => openEditNote(note)} className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        <button onClick={() => deleteNote(note.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                        {perms.can_edit_note && (
+                          <button onClick={() => openEditNote(note)} className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                        )}
+                        {perms.can_delete_note && (
+                          <button onClick={() => deleteNote(note.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -895,7 +929,7 @@ export default function MeetingShow() {
                     <p className="text-[10px] text-indigo-600">{(data.tasks || []).length} task{(data.tasks || []).length !== 1 ? "s" : ""} assigned</p>
                   </div>
                 </div>
-                {isOrganizer && (
+                {perms.can_assign_task && (
                   <button onClick={openAssignTask} className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-[10px] font-medium flex items-center gap-1 transition-colors">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     Assign Task

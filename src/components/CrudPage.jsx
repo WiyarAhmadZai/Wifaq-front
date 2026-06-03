@@ -36,7 +36,7 @@ export default function CrudPage({
   rowActions = null,
 }) {
   const navigate = useNavigate();
-  const { hasPermission, user } = useAuth();
+  const { hasPermission } = useAuth();
 
   // Permission resolution. If no base provided → all true (legacy behavior).
   const permCheck = (action) => {
@@ -47,20 +47,6 @@ export default function CrudPage({
   const canUpdate = permCheck("update");
   const canDelete = permCheck("delete");
   const canView = permCheck("view");
-
-  // Dev-mode tracing — open the browser console on the affected user's
-  // page and you'll see exactly what permissions arrived, which keys the
-  // gate checked, and why each button does or doesn't render. Strips out
-  // of production builds because `import.meta.env.DEV` is statically false.
-  if (import.meta.env?.DEV && permissionBase) {
-    // eslint-disable-next-line no-console
-    console.log(`[CrudPage:${permissionBase}] gates`, {
-      isSuperAdmin: user?.is_super_admin,
-      roles: user?.roles,
-      yourPermissions: user?.permissions?.filter((p) => p.startsWith(`${permissionBase}.`)),
-      canCreate, canUpdate, canDelete, canView,
-    });
-  }
 
   // Highlight support: when arriving with ?highlight=ID, scroll that row into
   // view and ring it briefly so the user sees exactly which item the

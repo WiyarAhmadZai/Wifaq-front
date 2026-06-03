@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
@@ -227,9 +227,43 @@ export default function MeetingShow() {
   const [taskForm, setTaskForm] = useState({ staff_id: "", task: "", task_type: "normal", start_date: "", deadline: "", notes: "" });
   const [assigningTask, setAssigningTask] = useState(false);
 
-  useEffect(() => {
-    get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data)).catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
+  const loadMeeting = useCallback(() => {
+    return get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data));
   }, [id]);
+
+  useEffect(() => {
+    loadMeeting().catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
+  }, [id, loadMeeting]);
+
+  const [respondingRsvp, setRespondingRsvp] = useState(false);
+  const respondRsvp = async (status) => {
+    let reason = null;
+    if (status === "declined") {
+      const { value, isConfirmed } = await Swal.fire({
+        title: "Can't attend?",
+        input: "textarea",
+        inputLabel: "Please give a brief reason",
+        inputPlaceholder: "e.g. On leave that day / clashes with another meeting…",
+        inputValidator: (v) => (!v || !v.trim() ? "A reason is required to decline" : undefined),
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        confirmButtonText: "Send response",
+      });
+      if (!isConfirmed) return;
+      reason = (value || "").trim();
+    }
+    setRespondingRsvp(true);
+    try {
+      await post(`/meetings/${id}/respond`, { status, reason });
+      await loadMeeting();
+      Swal.fire({ icon: "success", title: status === "accepted" ? "Marked as attending" : "Response sent", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+      window.dispatchEvent(new Event("wen:notifications-refresh"));
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not record your response", "error");
+    } finally {
+      setRespondingRsvp(false);
+    }
+  };
 
   useEffect(() => {
     const close = (e) => { if (statusRef.current && !statusRef.current.contains(e.target)) setShowStatusMenu(false); };
@@ -499,6 +533,48 @@ export default function MeetingShow() {
       </div>
 
       <div className="px-4 py-5 space-y-4">
+        {/* RSVP banner — shown to the current user when they're an invitee */}
+        {isParticipant && (() => {
+          const mine = (data.participants || []).find((p) => p.id === currentUser.id);
+          const myStatus = mine?.pivot?.status || "invited";
+          const myReason = mine?.pivot?.response_reason;
+          return (
+            <div className={`rounded-2xl border p-4 ${
+              myStatus === "accepted" ? "bg-emerald-50 border-emerald-200"
+              : myStatus === "declined" ? "bg-red-50 border-red-200"
+              : "bg-amber-50 border-amber-200"}`}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-xs font-bold text-gray-800">
+                    {myStatus === "accepted" ? "You're attending this meeting"
+                      : myStatus === "declined" ? "You marked: can't attend"
+                      : "Will you attend this meeting?"}
+                  </p>
+                  {myStatus === "declined" && myReason && (
+                    <p className="text-[11px] text-red-700 mt-1">Reason: {myReason}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={respondingRsvp}
+                    onClick={() => respondRsvp("accepted")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 ${
+                      myStatus === "accepted" ? "bg-emerald-600 text-white" : "bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50"}`}>
+                    Attend
+                  </button>
+                  <button
+                    disabled={respondingRsvp}
+                    onClick={() => respondRsvp("declined")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 ${
+                      myStatus === "declined" ? "bg-red-600 text-white" : "bg-white border border-red-300 text-red-600 hover:bg-red-50"}`}>
+                    Can't attend
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Continuation chain — links to earlier / later sessions of this discussion */}
         {(data.continued_from || (data.continuations && data.continuations.length > 0)) && (
           <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-2">
@@ -839,6 +915,9 @@ export default function MeetingShow() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-medium text-gray-800 truncate">{p.name}</p>
+                          {p.pivot?.status === "declined" && p.pivot?.response_reason && (
+                            <p className="text-[10px] text-red-600 truncate" title={p.pivot.response_reason}>✗ {p.pivot.response_reason}</p>
+                          )}
                         </div>
                         <span className={`px-1.5 py-0.5 rounded text-[8px] font-semibold capitalize ${
                           p.pivot?.status === "accepted" ? "bg-emerald-100 text-emerald-700"

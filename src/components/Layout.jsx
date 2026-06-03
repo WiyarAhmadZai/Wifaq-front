@@ -12,7 +12,7 @@ const PageFallback = () => (
     </div>
   </div>
 );
-import { get, put } from "../api/axios";
+import { get, put, post } from "../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../utils/formErrors";
@@ -349,6 +349,10 @@ function NotificationBell() {
   const [popups, setPopups] = useState([]);
   const popupsSeededRef = useRef(false);
   const ref = useRef(null);
+  // Tracks invites the user has RSVP'd to in this session (notif id -> status)
+  // so the Attend / Can't attend buttons flip to a confirmation immediately.
+  const [responded, setResponded] = useState({});
+  const [respondingId, setRespondingId] = useState(null);
 
   const fetchNotifications = useCallback(async () => {
     // Don't poll while the tab is in the background — it just adds load.
@@ -459,6 +463,46 @@ function NotificationBell() {
     setOpen(false);
   };
 
+  // RSVP straight from the invite notification. "accepted" is one tap;
+  // "declined" prompts for a required reason before sending.
+  const respondInvite = async (n, status) => {
+    const meetingId = n.data?.meeting_id;
+    if (!meetingId) return;
+
+    let reason = null;
+    if (status === "declined") {
+      const { value, isConfirmed } = await Swal.fire({
+        title: "Can't attend?",
+        input: "textarea",
+        inputLabel: "Please give a brief reason",
+        inputPlaceholder: "e.g. On leave that day / clashes with another meeting…",
+        inputValidator: (v) => (!v || !v.trim() ? "A reason is required to decline" : undefined),
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        confirmButtonText: "Send response",
+      });
+      if (!isConfirmed) return;
+      reason = (value || "").trim();
+    }
+
+    setRespondingId(n.id);
+    try {
+      await post(`/meetings/${meetingId}/respond`, { status, reason });
+      setResponded((p) => ({ ...p, [n.id]: status }));
+      if (!n.read_at) markAsRead(n.id);
+      Swal.fire({
+        icon: "success",
+        title: status === "accepted" ? "Marked as attending" : "Response sent",
+        timer: 1400, showConfirmButton: false, toast: true, position: "top-end",
+      });
+      window.dispatchEvent(new Event("wen:notifications-refresh"));
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not record your response", "error");
+    } finally {
+      setRespondingId(null);
+    }
+  };
+
   const timeAgo = (date) => {
     if (!date) return "";
     const diff = (Date.now() - new Date(date).getTime()) / 1000;
@@ -473,6 +517,10 @@ function NotificationBell() {
     if (data?.type === "meeting_invite") {
       if (data.action === "cancelled") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
       return { bg: "bg-teal-100", color: "text-teal-600", path: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" };
+    }
+    if (data?.type === "meeting_response") {
+      if (data.action === "declined") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
+      return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
     }
     if (data?.type === "staff_task") {
       if (data.action === "completed") return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
@@ -659,6 +707,29 @@ function NotificationBell() {
                           </span>
                         )}
                       </div>
+                      {/* RSVP buttons — only on actionable meeting invites */}
+                      {n.data?.type === "meeting_invite" && n.data?.action !== "cancelled" && (
+                        responded[n.id] ? (
+                          <p className={`mt-2 text-[10px] font-bold ${responded[n.id] === "accepted" ? "text-emerald-600" : "text-red-600"}`}>
+                            {responded[n.id] === "accepted" ? "✓ You're attending" : "✗ You marked: can't attend"}
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              disabled={respondingId === n.id}
+                              onClick={() => respondInvite(n, "accepted")}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                              Attend
+                            </button>
+                            <button
+                              disabled={respondingId === n.id}
+                              onClick={() => respondInvite(n, "declined")}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50">
+                              Can't attend
+                            </button>
+                          </div>
+                        )
+                      )}
                     </div>
                     {isUnread && <div className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-2"></div>}
                   </div>

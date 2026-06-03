@@ -533,8 +533,11 @@ export default function MeetingShow() {
       </div>
 
       <div className="px-4 py-5 space-y-4">
-        {/* RSVP banner — shown to the current user when they're an invitee */}
-        {isParticipant && (() => {
+        {/* RSVP banner — shown to the current user when they're an invitee.
+            Hidden entirely once the meeting has passed; otherwise only the
+            opposite-action button is shown so you can't re-confirm the same
+            answer (and re-notify the organizer). */}
+        {isParticipant && data.end_time && new Date(data.end_time) >= new Date() && (() => {
           const mine = (data.participants || []).find((p) => p.id === currentUser.id);
           const myStatus = mine?.pivot?.status || "invited";
           const myReason = mine?.pivot?.response_reason;
@@ -555,20 +558,24 @@ export default function MeetingShow() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    disabled={respondingRsvp}
-                    onClick={() => respondRsvp("accepted")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 ${
-                      myStatus === "accepted" ? "bg-emerald-600 text-white" : "bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50"}`}>
-                    Attend
-                  </button>
-                  <button
-                    disabled={respondingRsvp}
-                    onClick={() => respondRsvp("declined")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 ${
-                      myStatus === "declined" ? "bg-red-600 text-white" : "bg-white border border-red-300 text-red-600 hover:bg-red-50"}`}>
-                    Can't attend
-                  </button>
+                  {/* Show "Attend" unless already attending */}
+                  {myStatus !== "accepted" && (
+                    <button
+                      disabled={respondingRsvp}
+                      onClick={() => respondRsvp("accepted")}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 bg-emerald-600 text-white hover:bg-emerald-700">
+                      Attend
+                    </button>
+                  )}
+                  {/* Show "Can't attend" unless already declined */}
+                  {myStatus !== "declined" && (
+                    <button
+                      disabled={respondingRsvp}
+                      onClick={() => respondRsvp("declined")}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 bg-white border border-red-300 text-red-600 hover:bg-red-50">
+                      Can't attend
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

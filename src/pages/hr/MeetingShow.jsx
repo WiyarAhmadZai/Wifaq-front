@@ -610,6 +610,43 @@ export default function MeetingShow() {
           </div>
         )}
 
+        {/* Tasks carried from the previous session — shows live completion so
+            you can see at a glance what was done and what's still outstanding. */}
+        {data.continued_from && (data.continued_from.tasks || []).length > 0 && (() => {
+          const ptasks = data.continued_from.tasks || [];
+          const done = ptasks.filter((t) => t.status === "completed").length;
+          const statusColor = { pending: "bg-amber-100 text-amber-700", in_progress: "bg-blue-100 text-blue-700", completed: "bg-emerald-100 text-emerald-700" };
+          return (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className="px-5 py-3 bg-amber-50 border-b border-amber-100">
+                <p className="text-sm font-bold text-gray-800">Tasks from previous session</p>
+                <p className="text-[10px] text-amber-700">{done} of {ptasks.length} completed · carried from "{data.continued_from.title}"</p>
+              </div>
+              <div className="p-5 space-y-2">
+                {ptasks.map((t) => {
+                  const isDone = t.status === "completed";
+                  return (
+                    <div key={t.id} className={`p-3 border rounded-xl flex items-start justify-between gap-2 ${isDone ? "border-emerald-100 bg-emerald-50/40" : "border-amber-100 bg-amber-50/30"}`}>
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <span className={`mt-0.5 font-bold ${isDone ? "text-emerald-600" : "text-amber-500"}`}>{isDone ? "✓" : "○"}</span>
+                        <div className="min-w-0">
+                          <p className={`text-xs font-semibold ${isDone ? "text-gray-500 line-through" : "text-gray-800"}`}>{t.task}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {t.staff_name || t.staff?.application?.full_name || `Staff #${t.staff_id}`}
+                            {!isDone && t.progress ? ` · ${t.progress}%` : ""}
+                            {t.deadline ? ` · due ${fmtDate(t.deadline)}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusColor[t.status] || statusColor.pending}`}>{t.status?.replace("_", " ")}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Time & Location */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">

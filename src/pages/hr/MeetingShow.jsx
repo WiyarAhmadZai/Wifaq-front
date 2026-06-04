@@ -12,6 +12,7 @@ const statusConf = {
   in_progress: { label: "In Progress", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
   completed: { label: "Completed", bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
   cancelled: { label: "Cancelled", bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500" },
+  ended: { label: "Ended", bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-600", dot: "bg-gray-400" },
 };
 
 const emptyNote = { key_points: "", action_items_summary: "", reminders: "", additional_notes: "" };
@@ -479,7 +480,9 @@ export default function MeetingShow() {
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div></div>;
   if (!data) return <div className="text-center py-24 text-sm text-gray-400">Meeting not found</div>;
 
-  const sc = statusConf[data.status] || statusConf.scheduled;
+  // Display the clock-derived status (e.g. "In Progress" while it's happening);
+  // the dropdown below still edits the canonical stored status.
+  const sc = statusConf[data.live_status || data.status] || statusConf.scheduled;
   const formatDT = (dt) => dt ? fmtDateTime(dt) : "-";
   const getDuration = () => {
     if (!data.start_time || !data.end_time) return "-";
@@ -526,7 +529,7 @@ export default function MeetingShow() {
           <div className="relative" ref={statusRef}>
             <button onClick={() => setShowStatusMenu(!showStatusMenu)}
               className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${data.live_status === "in_progress" ? "animate-pulse" : ""}`}></span>
               {sc.label}
               <svg className={`w-3 h-3 transition-transform ${showStatusMenu ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>

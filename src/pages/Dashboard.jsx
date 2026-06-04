@@ -47,7 +47,7 @@ export default function Dashboard() {
     );
   }
 
-  const { me, overview, hr, vats, welfare, leave, recruitment, finance, income_expense, me_section, charts, recent_activity } = data;
+  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, my_tasks, finance, income_expense, me_section, charts, recent_activity } = data;
   const roleLabel = me.is_super_admin ? "Super Admin"
     : me.is_hr ? "HR / Admin"
     : me.is_finance ? "Finance"
@@ -179,6 +179,35 @@ export default function Dashboard() {
               <Row label="Active applications" value={recruitment.active_applications} highlight={recruitment.active_applications > 0 ? "teal" : null} />
               <Row label="Hired this month"    value={recruitment.hired_this_month} />
               <Row label="Total applications"  value={recruitment.total_applications} />
+            </Section>
+          )}
+
+          {meetings && (meetings.can_view_all || meetings.my_upcoming > 0 || meetings.awaiting_my_response > 0 || meetings.happening_now > 0) && (
+            <Section title="Meetings" icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" onClick={() => navigate("/hr/meetings")} cta="Open →">
+              {((meetings.can_view_all ? meetings.happening_now_all : meetings.happening_now) > 0) && (
+                <div className="mb-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-xs font-bold text-amber-800">
+                    {meetings.can_view_all ? meetings.happening_now_all : meetings.happening_now} meeting{(meetings.can_view_all ? meetings.happening_now_all : meetings.happening_now) === 1 ? "" : "s"} in progress now
+                  </span>
+                </div>
+              )}
+              <Row label="My upcoming meetings" value={meetings.my_upcoming} highlight={meetings.my_upcoming > 0 ? "teal" : null} onClick={() => navigate("/hr/meetings")} />
+              <Row label="My meetings this week" value={meetings.my_this_week} />
+              <Row label="Awaiting my response" value={meetings.awaiting_my_response} highlight={meetings.awaiting_my_response > 0 ? "amber" : null} onClick={() => navigate("/hr/meetings")} />
+              {meetings.can_view_all && <Row label="All upcoming (org-wide)" value={meetings.scheduled_upcoming} />}
+              {meetings.can_view_all && <Row label="All this week (org-wide)" value={meetings.this_week_all} />}
+            </Section>
+          )}
+
+          {my_tasks && (
+            <Section title="My Tasks" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" onClick={() => navigate("/hr/staff-task")} cta="Open →">
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <MiniStat label="Pending" value={my_tasks.pending}     tone="amber" />
+                <MiniStat label="Active"  value={my_tasks.in_progress} tone="blue" />
+                <MiniStat label="Done"    value={my_tasks.completed}   tone="emerald" />
+              </div>
+              <Row label="Overdue" value={my_tasks.overdue} highlight={my_tasks.overdue > 0 ? "red" : null} onClick={() => navigate("/hr/staff-task")} />
             </Section>
           )}
 

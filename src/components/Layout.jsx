@@ -867,6 +867,7 @@ export default function Layout() {
       { label: "Meetings", path: "/hr/meetings", permission: "meetings.view" },
       { label: "Events", path: "/hr/events", permission: "events.view" },
       { label: "Staff Task", path: "/hr/staff-task", permission: "staff-task.view" },
+      { label: "Daily Works", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
     { label: "Visitor Log", path: "/hr/visitor-log", permission: "visitor-log.view" },
     { label: "HR Reports", path: "/hr/reports", permission: "hr-reports.view" },

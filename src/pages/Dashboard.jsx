@@ -47,7 +47,7 @@ export default function Dashboard() {
     );
   }
 
-  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, my_tasks, finance, income_expense, me_section, charts, recent_activity } = data;
+  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, my_tasks, daily_works, finance, income_expense, me_section, charts, recent_activity } = data;
   const roleLabel = me.is_super_admin ? "Super Admin"
     : me.is_hr ? "HR / Admin"
     : me.is_finance ? "Finance"
@@ -197,6 +197,25 @@ export default function Dashboard() {
               <Row label="Awaiting my response" value={meetings.awaiting_my_response} highlight={meetings.awaiting_my_response > 0 ? "amber" : null} onClick={() => navigate("/hr/meetings")} />
               {meetings.can_view_all && <Row label="All upcoming (org-wide)" value={meetings.scheduled_upcoming} />}
               {meetings.can_view_all && <Row label="All this week (org-wide)" value={meetings.this_week_all} />}
+            </Section>
+          )}
+
+          {daily_works && (
+            <Section title="Daily Works" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" onClick={() => navigate("/hr/daily-works")} cta="Open →">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-gray-500">Today's checklist</span>
+                <span className="text-sm font-bold text-gray-800">{daily_works.completed} / {daily_works.total} done</span>
+              </div>
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-1">
+                <div className={`h-full rounded-full transition-all duration-500 ${daily_works.percent >= 100 ? "bg-emerald-500" : daily_works.percent >= 50 ? "bg-teal-500" : daily_works.percent > 0 ? "bg-amber-500" : "bg-gray-300"}`}
+                  style={{ width: `${daily_works.percent}%` }} />
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black text-teal-700">{daily_works.percent}%</span>
+              </div>
+              <button onClick={() => navigate("/hr/daily-works")} className="mt-1 w-full text-center text-[11px] font-semibold text-teal-600 hover:text-teal-700">
+                Open my daily works →
+              </button>
             </Section>
           )}
 

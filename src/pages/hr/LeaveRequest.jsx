@@ -288,15 +288,12 @@ export default function LeaveRequest() {
       )}
 
       {/* ── Inline approve-and-announce modal ── */}
+      {/* Backdrop click is intentionally a no-op — the modal only closes
+          via the X button, Cancel, or after a successful submit. This
+          prevents accidental dismissal mid-pick. */}
       {announceTarget && item && (
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => !announceSending && closeAnnounce()}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-white">

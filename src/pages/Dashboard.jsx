@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { get } from "../api/axios";
 
 import { fmtDate } from "../utils/formErrors";
@@ -10,11 +10,16 @@ import { fmtDate } from "../utils/formErrors";
  */
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   // "On Leave Today" — independent fetch, kept lightweight so dashboard
   // failures don't take this widget down with them.
   const [onLeaveToday, setOnLeaveToday] = useState([]);
+  // Pulse-highlight the On Leave widget when the user lands here via a
+  // leave-announcement notification (?onleave=1).
+  const onLeaveRef = useRef(null);
+  const [pulseOnLeave, setPulseOnLeave] = useState(false);
 
   const load = async () => {
     try {
@@ -43,6 +48,22 @@ export default function Dashboard() {
     const t = setInterval(() => { load(); loadOnLeave(); }, 60000);
     return () => clearInterval(t);
   }, []);
+
+  // Notification deep-link: scroll the On Leave widget into view and pulse
+  // it so the user immediately sees who's away. Strip the param so a refresh
+  // doesn't re-trigger.
+  useEffect(() => {
+    if (searchParams.get("onleave") !== "1") return;
+    if (loading) return;
+    setPulseOnLeave(true);
+    setTimeout(() => onLeaveRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    setTimeout(() => setPulseOnLeave(false), 2800);
+    setSearchParams((sp) => {
+      const next = new URLSearchParams(sp);
+      next.delete("onleave");
+      return next;
+    }, { replace: true });
+  }, [loading, searchParams]);
 
   if (loading) {
     return (
@@ -126,7 +147,10 @@ export default function Dashboard() {
 
         {/* ─── On Leave Today ─── */}
         {onLeaveToday.length > 0 && (
-          <div className="bg-white rounded-2xl border border-amber-100 shadow-sm mb-5">
+          <div
+            ref={onLeaveRef}
+            className={`bg-white rounded-2xl border shadow-sm mb-5 transition-all duration-500 ${pulseOnLeave ? "border-amber-400 ring-4 ring-amber-200/70" : "border-amber-100"}`}
+          >
             <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">

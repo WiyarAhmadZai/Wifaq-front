@@ -121,11 +121,47 @@ export default function StaffShow() {
                 <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : 'bg-red-400/30 text-white'}`}>
                   {status}
                 </span>
+                {data.current_leave && (
+                  <span className="flex items-center gap-1 px-2.5 py-0.5 bg-amber-400 text-amber-900 text-[11px] font-bold rounded-full"
+                    title={`On ${data.current_leave.leave_type} leave${data.current_leave.to_date ? ` until ${data.current_leave.to_date}` : ""}`}>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    ON LEAVE
+                    {data.current_leave.to_date && data.current_leave.to_date !== data.current_leave.from_date && (
+                      <span className="font-medium opacity-80">· until {fmtDate(data.current_leave.to_date)}</span>
+                    )}
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* On-leave callout — only while the leave period is active */}
+      {data.current_leave && (
+        <div className="max-w-full mx-auto px-4 pt-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-amber-900 capitalize">
+                Currently on {data.current_leave.leave_type} leave
+              </p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                {fmtDate(data.current_leave.from_date)}
+                {data.current_leave.to_date && data.current_leave.to_date !== data.current_leave.from_date
+                  ? ` → ${fmtDate(data.current_leave.to_date)}` : ""}
+                {data.current_leave.reason ? ` · ${data.current_leave.reason}` : ""}
+              </p>
+            </div>
+            <button onClick={() => navigate(`/hr/leave-request/show/${data.current_leave.id}`)}
+              className="px-3 py-1.5 text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-100 whitespace-nowrap">
+              View request
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-full mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -18,8 +18,20 @@ export default defineConfig({
     // Target modern browsers
     target: 'es2020',
   },
-  // Optimize dependency pre-bundling
+  // Pre-bundle every runtime dependency at server start. If a dep (especially
+  // react-icons' per-pack subpaths) is discovered lazily on first navigation,
+  // Vite re-optimizes and does a FULL PAGE RELOAD mid-session — which shows up
+  // as the page "randomly" refreshing itself. Listing them here bundles them
+  // up front so navigation never triggers that reload.
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', 'axios', 'sweetalert2'],
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'axios',
+      'sweetalert2',
+      'react-select',
+      'react-icons/fi',
+    ],
   },
 })

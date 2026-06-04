@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { get, put, del } from "../../api/axios";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 import LeaveRejectModal from "../../components/hr/LeaveRejectModal";
@@ -32,18 +32,51 @@ function daysBetween(fromIso, toIso) {
 export default function LeaveRequestShow() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { hasRole, hasPermission } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rejectOpen, setRejectOpen] = useState(false);
+  // Inline approve-and-announce modal state.
+  const [announceOpen, setAnnounceOpen] = useState(false);
+  const [announceUsers, setAnnounceUsers] = useState([]);
+  const [announcePicked, setAnnouncePicked] = useState([]);
+  const [announceSearch, setAnnounceSearch] = useState("");
+  const [announceMessage, setAnnounceMessage] = useState("");
+  const [announceSending, setAnnounceSending] = useState(false);
 
-  const isHr = HR_ROLES.some((r) => hasRole(r));
+  // "Can manage" — HR roles OR the explicit approve/manage permission.
+  // Same gate the backend uses, so any user the admin grants the permission
+  // to gets the Notify-Team / Approve / Reject controls automatically.
+  const isHr = HR_ROLES.some((r) => hasRole(r))
+    || hasPermission("leave-request.approve")
+    || hasPermission("leave-request.manage");
 
   // When the user arrives via a notification, pulse the status banner so they
   // immediately see why they were brought here.
   const { ref: bannerRef, classes: bannerHighlight, arrived } = useNotificationHighlight();
 
   useEffect(() => { load(); }, [id]);
+
+  // Auto-open the team-picker when the admin arrived from the list-page
+  // Approve icon (URL carries ?action=approve). We wait until the row is
+  // loaded so the modal can show the staff name + dates correctly. Strip
+  // the param afterwards so a refresh doesn't re-open the modal.
+  useEffect(() => {
+    if (loading || !data) return;
+    if (searchParams.get("action") !== "approve") return;
+    if (data.status === "approved") {
+      // Already approved — surface the picker without re-approving.
+      openAnnounce();
+    } else {
+      approve();
+    }
+    setSearchParams((sp) => {
+      const next = new URLSearchParams(sp);
+      next.delete("action");
+      return next;
+    }, { replace: true });
+  }, [loading, data, searchParams]);
 
   const load = async () => {
     setLoading(true);
@@ -55,24 +88,93 @@ export default function LeaveRequestShow() {
     } finally { setLoading(false); }
   };
 
-  const approve = async () => {
-    const isOverturn = data?.status === "rejected";
-    const r = await Swal.fire({
-      icon: "question",
-      title: isOverturn ? "Overturn the rejection and approve?" : "Approve this leave request?",
-      text: isOverturn ? "The previous rejection reason will be cleared." : "",
-      showCancelButton: true,
-      confirmButtonColor: "#155c57",
-      confirmButtonText: isOverturn ? "Yes, re-approve" : "Yes, approve",
-    });
-    if (!r.isConfirmed) return;
+  // Background refetch — does NOT flip the loading spinner, so any open
+  // modal (announce picker) stays mounted while the row refreshes.
+  const refresh = async () => {
     try {
-      await put(`/hr/leave-requests/${id}/status`, { status: "approved" });
-      Swal.fire({ icon: "success", title: isOverturn ? "Re-approved" : "Approved", timer: 1200, showConfirmButton: false });
-      load();
+      const res = await get(`/hr/leave-requests/${id}`);
+      setData(res.data?.data || res.data);
+    } catch {/* swallow — keep existing state */}
+  };
+
+  // Approve button just OPENS the inline team-picker modal. Submit handles
+  // the actual PUT /status (if not yet approved) and POST /announce in one
+  // click — no confirmation Swal in the flow.
+  const openAnnounce = () => {
+    setAnnouncePicked([]);
+    setAnnounceSearch("");
+    setAnnounceMessage("");
+    setAnnounceUsers([]);
+    setAnnounceOpen(true);
+  };
+  const approve = openAnnounce;
+
+  // Load staff every time the modal opens.
+  useEffect(() => {
+    if (!announceOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await get(`/hr/staff/list?per_page=1000&status=active`);
+        const raw = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+        const list = (Array.isArray(raw) ? raw : [])
+          .filter((s) => s.user_id)
+          .map((s) => ({
+            id: s.user_id,
+            name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+            employee_id: s.employee_id || "",
+            department: s.department || s.department_relation?.name || "",
+          }));
+        if (!cancelled) setAnnounceUsers(list);
+      } catch {
+        if (!cancelled) setAnnounceUsers([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [announceOpen]);
+
+  const filteredAnnounceUsers = (() => {
+    const q = announceSearch.trim().toLowerCase();
+    if (!q) return announceUsers;
+    return announceUsers.filter((u) =>
+      [u.name, u.employee_id, u.department].some((v) => (v || "").toLowerCase().includes(q))
+    );
+  })();
+
+  const toggleAnnounceOne = (uid) =>
+    setAnnouncePicked((prev) => (prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]));
+
+  const toggleAnnounceAll = () => {
+    const ids = filteredAnnounceUsers.map((u) => u.id);
+    const allPicked = ids.length > 0 && ids.every((x) => announcePicked.includes(x));
+    if (allPicked) {
+      setAnnouncePicked((prev) => prev.filter((x) => !ids.includes(x)));
+    } else {
+      setAnnouncePicked((prev) => Array.from(new Set([...prev, ...ids])));
+    }
+  };
+
+  // Two-stage submit. No success Swal — the modal closes and the row
+  // refreshes; that's the visible confirmation.
+  const submitAnnounce = async () => {
+    setAnnounceSending(true);
+    try {
+      if (data?.status !== "approved") {
+        await put(`/hr/leave-requests/${id}/status`, { status: "approved" });
+      }
+      if (announcePicked.length > 0) {
+        await post(`/hr/leave-requests/${id}/announce`, {
+          user_ids: announcePicked,
+          message: announceMessage.trim() || undefined,
+        });
+      }
       window.dispatchEvent(new CustomEvent("wen:notifications-refresh"));
+      setAnnounceOpen(false);
+      refresh();
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed", "error");
+    } finally {
+      setAnnounceSending(false);
     }
   };
 
@@ -144,6 +246,14 @@ export default function LeaveRequestShow() {
                 title={data.status === "approved" ? "Revoke approval — reject" : "Reject"}>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                 {data.status === "approved" ? "Revoke" : "Reject"}
+              </button>
+            )}
+            {isHr && data.status === "approved" && (
+              <button onClick={openAnnounce}
+                className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow"
+                title="Open the picker again to notify more colleagues">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                Notify Team
               </button>
             )}
             {isHr && (
@@ -254,6 +364,167 @@ export default function LeaveRequestShow() {
           onConfirm={reject}
         />
       )}
+
+      {/* ── Inline approve-and-announce modal ── */}
+      {announceOpen && data && (() => {
+        const isApproved = data.status === "approved";
+        const rangeText = data.from_date
+          ? (data.to_date && data.to_date !== data.from_date
+              ? `${fmtDate(data.from_date)} → ${fmtDate(data.to_date)}`
+              : fmtDate(data.from_date))
+          : "-";
+        return (
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !announceSending && setAnnounceOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    {isApproved ? "Announce leave to team" : "Approve leave & notify team?"}
+                  </h3>
+                  <p className="text-[11px] text-white/80 mt-0.5">
+                    {isApproved ? (
+                      <>Pick who should be told that <b>{staffName}</b> will be away.</>
+                    ) : (
+                      <>
+                        Tick the colleagues who should be told that <b>{staffName}</b> will be away,
+                        then click <b>Approve</b>. You can also approve without notifying anyone.
+                      </>
+                    )}{" "}
+                    ({rangeText})
+                  </p>
+                </div>
+                <button
+                  onClick={() => !announceSending && setAnnounceOpen(false)}
+                  disabled={announceSending}
+                  className="p-1.5 text-white/70 hover:text-white hover:bg-white/20 rounded-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={announceSearch}
+                  onChange={(e) => setAnnounceSearch(e.target.value)}
+                  placeholder="Search by name, employee id or department…"
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-indigo-300 focus:outline-none"
+                />
+                <button
+                  onClick={toggleAnnounceAll}
+                  className="px-3 py-2 text-xs font-semibold text-indigo-700 bg-white border border-indigo-200 rounded-xl hover:bg-indigo-50 whitespace-nowrap"
+                >
+                  {filteredAnnounceUsers.length > 0 && filteredAnnounceUsers.every((u) => announcePicked.includes(u.id))
+                    ? "Unselect all"
+                    : "Select all"}
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3">
+                {announceUsers.length === 0 ? (
+                  <p className="text-center text-xs text-gray-400 py-8">Loading staff…</p>
+                ) : filteredAnnounceUsers.length === 0 ? (
+                  <p className="text-center text-xs text-gray-400 py-8">No staff match your search</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {filteredAnnounceUsers.map((u) => {
+                      const picked = announcePicked.includes(u.id);
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => toggleAnnounceOne(u.id)}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition-colors ${picked ? "bg-indigo-50 border-indigo-300" : "bg-white border-gray-200 hover:border-indigo-200"}`}
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${picked ? "bg-indigo-600 border-indigo-600" : "bg-white border-gray-300"}`}>
+                            {picked && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-800 truncate">{u.name}</p>
+                            <p className="text-[10px] text-gray-500 truncate">
+                              {u.employee_id || ""}{u.department ? ` · ${u.department}` : ""}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 py-3 border-t border-gray-100">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                  Custom message (optional)
+                </label>
+                <textarea
+                  value={announceMessage}
+                  onChange={(e) => setAnnounceMessage(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Please direct urgent items to Ahmed during this period."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-300 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+                <span className="text-xs text-gray-500">{announcePicked.length} selected</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAnnounceOpen(false)}
+                    disabled={announceSending}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  {!isApproved && (
+                    <button
+                      onClick={() => { setAnnouncePicked([]); submitAnnounce(); }}
+                      disabled={announceSending}
+                      className="px-4 py-2 text-xs font-semibold text-emerald-700 bg-white border border-emerald-200 rounded-xl hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      Approve · Notify no one
+                    </button>
+                  )}
+                  <button
+                    onClick={submitAnnounce}
+                    disabled={announceSending || (isApproved && announcePicked.length === 0)}
+                    className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {announceSending ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Working…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {isApproved
+                          ? `Notify ${announcePicked.length || ""}`
+                          : announcePicked.length > 0
+                            ? `Approve & notify ${announcePicked.length}`
+                            : "Approve"}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

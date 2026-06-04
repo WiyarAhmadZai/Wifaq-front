@@ -199,7 +199,26 @@ export default function LeaveRequestForm() {
       }
       navigate("/hr/leave-request");
     } catch (err) {
-      if (err.response?.status === 422 && err.response?.data?.errors) {
+      // Backend blocks a new request when an existing pending or
+      // still-active approved leave is in the way. Surface that prominently
+      // — for regular staff the staff_id field is hidden, so a plain
+      // field-level error would be invisible.
+      const blocker = err.response?.data?.blocker;
+      if (err.response?.status === 422 && blocker) {
+        const label = blocker.status === "pending" ? "Pending leave request" : "Active approved leave";
+        const range = blocker.from_date
+          ? (blocker.to_date && blocker.to_date !== blocker.from_date
+              ? `${blocker.from_date} → ${blocker.to_date}`
+              : blocker.from_date)
+          : "-";
+        Swal.fire({
+          icon: "warning",
+          title: "Cannot submit a new request",
+          html: `<p style="margin:0 0 8px 0">${err.response.data.message || "An existing leave request is blocking this one."}</p>` +
+                `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px;text-align:left;font-size:12px;color:#374151"><b>${label} #${blocker.id}</b><br>Type: ${blocker.leave_type}<br>When: ${range}</div>`,
+          confirmButtonColor: "#0d9488",
+        });
+      } else if (err.response?.status === 422 && err.response?.data?.errors) {
         const serverErrors = {};
         Object.entries(err.response.data.errors).forEach(([k, v]) => { serverErrors[k] = v[0]; });
         setErrors(serverErrors);

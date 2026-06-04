@@ -12,6 +12,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  // "On Leave Today" — independent fetch, kept lightweight so dashboard
+  // failures don't take this widget down with them.
+  const [onLeaveToday, setOnLeaveToday] = useState([]);
 
   const load = async () => {
     try {
@@ -24,10 +27,20 @@ export default function Dashboard() {
     }
   };
 
+  const loadOnLeave = async () => {
+    try {
+      const res = await get("/hr/leave-requests/on-leave-today");
+      setOnLeaveToday(res.data?.data || []);
+    } catch {
+      setOnLeaveToday([]);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadOnLeave();
     // Refresh every 60 seconds so numbers stay live.
-    const t = setInterval(load, 60000);
+    const t = setInterval(() => { load(); loadOnLeave(); }, 60000);
     return () => clearInterval(t);
   }, []);
 
@@ -108,6 +121,48 @@ export default function Dashboard() {
             {overview.branches != null && (
               <StatCard label="Branches"       value={overview.branches} tone="emerald" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" onClick={() => navigate("/branches")} />
             )}
+          </div>
+        )}
+
+        {/* ─── On Leave Today ─── */}
+        {onLeaveToday.length > 0 && (
+          <div className="bg-white rounded-2xl border border-amber-100 shadow-sm mb-5">
+            <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">On Leave Today</p>
+                  <p className="text-[10px] text-amber-600">
+                    {onLeaveToday.length} staff member{onLeaveToday.length !== 1 ? "s" : ""} currently away
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => navigate("/hr/leave-request")}
+                className="text-[11px] font-semibold text-amber-700 hover:text-amber-900">
+                See all →
+              </button>
+            </div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {onLeaveToday.map((lr) => (
+                <button key={lr.id} onClick={() => navigate(`/hr/leave-request/show/${lr.id}`)}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-amber-300 hover:bg-amber-50/40 text-left transition-colors">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                    {(lr.staff_name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{lr.staff_name}</p>
+                    <p className="text-[10px] text-gray-500 truncate capitalize">
+                      {lr.leave_type} · {lr.from_date}
+                      {lr.to_date && lr.to_date !== lr.from_date ? ` → ${lr.to_date}` : ""}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

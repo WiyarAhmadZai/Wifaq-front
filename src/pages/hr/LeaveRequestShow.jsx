@@ -374,14 +374,11 @@ export default function LeaveRequestShow() {
               : fmtDate(data.from_date))
           : "-";
         return (
-          <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !announceSending && setAnnounceOpen(false)}
-          >
-            <div
-              className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
+          // Backdrop click is intentionally a no-op — close only via X /
+          // Cancel / successful submit, so a stray click can't drop the
+          // pick state mid-flow.
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
               <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-white">

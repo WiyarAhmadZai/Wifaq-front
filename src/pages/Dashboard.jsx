@@ -21,6 +21,21 @@ export default function Dashboard() {
   const onLeaveRef = useRef(null);
   const [pulseOnLeave, setPulseOnLeave] = useState(false);
 
+  // Recent Notifications widget — shows 5 from `me_section.recent_notifications`
+  // by default. "See more" fetches the full list (up to 50) from /notifications
+  // and renders it inline so the user doesn't have to leave the dashboard.
+  const [allNotifs, setAllNotifs] = useState(null);
+  const [notifsExpanding, setNotifsExpanding] = useState(false);
+  const expandNotifs = async () => {
+    if (allNotifs || notifsExpanding) return;
+    setNotifsExpanding(true);
+    try {
+      const res = await get('/notifications');
+      setAllNotifs(res.data?.data || []);
+    } catch { setAllNotifs([]); }
+    finally { setNotifsExpanding(false); }
+  };
+
   const load = async () => {
     try {
       const res = await get("/dashboard/summary");
@@ -81,7 +96,7 @@ export default function Dashboard() {
     );
   }
 
-  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, my_tasks, daily_works, finance, income_expense, me_section, charts, recent_activity } = data;
+  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, events_upcoming, my_tasks, daily_works, finance, income_expense, me_section, charts, recent_activity } = data;
   const roleLabel = me.is_super_admin ? "Super Admin"
     : me.is_hr ? "HR / Admin"
     : me.is_finance ? "Finance"
@@ -187,6 +202,108 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ─── Upcoming Events + Recent Notifications row ─── */}
+        {((events_upcoming && events_upcoming.length > 0) || me_section?.recent_notifications?.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+            {/* Upcoming events — only renders when backend granted the block. */}
+            {events_upcoming && events_upcoming.length > 0 && (
+              <div className="bg-white rounded-2xl border border-purple-100 shadow-sm">
+                <div className="px-5 py-3 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">Upcoming Events</p>
+                      <p className="text-[10px] text-purple-600">{events_upcoming.length} coming up</p>
+                    </div>
+                  </div>
+                  <button onClick={() => navigate('/hr/events')}
+                    className="text-[11px] font-semibold text-purple-700 hover:text-purple-900">
+                    See all →
+                  </button>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {events_upcoming.map((e) => (
+                    <li key={e.id}>
+                      <button onClick={() => navigate(`/hr/events/show/${e.id}`)}
+                        className="w-full flex items-center gap-3 p-3 text-left hover:bg-purple-50/40 transition-colors">
+                        <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex flex-col items-center justify-center flex-shrink-0">
+                          <span className="text-[8px] font-bold uppercase">{e.start_date ? new Date(e.start_date).toLocaleString(undefined, { month: 'short' }) : '—'}</span>
+                          <span className="text-sm font-black leading-none">{e.start_date ? new Date(e.start_date).getDate() : '?'}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 truncate">{e.title}</p>
+                          <p className="text-[10px] text-gray-500 truncate">
+                            {e.start_date ? fmtDate(e.start_date) : '—'}
+                            {e.end_date && e.end_date !== e.start_date ? ` → ${fmtDate(e.end_date)}` : ''}
+                            {e.location ? ` · ${e.location}` : ''}
+                          </p>
+                        </div>
+                        {e.status && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 capitalize">{e.status}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Recent Notifications — backend already returns up to 5; "See more"
+                lazy-loads the rest from /notifications and renders inline. */}
+            {me_section?.recent_notifications?.length > 0 && (
+              <div className="bg-white rounded-2xl border border-blue-100 shadow-sm">
+                <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">Recent Notifications</p>
+                      <p className="text-[10px] text-blue-600">
+                        {me_section?.unread_notifications ?? 0} unread · {(allNotifs?.length ?? me_section.recent_notifications.length)} shown
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                  {(allNotifs ?? me_section.recent_notifications).map((n) => {
+                    const d = n.data || {};
+                    const unread = !n.read_at;
+                    return (
+                      <li key={n.id}>
+                        <button onClick={() => d.link && navigate(d.link)}
+                          className={`w-full flex items-start gap-3 p-3 text-left hover:bg-blue-50/40 transition-colors ${unread ? 'bg-blue-50/30' : ''}`}>
+                          <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${unread ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] text-gray-700 leading-snug">{d.message || d.title || 'Notification'}</p>
+                            <p className="text-[9px] text-gray-400 mt-0.5">
+                              {n.created_at ? new Date(n.created_at).toLocaleString() : ''}
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {!allNotifs && (
+                  <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                    <button onClick={expandNotifs} disabled={notifsExpanding}
+                      className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 disabled:opacity-50">
+                      {notifsExpanding ? 'Loading…' : 'See more →'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

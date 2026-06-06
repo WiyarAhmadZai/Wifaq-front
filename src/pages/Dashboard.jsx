@@ -142,9 +142,20 @@ export default function Dashboard() {
         </div>
 
         {/* ─── Overview strip — each tile is permission-gated server-side,
-                so a key only exists when the user is allowed to see it. ─── */}
-        {overview && Object.keys(overview).length > 0 && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                so a key only exists when the user is allowed to see it.
+                Column count adapts to the number of tiles so the strip is
+                always full-width (no empty cells on the right). ─── */}
+        {overview && Object.keys(overview).length > 0 && (() => {
+          const tileCount = Object.keys(overview).length;
+          // Tailwind needs full class strings so it can JIT them — be explicit.
+          const lgCols = {
+            1: 'lg:grid-cols-1',
+            2: 'lg:grid-cols-2',
+            3: 'lg:grid-cols-3',
+            4: 'lg:grid-cols-4',
+          }[tileCount] || 'lg:grid-cols-4';
+          return (
+          <div className={`grid grid-cols-2 ${lgCols} gap-3 mb-5`}>
             {overview.staff != null && (
               <StatCard label="Total Staff"    value={overview.staff}    tone="teal"    icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857" onClick={() => navigate("/hr/staff")} />
             )}
@@ -158,7 +169,8 @@ export default function Dashboard() {
               <StatCard label="Branches"       value={overview.branches} tone="emerald" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" onClick={() => navigate("/branches")} />
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* ─── On Leave Today ─── */}
         {onLeaveToday.length > 0 && (
@@ -205,11 +217,19 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ─── Upcoming Events + Recent Notifications row ─── */}
-        {((events_upcoming && events_upcoming.length > 0) || me_section?.recent_notifications?.length > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+        {/* ─── Upcoming Events + Recent Notifications row ───
+             Adaptive layout: when both widgets render, split 50/50;
+             when only one renders, it takes the full row instead of
+             leaving an empty half. */}
+        {(() => {
+          const hasEvents = events_upcoming && events_upcoming.length > 0;
+          const hasNotifs = me_section?.recent_notifications?.length > 0;
+          if (!hasEvents && !hasNotifs) return null;
+          const cols = hasEvents && hasNotifs ? 'lg:grid-cols-2' : 'lg:grid-cols-1';
+          return (
+          <div className={`grid grid-cols-1 ${cols} gap-4 mb-5`}>
             {/* Upcoming events — only renders when backend granted the block. */}
-            {events_upcoming && events_upcoming.length > 0 && (
+            {hasEvents && (
               <div className="bg-white rounded-2xl border border-purple-100 shadow-sm">
                 <div className="px-5 py-3 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -257,7 +277,7 @@ export default function Dashboard() {
 
             {/* Recent Notifications — backend already returns up to 5; "See more"
                 lazy-loads the rest from /notifications and renders inline. */}
-            {me_section?.recent_notifications?.length > 0 && (
+            {hasNotifs && (
               <div className="bg-white rounded-2xl border border-blue-100 shadow-sm">
                 <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -305,10 +325,14 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
-        {/* ─── Personal slice + observation chart ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+        {/* ─── Personal slice + observation chart ───
+             When the observations chart is hidden (non-HR users), let the
+             My Quick View card take the entire row so there's no empty
+             two-column gap on the right. */}
+        <div className={`grid grid-cols-1 ${charts?.observations_last_6_months ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-4 mb-5`}>
           <Section
             title="My Quick View"
             icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
-import { get, put, post } from '../api/axios';
+import { get, put, post, del } from '../api/axios';
 import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
 import Select2 from '../components/hr/Select2';
@@ -28,6 +28,7 @@ export default function MyProfile() {
   const [showContact, setShowContact] = useState(false);
   const [showEmployment, setShowEmployment] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showReminders, setShowReminders] = useState(false);
 
   const isAdmin = hasRole('super-admin') || hasRole('admin');
 
@@ -146,15 +147,27 @@ export default function MyProfile() {
                 {isSelf ? "My Profile" : isAdminView ? "User Profile" : `${u.name?.split(' ')[0] || 'User'}'s Profile`}
               </h1>
             </div>
-            {(isSelf || isAdminView) && (
-              <button
-                onClick={() => setShowPassword(true)}
-                className="px-3 py-1.5 bg-white text-teal-600 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                Change Password
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {isSelf && (
+                <button
+                  onClick={() => setShowReminders(true)}
+                  className="px-3 py-1.5 bg-amber-400 text-amber-900 text-xs font-semibold rounded-lg hover:bg-amber-300 transition-colors flex items-center gap-1.5"
+                  title="Set personal reminders for your meetings, events, and tasks"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  Reminders
+                </button>
+              )}
+              {(isSelf || isAdminView) && (
+                <button
+                  onClick={() => setShowPassword(true)}
+                  className="px-3 py-1.5 bg-white text-teal-600 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                  Change Password
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -359,6 +372,10 @@ export default function MyProfile() {
           onSave={changePassword}
           saving={saving}
         />
+      )}
+
+      {showReminders && (
+        <RemindersModal onClose={() => setShowReminders(false)} />
       )}
     </div>
   );
@@ -1137,5 +1154,269 @@ function PasswordModal({ isAdmin, onClose, onSave, saving }) {
         </div>
       </form>
     </ModalShell>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ *  Reminders Modal — set personal reminders for meetings, events,
+ *  and assigned staff tasks. Backdrop click does NOT close.
+ * ──────────────────────────────────────────────────────────────────── */
+
+const LEAD_PRESETS = [
+  { value: 15,   label: "15 min" },
+  { value: 30,   label: "30 min" },
+  { value: 60,   label: "1 hr" },
+  { value: 120,  label: "2 hr" },
+  { value: 180,  label: "3 hr" },
+  { value: 360,  label: "6 hr" },
+  { value: 720,  label: "12 hr" },
+  { value: 1440, label: "1 day" },
+];
+
+function RemindersModal({ onClose }) {
+  const [mine, setMine] = useState([]);
+  const [available, setAvailable] = useState({ meetings: [], events: [], staff_tasks: [] });
+  const [loading, setLoading] = useState(true);
+  const [picked, setPicked] = useState(null);
+  const [lead, setLead] = useState(60);
+  const [customLead, setCustomLead] = useState("");
+  const [label, setLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [m, a] = await Promise.all([
+        get('/me/reminders'),
+        get('/me/reminders/available'),
+      ]);
+      setMine(m.data?.data || []);
+      setAvailable(a.data?.data || { meetings: [], events: [], staff_tasks: [] });
+    } catch {/* leave empty */} finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const effectiveLead = (() => {
+    const n = Number(customLead);
+    if (customLead !== "" && !Number.isNaN(n) && n > 0) return Math.min(10080, Math.max(5, n));
+    return lead;
+  })();
+
+  const reminderAt = picked?.deadline
+    ? new Date(new Date(picked.deadline).getTime() - effectiveLead * 60_000)
+    : null;
+  const reminderInPast = reminderAt ? reminderAt.getTime() <= Date.now() : false;
+  const itemAlreadyPast = picked?.deadline ? new Date(picked.deadline).getTime() <= Date.now() : false;
+
+  const submit = async () => {
+    if (!picked) return;
+    if (itemAlreadyPast) {
+      Swal.fire("Past", "This item is already past — a reminder cannot be set.", "warning");
+      return;
+    }
+    if (reminderInPast) {
+      Swal.fire("Too long", "The lead time you picked would fire in the past. Pick a shorter lead.", "warning");
+      return;
+    }
+    setSaving(true);
+    try {
+      await post('/me/reminders', {
+        subject_type: picked.type,
+        subject_id: picked.id,
+        lead_minutes: effectiveLead,
+        label: label.trim() || undefined,
+      });
+      setPicked(null); setLabel(""); setCustomLead(""); setLead(60);
+      load();
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to set reminder", "error");
+    } finally { setSaving(false); }
+  };
+
+  const removeOne = async (id) => {
+    try { await del(`/me/reminders/${id}`); } catch {}
+    load();
+  };
+
+  const totalAvailable =
+    (available.meetings?.length || 0) +
+    (available.events?.length || 0) +
+    (available.staff_tasks?.length || 0);
+
+  const fmtLead = (mins) => {
+    if (mins >= 1440) return `${Math.round(mins / 1440)} day${mins >= 2880 ? 's' : ''}`;
+    if (mins >= 60)   return `${Math.round(mins / 60 * 10) / 10} hr`;
+    return `${mins} min`;
+  };
+  const fmtDT = (iso) => iso ? new Date(iso).toLocaleString() : '—';
+  const typeBadge = (t) => {
+    const map = {
+      meeting:    { bg: 'bg-teal-100',   text: 'text-teal-700',   label: 'Meeting' },
+      event:      { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Event' },
+      staff_task: { bg: 'bg-indigo-100', text: 'text-indigo-700', label: 'Task' },
+    };
+    const c = map[t] || { bg: 'bg-gray-100', text: 'text-gray-600', label: t };
+    return <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${c.bg} ${c.text}`}>{c.label}</span>;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="px-5 py-4 bg-gradient-to-r from-amber-500 to-amber-600 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              My Reminders
+            </h3>
+            <p className="text-[11px] text-white/80 mt-0.5">
+              Remind yourself before a meeting, event, or task you're assigned to.
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-4 border-b border-gray-100 max-h-[28vh] overflow-y-auto">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+            Your reminders ({mine.length})
+          </p>
+          {loading ? (
+            <p className="text-xs text-gray-400">Loading…</p>
+          ) : mine.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">No reminders set yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {mine.map((r) => (
+                <li key={r.id} className="flex items-center gap-3 p-3 bg-amber-50/40 border border-amber-100 rounded-xl">
+                  {typeBadge(r.subject_type)}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{r.title}</p>
+                    <p className="text-[10px] text-gray-500">
+                      Fires at <b>{fmtDT(r.remind_at)}</b> · {fmtLead(r.lead_minutes)} before
+                      {r.notified_at ? ' · already sent' : ''}
+                    </p>
+                  </div>
+                  <button onClick={() => removeOne(r.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Remove">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+              Pick what to be reminded about
+            </p>
+            {loading ? (
+              <p className="text-xs text-gray-400 italic">Loading your items…</p>
+            ) : totalAvailable === 0 ? (
+              <p className="text-xs text-gray-400 italic">
+                You don't have any upcoming meetings, events, or assigned tasks with a future deadline.
+              </p>
+            ) : (
+              <Select2
+                value={picked ? `${picked.type}:${picked.id}` : null}
+                onChange={(v) => {
+                  if (!v) { setPicked(null); return; }
+                  // Decode the composite key we use for option values.
+                  const [type, idStr] = String(v).split(':');
+                  const id = Number(idStr);
+                  const lookup = {
+                    meeting:    available.meetings,
+                    event:      available.events,
+                    staff_task: available.staff_tasks,
+                  }[type] || [];
+                  const item = lookup.find((x) => Number(x.id) === id);
+                  if (item) setPicked({ ...item, type });
+                }}
+                placeholder="Search meetings, events, or tasks assigned to you…"
+                options={[
+                  ...(available.meetings || []).map((it) => ({
+                    value: `meeting:${it.id}`,
+                    label: `[Meeting] ${it.title} — ${fmtDT(it.deadline)}${it.subtitle ? ' · ' + it.subtitle : ''}`,
+                  })),
+                  ...(available.events || []).map((it) => ({
+                    value: `event:${it.id}`,
+                    label: `[Event] ${it.title} — ${fmtDT(it.deadline)}${it.subtitle ? ' · ' + it.subtitle : ''}`,
+                  })),
+                  ...(available.staff_tasks || []).map((it) => ({
+                    value: `staff_task:${it.id}`,
+                    label: `[Task] ${it.title} — Deadline ${fmtDT(it.deadline)}${it.subtitle ? ' · ' + it.subtitle : ''}`,
+                  })),
+                ]}
+              />
+            )}
+          </div>
+
+          {picked && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">Selected</p>
+                <p className="text-xs font-semibold text-amber-900">{picked.title}</p>
+                <p className="text-[10px] text-amber-700">Deadline / Start: {fmtDT(picked.deadline)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">How long before?</p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {LEAD_PRESETS.map((p) => (
+                    <button key={p.value} type="button"
+                      onClick={() => { setLead(p.value); setCustomLead(""); }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${(!customLead && lead === p.value) ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'}`}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={5} max={10080} value={customLead}
+                    onChange={(e) => setCustomLead(e.target.value)}
+                    placeholder="Custom"
+                    className="w-28 px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-300 focus:outline-none" />
+                  <span className="text-[10px] text-amber-700">minutes before</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">Optional note</p>
+                <input type="text" value={label} onChange={(e) => setLabel(e.target.value)}
+                  placeholder="e.g. Prepare the slides first"
+                  className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-300 focus:outline-none" />
+              </div>
+              <div className="text-[11px] text-amber-900">
+                {itemAlreadyPast ? (
+                  <span className="text-red-600 font-semibold">This item is already past — can't set a reminder.</span>
+                ) : reminderInPast ? (
+                  <span className="text-red-600 font-semibold">Lead time is too long — would fire in the past.</span>
+                ) : (
+                  <>Will fire at <b>{fmtDT(reminderAt?.toISOString())}</b> ({fmtLead(effectiveLead)} before).</>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} disabled={saving}
+            className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 disabled:opacity-50">
+            Close
+          </button>
+          <button onClick={submit}
+            disabled={!picked || saving || itemAlreadyPast || reminderInPast}
+            className="px-5 py-2 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl disabled:opacity-50 flex items-center gap-2">
+            {saving ? (
+              <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving…</>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                Set reminder
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

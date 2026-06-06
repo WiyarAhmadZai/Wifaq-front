@@ -355,6 +355,13 @@ function NotificationBell() {
   // Shared AudioContext, lazy-created on first user gesture (browser
   // autoplay policy blocks creation before any interaction).
   const audioCtxRef = useRef(null);
+  // Surface the current Notification permission state so we can render an
+  // "Enable notifications" prompt while it's still 'default'.
+  const [notifPerm, setNotifPerm] = useState(
+    typeof window !== 'undefined' && 'Notification' in window
+      ? Notification.permission
+      : 'denied'
+  );
   const ref = useRef(null);
   // Tracks invites the user has RSVP'd to in this session (notif id -> status)
   // so the Attend / Can't attend buttons flip to a confirmation immediately.
@@ -450,19 +457,26 @@ function NotificationBell() {
       if (fresh.length === 0) return;
       fresh.forEach((n) => seenIdsRef.current.add(n.id));
 
+      // Keep our cached permission state honest before deciding whether to
+      // bother calling the OS notifier — the user may have flipped it from
+      // browser settings.
+      if ('Notification' in window) setNotifPerm(Notification.permission);
+
       // Float each fresh item as a card (cap stack at 5 so it never feels
       // like a wall of toasts). The auto-dismiss effect below clears them
       // after a few seconds — long enough to read, short enough to not
       // clutter.
       setPopups((prev) => [...fresh.slice(0, 5), ...prev].slice(0, 5));
 
-      // Audible chime — works while the tab is visible. When the tab is
-      // hidden, also fire an OS-level notification so the user notices
-      // (same as WhatsApp Web).
+      // Audible chime + OS-level notification on every new arrival, just
+      // like WhatsApp Web. Firing the OS notification even when the tab is
+      // visible means it ALSO lands in the OS notification center
+      // (Windows Action Center, macOS Notification Center, Android tray,
+      // etc.), so the user has a record of it outside the browser. The
+      // OS itself decides whether to flash a banner based on its own
+      // focus/DND rules.
       playChime();
-      if (document.hidden) {
-        fresh.forEach((n) => showOsNotification(n));
-      }
+      fresh.forEach((n) => showOsNotification(n));
     } catch {
       // silently fail
     }
@@ -488,7 +502,9 @@ function NotificationBell() {
     const bootstrap = () => {
       ensureAudioCtx();
       if ('Notification' in window && Notification.permission === 'default') {
-        try { Notification.requestPermission(); } catch {}
+        try {
+          Notification.requestPermission().then((result) => setNotifPerm(result));
+        } catch {}
       }
       document.removeEventListener('pointerdown', bootstrap);
       document.removeEventListener('keydown', bootstrap);
@@ -722,9 +738,51 @@ function NotificationBell() {
         .wen-bell-pulse > svg { animation: wen-bell-ring 1.6s ease-in-out infinite; transform-origin: 50% 4px; }
       `}</style>
 
+      {/* "Enable desktop notifications" banner — shows once while the user
+          hasn't decided yet. Clicking the button triggers the real
+          permission prompt from a user gesture so the browser accepts it. */}
+      {notifPerm === 'default' && 'Notification' in window && (
+        <div className="fixed top-16 right-4 z-[100] w-80 pointer-events-auto">
+          <div className="bg-white rounded-xl shadow-lg border border-amber-200 p-3 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-gray-800">Turn on desktop notifications</p>
+              <p className="text-[10px] text-gray-500 leading-snug">Get pinged in the OS tray even when this tab is in the background.</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    ensureAudioCtx();
+                    try {
+                      Notification.requestPermission().then((result) => setNotifPerm(result));
+                    } catch {}
+                  }}
+                  className="px-3 py-1 bg-amber-500 text-white text-[10px] font-semibold rounded-lg hover:bg-amber-600"
+                >
+                  Enable
+                </button>
+                <button
+                  onClick={() => setNotifPerm('dismissed')}
+                  className="px-3 py-1 bg-white border border-gray-200 text-gray-600 text-[10px] font-medium rounded-lg hover:bg-gray-50"
+                >
+                  Not now
+                </button>
+              </div>
+            </div>
+            <button onClick={() => setNotifPerm('dismissed')}
+              className="text-gray-300 hover:text-gray-500 p-1 -mt-1 -mr-1 flex-shrink-0" aria-label="Dismiss">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Login-time popup stack — floats top-right, each card closable. */}
       {popups.length > 0 && (
-        <div className="fixed top-16 right-4 z-[100] w-80 space-y-2 pointer-events-none">
+        <div className={`fixed ${notifPerm === 'default' ? 'top-36' : 'top-16'} right-4 z-[100] w-80 space-y-2 pointer-events-none`}>
           {popups.length > 1 && (
             <div className="flex justify-end pointer-events-auto">
               <button

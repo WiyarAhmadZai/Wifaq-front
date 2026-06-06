@@ -21,20 +21,10 @@ export default function Dashboard() {
   const onLeaveRef = useRef(null);
   const [pulseOnLeave, setPulseOnLeave] = useState(false);
 
-  // Recent Notifications widget — shows 5 from `me_section.recent_notifications`
-  // by default. "See more" fetches the full list (up to 50) from /notifications
-  // and renders it inline so the user doesn't have to leave the dashboard.
-  const [allNotifs, setAllNotifs] = useState(null);
-  const [notifsExpanding, setNotifsExpanding] = useState(false);
-  const expandNotifs = async () => {
-    if (allNotifs || notifsExpanding) return;
-    setNotifsExpanding(true);
-    try {
-      const res = await get('/notifications');
-      setAllNotifs(res.data?.data || []);
-    } catch { setAllNotifs([]); }
-    finally { setNotifsExpanding(false); }
-  };
+  // Recent Notifications widget — shows the latest 5 from
+  // `me_section.recent_notifications`. "See more" routes to the dedicated
+  // /notifications inbox page so the user gets the full list with
+  // filters / search.
 
   const load = async () => {
     try {
@@ -289,13 +279,13 @@ export default function Dashboard() {
                     <div>
                       <p className="text-sm font-bold text-gray-800">Recent Notifications</p>
                       <p className="text-[10px] text-blue-600">
-                        {me_section?.unread_notifications ?? 0} unread · {(allNotifs?.length ?? me_section.recent_notifications.length)} shown
+                        {me_section?.unread_notifications ?? 0} unread · {me_section.recent_notifications.length} shown
                       </p>
                     </div>
                   </div>
                 </div>
                 <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-                  {(allNotifs ?? me_section.recent_notifications).map((n) => {
+                  {me_section.recent_notifications.map((n) => {
                     const d = n.data || {};
                     const unread = !n.read_at;
                     return (
@@ -314,14 +304,12 @@ export default function Dashboard() {
                     );
                   })}
                 </ul>
-                {!allNotifs && (
-                  <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-                    <button onClick={expandNotifs} disabled={notifsExpanding}
-                      className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 disabled:opacity-50">
-                      {notifsExpanding ? 'Loading…' : 'See more →'}
-                    </button>
-                  </div>
-                )}
+                <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => navigate('/notifications')}
+                    className="text-[11px] font-semibold text-blue-700 hover:text-blue-900">
+                    See more →
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -348,15 +348,81 @@ function NotificationBell() {
   // unread notifications so the user sees what they missed at a glance.
   const [popups, setPopups] = useState([]);
   const popupsSeededRef = useRef(false);
+  // Tracks every notification id we've already processed in this session.
+  // Polls compare against this set to spot brand-new arrivals so we can
+  // chime + slide-in toast + OS-notify just for them (no dupes).
+  const seenIdsRef = useRef(null);
+  // Shared AudioContext, lazy-created on first user gesture (browser
+  // autoplay policy blocks creation before any interaction).
+  const audioCtxRef = useRef(null);
   const ref = useRef(null);
   // Tracks invites the user has RSVP'd to in this session (notif id -> status)
   // so the Attend / Can't attend buttons flip to a confirmation immediately.
   const [responded, setResponded] = useState({});
   const [respondingId, setRespondingId] = useState(null);
 
+  // Lazy-init a shared AudioContext. Browsers reject contexts created
+  // before a user gesture, so callers should invoke this from a real
+  // interaction (click, focus). Subsequent calls reuse the same context.
+  const ensureAudioCtx = useCallback(() => {
+    if (audioCtxRef.current) return audioCtxRef.current;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtxRef.current = new Ctx();
+    } catch { audioCtxRef.current = null; }
+    return audioCtxRef.current;
+  }, []);
+
+  // Short two-note "WhatsApp-style" chime, synthesised on the fly so we
+  // don't ship an audio asset. Fails silently if AudioContext is blocked.
+  const playChime = useCallback(() => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    try {
+      if (ctx.state === 'suspended') ctx.resume();
+      const tone = (freq, start, dur) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur + 0.05);
+      };
+      tone(880, 0, 0.16);
+      tone(1175, 0.18, 0.22);
+    } catch { /* ignore */ }
+  }, []);
+
+  // OS notification — used when the tab is hidden so the user notices.
+  // Requests permission once on first call; subsequent calls just fire.
+  const showOsNotification = useCallback((n) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission === 'denied') return;
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission(); // picked up on the next poll
+      return;
+    }
+    try {
+      const d = n.data || {};
+      const title = d.title || 'New notification';
+      const body  = d.message || '';
+      const notif = new Notification(title, { body, icon: '/favicon.ico', tag: `wen-${n.id}` });
+      notif.onclick = () => {
+        window.focus();
+        if (d.link) navigate(d.link);
+        notif.close();
+      };
+    } catch { /* ignore */ }
+  }, [navigate]);
+
   const fetchNotifications = useCallback(async () => {
-    // Don't poll while the tab is in the background — it just adds load.
-    if (document.hidden) return;
+    // Poll runs even when the tab is hidden so OS notifications can fire
+    // for offline-tab users — the response is small and once-a-minute.
     try {
       const res = await get("/notifications");
       const data = res.data;
@@ -364,19 +430,43 @@ function NotificationBell() {
       setNotifications(items);
       setUnreadCount(data?.unread_count || 0);
 
-      // Once per session: push the unread items as floating cards. Capped at
-      // 5 so it never feels like a wall of alerts. sessionStorage so they
-      // don't reappear on every full reload within the same tab session.
-      if (!popupsSeededRef.current && !sessionStorage.getItem("wen:notif-popups-seen")) {
-        const unread = items.filter((n) => !n.read_at).slice(0, 5);
-        if (unread.length > 0) setPopups(unread);
-        popupsSeededRef.current = true;
-        sessionStorage.setItem("wen:notif-popups-seen", "1");
+      // FIRST poll of this session: just record what already existed
+      // without chiming for it (those are "old" notifications). The
+      // session-seed popups still run for unread-on-arrival items so the
+      // user gets caught up.
+      if (seenIdsRef.current === null) {
+        seenIdsRef.current = new Set(items.map((n) => n.id));
+        if (!popupsSeededRef.current && !sessionStorage.getItem("wen:notif-popups-seen")) {
+          const unread = items.filter((n) => !n.read_at).slice(0, 5);
+          if (unread.length > 0) setPopups(unread);
+          popupsSeededRef.current = true;
+          sessionStorage.setItem("wen:notif-popups-seen", "1");
+        }
+        return;
+      }
+
+      // SUBSEQUENT polls: detect arrivals since last tick.
+      const fresh = items.filter((n) => !seenIdsRef.current.has(n.id));
+      if (fresh.length === 0) return;
+      fresh.forEach((n) => seenIdsRef.current.add(n.id));
+
+      // Float each fresh item as a card (cap stack at 5 so it never feels
+      // like a wall of toasts). The auto-dismiss effect below clears them
+      // after a few seconds — long enough to read, short enough to not
+      // clutter.
+      setPopups((prev) => [...fresh.slice(0, 5), ...prev].slice(0, 5));
+
+      // Audible chime — works while the tab is visible. When the tab is
+      // hidden, also fire an OS-level notification so the user notices
+      // (same as WhatsApp Web).
+      playChime();
+      if (document.hidden) {
+        fresh.forEach((n) => showOsNotification(n));
       }
     } catch {
       // silently fail
     }
-  }, []);
+  }, [playChime, showOsNotification]);
 
   useEffect(() => {
     fetchNotifications();
@@ -393,12 +483,38 @@ function NotificationBell() {
     const onVisible = () => { if (!document.hidden) fetchNotifications(); };
     document.addEventListener("visibilitychange", onVisible);
 
+    // Bootstrap audio + OS-notification permission on the first user
+    // interaction anywhere on the page. Browsers reject silent setup.
+    const bootstrap = () => {
+      ensureAudioCtx();
+      if ('Notification' in window && Notification.permission === 'default') {
+        try { Notification.requestPermission(); } catch {}
+      }
+      document.removeEventListener('pointerdown', bootstrap);
+      document.removeEventListener('keydown', bootstrap);
+    };
+    document.addEventListener('pointerdown', bootstrap, { once: true });
+    document.addEventListener('keydown', bootstrap, { once: true });
+
     return () => {
       clearInterval(interval);
       window.removeEventListener("wen:notifications-refresh", onRefresh);
       document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener('pointerdown', bootstrap);
+      document.removeEventListener('keydown', bootstrap);
     };
-  }, [fetchNotifications]);
+  }, [fetchNotifications, ensureAudioCtx]);
+
+  // Auto-dismiss floating cards after ~7 seconds — long enough to read,
+  // short enough that the screen stays clean. Each card runs its own
+  // timer so the user can still hover/click before it fades.
+  useEffect(() => {
+    if (popups.length === 0) return;
+    const timers = popups.map((n) =>
+      setTimeout(() => setPopups((prev) => prev.filter((p) => p.id !== n.id)), 7000)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [popups]);
 
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };

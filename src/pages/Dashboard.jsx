@@ -86,7 +86,7 @@ export default function Dashboard() {
     );
   }
 
-  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, events_upcoming, my_tasks, daily_works, finance, income_expense, me_section, charts, recent_activity } = data;
+  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, events_upcoming, recent_assignments, my_tasks, daily_works, finance, income_expense, me_section, charts, recent_activity } = data;
   const roleLabel = me.is_super_admin ? "Super Admin"
     : me.is_hr ? "HR / Admin"
     : me.is_finance ? "Finance"
@@ -313,6 +313,105 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+          );
+        })()}
+
+        {/* ─── Recent Assignments (admin / access users only) ───
+             Three compact lists — tasks / meetings / events — showing the
+             5 most recent records of each with the assigner + assignee
+             names so leadership can audit who's giving what to whom.
+             Adaptive column count so empty groups don't leave gaps. */}
+        {recent_assignments && (() => {
+          const t = recent_assignments.tasks    || [];
+          const m = recent_assignments.meetings || [];
+          const e = recent_assignments.events   || [];
+          const groups = [
+            { key: 'tasks',    items: t, title: 'Recent Tasks',     all: '/hr/staff-task',
+              tint: { bg: 'bg-indigo-50', border: 'border-indigo-100', dot: 'bg-indigo-600', text: 'text-indigo-700' },
+              icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+              render: (x) => (
+                <>
+                  <p className="text-xs font-semibold text-gray-800 truncate">{x.task}</p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                    {x.assigner} → <span className="font-semibold">{x.assigned_to}</span>
+                  </p>
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    {x.task_type && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 uppercase">{x.task_type}</span>}
+                    {x.status && <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 capitalize">{x.status.replace('_', ' ')}</span>}
+                    {x.deadline && <span className="text-[9px] text-gray-400">due {x.deadline}</span>}
+                  </div>
+                </>
+              ),
+            },
+            { key: 'meetings', items: m, title: 'Recent Meetings', all: '/hr/meetings',
+              tint: { bg: 'bg-teal-50', border: 'border-teal-100', dot: 'bg-teal-600', text: 'text-teal-700' },
+              icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+              render: (x) => (
+                <>
+                  <p className="text-xs font-semibold text-gray-800 truncate">{x.title}</p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                    organized by <span className="font-semibold">{x.organizer}</span> · {x.participants_count} participant{x.participants_count === 1 ? '' : 's'}
+                  </p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {x.status && <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 capitalize">{x.status.replace('_', ' ')}</span>}
+                    {x.start_time && <span className="text-[9px] text-gray-400">{new Date(x.start_time).toLocaleString()}</span>}
+                  </div>
+                </>
+              ),
+            },
+            { key: 'events',   items: e, title: 'Recent Events',    all: '/hr/events',
+              tint: { bg: 'bg-purple-50', border: 'border-purple-100', dot: 'bg-purple-600', text: 'text-purple-700' },
+              icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+              render: (x) => (
+                <>
+                  <p className="text-xs font-semibold text-gray-800 truncate">{x.title}</p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                    created by <span className="font-semibold">{x.created_by}</span> · responsible <span className="font-semibold">{x.responsible}</span>
+                  </p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {x.status && <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 capitalize">{x.status}</span>}
+                    {x.start_date && <span className="text-[9px] text-gray-400">{x.start_date}</span>}
+                  </div>
+                </>
+              ),
+            },
+          ].filter((g) => g.items.length > 0);
+
+          if (groups.length === 0) return null;
+          const cols = { 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3' }[groups.length];
+          return (
+            <div className={`grid grid-cols-1 ${cols} gap-4 mb-5`}>
+              {groups.map((g) => (
+                <div key={g.key} className={`bg-white rounded-2xl border ${g.tint.border} shadow-sm`}>
+                  <div className={`px-5 py-3 ${g.tint.bg} border-b ${g.tint.border} flex items-center justify-between`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg ${g.tint.dot} flex items-center justify-center`}>
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={g.icon} />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">{g.title}</p>
+                        <p className={`text-[10px] ${g.tint.text}`}>{g.items.length} most recent</p>
+                      </div>
+                    </div>
+                    <button onClick={() => navigate(g.all)} className={`text-[11px] font-semibold ${g.tint.text} hover:opacity-80`}>
+                      See all →
+                    </button>
+                  </div>
+                  <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                    {g.items.map((x) => (
+                      <li key={x.id}>
+                        <button onClick={() => navigate(x.link)}
+                          className={`w-full text-left p-3 hover:${g.tint.bg.replace('-50', '-50/60')} transition-colors`}>
+                          {g.render(x)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           );
         })()}
 

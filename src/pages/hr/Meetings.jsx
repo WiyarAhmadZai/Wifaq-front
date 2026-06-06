@@ -11,6 +11,7 @@ const statusConf = {
   in_progress: { label: "In Progress", color: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
   completed: { label: "Completed", color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
   cancelled: { label: "Cancelled", color: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+  ended: { label: "Ended", color: "bg-gray-50 text-gray-600 border-gray-200", dot: "bg-gray-400" },
 };
 
 export default function Meetings() {
@@ -106,7 +107,7 @@ export default function Meetings() {
   };
 
   let filtered = items;
-  if (filter !== "all") filtered = filtered.filter((i) => i.status === filter);
+  if (filter !== "all") filtered = filtered.filter((i) => (i.live_status || i.status) === filter);
   if (typeFilter !== "all") filtered = filtered.filter((i) => (i.meeting_type || "routine") === typeFilter);
   if (search) {
     const q = search.toLowerCase();
@@ -205,7 +206,7 @@ export default function Meetings() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map((m) => {
-                    const sc = statusConf[m.status] || statusConf.scheduled;
+                    const sc = statusConf[m.live_status || m.status] || statusConf.scheduled;
                     const participantCount = m.participants?.length || 0;
                     const agendaCount = m.agenda_items?.length || 0;
                     const isPast = m.end_time && new Date(m.end_time) < new Date();
@@ -278,7 +279,7 @@ export default function Meetings() {
                         {/* Status */}
                         <td className="px-4 py-3 text-center">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border ${sc.color}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${m.live_status === "in_progress" ? "animate-pulse" : ""}`}></span>
                             {sc.label}
                           </span>
                         </td>

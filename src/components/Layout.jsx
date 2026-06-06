@@ -514,6 +514,9 @@ function NotificationBell() {
       if (data.action === "cancelled") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
       return { bg: "bg-teal-100", color: "text-teal-600", path: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" };
     }
+    if (data?.type === "daily_works_reminder") {
+      return { bg: "bg-teal-100", color: "text-teal-600", path: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" };
+    }
     if (data?.type === "meeting_response") {
       if (data.action === "declined") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
       return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
@@ -867,6 +870,7 @@ export default function Layout() {
       { label: "Meetings", path: "/hr/meetings", permission: "meetings.view" },
       { label: "Events", path: "/hr/events", permission: "events.view" },
       { label: "Staff Task", path: "/hr/staff-task", permission: "staff-task.view" },
+      { label: "Daily Works", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
     { label: "Visitor Log", path: "/hr/visitor-log", permission: "visitor-log.view" },
     { label: "HR Reports", path: "/hr/reports", permission: "hr-reports.view" },

@@ -925,6 +925,13 @@ export default function Layout() {
   const teacherMenus = [
     { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
   ];
+  const educationMenus = [
+    { label: "Daily Observation", path: "/education/observations", permission: "student-observations.view" },
+    { label: "Under Monitoring", path: "/education/monitoring", permission: "student-monitoring.view" },
+    { label: "Elicitation Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
+    { label: "Mentor Synthesis", path: "/education/synthesis", permission: "student-synthesis.view" },
+    { label: "Annual Review Panel", path: "/education/annual-review", permission: "annual-review.view" },
+  ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
     { label: "Subjects", path: "/class-management/subjects", permission: "subjects.view" },
@@ -1152,8 +1159,22 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus)) && (
             <MenuSection title="Academic" />
+          )}
+
+          {canSeeGroup(educationMenus) && (
+            <ParentMenu
+              icon={Icons.Teacher}
+              label="Education & Formation"
+              isOpen={openMenu.includes("education")}
+              onClick={() => toggleMenu("education")}
+            >
+              {visible(educationMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
           )}
           {canSeeGroup(teacherMenus) && (
             <ParentMenu

@@ -45,10 +45,13 @@ export function AuthProvider({ children }) {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onFocus);
     window.addEventListener("wen:auth-refresh", onCustom);
-    // Poll every 5 s so an admin's grant/revoke reaches the affected user
-    // almost immediately. /access/me is a small, cheap call and the backend
-    // busts Spatie's cache on every hit, so this stays correct.
-    const interval = setInterval(loadMe, 5 * 1000);
+    // Background safety-net poll. Kept infrequent (2 min) because the focus/
+    // visibilitychange listeners above already refresh the moment the user
+    // returns to the tab, and `wen:auth-refresh` fires an instant refresh when
+    // the user edits their own access. A short interval here hammered the
+    // single-threaded dev server (every hit reloads permissions from the DB)
+    // and caused request timeouts.
+    const interval = setInterval(loadMe, 120 * 1000);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisible);

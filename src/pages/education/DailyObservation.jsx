@@ -27,6 +27,7 @@ const needsChange = (cat) => ["positive", "concern", "urgent"].includes(cat);
 const isNegative = (cat) => ["concern", "urgent"].includes(cat);
 
 export default function DailyObservation() {
+  const [view, setView] = useState("record"); // record | recent
   const [classes, setClasses] = useState([]);
   const [activeClass, setActiveClass] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -111,8 +112,17 @@ export default function DailyObservation() {
       <div className="bg-teal-600 px-5 py-4">
         <h1 className="text-sm font-bold text-white">Daily Observation</h1>
         <p className="text-xs text-teal-100 mt-0.5">Tap a student · record one note per dimension in a single form</p>
+        <div className="flex gap-1 mt-3">
+          {[{ k: "record", l: "Record" }, { k: "recent", l: "My Recent" }].map((t) => (
+            <button key={t.k} onClick={() => setView(t.k)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${view === t.k ? "bg-white text-teal-700" : "bg-white/15 text-white hover:bg-white/25"}`}>{t.l}</button>
+          ))}
+        </div>
       </div>
 
+      {view === "recent" && <RecentObservations />}
+
+      {view === "record" && (
       <div className="px-4 py-5 space-y-4">
         {loadingClasses ? (
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" /></div>
@@ -167,6 +177,7 @@ export default function DailyObservation() {
           </>
         )}
       </div>
+      )}
 
       {/* Quick observation sheet — one note per dimension */}
       {sheet && (
@@ -186,14 +197,16 @@ export default function DailyObservation() {
             <div className="px-5 pt-4">
               <div className="flex flex-wrap gap-2">
                 {DIMENSIONS.map((d) => {
-                  const has = forms[d.key].description.trim();
+                  const fd = forms[d.key];
+                  const has = fd.description.trim();
+                  const incomplete = has && isNegative(fd.category) && !fd.alternative_interpretation.trim();
                   const on = activeDim === d.key;
                   return (
                     <button key={d.key} onClick={() => setActiveDim(d.key)} title={d.hint}
                       className={`relative px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${on ? "text-white" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}
                       style={on ? { background: d.color, borderColor: d.color } : {}}>
                       {d.label}
-                      {has && <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${on ? "bg-white/90" : "bg-teal-500"}`} />}
+                      {has && <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${incomplete ? "bg-red-500" : on ? "bg-white/90" : "bg-teal-500"}`} />}
                     </button>
                   );
                 })}
@@ -225,6 +238,17 @@ export default function DailyObservation() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white resize-none" />
               </div>
 
+              {/* Is this behaviour usual for this student? */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Is this behaviour usual for this student?</label>
+                <div className="flex gap-2">
+                  {[["yes", "Yes, it is usual"], ["no", "No, it is new"], ["unknown", "I don't know"]].map(([k, lbl]) => (
+                    <button key={k} onClick={() => setCur({ is_usual: cur.is_usual === k ? "" : k })}
+                      className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border ${cur.is_usual === k ? "bg-teal-600 text-white border-teal-600" : "bg-white border-gray-200 text-gray-600"}`}>{lbl}</button>
+                  ))}
+                </div>
+              </div>
+
               {needsChange(cur.category) && (
                 <div>
                   <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Change vs. before *</label>
@@ -238,11 +262,12 @@ export default function DailyObservation() {
               )}
 
               {isNegative(cur.category) && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-                  <p className="text-[11px] font-bold text-amber-800">Bias check — see first, judge second</p>
+                <div className={`rounded-xl border p-3 space-y-2 ${cur.description.trim() && !cur.alternative_interpretation.trim() ? "border-red-300 bg-red-50/50" : "border-amber-200 bg-amber-50/50"}`}>
+                  <p className="text-[11px] font-bold text-amber-800">Bias check — see first, judge second <span className="text-red-600">* required for {cur.category}</span></p>
+                  <p className="text-[10px] text-gray-500 -mt-1">A concerning/urgent note can't be saved without an alternative reading.</p>
                   <textarea value={cur.alternative_interpretation} onChange={(e) => setCur({ alternative_interpretation: e.target.value })}
                     rows={2} placeholder="Could there be another interpretation? e.g. tired, a family situation, or I misread."
-                    className="w-full px-3 py-2 border border-amber-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-300 bg-white resize-none" />
+                    className={`w-full px-3 py-2 border rounded-lg text-xs bg-white resize-none focus:ring-2 ${cur.description.trim() && !cur.alternative_interpretation.trim() ? "border-red-300 focus:ring-red-300" : "border-amber-200 focus:ring-amber-300"}`} />
                   {cur.category === "urgent" && (
                     <textarea value={cur.urgency_reason} onChange={(e) => setCur({ urgency_reason: e.target.value })}
                       rows={2} placeholder="Why is this urgent (needs same-day action)?"
@@ -266,6 +291,66 @@ export default function DailyObservation() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────── My recent saved observations ─────────────── */
+const CAT_BADGE = {
+  positive: "bg-emerald-100 text-emerald-700",
+  routine: "bg-gray-100 text-gray-600",
+  concern: "bg-amber-100 text-amber-700",
+  urgent: "bg-red-100 text-red-700",
+};
+const DIM_LABEL = { intellectual: "Intellectual", character: "Character", social: "Social", practical: "Practical" };
+
+function RecentObservations() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cat, setCat] = useState("all");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await get("/student-observations");
+      setRows(r.data?.data || []);
+    } catch { setRows([]); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = cat === "all" ? rows : rows.filter((r) => r.category === cat);
+
+  return (
+    <div className="px-4 py-5 space-y-4">
+      <div className="flex gap-1 flex-wrap">
+        {["all", "positive", "routine", "concern", "urgent"].map((c) => (
+          <button key={c} onClick={() => setCat(c)}
+            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-semibold capitalize transition-colors ${cat === c ? "bg-teal-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"}`}>{c}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">No observations recorded yet.</div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100">
+          {filtered.map((o) => (
+            <div key={o.id} className="px-4 py-3">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="text-xs font-bold text-gray-800 truncate">{o.student}</p>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">{DIM_LABEL[o.dimension] || o.dimension}</span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full capitalize ${CAT_BADGE[o.category] || "bg-gray-100 text-gray-600"}`}>{o.category}</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-600">{o.description}</p>
+              <p className="text-[10px] text-gray-400 mt-1">{o.observed_on}{o.monitoring_flag ? " · 🔎 flagged for monitoring" : ""}</p>
+            </div>
+          ))}
         </div>
       )}
     </div>

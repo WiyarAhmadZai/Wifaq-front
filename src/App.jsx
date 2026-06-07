@@ -68,6 +68,11 @@ const JobApplication = lazy(() => import("./pages/hr/JobApplication"));
 const AddVendor = lazy(() => import("./pages/hr/AddVendor"));
 const StaffTask = lazy(() => import("./pages/hr/StaffTask"));
 const DailyWorks = lazy(() => import("./pages/hr/DailyWorks"));
+const DailyObservation = lazy(() => import("./pages/education/DailyObservation"));
+const Monitoring = lazy(() => import("./pages/education/Monitoring"));
+const Elicitation = lazy(() => import("./pages/education/Elicitation"));
+const Synthesis = lazy(() => import("./pages/education/Synthesis"));
+const AnnualReview = lazy(() => import("./pages/education/AnnualReview"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
@@ -359,6 +364,11 @@ function App() {
             <Route path="hr/staff-task/edit/:id" element={<Suspense fallback={<PageLoader />}><StaffTaskForm /></Suspense>} />
             <Route path="hr/staff-task/show/:id" element={<Suspense fallback={<PageLoader />}><StaffTaskShow /></Suspense>} />
             <Route path="hr/daily-works" element={<Suspense fallback={<PageLoader />}><DailyWorks /></Suspense>} />
+            <Route path="education/observations" element={<Suspense fallback={<PageLoader />}><DailyObservation /></Suspense>} />
+            <Route path="education/monitoring" element={<Suspense fallback={<PageLoader />}><Monitoring /></Suspense>} />
+            <Route path="education/elicitation" element={<Suspense fallback={<PageLoader />}><Elicitation /></Suspense>} />
+            <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
+            <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />
             <Route path="hr/planner" element={<Suspense fallback={<PageLoader />}><Planner /></Suspense>} />
             <Route path="hr/planner/create" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
             <Route path="hr/planner/edit/:id" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />

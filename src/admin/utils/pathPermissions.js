@@ -31,6 +31,14 @@ const RULES = [
   { prefix: "/class-management/schedule", permission: "schedule.view" },
   { prefix: "/class-management/exams", permission: "classes.view" }, // legacy — share classes perm
 
+  // Education & Formation — student observation
+  { prefix: "/education/observations", permission: "student-observations.view" },
+  { prefix: "/education/monitoring", permission: "student-monitoring.view" },
+  { prefix: "/education/elicitation", permission: "student-elicitation.view" },
+  { prefix: "/education/synthesis", permission: "student-synthesis.view" },
+  { prefix: "/education/annual-review", permission: "annual-review.view" },
+  { prefix: "/education", permission: "student-observations.view" },
+
   // HR
   { prefix: "/hr/salary-snapshot", permission: "salary-snapshot.view" },
   { prefix: "/hr/staff-logs", permission: "staff-logs.view" },

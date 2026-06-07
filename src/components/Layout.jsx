@@ -926,6 +926,7 @@ export default function Layout() {
     { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
   ];
   const educationMenus = [
+    { label: "Dashboard", path: "/education/dashboard", permission: "student-observations.view" },
     { label: "Daily Observation", path: "/education/observations", permission: "student-observations.view" },
     { label: "Students Under Watch", path: "/education/monitoring", permission: "student-monitoring.view" },
     { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },

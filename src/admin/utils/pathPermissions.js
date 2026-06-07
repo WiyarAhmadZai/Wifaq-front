@@ -32,6 +32,7 @@ const RULES = [
   { prefix: "/class-management/exams", permission: "classes.view" }, // legacy — share classes perm
 
   // Education & Formation — student observation
+  { prefix: "/education/dashboard", permission: "student-observations.view" },
   { prefix: "/education/observations", permission: "student-observations.view" },
   { prefix: "/education/monitoring", permission: "student-monitoring.view" },
   { prefix: "/education/elicitation", permission: "student-elicitation.view" },

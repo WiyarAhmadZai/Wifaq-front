@@ -32,6 +32,17 @@ const DIMS = [
   { key: "dim_practical", title: "Practical — skills, completion", levelLow: "Needs serious attention", multi: { field: "skills", label: "Skills with progress or weakness", options: PRACTICAL_SKILLS } },
 ];
 
+// Plain-language meaning for each status — used everywhere so the same word
+// always reads the same way to mentors and to approvers.
+const STATUS_META = {
+  draft:     { label: "Draft",                tone: "bg-gray-100 text-gray-600",       dot: "bg-gray-400",    blurb: "Not sent yet — still being written." },
+  submitted: { label: "Waiting for approval", tone: "bg-amber-100 text-amber-700",     dot: "bg-amber-500",   blurb: "Sent to the Deputy of Formation to review." },
+  approved:  { label: "Approved",             tone: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500", blurb: "Finalized and locked — no more changes." },
+};
+const STEPS = [["draft", "Write draft"], ["submitted", "Submitted for approval"], ["approved", "Approved"]];
+
+const fmt = (d) => { try { return new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); } catch { return ""; } };
+
 function Rating({ value, onChange, disabled, low = "Very Poor", high = "Excellent" }) {
   return (
     <div className="flex items-center gap-2">
@@ -64,14 +75,50 @@ const Field = ({ label, hint, children }) => (
 );
 const Ta = (props) => <textarea rows={2} {...props} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-400 bg-white resize-none disabled:bg-gray-50" />;
 
-const statusTone = { draft: "bg-gray-100 text-gray-600", submitted: "bg-amber-100 text-amber-700", approved: "bg-emerald-100 text-emerald-700" };
+function StatusPill({ status, className = "" }) {
+  const m = STATUS_META[status] || STATUS_META.draft;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${m.tone} ${className}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />{m.label}
+    </span>
+  );
+}
+
+function Stepper({ status }) {
+  const idx = STEPS.findIndex(([k]) => k === status);
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {STEPS.map(([k, label], i) => {
+        const done = i < idx, cur = i === idx;
+        return (
+          <div key={k} className="flex items-center gap-1">
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${cur ? "bg-white text-teal-700" : done ? "bg-white/25 text-white" : "bg-white/10 text-teal-100"}`}>
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${cur || done ? "bg-teal-600 text-white" : "bg-white/30 text-white"}`}>{done ? "✓" : i + 1}</span>
+              {label}
+            </div>
+            {i < STEPS.length - 1 && <span className="text-white/40 text-[10px]">→</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const BANNER_TONE = {
+  teal: "bg-teal-50 border-teal-200 text-teal-800",
+  amber: "bg-amber-50 border-amber-200 text-amber-800",
+  emerald: "bg-emerald-50 border-emerald-200 text-emerald-800",
+};
 
 export default function Synthesis() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isApprover, setIsApprover] = useState(false);
   const [students, setStudents] = useState([]);
   const [newOpen, setNewOpen] = useState(false);
   const [newForm, setNewForm] = useState({ student_id: "", period: "" });
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // all | draft | submitted | approved
   const [editing, setEditing] = useState(null); // full synthesis object
   const [saving, setSaving] = useState(false);
 
@@ -80,6 +127,7 @@ export default function Synthesis() {
     try {
       const r = await get("/student-syntheses");
       setList(r.data?.data || []);
+      setIsApprover(Boolean(r.data?.can_approve));
     } catch { setList([]); }
     finally { setLoading(false); }
   }, []);
@@ -92,7 +140,7 @@ export default function Synthesis() {
   };
 
   const createNew = async () => {
-    if (!newForm.student_id || !newForm.period.trim()) { Swal.fire("Missing", "Pick a student and a period (e.g. Q2 1405).", "warning"); return; }
+    if (!newForm.student_id || !newForm.period.trim()) { Swal.fire("Almost there", "Choose a student and type the reporting period (e.g. Q2 1405).", "info"); return; }
     setSaving(true);
     try {
       const r = await post("/student-syntheses", newForm);
@@ -129,11 +177,17 @@ export default function Synthesis() {
   };
   const autoDraft = async () => {
     setSaving(true);
-    try { const r = await post(`/student-syntheses/${editing.id}/auto-draft`); setEditing(r.data?.data); Swal.fire({ icon: "success", title: "Draft generated", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" }); }
+    try { const r = await post(`/student-syntheses/${editing.id}/auto-draft`); setEditing(r.data?.data); Swal.fire({ icon: "success", title: "Filled from observations", text: "Review it and put it in your own words.", timer: 1800, showConfirmButton: false, toast: true, position: "top-end" }); }
     catch (err) { Swal.fire("Error", err.response?.data?.message || "Failed", "error"); }
     finally { setSaving(false); }
   };
   const submit = async () => {
+    const ok = await Swal.fire({
+      icon: "question", title: "Submit for approval?",
+      text: "The Deputy of Formation will be notified to review it. You can still edit while you wait.",
+      showCancelButton: true, confirmButtonText: "Yes, submit", confirmButtonColor: "#0d9488",
+    });
+    if (!ok.isConfirmed) return;
     if (!(await save(true))) return;
     setSaving(true);
     try { const r = await post(`/student-syntheses/${editing.id}/submit`); setEditing(r.data?.data); load(); Swal.fire({ icon: "success", title: "Submitted for review", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" }); }
@@ -141,31 +195,83 @@ export default function Synthesis() {
     finally { setSaving(false); }
   };
   const approve = async () => {
+    const ok = await Swal.fire({
+      icon: "warning", title: "Approve & lock this report?",
+      text: "Once approved it becomes final and can no longer be edited.",
+      showCancelButton: true, confirmButtonText: "Yes, approve", confirmButtonColor: "#059669",
+    });
+    if (!ok.isConfirmed) return;
     setSaving(true);
     try { const r = await post(`/student-syntheses/${editing.id}/approve`); setEditing(r.data?.data); load(); Swal.fire({ icon: "success", title: "Approved", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" }); }
     catch (err) { Swal.fire("Error", err.response?.data?.message || "Failed", "error"); }
     finally { setSaving(false); }
   };
 
+  const openReport = async () => {
+    try {
+      const r = await get(`/student-syntheses/${editing.id}/report`, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([r.data], { type: "text/html" }));
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch { Swal.fire("Error", "Could not open the report.", "error"); }
+  };
+  const downloadPdf = async () => {
+    try {
+      const r = await get(`/student-syntheses/${editing.id}/report?format=pdf`, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([r.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `report-${(editing.student || "student").replace(/\s+/g, "-")}-${editing.period}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch { Swal.fire("Error", "Could not generate the PDF.", "error"); }
+  };
+
   // ───────────────────── editor view ─────────────────────
   if (editing) {
     const ro = !editing.editable;
+    const needsEdit = editing.editable && !editing.mentor_edited; // backend blocks submit until a real edit
+
+    // "What to do now" — changes by the viewer's role and the report's status.
+    const guide = (() => {
+      if (editing.status === "approved")
+        return { c: "emerald", t: "This report is approved and locked", d: `Approved${editing.approved_at ? ` on ${fmt(editing.approved_at)}` : ""}${editing.approved_by ? ` by ${editing.approved_by}` : ""}. It is final and can no longer be changed.` };
+      if (editing.can_approve)
+        return { c: "amber", t: "Ready for your review", d: "Read through the report below. Click “Approve & lock” to finalize it — or edit anything that needs fixing first." };
+      if (editing.status === "submitted")
+        return { c: "amber", t: "Submitted — waiting for approval", d: `Sent${editing.submitted_at ? ` on ${fmt(editing.submitted_at)}` : ""} to the Deputy of Formation. You can still make changes while you wait.` };
+      return { c: "teal", t: "Draft — only you can see this", d: "Fill in the sections below. Tip: start with “Auto-fill from observations”, then put it in your own words. When ready, click “Submit for approval”." };
+    })();
+
     return (
       <div className="min-h-screen bg-gray-50/60">
-        <div className="bg-teal-600 px-5 py-4 flex items-center justify-between sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <button onClick={() => { setEditing(null); load(); }} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            </button>
-            <div>
-              <h1 className="text-sm font-bold text-white">{editing.student} · {editing.period}</h1>
-              <p className="text-[11px] text-teal-100">Mentor synthesis · {editing.instructor_name}</p>
+        <div className="bg-teal-600 px-5 py-4 sticky top-0 z-10 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <button onClick={() => { setEditing(null); load(); }} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white flex-shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              </button>
+              <div className="min-w-0">
+                <h1 className="text-sm font-bold text-white truncate">{editing.student} · {editing.period}</h1>
+                <p className="text-[11px] text-teal-100 truncate">Student report · Mentor: {editing.instructor_name || editing.mentor}</p>
+              </div>
             </div>
+            <StatusPill status={editing.status} className="flex-shrink-0 ring-2 ring-white/40" />
           </div>
-          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold capitalize ${statusTone[editing.status]}`}>{editing.status}</span>
+          <Stepper status={editing.status} />
         </div>
 
         <div className="px-4 py-5 max-w-3xl mx-auto space-y-4 pb-28">
+          {/* What to do now */}
+          <div className={`rounded-2xl border px-4 py-3 ${BANNER_TONE[guide.c]}`}>
+            <p className="text-xs font-bold">{guide.t}</p>
+            <p className="text-[11px] mt-0.5 leading-relaxed">{guide.d}</p>
+          </div>
+
+          {!ro && (
+            <p className="text-[11px] text-gray-400 px-1">
+              Fields marked <span className="font-semibold text-gray-500">*</span> make the report complete. You can save anytime — nothing is sent until you submit.
+            </p>
+          )}
+
           {/* Opening */}
           <Section title="Opening">
             <Field label="Describe this student in one paragraph *" hint="Reported directly as the 'Opening Speech'.">
@@ -225,64 +331,184 @@ export default function Synthesis() {
         </div>
 
         {/* Sticky action bar */}
-        <div className="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 px-4 py-3 flex justify-end gap-2 z-20">
-          {editing.editable && <button onClick={autoDraft} disabled={saving} className="px-4 py-2 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-xl disabled:opacity-50">⚡ Auto-draft</button>}
-          {editing.editable && <button onClick={() => save(false)} disabled={saving} className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl disabled:opacity-50">Save draft</button>}
-          {editing.editable && editing.status !== "submitted" && <button onClick={submit} disabled={saving} className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl disabled:opacity-50">Submit for review</button>}
-          {editing.can_approve && <button onClick={approve} disabled={saving} className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50">Approve</button>}
+        <div className="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 px-4 py-3 z-20">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+            <p className="text-[11px] text-gray-500 hidden sm:block">
+              {ro
+                ? "This report is locked — view only."
+                : needsEdit
+                ? "Edit at least one field, then you can submit."
+                : editing.status === "submitted"
+                ? "Submitted. Edit if needed, or wait for approval."
+                : "Save as you go. Submit when the report is ready."}
+            </p>
+            <div className="flex justify-end gap-2 flex-1 sm:flex-none">
+              <button onClick={openReport} title="Open the printable report (Save as PDF from the browser)" className="px-3 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl">🖨 Print</button>
+              <button onClick={downloadPdf} title="Download a professional PDF report" className="px-3 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: "#0D5C63" }}>⬇ PDF</button>
+              {editing.editable && <button onClick={autoDraft} disabled={saving} title="Pull recent daily observations into the draft to get started" className="px-3 py-2 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-xl disabled:opacity-50">⚡ Auto-fill from observations</button>}
+              {editing.editable && <button onClick={() => save(false)} disabled={saving} className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl disabled:opacity-50">Save</button>}
+              {editing.editable && editing.status !== "submitted" && <button onClick={submit} disabled={saving || needsEdit} title={needsEdit ? "Make at least one edit before submitting" : "Send to the Deputy of Formation for approval"} className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">Submit for approval</button>}
+              {editing.can_approve && <button onClick={approve} disabled={saving} title="Finalize and lock this report" className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50">✓ Approve &amp; lock</button>}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   // ───────────────────── list view ─────────────────────
+  const q = query.trim().toLowerCase();
+  const filtered = list.filter((s) => {
+    if (statusFilter !== "all" && s.status !== statusFilter) return false;
+    if (!q) return true;
+    return [s.student, s.period, s.mentor, s.overall_trend].some((v) => (v || "").toLowerCase().includes(q));
+  });
+  const groups = [
+    { key: "submitted", title: "Waiting for approval", items: filtered.filter((s) => s.status === "submitted") },
+    { key: "draft", title: "Drafts in progress", items: filtered.filter((s) => s.status === "draft") },
+    { key: "approved", title: "Approved", items: filtered.filter((s) => s.status === "approved") },
+  ];
+  const myActionKey = isApprover ? "submitted" : "draft";
+  const todoCount = list.filter((s) => s.status === myActionKey).length;
+  const statusCount = (k) => list.filter((s) => s.status === k).length;
+
+  const rowCta = (status) =>
+    status === "approved" ? "View →"
+    : status === "submitted" ? (isApprover ? "Review & approve →" : "View / edit →")
+    : "Continue writing →";
+
   return (
     <div className="min-h-screen bg-gray-50/60">
-      <div className="bg-teal-600 px-5 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-sm font-bold text-white">Mentor Synthesis</h1>
-          <p className="text-xs text-teal-100 mt-0.5">Quarterly descriptive report — draft, submit, approve</p>
+      <div className="bg-teal-600 px-5 py-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-sm font-bold text-white">Student Reports (Mentor Synthesis)</h1>
+          <p className="text-xs text-teal-100 mt-0.5">
+            Mentors write a report each term → the Deputy of Formation approves it → it is finalized.
+          </p>
         </div>
-        <button onClick={() => setNewOpen(true)} className="px-3 py-1.5 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50">+ New synthesis</button>
+        <button onClick={() => setNewOpen(true)} className="px-3 py-1.5 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50 flex-shrink-0">+ New report</button>
       </div>
 
-      <div className="px-4 py-5">
+      <div className="px-4 py-5 max-w-3xl mx-auto space-y-5">
+        {/* What needs my attention */}
+        {!loading && list.length > 0 && (
+          <div className={`rounded-2xl border px-4 py-3 ${todoCount > 0 ? BANNER_TONE.amber : BANNER_TONE.teal}`}>
+            <p className="text-xs font-bold">
+              {todoCount > 0
+                ? isApprover
+                  ? `${todoCount} report${todoCount > 1 ? "s" : ""} waiting for your review`
+                  : `${todoCount} draft${todoCount > 1 ? "s" : ""} to finish and submit`
+                : "You're all caught up"}
+            </p>
+            <p className="text-[11px] mt-0.5">
+              {todoCount > 0
+                ? isApprover ? "Open each one below, read it, and approve or send it back with edits."
+                  : "Open a draft below to keep writing, then submit it for approval."
+                : "Nothing needs your action right now."}
+            </p>
+          </div>
+        )}
+
+        {/* Filters */}
+        {!loading && list.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="relative flex-1">
+              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by student, term, mentor…"
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              {[["all", "All"], ["submitted", "Waiting"], ["draft", "Drafts"], ["approved", "Approved"]].map(([k, label]) => {
+                const active = statusFilter === k;
+                const n = k === "all" ? list.length : statusCount(k);
+                return (
+                  <button key={k} onClick={() => setStatusFilter(k)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border ${active ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}>
+                    {label} <span className={active ? "text-teal-100" : "text-gray-400"}>{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" /></div>
         ) : list.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">No syntheses yet.</div>
-        ) : (
-          <div className="space-y-2">
-            {list.map((s) => (
-              <button key={s.id} onClick={() => openEditor(s.id)} className="w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-3 hover:shadow-md transition-shadow">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-gray-800">{s.student} · <span className="text-gray-500 font-normal">{s.period}</span></p>
-                  <p className="text-[11px] text-gray-500">{s.mentor}{s.overall_trend ? ` · ${s.overall_trend}` : ""}</p>
-                </div>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold capitalize flex-shrink-0 ${statusTone[s.status]}`}>{s.status}</span>
-              </button>
-            ))}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+            <p className="text-sm font-semibold text-gray-700">No reports yet</p>
+            <p className="text-xs text-gray-400 mt-1 mb-4">Click below to write your first student report for this term.</p>
+            <button onClick={() => setNewOpen(true)} className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700">+ New report</button>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+            <p className="text-sm font-semibold text-gray-700">No reports match your filters</p>
+            <p className="text-xs text-gray-400 mt-1 mb-4">Try a different search or status.</p>
+            <button onClick={() => { setQuery(""); setStatusFilter("all"); }} className="px-4 py-2 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200">Clear filters</button>
+          </div>
+        ) : (
+          groups.filter((g) => g.items.length > 0).map((g) => {
+            const m = STATUS_META[g.key];
+            const mine = g.key === myActionKey;
+            return (
+              <div key={g.key}>
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className={`w-2 h-2 rounded-full ${m.dot}`} />
+                  <h2 className="text-xs font-bold text-gray-700">{g.title}</h2>
+                  <span className="text-[10px] font-semibold text-gray-400">{g.items.length}</span>
+                  {mine && <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">Needs you</span>}
+                  <span className="text-[10px] text-gray-400 hidden sm:inline">· {m.blurb}</span>
+                </div>
+                <div className="space-y-2">
+                  {g.items.map((s) => (
+                    <button key={s.id} onClick={() => openEditor(s.id)}
+                      className={`w-full text-left bg-white rounded-2xl border shadow-sm p-4 flex items-center justify-between gap-3 hover:shadow-md transition-shadow ${mine ? "border-amber-200" : "border-gray-100"}`}>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-gray-800">{s.student} · <span className="text-gray-500 font-normal">{s.period}</span></p>
+                        <p className="text-[11px] text-gray-500">{s.mentor}{s.overall_trend ? ` · ${s.overall_trend}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <StatusPill status={s.status} />
+                        <span className="text-[11px] font-semibold text-teal-600 hidden sm:inline">{rowCta(s.status)}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
       {newOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setNewOpen(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 bg-teal-600"><h3 className="text-sm font-bold text-white">New synthesis</h3></div>
-            <div className="p-5 space-y-3">
+            <div className="px-5 py-4 bg-teal-600">
+              <h3 className="text-sm font-bold text-white">New student report</h3>
+              <p className="text-[11px] text-teal-100 mt-0.5">Pick the student and the term — we'll open a blank report you can fill in and save as you go.</p>
+            </div>
+            <div className="p-5 space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Student</label>
-                <Select2 value={newForm.student_id} onChange={(v) => setNewForm((f) => ({ ...f, student_id: v }))} options={students.map((s) => ({ value: s.id, label: s.name + (s.class ? ` · ${s.class}` : "") }))} placeholder="Select a student…" />
+                <Select2 value={newForm.student_id} onChange={(v) => setNewForm((f) => ({ ...f, student_id: v }))} options={students.map((s) => ({ value: s.id, label: s.name + (s.class ? ` · ${s.class}` : "") }))} placeholder="Search and select a student…" />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Period</label>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Reporting period (term)</label>
                 <input value={newForm.period} onChange={(e) => setNewForm((f) => ({ ...f, period: e.target.value }))} placeholder="e.g. Q2 1405" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="text-[10px] text-gray-400">Quick fill:</span>
+                  {["Q1", "Q2", "Q3", "Q4"].map((q) => (
+                    <button key={q} type="button"
+                      onClick={() => setNewForm((f) => ({ ...f, period: `${q} ${(f.period.match(/\d{3,4}/) || [""])[0]}`.trim() }))}
+                      className="px-2 py-0.5 text-[10px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100">{q}</button>
+                  ))}
+                  <span className="text-[10px] text-gray-400">then add the year</span>
+                </div>
               </div>
             </div>
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={() => setNewOpen(false)} className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
-              <button onClick={createNew} disabled={saving} className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl disabled:opacity-50">{saving ? "…" : "Open"}</button>
+              <button onClick={createNew} disabled={saving} className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl disabled:opacity-50">{saving ? "…" : "Start writing"}</button>
             </div>
           </div>
         </div>

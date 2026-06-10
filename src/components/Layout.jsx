@@ -1017,7 +1017,7 @@ export default function Layout() {
   const hrSubMenus = [
     { label: "Staff", path: "/hr/staff", permission: "staff.view" },
     { label: "Staff Logs", path: "/hr/staff-logs", permission: "staff-logs.view" },
-    { label: "Salary Snapshot", path: "/hr/salary-snapshot", permission: "salary-snapshot.view" },
+    { label: "Salary Overview", path: "/hr/salary-snapshot", permission: "salary-snapshot.view" },
     { label: "Contracts", key: "contracts", children: [
       { label: "Staff Contract", path: "/hr/contracts", permission: "contracts.view" },
       { label: "Vendor Contract", path: "/hr/vendor-contracts", permission: "vendor-contracts.view" },
@@ -1026,14 +1026,14 @@ export default function Layout() {
     { label: "Attendance", path: "/hr/attendance", permission: "attendance.view" },
     { label: "Leave Request", path: "/hr/leave-request", permission: "leave-request.view" },
     { label: "Holidays", path: "/hr/holidays", permission: "holidays.view" },
-    { label: "Performance (VATS)", key: "vats", children: [
+    { label: "Staff Performance", key: "vats", children: [
       { label: "Overview",           path: "/hr/vats",              permission: "vats-dashboard.view" },
       { label: "Daily Observations", path: "/hr/vats/observations", permission: "vats-observations.view" },
       { label: "Recognition Slips",  path: "/hr/vats/slips",        permission: "vats-slips.view" },
-      { label: "Cards Wallet",       path: "/hr/vats/cards",        permission: "vats-cards.view" },
-      { label: "Interventions",      path: "/hr/vats/interventions", permission: "vats-interventions.view" },
+      { label: "Reward Cards",       path: "/hr/vats/cards",        permission: "vats-cards.view" },
+      { label: "Improvement Plans",  path: "/hr/vats/interventions", permission: "vats-interventions.view" },
     ]},
-    { label: "Welfare (Ihsan)", key: "welfare", children: [
+    { label: "Staff Welfare", key: "welfare", children: [
       { label: "My Check-in",        path: "/hr/welfare/checkin",   permission: "welfare-checkin.view" },
       { label: "Welfare Dashboard",  path: "/hr/welfare",           permission: "welfare-dashboard.view" },
       { label: "Open Alerts",        path: "/hr/welfare/alerts",    permission: "welfare-alerts.view" },
@@ -1043,8 +1043,8 @@ export default function Layout() {
     { label: "Planner", key: "planner", children: [
       { label: "Meetings", path: "/hr/meetings", permission: "meetings.view" },
       { label: "Events", path: "/hr/events", permission: "events.view" },
-      { label: "Staff Task", path: "/hr/staff-task", permission: "staff-task.view" },
-      { label: "Daily Works", path: "/hr/daily-works", permission: "daily-works.view" },
+      { label: "Staff Tasks", path: "/hr/staff-task", permission: "staff-task.view" },
+      { label: "Daily Tasks", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
     { label: "Visitor Log", path: "/hr/visitor-log", permission: "visitor-log.view" },
     { label: "HR Reports", path: "/hr/reports", permission: "hr-reports.view" },
@@ -1052,9 +1052,9 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents", permission: "parents.view" },
-    { label: "Phase 1 - Students Information", path: "/student-management/students", permission: "students.view" },
-    { label: "Phase 2 - Students Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
-    { label: "Students List", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
+    { label: "Student Information", path: "/student-management/students", permission: "students.view" },
+    { label: "Student Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
+    { label: "Enrolled Students", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
     { label: "Foundation Requests", path: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   ];
 
@@ -1078,7 +1078,7 @@ export default function Layout() {
   const purchaseMenus = [
     { label: "Purchase Requests", path: "/purchase/purchase-requests", permission: "purchase-requests.view" },
     { label: "Suppliers", path: "/purchase/suppliers", permission: "suppliers.view" },
-    { label: "Stock / Inventory", path: "/purchase/stock", permission: "stock.view" },
+    { label: "Inventory", path: "/purchase/stock", permission: "stock.view" },
     { label: "Routine Items", path: "/purchase/routine-items", permission: "routine-items.view" },
     { label: "Repair Requests", path: "/purchase/repair-requests", permission: "repair-requests.view" },
     // { label: "Pr ojects", path: "/purchase/projects", permission: "projects.view" },
@@ -1108,6 +1108,14 @@ export default function Layout() {
   ];
   const teacherMenus = [
     { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
+  ];
+  const educationMenus = [
+    { label: "Dashboard", path: "/education/dashboard", permission: "student-observations.view" },
+    { label: "Daily Observation", path: "/education/observations", permission: "student-observations.view" },
+    { label: "Students Under Watch", path: "/education/monitoring", permission: "student-monitoring.view" },
+    { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
+    { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
+    { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
   ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
@@ -1140,7 +1148,7 @@ export default function Layout() {
     { label: "Setup", key: "finance-setup", children: [
       { label: "Chart of Accounts", path: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
       { label: "Accounts", path: "/finance/accounts", permission: "accounts.view" },
-      { label: "Parties", path: "/finance/parties", permission: "parties.view" },
+      { label: "Customers & Vendors", path: "/finance/parties", permission: "parties.view" },
     ]},
   ];
 
@@ -1339,7 +1347,7 @@ export default function Layout() {
           {canSeeGroup(recruitmentMenus) && (
           <ParentMenu
             icon={Icons.Departments}
-            label="Job Applications"
+            label="Recruitment"
             isOpen={openMenu.includes("recruitment")}
             onClick={() => toggleMenu("recruitment")}
           >
@@ -1355,13 +1363,27 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus)) && (
             <MenuSection title="Academic" />
+          )}
+
+          {canSeeGroup(educationMenus) && (
+            <ParentMenu
+              icon={Icons.Teacher}
+              label="Student Development"
+              isOpen={openMenu.includes("education")}
+              onClick={() => toggleMenu("education")}
+            >
+              {visible(educationMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
           )}
           {canSeeGroup(teacherMenus) && (
             <ParentMenu
               icon={Icons.Teacher}
-              label="Teacher"
+              label="Teachers"
               isOpen={openMenu.includes("teacher-management")}
               onClick={() => toggleMenu("teacher-management")}
             >
@@ -1419,7 +1441,7 @@ export default function Layout() {
               <MenuSection title="Transportation" />
               <ParentMenu
                 icon={Icons.Departments}
-                label="Transportations"
+                label="Transportation"
                 isOpen={openMenu.includes("transportation")}
                 onClick={() => toggleMenu("transportation")}
               >
@@ -1436,7 +1458,7 @@ export default function Layout() {
               <MenuSection title="Procurement" />
               <ParentMenu
                 icon={Icons.Payroll}
-                label="Purchase"
+                label="Purchasing"
                 isOpen={openMenu.includes("purchase")}
                 onClick={() => toggleMenu("purchase")}
               >

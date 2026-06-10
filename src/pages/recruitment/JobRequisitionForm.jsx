@@ -54,9 +54,11 @@ export default function JobRequisitionForm() {
   useEffect(() => {
     const loadData = async () => {
       await fetchStaff();
-      await fetchDepartments();
-      await fetchPositionTitles();
-      if (isEdit) await fetchRequisition();
+      // Capture the loaded lists so fetchRequisition can resolve legacy
+      // string values to FK ids (state updates aren't visible synchronously).
+      const depts = await fetchDepartments();
+      const titles = await fetchPositionTitles();
+      if (isEdit) await fetchRequisition(depts, titles);
     };
     loadData();
   }, [id]);
@@ -64,20 +66,26 @@ export default function JobRequisitionForm() {
   const fetchDepartments = async () => {
     try {
       const res = await listDepartments({ active_only: 1 });
-      setDepartments(res.data?.data || res.data || []);
+      const list = res.data?.data || res.data || [];
+      setDepartments(list);
+      return list;
     } catch (error) {
       console.error("Failed to fetch departments", error);
       setDepartments([]);
+      return [];
     }
   };
 
   const fetchPositionTitles = async () => {
     try {
       const res = await listPositionTitles({ active_only: 1 });
-      setPositionTitles(res.data?.data || res.data || []);
+      const list = res.data?.data || res.data || [];
+      setPositionTitles(list);
+      return list;
     } catch (error) {
       console.error("Failed to fetch position titles", error);
       setPositionTitles([]);
+      return [];
     }
   };
 
@@ -92,28 +100,43 @@ export default function JobRequisitionForm() {
   };
 
 
-  const fetchRequisition = async () => {
+  const fetchRequisition = async (depts = departments, titles = positionTitles) => {
     setLoading(true);
     try {
       const response = await get(`/recruitment/job-requisitions/${id}`);
       const d = response.data?.data || response.data;
-      console.log("Fetched data:", d);
-      console.log("Position title value:", d.position_title);
-      console.log("Deadline date raw:", d.deadline_date);
-      
+
       // Handle various date formats from backend
       let formattedDate = "";
       if (d.deadline_date) {
         // Handle ISO format with T (2026-03-30T00:00:00.000Z) or space (2026-03-30 00:00:00)
         formattedDate = d.deadline_date.toString().split(/[T\s]/)[0];
-        console.log("Formatted date:", formattedDate);
       }
-      
+
+      // Legacy records (e.g. seeded ones) store only the string columns and
+      // leave the FK ids NULL. The dropdowns bind to the ids, so resolve them
+      // from the legacy strings by matching the loaded lists.
+      const legacyDept = d.department?.value || d.department || "";
+      const legacyTitle = d.position_title?.value || d.position_title || "";
+
+      const resolvedDeptId =
+        d.department_id ||
+        d.departmentRelation?.id ||
+        depts.find((x) => x.name === legacyDept)?.id ||
+        "";
+
+      const resolvedTitleId =
+        d.position_title_id ||
+        d.positionTitleRelation?.id ||
+        d.position_title_obj?.id ||
+        titles.find((t) => (t.label_native || t.name) === legacyTitle || t.name === legacyTitle)?.id ||
+        "";
+
       setFormData({
-        department: d.department?.value || d.department || "",
-        department_id: d.department_id || "",
-        position_title: d.position_title?.value || d.position_title || "",
-        position_title_id: d.position_title_id || d.position_title_obj?.id || "",
+        department: legacyDept,
+        department_id: resolvedDeptId,
+        position_title: legacyTitle,
+        position_title_id: resolvedTitleId,
         employment_type: d.employment_type?.value || d.employment_type || "",
         number_of_positions: d.number_of_positions || 1,
         experience_years: d.experience_years || "",

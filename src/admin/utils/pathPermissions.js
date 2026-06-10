@@ -151,6 +151,10 @@ const PUBLIC_PATHS = new Set([
   // staff Party (self-service balance / advance history). Backend scopes
   // the response; privileged users with parties.view see the full list.
   "/finance/parties",
+  // Personal notifications inbox — every authenticated user sees their own
+  // feed (backend's /api/notifications already scopes the response to the
+  // logged-in user). No permission needed.
+  "/notifications",
 ]);
 
 /**

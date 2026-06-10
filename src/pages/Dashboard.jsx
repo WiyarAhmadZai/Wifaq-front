@@ -21,6 +21,11 @@ export default function Dashboard() {
   const onLeaveRef = useRef(null);
   const [pulseOnLeave, setPulseOnLeave] = useState(false);
 
+  // Recent Notifications widget — shows the latest 5 from
+  // `me_section.recent_notifications`. "See more" routes to the dedicated
+  // /notifications inbox page so the user gets the full list with
+  // filters / search.
+
   const load = async () => {
     try {
       const res = await get("/dashboard/summary");
@@ -81,7 +86,7 @@ export default function Dashboard() {
     );
   }
 
-  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, my_tasks, daily_works, finance, income_expense, me_section, charts, recent_activity } = data;
+  const { me, overview, hr, vats, welfare, leave, recruitment, meetings, events_upcoming, recent_assignments, my_tasks, daily_works, finance, income_expense, me_section, charts, recent_activity } = data;
   const roleLabel = me.is_super_admin ? "Super Admin"
     : me.is_hr ? "HR / Admin"
     : me.is_finance ? "Finance"
@@ -127,9 +132,20 @@ export default function Dashboard() {
         </div>
 
         {/* ─── Overview strip — each tile is permission-gated server-side,
-                so a key only exists when the user is allowed to see it. ─── */}
-        {overview && Object.keys(overview).length > 0 && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                so a key only exists when the user is allowed to see it.
+                Column count adapts to the number of tiles so the strip is
+                always full-width (no empty cells on the right). ─── */}
+        {overview && Object.keys(overview).length > 0 && (() => {
+          const tileCount = Object.keys(overview).length;
+          // Tailwind needs full class strings so it can JIT them — be explicit.
+          const lgCols = {
+            1: 'lg:grid-cols-1',
+            2: 'lg:grid-cols-2',
+            3: 'lg:grid-cols-3',
+            4: 'lg:grid-cols-4',
+          }[tileCount] || 'lg:grid-cols-4';
+          return (
+          <div className={`grid grid-cols-2 ${lgCols} gap-3 mb-5`}>
             {overview.staff != null && (
               <StatCard label="Total Staff"    value={overview.staff}    tone="teal"    icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857" onClick={() => navigate("/hr/staff")} />
             )}
@@ -143,7 +159,8 @@ export default function Dashboard() {
               <StatCard label="Branches"       value={overview.branches} tone="emerald" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" onClick={() => navigate("/branches")} />
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* ─── On Leave Today ─── */}
         {onLeaveToday.length > 0 && (
@@ -190,8 +207,219 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ─── Personal slice + observation chart ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+        {/* ─── Upcoming Events + Recent Notifications row ───
+             Adaptive layout: when both widgets render, split 50/50;
+             when only one renders, it takes the full row instead of
+             leaving an empty half. */}
+        {(() => {
+          const hasEvents = events_upcoming && events_upcoming.length > 0;
+          const hasNotifs = me_section?.recent_notifications?.length > 0;
+          if (!hasEvents && !hasNotifs) return null;
+          const cols = hasEvents && hasNotifs ? 'lg:grid-cols-2' : 'lg:grid-cols-1';
+          return (
+          <div className={`grid grid-cols-1 ${cols} gap-4 mb-5`}>
+            {/* Upcoming events — only renders when backend granted the block. */}
+            {hasEvents && (
+              <div className="bg-white rounded-2xl border border-purple-100 shadow-sm">
+                <div className="px-5 py-3 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">Upcoming Events</p>
+                      <p className="text-[10px] text-purple-600">{events_upcoming.length} coming up</p>
+                    </div>
+                  </div>
+                  <button onClick={() => navigate('/hr/events')}
+                    className="text-[11px] font-semibold text-purple-700 hover:text-purple-900">
+                    See all →
+                  </button>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {events_upcoming.map((e) => (
+                    <li key={e.id}>
+                      <button onClick={() => navigate(`/hr/events/show/${e.id}`)}
+                        className="w-full flex items-center gap-3 p-3 text-left hover:bg-purple-50/40 transition-colors">
+                        <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex flex-col items-center justify-center flex-shrink-0">
+                          <span className="text-[8px] font-bold uppercase">{e.start_date ? new Date(e.start_date).toLocaleString(undefined, { month: 'short' }) : '—'}</span>
+                          <span className="text-sm font-black leading-none">{e.start_date ? new Date(e.start_date).getDate() : '?'}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 truncate">{e.title}</p>
+                          <p className="text-[10px] text-gray-500 truncate">
+                            {e.start_date ? fmtDate(e.start_date) : '—'}
+                            {e.end_date && e.end_date !== e.start_date ? ` → ${fmtDate(e.end_date)}` : ''}
+                            {e.location ? ` · ${e.location}` : ''}
+                          </p>
+                        </div>
+                        {e.status && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 capitalize">{e.status}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Recent Notifications — backend already returns up to 5; "See more"
+                lazy-loads the rest from /notifications and renders inline. */}
+            {hasNotifs && (
+              <div className="bg-white rounded-2xl border border-blue-100 shadow-sm">
+                <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">Recent Notifications</p>
+                      <p className="text-[10px] text-blue-600">
+                        {me_section?.unread_notifications ?? 0} unread · {me_section.recent_notifications.length} shown
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                  {me_section.recent_notifications.map((n) => {
+                    const d = n.data || {};
+                    const unread = !n.read_at;
+                    return (
+                      <li key={n.id}>
+                        <button onClick={() => d.link && navigate(d.link)}
+                          className={`w-full flex items-start gap-3 p-3 text-left hover:bg-blue-50/40 transition-colors ${unread ? 'bg-blue-50/30' : ''}`}>
+                          <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${unread ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] text-gray-700 leading-snug">{d.message || d.title || 'Notification'}</p>
+                            <p className="text-[9px] text-gray-400 mt-0.5">
+                              {n.created_at ? new Date(n.created_at).toLocaleString() : ''}
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => navigate('/notifications')}
+                    className="text-[11px] font-semibold text-blue-700 hover:text-blue-900">
+                    See more →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          );
+        })()}
+
+        {/* ─── Recent Assignments (admin / access users only) ───
+             Three compact lists — tasks / meetings / events — showing the
+             5 most recent records of each with the assigner + assignee
+             names so leadership can audit who's giving what to whom.
+             Adaptive column count so empty groups don't leave gaps. */}
+        {recent_assignments && (() => {
+          const t = recent_assignments.tasks    || [];
+          const m = recent_assignments.meetings || [];
+          const e = recent_assignments.events   || [];
+          const groups = [
+            { key: 'tasks',    items: t, title: 'Recent Tasks',     all: '/hr/staff-task',
+              tint: { bg: 'bg-indigo-50', border: 'border-indigo-100', dot: 'bg-indigo-600', text: 'text-indigo-700' },
+              icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+              render: (x) => (
+                <>
+                  <p className="text-xs font-semibold text-gray-800 truncate">{x.task}</p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                    {x.assigner} → <span className="font-semibold">{x.assigned_to}</span>
+                  </p>
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    {x.task_type && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 uppercase">{x.task_type}</span>}
+                    {x.status && <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 capitalize">{x.status.replace('_', ' ')}</span>}
+                    {x.deadline && <span className="text-[9px] text-gray-400">due {x.deadline}</span>}
+                  </div>
+                </>
+              ),
+            },
+            { key: 'meetings', items: m, title: 'Recent Meetings', all: '/hr/meetings',
+              tint: { bg: 'bg-teal-50', border: 'border-teal-100', dot: 'bg-teal-600', text: 'text-teal-700' },
+              icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+              render: (x) => (
+                <>
+                  <p className="text-xs font-semibold text-gray-800 truncate">{x.title}</p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                    organized by <span className="font-semibold">{x.organizer}</span> · {x.participants_count} participant{x.participants_count === 1 ? '' : 's'}
+                  </p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {x.status && <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 capitalize">{x.status.replace('_', ' ')}</span>}
+                    {x.start_time && <span className="text-[9px] text-gray-400">{new Date(x.start_time).toLocaleString()}</span>}
+                  </div>
+                </>
+              ),
+            },
+            { key: 'events',   items: e, title: 'Recent Events',    all: '/hr/events',
+              tint: { bg: 'bg-purple-50', border: 'border-purple-100', dot: 'bg-purple-600', text: 'text-purple-700' },
+              icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+              render: (x) => (
+                <>
+                  <p className="text-xs font-semibold text-gray-800 truncate">{x.title}</p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                    created by <span className="font-semibold">{x.created_by}</span> · responsible <span className="font-semibold">{x.responsible}</span>
+                  </p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {x.status && <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 capitalize">{x.status}</span>}
+                    {x.start_date && <span className="text-[9px] text-gray-400">{x.start_date}</span>}
+                  </div>
+                </>
+              ),
+            },
+          ].filter((g) => g.items.length > 0);
+
+          if (groups.length === 0) return null;
+          const cols = { 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3' }[groups.length];
+          return (
+            <div className={`grid grid-cols-1 ${cols} gap-4 mb-5`}>
+              {groups.map((g) => (
+                <div key={g.key} className={`bg-white rounded-2xl border ${g.tint.border} shadow-sm`}>
+                  <div className={`px-5 py-3 ${g.tint.bg} border-b ${g.tint.border} flex items-center justify-between`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg ${g.tint.dot} flex items-center justify-center`}>
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={g.icon} />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">{g.title}</p>
+                        <p className={`text-[10px] ${g.tint.text}`}>{g.items.length} most recent</p>
+                      </div>
+                    </div>
+                    <button onClick={() => navigate(g.all)} className={`text-[11px] font-semibold ${g.tint.text} hover:opacity-80`}>
+                      See all →
+                    </button>
+                  </div>
+                  <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                    {g.items.map((x) => (
+                      <li key={x.id}>
+                        <button onClick={() => navigate(x.link)}
+                          className={`w-full text-left p-3 hover:${g.tint.bg.replace('-50', '-50/60')} transition-colors`}>
+                          {g.render(x)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* ─── Personal slice + observation chart ───
+             When the observations chart is hidden (non-HR users), let the
+             My Quick View card take the entire row so there's no empty
+             two-column gap on the right. */}
+        <div className={`grid grid-cols-1 ${charts?.observations_last_6_months ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-4 mb-5`}>
           <Section
             title="My Quick View"
             icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"

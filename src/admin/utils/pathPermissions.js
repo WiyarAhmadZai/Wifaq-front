@@ -18,6 +18,9 @@ const RULES = [
   // Branches
   { prefix: "/branches", permission: "branches.view" },
 
+  // Planning — Annual / Monthly / Weekly plans (top-level "Planning" menu).
+  { prefix: "/planning", permission: "planning.view" },
+
   // Recruitment — position titles
   { prefix: "/recruitment/position-titles", permission: "position-titles.view" },
 

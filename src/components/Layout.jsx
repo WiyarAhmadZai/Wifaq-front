@@ -1096,6 +1096,16 @@ export default function Layout() {
   const departmentsMenus = [
     { label: "Departments", path: "/hr/departments", permission: "departments.view" },
   ];
+  // Planning — Annual / Monthly / Weekly plans. Top-level parent menu with one
+  // sub-menu per page (mirrors the mockup's Planning section).
+  const planningMenus = [
+    { label: "Dashboard", path: "/planning/dashboard", permission: "planning.view" },
+    { label: "My Plans", path: "/planning/plans", permission: "planning.view" },
+    { label: "New Plan", path: "/planning/plans/create", permission: "planning.create" },
+    { label: "Approval Review", path: "/planning/approvals", permission: "planning.approve" },
+    { label: "Departments", path: "/planning/department", permission: "planning.manage" },
+    { label: "Templates & Audit", path: "/planning/templates", permission: "planning.manage" },
+  ];
   const teacherMenus = [
     { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
   ];
@@ -1304,6 +1314,25 @@ export default function Layout() {
                 />
               )
             )}
+          </ParentMenu>
+          )}
+
+          {canSeeGroup(planningMenus) && (
+          <ParentMenu
+            icon={Icons.Dashboard}
+            label="Planning"
+            isOpen={openMenu.includes("planning")}
+            onClick={() => toggleMenu("planning")}
+          >
+            {visible(planningMenus).map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
           </ParentMenu>
           )}
 

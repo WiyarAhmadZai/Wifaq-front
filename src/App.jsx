@@ -80,6 +80,18 @@ const EventForm = lazy(() => import("./pages/hr/EventForm"));
 const EventShow = lazy(() => import("./pages/hr/EventShow"));
 const SalarySnapshot = lazy(() => import("./pages/hr/SalarySnapshot"));
 
+// Planning module — Annual / Monthly / Weekly plans (top-level "Planning" menu).
+const PlanningDashboard = lazy(() => import("./pages/planning/PlanningDashboard"));
+const MyPlans = lazy(() => import("./pages/planning/MyPlans"));
+const PlanForm = lazy(() => import("./pages/planning/PlanForm"));
+const PlanShow = lazy(() => import("./pages/planning/PlanShow"));
+const PlanApprovals = lazy(() => import("./pages/planning/Approvals"));
+const DepartmentPlans = lazy(() => import("./pages/planning/DepartmentPlans"));
+const PlanCheckIn = lazy(() => import("./pages/planning/CheckIn"));
+const PlanReflect = lazy(() => import("./pages/planning/Reflect"));
+const PlanCascadeResult = lazy(() => import("./pages/planning/CascadeResult"));
+const PlanTemplates = lazy(() => import("./pages/planning/Templates"));
+
 // HR Pages - Form
 const StaffForm = lazy(() => import("./pages/hr/StaffForm"));
 const StaffLogs = lazy(() => import("./pages/hr/StaffLogs"));
@@ -288,6 +300,20 @@ function App() {
             <Route path="branches/create" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/edit/:id" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/show/:id" element={<Suspense fallback={<PageLoader />}><BranchShow /></Suspense>} />
+
+            {/* Planning — Annual / Monthly / Weekly plans */}
+            <Route path="planning" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />
+            <Route path="planning/dashboard" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />
+            <Route path="planning/plans" element={<Suspense fallback={<PageLoader />}><MyPlans /></Suspense>} />
+            <Route path="planning/plans/create" element={<Suspense fallback={<PageLoader />}><PlanForm /></Suspense>} />
+            <Route path="planning/plans/edit/:id" element={<Suspense fallback={<PageLoader />}><PlanForm /></Suspense>} />
+            <Route path="planning/plans/show/:id" element={<Suspense fallback={<PageLoader />}><PlanShow /></Suspense>} />
+            <Route path="planning/plans/checkin/:id" element={<Suspense fallback={<PageLoader />}><PlanCheckIn /></Suspense>} />
+            <Route path="planning/plans/reflect/:id" element={<Suspense fallback={<PageLoader />}><PlanReflect /></Suspense>} />
+            <Route path="planning/plans/cascade/:id" element={<Suspense fallback={<PageLoader />}><PlanCascadeResult /></Suspense>} />
+            <Route path="planning/approvals" element={<Suspense fallback={<PageLoader />}><PlanApprovals /></Suspense>} />
+            <Route path="planning/department" element={<Suspense fallback={<PageLoader />}><DepartmentPlans /></Suspense>} />
+            <Route path="planning/templates" element={<Suspense fallback={<PageLoader />}><PlanTemplates /></Suspense>} />
             <Route path="hr/departments" element={<Suspense fallback={<PageLoader />}><Departments /></Suspense>} />
             <Route path="hr/departments/create" element={<Suspense fallback={<PageLoader />}><DepartmentForm /></Suspense>} />
             <Route path="hr/departments/edit/:id" element={<Suspense fallback={<PageLoader />}><DepartmentForm /></Suspense>} />

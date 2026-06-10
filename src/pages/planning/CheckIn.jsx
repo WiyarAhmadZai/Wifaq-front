@@ -82,23 +82,23 @@ export default function CheckIn() {
                   <ProgressBar value={k.progress} />
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
                     <div>
-                      <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Current value</label>
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Where it is now</label>
                       <input className={input} value={d.current_value} onChange={(e) => upd(k.id, { current_value: e.target.value })} placeholder={`value ${k.unit || ""}`} />
                     </div>
                     <div>
-                      <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Confidence (0–1)</label>
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">How sure (0–1)</label>
                       <input type="number" step="0.1" min="0" max="1" className={input} value={d.confidence_score} onChange={(e) => upd(k.id, { confidence_score: e.target.value })} />
                     </div>
                     <div>
-                      <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">At risk?</label>
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Behind schedule?</label>
                       <select className={input} value={d.flag_at_risk ? "1" : "0"} onChange={(e) => upd(k.id, { flag_at_risk: e.target.value === "1" })}>
                         <option value="0">No</option>
-                        <option value="1">Yes — at risk</option>
+                        <option value="1">Yes — needs attention</option>
                       </select>
                     </div>
                   </div>
                   <div className="mt-2">
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">What's helping / what's blocking</label>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">What's helping or getting in the way</label>
                     <textarea className={input} rows={2} value={d.narrative} onChange={(e) => upd(k.id, { narrative: e.target.value })} placeholder="2–3 lines, optional" />
                   </div>
                   {(k.check_ins || []).length > 0 && (

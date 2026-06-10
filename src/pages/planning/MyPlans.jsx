@@ -56,7 +56,7 @@ export default function MyPlans() {
 
   const filtered = plans.filter((p) => {
     const q = search.trim().toLowerCase();
-    if (q && !`${p.title} ${p.period_label || ""}`.toLowerCase().includes(q)) return false;
+    if (q && !`${p.title} ${p.period_year || ""}`.toLowerCase().includes(q)) return false;
     if (filterType && p.type !== filterType) return false;
     if (filterStatus && p.status !== filterStatus) return false;
     return true;
@@ -65,7 +65,7 @@ export default function MyPlans() {
   const stats = [
     { label: "Total plans", value: plans.length, tone: "teal", icon: ICON },
     { label: "Active", value: plans.filter((p) => p.status === "active").length, tone: "emerald", icon: "M5 13l4 4L19 7" },
-    { label: "Pending", value: plans.filter((p) => p.status === "pending").length, tone: "amber", icon: "M12 8v4l3 3" },
+    { label: "Waiting for approval", value: plans.filter((p) => p.status === "submitted").length, tone: "amber", icon: "M12 8v4l3 3" },
     { label: "Drafts", value: plans.filter((p) => p.status === "draft").length, tone: "blue", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" },
   ];
 
@@ -137,7 +137,7 @@ export default function MyPlans() {
                   <tr key={p.id} onClick={() => navigate(`/planning/plans/show/${p.id}`)} className="border-b border-gray-50 hover:bg-gray-50/70 cursor-pointer">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-gray-800">{p.title}</div>
-                      <div className="text-[11px] text-gray-400">{p.period_label || "—"}</div>
+                      <div className="text-[11px] text-gray-400">{p.period_year || "—"}</div>
                     </td>
                     <td className="px-4 py-3 capitalize text-gray-600">{p.type}</td>
                     <td className="px-4 py-3"><StatusPill status={p.status} /></td>

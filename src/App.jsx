@@ -75,6 +75,12 @@ const Monitoring = lazy(() => import("./pages/education/Monitoring"));
 const Elicitation = lazy(() => import("./pages/education/Elicitation"));
 const Synthesis = lazy(() => import("./pages/education/Synthesis"));
 const AnnualReview = lazy(() => import("./pages/education/AnnualReview"));
+const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
+const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
+const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
+const LessonPlanReview = lazy(() => import("./pages/education/LessonPlanReview"));
+const LessonPlanInsights = lazy(() => import("./pages/education/LessonPlanInsights"));
+const LessonPlanTemplates = lazy(() => import("./pages/education/LessonPlanTemplates"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
@@ -374,6 +380,13 @@ function App() {
             <Route path="education/elicitation" element={<Suspense fallback={<PageLoader />}><Elicitation /></Suspense>} />
             <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
             <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />
+            <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
+            <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
+            <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />
+            <Route path="education/lesson-plans/edit/:id" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />
+            <Route path="education/lesson-plans/review" element={<Suspense fallback={<PageLoader />}><LessonPlanReview /></Suspense>} />
+            <Route path="education/lesson-plans/insights" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights /></Suspense>} />
+            <Route path="education/lesson-plans/templates" element={<Suspense fallback={<PageLoader />}><LessonPlanTemplates /></Suspense>} />
             <Route path="hr/planner" element={<Suspense fallback={<PageLoader />}><Planner /></Suspense>} />
             <Route path="hr/planner/create" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
             <Route path="hr/planner/edit/:id" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />

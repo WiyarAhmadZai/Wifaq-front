@@ -48,11 +48,11 @@ export default function PlanShow() {
   };
 
   const doApprove = async () => {
-    const c = await Swal.fire({ title: "Approve & cascade?", html: "Creates real <b>Tasks, Events</b> and routes <b>Budget requests</b> from the plan items. Cannot be undone.", icon: "question", showCancelButton: true, confirmButtonColor: "#0d9488", confirmButtonText: "Approve & cascade" });
+    const c = await Swal.fire({ title: "Approve & cascade?", html: "Creates real <b>Tasks, Events, Meetings</b> and draft <b>Purchase Requests</b> from the plan items. Cannot be undone.", icon: "question", showCancelButton: true, confirmButtonColor: "#0d9488", confirmButtonText: "Approve & cascade" });
     if (!c.isConfirmed) return;
     run(() => approvePlan(id, note), null, (r) => {
       const s = r.data?.cascade || {};
-      Swal.fire("Approved", `Cascade complete — ${s.tasks || 0} task(s), ${s.events || 0} event(s), ${s.budget_requests || 0} budget request(s), ${s.notifications || 0} notification(s).`, "success");
+      Swal.fire("Approved", `Cascade complete — ${s.tasks || 0} task(s), ${s.events || 0} event(s), ${s.meetings || 0} meeting(s), ${s.purchase_requests || 0} purchase request(s), ${s.budget_requests || 0} budget request(s).`, "success");
     });
   };
   const doReject = () => { if (!note.trim()) return Swal.fire("Note required", "Please note what needs revising.", "warning"); run(() => rejectPlan(id, note), "Revision requested"); };
@@ -138,30 +138,26 @@ export default function PlanShow() {
             )}
           </Section>
 
-          <Section title="Items" subtitle="Tasks · Events · Budget requests" icon="M4 6h16M4 12h16M4 18h7">
+          <Section title="Items" subtitle="Events · Meetings · Tasks · Purchase requests" icon="M4 6h16M4 12h16M4 18h7">
             {(plan.items || []).length === 0 ? <p className="text-sm text-gray-400">No items.</p> : (
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wider text-gray-400 border-b border-gray-100">
+                    <th className="text-left py-2 font-bold">Kind</th>
                     <th className="text-left py-2 font-bold">Item</th>
-                    <th className="text-left py-2 font-bold">Driver</th>
                     <th className="text-left py-2 font-bold">Due</th>
-                    <th className="text-left py-2 font-bold">Budget</th>
                     <th className="text-left py-2 font-bold">State</th>
-                    <th className="text-left py-2 font-bold">Linked</th>
+                    <th className="text-left py-2 font-bold">Created record</th>
                   </tr>
                 </thead>
                 <tbody>
                   {plan.items.map((it) => (
                     <tr key={it.id} className="border-b border-gray-50">
+                      <td className="py-2"><KindChip kind={it.kind} /></td>
                       <td className="py-2 text-gray-700 font-medium">{it.title}</td>
-                      <td className="py-2 text-gray-500">{it.driver || "—"}</td>
                       <td className="py-2 text-gray-500">{it.due_date ? fmtDate(it.due_date) : "—"}</td>
-                      <td className="py-2 text-gray-500">{it.budget_amount ? `${Number(it.budget_amount).toLocaleString()} AFN` : "—"}</td>
                       <td className="py-2"><StateChip state={it.state} /></td>
-                      <td className="py-2 font-mono text-[10px] text-gray-400">
-                        {it.cascaded_task_id ? `T-${it.cascaded_task_id}` : ""}{it.cascaded_event_id ? ` · E-${it.cascaded_event_id}` : ""}{!it.cascaded_task_id && !it.cascaded_event_id ? "—" : ""}
-                      </td>
+                      <td className="py-2 font-mono text-[10px] text-gray-400">{linkedLabel(it)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -214,6 +210,8 @@ export default function PlanShow() {
               <div className="text-sm space-y-1.5">
                 <Row k="Tasks">{plan.cascade_summary.tasks ?? 0}</Row>
                 <Row k="Events">{plan.cascade_summary.events ?? 0}</Row>
+                <Row k="Meetings">{plan.cascade_summary.meetings ?? 0}</Row>
+                <Row k="Purchase requests">{plan.cascade_summary.purchase_requests ?? 0}</Row>
                 <Row k="Budget requests">{plan.cascade_summary.budget_requests ?? 0}</Row>
                 <Row k="Notifications">{plan.cascade_summary.notifications ?? 0}</Row>
               </div>
@@ -257,6 +255,26 @@ function Row({ k, children }) {
       <span className="text-gray-700 text-xs font-medium text-right">{children}</span>
     </div>
   );
+}
+
+function KindChip({ kind }) {
+  const map = {
+    event: { c: "bg-indigo-100 text-indigo-700", t: "Event" },
+    meeting: { c: "bg-sky-100 text-sky-700", t: "Meeting" },
+    task: { c: "bg-slate-100 text-slate-700", t: "Task" },
+    purchase: { c: "bg-amber-100 text-amber-700", t: "Purchase" },
+  };
+  const m = map[kind] || map.task;
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${m.c}`}>{m.t}</span>;
+}
+
+function linkedLabel(it) {
+  const parts = [];
+  if (it.cascaded_task_id) parts.push(`T-${it.cascaded_task_id}`);
+  if (it.cascaded_event_id) parts.push(`E-${it.cascaded_event_id}`);
+  if (it.cascaded_meeting_id) parts.push(`M-${it.cascaded_meeting_id}`);
+  if (it.cascaded_purchase_request_id) parts.push(it.purchase_request?.request_number || `PR-${it.cascaded_purchase_request_id}`);
+  return parts.length ? parts.join(" · ") : "—";
 }
 
 function StateChip({ state }) {

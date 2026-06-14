@@ -4,6 +4,7 @@ import { get, post } from "../../api/axios";
 import Swal from "sweetalert2";
 import { fmtDate } from "../../utils/formErrors";
 import { TEAL, TEAL_LT, GOLD, PAPER, STATUS, Hero, Spinner, StatusPill, DimensionDots, DAY_LABEL } from "./lessonPlanUi";
+import ReflectionModal from "./ReflectionModal";
 
 const FILTERS = [
   { key: "", label: "All" },
@@ -21,6 +22,7 @@ export default function MyLessonPlans() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(null);
+  const [reflectPlan, setReflectPlan] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -40,23 +42,6 @@ export default function MyLessonPlans() {
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Action failed.", "error");
     } finally { setBusy(null); }
-  };
-
-  const reflect = async (p) => {
-    const { value: f } = await Swal.fire({
-      title: "Post-teaching reflection",
-      html:
-        `<textarea id="w" class="swal2-textarea" placeholder="What worked well?"></textarea>` +
-        `<textarea id="c" class="swal2-textarea" placeholder="What needs to change?"></textarea>` +
-        `<input id="r" type="number" min="1" max="5" class="swal2-input" placeholder="Rating 1-5 (optional)">`,
-      focusConfirm: false, showCancelButton: true, confirmButtonText: "Record",
-      preConfirm: () => ({
-        what_worked: document.getElementById("w").value,
-        what_to_change: document.getElementById("c").value,
-        rating: document.getElementById("r").value || null,
-      }),
-    });
-    if (f) act(p.id, "reflect", f);
   };
 
   return (
@@ -104,9 +89,11 @@ export default function MyLessonPlans() {
                 </div>
 
                 <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: "#eef4f4" }}>
-                  <Action onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)}>
-                    {["draft", "returned_for_revision"].includes(p.status) ? "Edit" : "View"}
-                  </Action>
+                  {["draft", "returned_for_revision"].includes(p.status) ? (
+                    <Action onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)}>Edit</Action>
+                  ) : (
+                    <Action onClick={() => navigate(`/education/lesson-plans/show/${p.id}`)}>View</Action>
+                  )}
                   {["draft", "returned_for_revision"].includes(p.status) && (
                     <Action primary disabled={busy === p.id} onClick={() => act(p.id, "submit")}>Submit for review</Action>
                   )}
@@ -114,7 +101,7 @@ export default function MyLessonPlans() {
                     <Action primary disabled={busy === p.id} onClick={() => act(p.id, "deliver")}>Mark delivered</Action>
                   )}
                   {["delivered", "reflected"].includes(p.status) && (
-                    <Action primary={p.status === "delivered"} disabled={busy === p.id} onClick={() => reflect(p)}>
+                    <Action primary={p.status === "delivered"} disabled={busy === p.id} onClick={() => setReflectPlan(p)}>
                       {p.status === "reflected" ? "Edit reflection" : "Add reflection"}
                     </Action>
                   )}
@@ -127,6 +114,10 @@ export default function MyLessonPlans() {
           </div>
         )}
       </div>
+
+      {reflectPlan && (
+        <ReflectionModal plan={reflectPlan} onClose={() => setReflectPlan(null)} onSaved={load} />
+      )}
     </div>
   );
 }

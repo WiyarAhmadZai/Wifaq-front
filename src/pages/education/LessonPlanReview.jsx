@@ -92,7 +92,7 @@ export default function LessonPlanReview() {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: "#eef4f4" }}>
-              <button onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)} className="px-3 py-1.5 rounded-lg text-[11px] font-bold border" style={{ borderColor: "#dbe8e8", color: TEAL }}>Open</button>
+              <button onClick={() => navigate(`/education/lesson-plans/show/${p.id}`)} className="px-3 py-1.5 rounded-lg text-[11px] font-bold border" style={{ borderColor: "#dbe8e8", color: TEAL }}>Open</button>
               <button onClick={() => approve(p)} disabled={busy === p.id} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white disabled:opacity-50" style={{ background: "#2E7D5B" }}>✓ Approve</button>
               <button onClick={() => returnForRevision(p)} disabled={busy === p.id} className="px-3 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50" style={{ background: "#f7e3e1", color: "#C0473F" }}>↩ Return for revision</button>
             </div>

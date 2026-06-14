@@ -65,7 +65,7 @@ export default function LessonPlanDashboard() {
                 {(data.recent || []).length === 0 ? (
                   <p className="p-6 text-center text-xs text-gray-400">No plans yet. Create your first 4D plan.</p>
                 ) : data.recent.map((p) => (
-                  <button key={p.id} onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)}
+                  <button key={p.id} onClick={() => navigate(`/education/lesson-plans/show/${p.id}`)}
                     className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-gray-800 truncate">{p.title}</p>

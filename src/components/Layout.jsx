@@ -1106,6 +1106,11 @@ export default function Layout() {
     { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
     { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
+    { label: "Lesson Planning", path: "/education/lesson-plans", permission: "lesson-plans.view" },
+    { label: "My Lesson Plans", path: "/education/lesson-plans/my", permission: "lesson-plans.view" },
+    { label: "Plan Review Queue", path: "/education/lesson-plans/review", permission: "lesson-plans.review" },
+    { label: "Plan Analytics", path: "/education/lesson-plans/insights", permission: "lesson-plans.analyze" },
+    { label: "Plan Templates", path: "/education/lesson-plans/templates", permission: "lesson-plans.view" },
   ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },

@@ -11,7 +11,7 @@ import { PageHeader, Section, DateField, Spinner } from "../../components/hr/HrU
 import Select2 from "../../components/hr/Select2";
 import { Balance4D } from "./planUtils";
 import * as XLSX from "xlsx";
-import { buildPlanFromRows, importTemplateCsv } from "../../utils/planImport";
+import { buildPlanFromRows } from "../../utils/planImport";
 
 const ICON = "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2";
 
@@ -205,15 +205,6 @@ export default function PlanForm() {
   }, {});
 
   // ── Import from CSV / Excel ───────────────────────────────────────────────
-  const downloadTemplate = () => {
-    const blob = new Blob([importTemplateCsv()], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "plan-import-template.csv";
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ""; // let the same file be picked again later
@@ -419,7 +410,8 @@ export default function PlanForm() {
             <p className="text-xs font-bold text-teal-800">Generate a plan from a file</p>
             <p className="text-[11px] text-teal-600">Upload a CSV or Excel file to fill goals, events, meetings, tasks and purchase requests in bulk. Imported rows are added below for you to review before saving.</p>
           </div>
-          <button type="button" onClick={downloadTemplate} className="px-3 py-2 bg-white border border-teal-200 text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">Download template</button>
+          <a href="/plan-import-template.xlsx" download className="px-3 py-2 bg-white border border-teal-200 text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">Template (Excel)</a>
+          <a href="/plan-import-template.csv" download className="px-3 py-2 bg-white border border-teal-200 text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">Template (CSV)</a>
           <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700">Upload CSV / Excel</button>
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFile} />
         </div>

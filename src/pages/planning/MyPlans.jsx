@@ -19,20 +19,29 @@ export default function MyPlans() {
 
   const canCreate = hasPermission("planning.create") || hasPermission("planning.manage");
 
-  const fetchPlans = async () => {
-    setLoading(true);
+  // `silent` refreshes (interval / window-focus) skip the spinner so the
+  // progress bars update in place without a visible reload.
+  const fetchPlans = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await listPlans();
       const data = res.data?.data || res.data || [];
       setPlans(Array.isArray(data) ? data : []);
     } catch {
-      setPlans([]);
+      if (!silent) setPlans([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  useEffect(() => { fetchPlans(); }, []);
+  useEffect(() => {
+    fetchPlans();
+    // Keep the live progress fresh while the page is open.
+    const id = setInterval(() => fetchPlans(true), 20000);
+    const onFocus = () => fetchPlans(true);
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(id); window.removeEventListener("focus", onFocus); };
+  }, []);
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();

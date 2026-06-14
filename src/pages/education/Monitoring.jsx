@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
@@ -20,6 +21,7 @@ const Spinner = () => <div className="flex justify-center py-12"><div className=
 const Pill = ({ s }) => { const t = TONE[s] || { bg: "#eef3f3", fg: "#5d7273", label: s }; return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: t.bg, color: t.fg }}>{t.label}</span>; };
 
 export default function Monitoring() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("board");
   const [board, setBoard] = useState([]);
   const [canManage, setCanManage] = useState(false);
@@ -100,6 +102,11 @@ export default function Monitoring() {
                     <p className="text-[10px] text-gray-400">{f.period}{f.pattern ? ` · ${f.pattern.slice(0, 50)}` : ""}</p>
                   </div>
                   <Pill s={f.status} />
+                  {f.monitoring_id && (
+                    <button onClick={() => navigate(`/education/monitoring/${f.monitoring_id}/records`)} className="px-3 py-1.5 rounded-lg text-[11px] font-bold border" style={{ background: "#fff", color: TEAL, borderColor: "#cfe4e4" }}>
+                      Records
+                    </button>
+                  )}
                   {f.editable && <button onClick={() => openFill(f)} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>{f.status === "completed" ? "Edit" : "Fill"}</button>}
                 </div>
               ))}
@@ -176,6 +183,15 @@ export default function Monitoring() {
                       </div>
                     )}
                   </div>
+
+                  {/* Records log — the multi-entry view page */}
+                  <button onClick={() => navigate(`/education/monitoring/${selected.id}/records`)} className="w-full flex items-center justify-between rounded-2xl px-4 py-3.5 text-left" style={{ background: "linear-gradient(135deg,#0D5C63,#063033)" }}>
+                    <span>
+                      <span className="block text-xs font-bold text-white">Monitoring records</span>
+                      <span className="block text-[10px]" style={{ color: "#9ec3c3" }}>View &amp; add the recordings logged for this student</span>
+                    </span>
+                    <svg className="w-4 h-4 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </button>
 
                   {/* Follow-up history */}
                   <div>

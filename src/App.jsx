@@ -72,6 +72,7 @@ const DailyWorks = lazy(() => import("./pages/hr/DailyWorks"));
 const EduDashboard = lazy(() => import("./pages/education/EduDashboard"));
 const DailyObservation = lazy(() => import("./pages/education/DailyObservation"));
 const Monitoring = lazy(() => import("./pages/education/Monitoring"));
+const MonitoringRecords = lazy(() => import("./pages/education/MonitoringRecords"));
 const Elicitation = lazy(() => import("./pages/education/Elicitation"));
 const Synthesis = lazy(() => import("./pages/education/Synthesis"));
 const AnnualReview = lazy(() => import("./pages/education/AnnualReview"));
@@ -377,6 +378,7 @@ function App() {
             <Route path="education/dashboard" element={<Suspense fallback={<PageLoader />}><EduDashboard /></Suspense>} />
             <Route path="education/observations" element={<Suspense fallback={<PageLoader />}><DailyObservation /></Suspense>} />
             <Route path="education/monitoring" element={<Suspense fallback={<PageLoader />}><Monitoring /></Suspense>} />
+            <Route path="education/monitoring/:monitoringId/records" element={<Suspense fallback={<PageLoader />}><MonitoringRecords /></Suspense>} />
             <Route path="education/elicitation" element={<Suspense fallback={<PageLoader />}><Elicitation /></Suspense>} />
             <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
             <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />

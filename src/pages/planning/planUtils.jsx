@@ -98,8 +98,13 @@ export function balanceFromPlan(plan) {
   return counts;
 }
 
-// Average progress across all KRs of a plan (for list/dashboard rollups).
+// Plan completion % for list/dashboard rollups. Prefers the live, server-
+// computed `progress` (rolled up from the cascaded tasks/events/meetings) and
+// falls back to the average across key results when it isn't provided.
 export function planProgress(plan) {
+  if (plan?.progress != null && plan.progress !== "") {
+    return Math.max(0, Math.min(100, Math.round(Number(plan.progress))));
+  }
   const krs = (plan?.objectives || []).flatMap((o) => o.key_results || []);
   if (!krs.length) return 0;
   const sum = krs.reduce((acc, k) => acc + (Number(k.progress) || 0), 0);

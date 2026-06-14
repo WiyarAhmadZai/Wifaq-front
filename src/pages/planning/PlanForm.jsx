@@ -70,6 +70,9 @@ export default function PlanForm() {
   const [tasks, setTasks] = useState([]);
   const [purchases, setPurchases] = useState([]);
 
+  // Last file-import result, shown as a review banner until dismissed/saved.
+  const [importReview, setImportReview] = useState(null);
+
   const [departments, setDepartments] = useState([]);
   const [staff, setStaff] = useState([]);
   const [parentPlans, setParentPlans] = useState([]);
@@ -227,12 +230,8 @@ export default function PlanForm() {
       setMeetings((prev) => [...prev, ...res.meetings]);
       setTasks((prev) => [...prev, ...res.tasks]);
       setPurchases((prev) => [...prev, ...res.purchases]);
-      Swal.fire({
-        icon: res.errors.length ? "warning" : "success",
-        title: "Imported from file",
-        html: `Added <b>${s.goals}</b> goal(s), <b>${s.events}</b> event(s), <b>${s.meetings}</b> meeting(s), <b>${s.tasks}</b> task(s), <b>${s.purchases}</b> purchase request(s). Review and save.`
-          + (res.errors.length ? `<br><br><span style="color:#b45309">Skipped ${res.errors.length} row(s):</span><br><span style="font-size:11px">${res.errors.slice(0, 8).join("<br>")}</span>` : ""),
-      });
+      setImportReview({ fileName: file.name, summary: s, errors: res.errors });
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "File imported — review below", timer: 1800, showConfirmButton: false });
     } catch {
       Swal.fire("Could not read file", "Make sure it is a valid .csv or .xlsx with a header row matching the template.", "error");
     }
@@ -415,6 +414,39 @@ export default function PlanForm() {
           <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700">Upload CSV / Excel</button>
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFile} />
         </div>
+
+        {/* IMPORT REVIEW */}
+        {importReview && (
+          <div className="bg-white border-2 border-emerald-200 rounded-xl p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <p className="text-sm font-bold text-emerald-800">✓ Imported from “{importReview.fileName}” — review before saving</p>
+                <p className="text-[11px] text-gray-500">The fields below were filled from your file. Check and edit anything, then Save or Submit.</p>
+              </div>
+              <button type="button" onClick={() => setImportReview(null)} className="text-gray-400 hover:text-gray-600 text-xs font-semibold">Dismiss</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["Goals", importReview.summary.goals, "bg-teal-50 text-teal-700"],
+                ["Events", importReview.summary.events, "bg-indigo-50 text-indigo-700"],
+                ["Meetings", importReview.summary.meetings, "bg-sky-50 text-sky-700"],
+                ["Tasks", importReview.summary.tasks, "bg-slate-100 text-slate-700"],
+                ["Purchase requests", importReview.summary.purchases, "bg-amber-50 text-amber-700"],
+              ].map(([lbl, n, cls]) => (
+                <span key={lbl} className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${cls}`}>{n} {lbl}</span>
+              ))}
+            </div>
+            {importReview.errors.length > 0 && (
+              <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                <p className="text-[11px] font-bold text-amber-700 mb-1">⚠ Skipped {importReview.errors.length} row(s):</p>
+                <ul className="text-[11px] text-amber-700 list-disc pl-4 space-y-0.5">
+                  {importReview.errors.slice(0, 8).map((e, i) => <li key={i}>{e}</li>)}
+                  {importReview.errors.length > 8 && <li>…and {importReview.errors.length - 8} more</li>}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* PLAN BASICS */}
         <Section title="Plan basics" subtitle="When it runs and who it's for" icon={ICON}>

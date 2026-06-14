@@ -3,12 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   createPlan, updatePlan, getPlan, submitPlan, getPlanOptions, listPlans,
-  PLAN_TYPES, SHAMSI_MONTHS,
+  PLAN_TYPES, SHAMSI_MONTHS, DIMENSIONS, KR_TYPES,
 } from "../../api/planning";
 import { getChartOfAccounts } from "../../api/financial";
 import { get } from "../../api/axios";
 import { PageHeader, Section, DateField, Spinner } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import { Balance4D } from "./planUtils";
 
 const ICON = "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2";
 
@@ -39,6 +40,8 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 let _uid = 0;
 const uid = () => `r${++_uid}`;
 
+const blankKr = () => ({ statement: "", kr_type: "percentage", baseline: "", target: "", unit: "", current_value: "", confidence_score: "" });
+const blankObjective = () => ({ statement: "", primary_4d_dimension: "cognitive", key_results: [blankKr()] });
 const blankEvent = () => ({ uid: uid(), title: "", description: "", start_date: "", end_date: "", location: "", responsible_staff_id: "" });
 const blankMeeting = () => ({ uid: uid(), title: "", description: "", meeting_date: "", start_time: "09:00", end_time: "10:00", location: "", meeting_type: "routine", participant_staff_ids: [] });
 const blankTask = () => ({ uid: uid(), title: "", task_type: "normal", assigned_staff_id: "", start_date: "", deadline: "", notes: "" });
@@ -59,6 +62,7 @@ export default function PlanForm() {
     start_date: "", end_date: "", department_id: "", narrative: "",
   });
 
+  const [objectives, setObjectives] = useState([blankObjective()]);
   const [events, setEvents] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -109,6 +113,18 @@ export default function PlanForm() {
           start_date: p.start_date?.slice(0, 10) || "", end_date: p.end_date?.slice(0, 10) || "",
           department_id: p.department_id || "", narrative: p.narrative || "",
         });
+        setObjectives((p.objectives || []).length
+          ? p.objectives.map((o) => ({
+              statement: o.statement, primary_4d_dimension: o.primary_4d_dimension,
+              key_results: (o.key_results || []).length
+                ? o.key_results.map((k) => ({
+                    statement: k.statement, kr_type: k.kr_type || "percentage",
+                    baseline: k.baseline ?? "", target: k.target ?? "", unit: k.unit || "",
+                    current_value: k.current_value ?? "", confidence_score: k.confidence_score ?? "",
+                  }))
+                : [blankKr()],
+            }))
+          : [blankObjective()]);
         hydrateItems(p.items || []);
         loadedRef.current = true;
       } catch {
@@ -173,6 +189,17 @@ export default function PlanForm() {
     ...events.filter((e) => e.title.trim()).map((e) => ({ value: `event:${e.uid}`, label: `Event · ${e.title}` })),
     ...meetings.filter((m) => m.title.trim()).map((m) => ({ value: `meeting:${m.uid}`, label: `Meeting · ${m.title}` })),
   ], [events, meetings]);
+
+  // ── Goal helpers ────────────────────────────────────────────────────────
+  const updObjective = (oi, patch) => setObjectives((o) => o.map((x, i) => (i === oi ? { ...x, ...patch } : x)));
+  const updKr = (oi, ki, patch) =>
+    setObjectives((o) => o.map((x, i) => i === oi
+      ? { ...x, key_results: x.key_results.map((k, j) => (j === ki ? { ...k, ...patch } : k)) }
+      : x));
+  const balanceCounts = objectives.reduce((acc, o) => {
+    if (o.statement.trim()) acc[o.primary_4d_dimension] = (acc[o.primary_4d_dimension] || 0) + 1;
+    return acc;
+  }, {});
 
   // ── Row helpers ─────────────────────────────────────────────────────────
   const patchEvent   = (i, p) => setEvents((a) => a.map((r, idx) => idx === i ? { ...r, ...p } : r));
@@ -281,15 +308,26 @@ export default function PlanForm() {
       period_week: num(form.period_week),
       start_date: form.start_date || null,
       end_date: form.end_date || null,
-      objectives: [],
+      objectives: objectives
+        .filter((o) => o.statement.trim())
+        .map((o) => ({
+          statement: o.statement,
+          primary_4d_dimension: o.primary_4d_dimension,
+          key_results: o.key_results.filter((k) => k.statement.trim()).map((k) => ({
+            statement: k.statement, kr_type: k.kr_type,
+            baseline: num(k.baseline), target: num(k.target), unit: k.unit,
+            current_value: num(k.current_value),
+            confidence_score: k.confidence_score === "" ? null : Number(k.confidence_score),
+          })),
+        })),
       items,
     };
   };
 
   const save = async ({ submit }) => {
     const payload = buildPayload();
-    if (payload.items.length === 0) {
-      Swal.fire("Nothing to save", "Add at least one event, meeting, task, or purchase request.", "warning");
+    if (payload.items.length === 0 && payload.objectives.length === 0) {
+      Swal.fire("Nothing to save", "Add at least one goal, event, meeting, task, or purchase request.", "warning");
       return;
     }
     setSaving(true);
@@ -387,6 +425,59 @@ export default function PlanForm() {
             </div>
           </div>
         </Section>
+
+        {/* GOALS */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+          <Section title="Goals" subtitle="Add 2–5 goals. Each needs a focus area and at least one way to measure success." icon="M9 12l2 2 4-4"
+            action={<AddBtn onClick={() => setObjectives((o) => [...o, blankObjective()])}>+ Add goal</AddBtn>}>
+            <div className="space-y-4">
+              {objectives.map((o, oi) => (
+                <div key={oi} className="rounded-xl border border-gray-150 bg-gray-50/60 p-4">
+                  <label className={label}>Goal {oi + 1}</label>
+                  <div className="flex gap-2 items-start mb-3">
+                    <input className={input} value={o.statement} onChange={(e) => updObjective(oi, { statement: e.target.value })} placeholder="What do you want to achieve?" />
+                    <div className="min-w-[150px]">
+                      <select className="w-full px-2 py-2 border border-gray-200 rounded-lg text-xs" value={o.primary_4d_dimension} onChange={(e) => updObjective(oi, { primary_4d_dimension: e.target.value })} title="Focus area (4D)">
+                        {DIMENSIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                      </select>
+                    </div>
+                    {objectives.length > 1 && <button onClick={() => setObjectives((x) => x.filter((_, i) => i !== oi))} className="text-red-500 text-xs font-semibold px-2 py-2">✕</button>}
+                  </div>
+                  <label className={label}>How will you measure it?</label>
+                  <div className="space-y-2">
+                    {o.key_results.map((k, ki) => (
+                      <div key={ki} className="bg-white rounded-lg border border-gray-150 p-2.5">
+                        <div className="flex gap-2 items-center">
+                          <input className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs" value={k.statement} onChange={(e) => updKr(oi, ki, { statement: e.target.value })} placeholder="e.g. 85% of students finish the worksheet" />
+                          {o.key_results.length > 1 && <button onClick={() => updObjective(oi, { key_results: o.key_results.filter((_, j) => j !== ki) })} className="text-red-400 text-xs px-1">✕</button>}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                          <Field lbl="Measured in">
+                            <select className="w-full px-2 py-1 border border-gray-200 rounded text-[11px]" value={k.kr_type} onChange={(e) => updKr(oi, ki, { kr_type: e.target.value })}>
+                              {KR_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </select>
+                          </Field>
+                          <Field lbl="Unit"><input className="w-full px-2 py-1 border border-gray-200 rounded text-[11px]" value={k.unit} onChange={(e) => updKr(oi, ki, { unit: e.target.value })} placeholder="%, AFN, sessions" /></Field>
+                          <Field lbl="Start value"><input className="w-full px-2 py-1 border border-gray-200 rounded text-[11px]" value={k.baseline} onChange={(e) => updKr(oi, ki, { baseline: e.target.value })} placeholder="0" /></Field>
+                          <Field lbl="Goal value"><input className="w-full px-2 py-1 border border-gray-200 rounded text-[11px]" value={k.target} onChange={(e) => updKr(oi, ki, { target: e.target.value })} placeholder="85" /></Field>
+                          <Field lbl="Now"><input className="w-full px-2 py-1 border border-gray-200 rounded text-[11px]" value={k.current_value} onChange={(e) => updKr(oi, ki, { current_value: e.target.value })} placeholder="optional" /></Field>
+                          <Field lbl="How sure (0–1)"><input type="number" step="0.1" min="0" max="1" className="w-full px-2 py-1 border border-gray-200 rounded text-[11px]" value={k.confidence_score} onChange={(e) => updKr(oi, ki, { confidence_score: e.target.value })} placeholder="0.7" /></Field>
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={() => updObjective(oi, { key_results: [...o.key_results, blankKr()] })} className="text-[11px] font-semibold text-teal-600 hover:text-teal-800">+ Add measure</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <div>
+            <Section title="4D coverage" subtitle="Try to cover all four areas" icon="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
+              <Balance4D counts={balanceCounts} />
+            </Section>
+          </div>
+        </div>
 
         {/* EVENTS */}
         <Section title="Events" subtitle="Each becomes an Event on the calendar when approved." icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"

@@ -10,6 +10,8 @@ import { get } from "../../api/axios";
 import { PageHeader, Section, DateField, Spinner } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { Balance4D } from "./planUtils";
+import * as XLSX from "xlsx";
+import { buildPlanFromRows, importTemplateCsv } from "../../utils/planImport";
 
 const ICON = "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2";
 
@@ -76,6 +78,7 @@ export default function PlanForm() {
 
   // Avoid clobbering edit-loaded items if options resolve after the plan.
   const loadedRef = useRef(false);
+  const fileRef = useRef(null);
 
   useEffect(() => {
     getPlanOptions()
@@ -200,6 +203,49 @@ export default function PlanForm() {
     if (o.statement.trim()) acc[o.primary_4d_dimension] = (acc[o.primary_4d_dimension] || 0) + 1;
     return acc;
   }, {});
+
+  // ── Import from CSV / Excel ───────────────────────────────────────────────
+  const downloadTemplate = () => {
+    const blob = new Blob([importTemplateCsv()], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "plan-import-template.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be picked again later
+    if (!file) return;
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+      const res = buildPlanFromRows(rows, { staff, uid });
+      const { summary: s } = res;
+      if (!s.goals && !s.events && !s.meetings && !s.tasks && !s.purchases) {
+        Swal.fire("Nothing imported", "No valid rows found. Check the 'type' column and headers against the template.", "warning");
+        return;
+      }
+      setObjectives((prev) => {
+        const merged = [...prev.filter((o) => o.statement.trim()), ...res.objectives];
+        return merged.length ? merged : [blankObjective()];
+      });
+      setEvents((prev) => [...prev, ...res.events]);
+      setMeetings((prev) => [...prev, ...res.meetings]);
+      setTasks((prev) => [...prev, ...res.tasks]);
+      setPurchases((prev) => [...prev, ...res.purchases]);
+      Swal.fire({
+        icon: res.errors.length ? "warning" : "success",
+        title: "Imported from file",
+        html: `Added <b>${s.goals}</b> goal(s), <b>${s.events}</b> event(s), <b>${s.meetings}</b> meeting(s), <b>${s.tasks}</b> task(s), <b>${s.purchases}</b> purchase request(s). Review and save.`
+          + (res.errors.length ? `<br><br><span style="color:#b45309">Skipped ${res.errors.length} row(s):</span><br><span style="font-size:11px">${res.errors.slice(0, 8).join("<br>")}</span>` : ""),
+      });
+    } catch {
+      Swal.fire("Could not read file", "Make sure it is a valid .csv or .xlsx with a header row matching the template.", "error");
+    }
+  };
 
   // ── Row helpers ─────────────────────────────────────────────────────────
   const patchEvent   = (i, p) => setEvents((a) => a.map((r, idx) => idx === i ? { ...r, ...p } : r));
@@ -366,6 +412,18 @@ export default function PlanForm() {
       />
 
       <div className="space-y-4">
+        {/* IMPORT FROM FILE */}
+        <div className="bg-teal-50 border border-teal-100 rounded-xl p-3 flex flex-wrap items-center gap-2">
+          <svg className="w-5 h-5 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-xs font-bold text-teal-800">Generate a plan from a file</p>
+            <p className="text-[11px] text-teal-600">Upload a CSV or Excel file to fill goals, events, meetings, tasks and purchase requests in bulk. Imported rows are added below for you to review before saving.</p>
+          </div>
+          <button type="button" onClick={downloadTemplate} className="px-3 py-2 bg-white border border-teal-200 text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50">Download template</button>
+          <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700">Upload CSV / Excel</button>
+          <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFile} />
+        </div>
+
         {/* PLAN BASICS */}
         <Section title="Plan basics" subtitle="When it runs and who it's for" icon={ICON}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

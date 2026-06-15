@@ -243,11 +243,16 @@ export default function StaffForm() {
     const applicant = hiredApplicants.find(a => String(a.id) === String(appId));
     if (applicant) {
       setSelectedApplicant(applicant);
+      // Match the applicant's department name to a department record so the
+      // Department dropdown is pre-selected (case/whitespace insensitive).
+      const deptName = String(applicant.department || '').trim().toLowerCase();
+      const matchedDept = deptName ? departments.find(d => String(d.name || '').trim().toLowerCase() === deptName) : null;
       setForm(prev => ({
         ...prev,
         application_id: appId,
         job_requisition_id: applicant.job_requisition_id || prev.job_requisition_id,
         department: applicant.department || prev.department,
+        department_id: matchedDept?.id || prev.department_id,
         role_title_en: applicant.position || prev.role_title_en,
         contract_type: applicant.employment_type || prev.contract_type,
       }));

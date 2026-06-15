@@ -3,9 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   getPlan, submitPlan, approvePlan, rejectPlan, completePlan, archivePlan, addDiscussion,
+  getPlanAccess, updatePlanAccess,
 } from "../../api/planning";
 import { useAuth } from "../../admin/context/AuthContext";
 import { PageHeader, Section, Spinner, EmptyState } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
 import { fmtDate } from "../../utils/formErrors";
 import { StatusPill, DimensionBadge, ProgressBar, Balance4D, balanceFromPlan } from "./planUtils";
 
@@ -21,6 +23,12 @@ export default function PlanShow() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+
+  // Share / manage-access modal.
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareUsers, setShareUsers] = useState([]);
+  const [shareSelected, setShareSelected] = useState([]);
+  const [shareSaving, setShareSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -56,6 +64,31 @@ export default function PlanShow() {
     });
   };
   const doReject = () => { if (!note.trim()) return Swal.fire("Note required", "Please note what needs revising.", "warning"); run(() => rejectPlan(id, note), "Revision requested"); };
+
+  const openShare = async () => {
+    try {
+      const res = await getPlanAccess(id);
+      const d = res.data?.data || {};
+      setShareUsers(d.users || []);
+      setShareSelected((d.shared_user_ids || []).map(Number));
+      setShareOpen(true);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not load access list.", "error");
+    }
+  };
+  const saveShare = async () => {
+    setShareSaving(true);
+    try {
+      await updatePlanAccess(id, shareSelected);
+      setShareOpen(false);
+      await load();
+      Swal.fire({ icon: "success", title: "Access updated", timer: 1200, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not update access.", "error");
+    } finally {
+      setShareSaving(false);
+    }
+  };
   const doArchive = async () => {
     if (!meta.has_reflection) { Swal.fire("Reflection required", "Complete the reflection before archiving.", "warning"); return; }
     const c = await Swal.fire({ title: "Archive this plan?", icon: "question", showCancelButton: true, confirmButtonText: "Archive" });
@@ -74,23 +107,26 @@ export default function PlanShow() {
         icon={ICON}
         actions={
           <div className="flex flex-wrap gap-2 justify-end">
-            {canManage && st === "draft" && (
+            {meta.can_share && (
+              <button onClick={openShare} className="px-3 py-2 bg-white/15 text-white text-xs font-semibold rounded-xl hover:bg-white/25">Share access</button>
+            )}
+            {meta.can_edit && (
               <button onClick={() => navigate(`/planning/plans/edit/${plan.id}`)} className="px-3 py-2 bg-white/15 text-white text-xs font-semibold rounded-xl hover:bg-white/25">Edit</button>
             )}
-            {canManage && st === "draft" && (
+            {meta.can_submit && (
               <button onClick={() => run(() => submitPlan(id), "Submitted")} disabled={busy} className="px-3 py-2 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50 disabled:opacity-50">Submit</button>
             )}
             {st === "active" && (
               <>
-                <button onClick={() => navigate(`/planning/plans/checkin/${plan.id}`)} className="px-3 py-2 bg-white/15 text-white text-xs font-semibold rounded-xl hover:bg-white/25">Check in</button>
+                {meta.can_checkin && <button onClick={() => navigate(`/planning/plans/checkin/${plan.id}`)} className="px-3 py-2 bg-white/15 text-white text-xs font-semibold rounded-xl hover:bg-white/25">Check in</button>}
                 {plan.cascaded_at && <button onClick={() => navigate(`/planning/plans/cascade/${plan.id}`)} className="px-3 py-2 bg-white/15 text-white text-xs font-semibold rounded-xl hover:bg-white/25">Cascade result</button>}
-                {canManage && <button onClick={() => run(() => completePlan(id), "Marked completed")} disabled={busy} className="px-3 py-2 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50 disabled:opacity-50">Complete</button>}
+                {meta.can_complete && <button onClick={() => run(() => completePlan(id), "Marked completed")} disabled={busy} className="px-3 py-2 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50 disabled:opacity-50">Complete</button>}
               </>
             )}
-            {st === "completed" && canManage && (
+            {st === "completed" && (
               <>
-                <button onClick={() => navigate(`/planning/plans/reflect/${plan.id}`)} className="px-3 py-2 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50">Reflect</button>
-                <button onClick={doArchive} disabled={busy} className="px-3 py-2 bg-white/15 text-white text-xs font-semibold rounded-xl hover:bg-white/25 disabled:opacity-50">Archive</button>
+                {meta.can_reflect && <button onClick={() => navigate(`/planning/plans/reflect/${plan.id}`)} className="px-3 py-2 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50">Reflect</button>}
+                {meta.can_archive && <button onClick={doArchive} disabled={busy} className="px-3 py-2 bg-white/15 text-white text-xs font-semibold rounded-xl hover:bg-white/25 disabled:opacity-50">Archive</button>}
               </>
             )}
           </div>
@@ -189,11 +225,11 @@ export default function PlanShow() {
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
             <div className="flex flex-wrap gap-2 mt-2">
               <button onClick={postComment} disabled={busy || !note.trim()} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-40">Add note</button>
+              {meta.can_reject && (
+                <button onClick={doReject} disabled={busy} className="px-3 py-1.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-200 disabled:opacity-50">Request revision</button>
+              )}
               {st === "submitted" && canApprove && (
-                <>
-                  <button onClick={doReject} disabled={busy} className="px-3 py-1.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-200 disabled:opacity-50">Request revision</button>
-                  <button onClick={doApprove} disabled={busy} className="px-3 py-1.5 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">✓ Approve &amp; cascade</button>
-                </>
+                <button onClick={doApprove} disabled={busy} className="px-3 py-1.5 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50">✓ Approve &amp; cascade</button>
               )}
             </div>
           </Section>
@@ -244,6 +280,27 @@ export default function PlanShow() {
           )}
         </div>
       </div>
+
+      {/* Share / manage-access modal */}
+      {shareOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShareOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-800 mb-1">Share this plan</h3>
+            <p className="text-[11px] text-gray-500 mb-3">Pick the people who should be able to see the whole plan. The owner, approver and admins always have access.</p>
+            <Select2
+              isMulti
+              value={shareSelected}
+              onChange={(v) => setShareSelected((v || []).map(Number))}
+              options={shareUsers.map((u) => ({ value: u.id, label: u.email ? `${u.name} (${u.email})` : u.name }))}
+              placeholder="Search people to give access…"
+            />
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShareOpen(false)} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={saveShare} disabled={shareSaving} className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50">{shareSaving ? "Saving…" : "Save access"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

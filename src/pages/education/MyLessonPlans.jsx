@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { fmtDate } from "../../utils/formErrors";
 import { TEAL, TEAL_LT, GOLD, PAPER, STATUS, Hero, Spinner, StatusPill, DimensionDots, DAY_LABEL } from "./lessonPlanUi";
 import ReflectionModal from "./ReflectionModal";
+import { useAuth } from "../../admin/context/AuthContext";
 
 const FILTERS = [
   { key: "", label: "All" },
@@ -23,6 +24,10 @@ export default function MyLessonPlans() {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(null);
   const [reflectPlan, setReflectPlan] = useState(null);
+  const { hasPermission } = useAuth();
+  // Leadership (reviewer / analyst) gets ALL teachers' plans from the backend —
+  // this list becomes a read-only browse with the teacher's name on each card.
+  const isLeadership = hasPermission("lesson-plans.review") || hasPermission("lesson-plans.analyze") || hasPermission("lesson-plans.manage");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -46,7 +51,8 @@ export default function MyLessonPlans() {
 
   return (
     <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
-      <Hero title="My Lesson Plans" subtitle="History, review status, dimensions filled & reflection"
+      <Hero title={isLeadership ? "Lesson Plans — All Teachers" : "My Lesson Plans"}
+        subtitle={isLeadership ? "Browse every teacher's plans, reviews & reflections" : "History, review status, dimensions filled & reflection"}
         right={
           <button onClick={() => navigate("/education/lesson-plans/create")} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: GOLD, color: "#052528" }}>
             ＋ New plan
@@ -79,6 +85,7 @@ export default function MyLessonPlans() {
                       <StatusPill status={p.status} />
                     </div>
                     <p className="text-[11px] text-gray-400 mt-0.5">
+                      {isLeadership && p.teacher ? <span className="font-bold text-gray-500">{p.teacher} · </span> : null}
                       {p.subject} · {p.class} · {fmtDate(p.lesson_date)} {p.period_number ? `· ${DAY_LABEL[p.day_of_week] || ""} P${p.period_number}` : ""}
                     </p>
                     <div className="mt-2 flex items-center gap-2">
@@ -89,6 +96,12 @@ export default function MyLessonPlans() {
                 </div>
 
                 <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: "#eef4f4" }}>
+                  {isLeadership ? (
+                    <Action onClick={() => navigate(`/education/lesson-plans/show/${p.id}`)}>
+                      {p.status === "reflected" ? "View plan & reflection" : "View"}
+                    </Action>
+                  ) : (
+                  <>
                   {["draft", "returned_for_revision"].includes(p.status) ? (
                     <Action onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)}>Edit</Action>
                   ) : (
@@ -107,6 +120,8 @@ export default function MyLessonPlans() {
                   )}
                   {p.status === "reflected" && p.dimensions_filled === 4 && (
                     <Action disabled={busy === p.id} onClick={() => act(p.id, "promote")}>★ Promote to library</Action>
+                  )}
+                  </>
                   )}
                 </div>
               </div>

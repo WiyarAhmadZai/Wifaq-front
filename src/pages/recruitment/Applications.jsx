@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
 
@@ -28,18 +28,37 @@ const statusBadge = (val) => {
 
 export default function Applications() {
   const navigate = useNavigate();
+  // URL query is the source of truth for page/filter/search, so the current
+  // pagination page (and filter/search) survives a refresh or browser back.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const activeFilter = searchParams.get("status") || "all";
+  const urlSearch = searchParams.get("search") || "";
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [stageCounts, setStageCounts] = useState({});
 
-  const fetchItems = useCallback(async (page = 1, status = activeFilter, search = searchQuery) => {
+  // Merge changes into the URL; drop default values to keep the URL clean.
+  const setParams = (patch) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(patch).forEach(([k, v]) => {
+        const isDefault = v == null || v === "" || (k === "status" && v === "all") || (k === "page" && Number(v) <= 1);
+        if (isDefault) next.delete(k);
+        else next.set(k, String(v));
+      });
+      return next;
+    });
+  };
+
+  const fetchItems = useCallback(async (p = 1, status = "all", search = "") => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.append("page", page);
+      params.append("page", p);
       if (status !== "all") params.append("status", status);
       if (search) params.append("search", search);
 
@@ -52,7 +71,7 @@ export default function Applications() {
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, searchQuery]);
+  }, []);
 
   const fetchCounts = async () => {
     try {
@@ -67,31 +86,29 @@ export default function Applications() {
     }
   };
 
+  // Fetch whenever the URL (page/filter/search) changes — also covers the
+  // initial load and a page refresh on any pagination page.
   useEffect(() => {
-    fetchItems(1, "all", "");
-    fetchCounts();
-  }, []);
+    fetchItems(page, activeFilter, urlSearch);
+  }, [page, activeFilter, urlSearch, fetchItems]);
 
-  const handleSearch = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-  };
+  useEffect(() => { fetchCounts(); }, []);
 
+  const handleSearch = (e) => setSearchQuery(e.target.value);
+
+  // Debounce typing into the URL (resets to page 1 on a new search).
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchItems(1, activeFilter, searchQuery);
-    }, 400);
+    if (searchQuery === urlSearch) return;
+    const timer = setTimeout(() => setParams({ search: searchQuery, page: 1 }), 400);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFilter = (status) => {
-    const newFilter = activeFilter === status ? "all" : status;
-    setActiveFilter(newFilter);
-    fetchItems(1, newFilter, searchQuery);
+    setParams({ status: activeFilter === status ? "all" : status, page: 1 });
   };
 
-  const handlePageChange = (page) => {
-    fetchItems(page, activeFilter, searchQuery);
+  const handlePageChange = (p) => {
+    setParams({ page: p });
   };
 
   const handleDelete = async (id) => {
@@ -101,7 +118,7 @@ export default function Applications() {
     });
     if (result.isConfirmed) {
       try { await del(`/recruitment/applications/${id}`); } catch { /* */ }
-      fetchItems(meta.current_page, activeFilter, searchQuery);
+      fetchItems(page, activeFilter, urlSearch);
       fetchCounts();
       Swal.fire("Deleted!", "Application has been deleted.", "success");
     }

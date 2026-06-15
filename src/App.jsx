@@ -83,6 +83,8 @@ const LessonPlanReview = lazy(() => import("./pages/education/LessonPlanReview")
 const LessonPlanInsights = lazy(() => import("./pages/education/LessonPlanInsights"));
 const LessonPlanTemplates = lazy(() => import("./pages/education/LessonPlanTemplates"));
 const LessonPlanShow = lazy(() => import("./pages/education/LessonPlanShow"));
+const LessonPlanBridge = lazy(() => import("./pages/education/LessonPlanBridge"));
+const LessonPlanCurriculum = lazy(() => import("./pages/education/LessonPlanCurriculum"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
@@ -390,6 +392,10 @@ function App() {
             <Route path="education/lesson-plans/show/:id" element={<Suspense fallback={<PageLoader />}><LessonPlanShow /></Suspense>} />
             <Route path="education/lesson-plans/review" element={<Suspense fallback={<PageLoader />}><LessonPlanReview /></Suspense>} />
             <Route path="education/lesson-plans/insights" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights /></Suspense>} />
+            <Route path="education/lesson-plans/bridge" element={<Suspense fallback={<PageLoader />}><LessonPlanBridge /></Suspense>} />
+            <Route path="education/lesson-plans/balance" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights initialTab="balance" /></Suspense>} />
+            <Route path="education/lesson-plans/coverage" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights initialTab="coverage" /></Suspense>} />
+            <Route path="education/lesson-plans/curriculum" element={<Suspense fallback={<PageLoader />}><LessonPlanCurriculum /></Suspense>} />
             <Route path="education/lesson-plans/templates" element={<Suspense fallback={<PageLoader />}><LessonPlanTemplates /></Suspense>} />
             <Route path="hr/planner" element={<Suspense fallback={<PageLoader />}><Planner /></Suspense>} />
             <Route path="hr/planner/create" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />

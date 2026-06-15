@@ -12,8 +12,8 @@ const balanceColor = (pct) => {
 const coverageColor = (missing) =>
   missing === 0 ? { bg: "#e6f3ec", fg: "#2E7D5B" } : missing <= 2 ? { bg: "#fbecd0", fg: "#9a6a12" } : { bg: "#f7e3e1", fg: "#C0473F" };
 
-export default function LessonPlanInsights() {
-  const [tab, setTab] = useState("balance");
+export default function LessonPlanInsights({ initialTab = "balance" }) {
+  const [tab, setTab] = useState(initialTab);
   const [forbidden, setForbidden] = useState(false);
 
   return (

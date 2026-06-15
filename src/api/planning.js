@@ -57,5 +57,9 @@ export const storeCheckIn    = (krId, data)  => post(`/planning/keyresults/${krI
 export const getReflection   = (id)          => get(`${BASE}/${id}/reflection`);
 export const saveReflection  = (id, data)    => put(`${BASE}/${id}/reflection`, data);
 
+// Per-plan sharing (admin grants whole-plan access to chosen users).
+export const getPlanAccess    = (id)             => get(`${BASE}/${id}/access`);
+export const updatePlanAccess = (id, userIds)    => put(`${BASE}/${id}/access`, { user_ids: userIds });
+
 // The approval inbox (submitted plans only).
 export const listAwaitingApproval = () => get(BASE, { params: { awaiting_approval: 1 } });

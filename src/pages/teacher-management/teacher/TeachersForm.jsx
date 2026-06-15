@@ -157,7 +157,7 @@ export default function TeachersForm() {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-800">Teacher Details</p>
-              <p className="text-xs text-teal-600">Only academic staff members can be added</p>
+              <p className="text-xs text-teal-600">Register any active staff member as a teacher</p>
             </div>
           </div>
 
@@ -172,15 +172,15 @@ export default function TeachersForm() {
                   options={availableStaff}
                   value={form.staff_id}
                   onChange={v => set('staff_id', v || '')}
-                  placeholder="Search academic staff..."
-                  getLabel={s => `${s.name}${s.role ? ' — ' + s.role : ''}`}
+                  placeholder="Search staff..."
+                  getLabel={s => `${s.name}${s.department ? ' — ' + s.department : ''}${s.role ? ' (' + s.role + ')' : ''}`}
                   getValue={s => s.id}
                   error={errors.staff_id}
                 />
                 {errors.staff_id && <p className="text-red-500 text-[10px] mt-1">{errors.staff_id[0]}</p>}
                 {availableStaff.length === 0 && (
                   <p className="text-xs text-amber-700 mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-                    No academic staff available. All academic staff are already registered as teachers, or you need to add staff with department = "academic" first.
+                    No staff available. All active staff are already registered as teachers, or you need to add staff members first.
                   </p>
                 )}
 
@@ -189,7 +189,7 @@ export default function TeachersForm() {
                     <p className="text-[10px] font-semibold text-teal-700 uppercase mb-1">Selected Staff</p>
                     <p className="text-sm font-bold text-gray-800">{selectedStaff.name}</p>
                     {selectedStaff.email && <p className="text-xs text-gray-500">{selectedStaff.email}</p>}
-                    {selectedStaff.role && <p className="text-xs text-teal-700 mt-1">{selectedStaff.role}</p>}
+                    {selectedStaff.department && <p className="text-xs text-teal-700 mt-1">{selectedStaff.department}{selectedStaff.role ? ' · ' + selectedStaff.role : ''}</p>}
                   </div>
                 )}
               </div>

@@ -29,6 +29,7 @@ export default function LessonPlanForm() {
   const isEdit = Boolean(id);
 
   const [slots, setSlots] = useState([]);
+  const [isTeacher, setIsTeacher] = useState(true);
   const [form, setForm] = useState(blankForm());
   const [status, setStatus] = useState("draft");
   const [loading, setLoading] = useState(true);
@@ -39,6 +40,7 @@ export default function LessonPlanForm() {
       try {
         const fd = await get("/lesson-plans/form-data");
         setSlots(fd.data?.slots || []);
+        setIsTeacher(fd.data?.is_teacher !== false);
         if (isEdit) {
           const r = await get(`/lesson-plans/${id}`);
           const d = r.data?.data;
@@ -82,6 +84,24 @@ export default function LessonPlanForm() {
   const daySlots = useMemo(() => slots.filter((s) => s.day_of_week === dayKey), [slots, dayKey]);
   const slot = slots.find((s) => String(s.schedule_entry_id) === String(form.schedule_entry_id));
 
+  // The distinct weekdays this teacher actually teaches (for quick-jump chips).
+  const ORDER = ["saturday", "sunday", "monday", "tuesday", "wednesday", "thursday"];
+  const teachingDays = useMemo(
+    () => ORDER.filter((d) => slots.some((s) => s.day_of_week === d)),
+    [slots],
+  );
+
+  // Set the date to the next upcoming occurrence of a given weekday.
+  const jumpToDay = (day) => {
+    const target = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].indexOf(day);
+    const d = new Date();
+    for (let i = 0; i < 14; i++) {
+      if (d.getDay() === target) break;
+      d.setDate(d.getDate() + 1);
+    }
+    set({ lesson_date: d.toISOString().split("T")[0], schedule_entry_id: "" });
+  };
+
   const filledCount = DIMENSIONS.filter((d) => form[`${d.key}_goal`]?.trim() && form[`${d.key}_activity`]?.trim()).length;
 
   const canSave = form.schedule_entry_id && form.lesson_date && form.title.trim();
@@ -115,6 +135,27 @@ export default function LessonPlanForm() {
   };
 
   if (loading) return <div style={{ background: PAPER, minHeight: "100vh" }}><Spinner /></div>;
+
+  // Creating a plan needs a teaching timetable. Leadership editing an existing
+  // plan is still allowed (isEdit), so this only blocks brand-new plans.
+  if (!isEdit && !isTeacher) {
+    return (
+      <div style={{ background: PAPER, minHeight: "100vh" }}>
+        <Hero title="New 4D Lesson Plan"
+          right={<button onClick={() => navigate("/education/lesson-plans")} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "rgba(255,255,255,.18)" }}>← Back</button>} />
+        <div className="max-w-2xl mx-auto px-4 py-10">
+          <div className="rounded-2xl border bg-white p-8 text-center" style={{ borderColor: "#dbe8e8" }}>
+            <p className="text-sm font-black text-gray-800">No teaching timetable for your account</p>
+            <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+              Lesson plans are written by the teacher assigned to a class period, so the slot options come from <b>your timetable</b>.
+              Your account isn’t mapped to a teacher with scheduled periods. Sign in as a teacher (e.g. <b>teacher1@wifaq.test</b>),
+              or ask the Class Manager to add you to the schedule under <b>Class Management → Schedule</b>.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-28">
@@ -150,6 +191,25 @@ export default function LessonPlanForm() {
             <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
               <Tag>{slot.class_name}</Tag><Tag>{slot.subject_name}</Tag>
               <Tag>{DAY_LABEL[slot.day_of_week]} · Period {slot.period_number}</Tag>
+            </div>
+          )}
+
+          {/* Guidance: teacher has no timetable at all, or none on the chosen day. */}
+          {slots.length === 0 ? (
+            <p className="mt-2 text-[11px] rounded-lg px-3 py-2" style={{ background: "#fbf0db", color: "#9a6a12" }}>
+              You have no scheduled periods yet. Ask the Class Manager to add you to the timetable (Class Management → Schedule).
+            </p>
+          ) : daySlots.length === 0 && (
+            <div className="mt-2">
+              <p className="text-[11px] text-gray-500 mb-1.5">No periods on the selected day. You teach on — tap to jump to the next one:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {teachingDays.map((d) => (
+                  <button key={d} type="button" onClick={() => jumpToDay(d)}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold border" style={{ borderColor: "#dbe8e8", color: TEAL }}>
+                    {DAY_LABEL[d]}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <Field label="Title / topic *" className="mt-3">

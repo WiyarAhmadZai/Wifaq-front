@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get, del, put, API_BASE_URL } from '../../api/axios';
+import { listDepartments } from '../../api/departments';
 import Swal from 'sweetalert2';
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
-const DEPARTMENTS = ["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations", "Science", "Languages"];
 
 export default function Staff() {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export default function Staff() {
   const [branchFilter, setBranchFilter] = useState('');
   const [contractFilter, setContractFilter] = useState('');
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [positionTitles, setPositionTitles] = useState({});
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -26,7 +27,7 @@ export default function Staff() {
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
 
-  useEffect(() => { fetchBranches(); fetchPositionTitles(); }, []);
+  useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); }, []);
   useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
 
   const fetchBranches = async () => {
@@ -34,6 +35,13 @@ export default function Staff() {
       const res = await get('/branches/list');
       setBranches(res.data?.data || res.data || []);
     } catch { setBranches([]); }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await listDepartments({ active_only: 1 });
+      setDepartments(res.data?.data || res.data || []);
+    } catch { setDepartments([]); }
   };
 
   const fetchPositionTitles = async () => {
@@ -97,7 +105,8 @@ export default function Staff() {
     setSelectedStaff({ ...staff, display_name: name });
     setTransferData({
       branch_id: staff.branch_id || '',
-      department: staff.department || '',
+      department: staff.department_relation?.name || staff.department || '',
+      department_id: staff.department_id || '',
       role_title_en: staff.role_title_en || '',
       contract_type: staff.contract_type || '',
       notes: '',
@@ -194,7 +203,7 @@ export default function Staff() {
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
               <option value="">All Departments</option>
-              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
             </select>
             <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
@@ -241,7 +250,7 @@ export default function Staff() {
                     const code = item.employee_id || '';
                     const role = positionTitles[item.role_title_en] || item.role_title_en || '';
                     const branchName = item.branch?.name || '—';
-                    const dept = item.department || '';
+                    const dept = item.department_relation?.name || item.department || '';
                     const contract = item.contract_type || '';
                     const status = item.status || '';
                     const phone = item.application?.contact_number || '';
@@ -394,10 +403,14 @@ export default function Staff() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
-                <select value={transferData.department} onChange={e => setTransferData(p => ({ ...p, department: e.target.value }))}
+                <select value={transferData.department} onChange={e => {
+                    const name = e.target.value;
+                    const match = departments.find(d => d.name === name);
+                    setTransferData(p => ({ ...p, department: name, department_id: match?.id || '' }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                   <option value="">Select Department</option>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                 </select>
               </div>
               <div>

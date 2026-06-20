@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
 import { useAuth } from "../../admin/context/AuthContext";
+import BudgetWarningModal from "../../components/finance/BudgetWarningModal";
 export default function JournalEntryShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -12,8 +13,13 @@ export default function JournalEntryShow() {
   // Posting a JE enforces budget rules and flips it to "posted" — it's the
   // privileged action on this page. Bind to journal-entries.manage.
   const canPost = hasPermission("journal-entries.manage");
+  const canOverrideBudget = hasPermission("budgets.override");
   const [loading, setLoading] = useState(false);
   const [je, setJe] = useState(null);
+  // When the backend returns 409 + budget_breach we stash it here so the
+  // modal can render. Confirming the modal re-runs the same post with a reason.
+  const [breach, setBreach] = useState(null);
+  const [overriding, setOverriding] = useState(false);
 
   const fetchOne = async () => {
     setLoading(true);
@@ -31,24 +37,45 @@ export default function JournalEntryShow() {
     fetchOne();
   }, [id]);
 
+  // Post the JE, optionally with a budget override reason. Used both by the
+  // initial "Post" click (no reason) and by the modal's Confirm (with reason).
+  const submitPost = async (overrideReason) => {
+    try {
+      await postJournalEntry(id, overrideReason ? { budget_override_reason: overrideReason } : {});
+      setBreach(null);
+      Swal.fire({
+        toast: true, position: "top-end", icon: "success",
+        title: overrideReason ? "Posted with override" : "Posted",
+        timer: 1600, showConfirmButton: false,
+      });
+      await fetchOne();
+    } catch (err) {
+      // Soft-warn-and-override: 409 with budget_breach → pop the modal.
+      if (err.response?.status === 409 && err.response.data?.budget_breach) {
+        setBreach(err.response.data.budget_breach);
+        return;
+      }
+      Swal.fire("Error", err.response?.data?.message || "Failed to post", "error");
+    } finally {
+      setOverriding(false);
+    }
+  };
+
   const handlePost = async () => {
     const r = await Swal.fire({
       title: "Post journal entry?",
-      text: "This will enforce budget rules and mark entry as posted.",
+      text: "This locks the entry and recognises the spend against budgets.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Post",
     });
-
     if (!r.isConfirmed) return;
+    await submitPost(null);
+  };
 
-    try {
-      await postJournalEntry(id);
-      Swal.fire("Posted!", "Journal entry posted successfully.", "success");
-      await fetchOne();
-    } catch (err) {
-      Swal.fire("Error", err.response?.data?.message || "Failed to post", "error");
-    }
+  const handleOverride = async (reason) => {
+    setOverriding(true);
+    await submitPost(reason);
   };
 
   if (loading && !je) {
@@ -138,6 +165,15 @@ export default function JournalEntryShow() {
           </table>
         </div>
       </div>
+
+      <BudgetWarningModal
+        breach={breach}
+        title="Posting would exceed a budget"
+        canOverride={canOverrideBudget}
+        busy={overriding}
+        onClose={() => setBreach(null)}
+        onConfirm={handleOverride}
+      />
     </div>
   );
 }

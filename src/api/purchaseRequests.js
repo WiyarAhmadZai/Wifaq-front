@@ -43,6 +43,9 @@ export const completePurchaseRequest = (id, {
   executedByPartyId = null,
   vendorInvoiceNumber = null,
   actualItems = null,
+  // Set this on the SECOND attempt after a 409 budget_breach so the backend
+  // accepts the post and stamps the reason onto the resulting JE for audit.
+  budgetOverrideReason = null,
 } = {}) =>
   post(`${BASE}/${id}/complete`, {
     paid_from_party_id: paidFromPartyId,
@@ -53,6 +56,7 @@ export const completePurchaseRequest = (id, {
     executed_by_party_id: executedByPartyId,
     vendor_invoice_number: vendorInvoiceNumber,
     actual_items: actualItems,
+    budget_override_reason: budgetOverrideReason,
   });
 export const cancelPurchaseRequest   = (id, reason)       => post(`${BASE}/${id}/cancel`, { reason: reason ?? null });
 

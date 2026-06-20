@@ -38,7 +38,10 @@ export const recordPartyReimbursement = (id, data) => post(`${BASE}/parties/${id
 export const getJournalEntries = (params = {}) => get(`${BASE}/journal-entries`, { params });
 export const getJournalEntry = (id) => get(`${BASE}/journal-entries/${id}`);
 export const createJournalEntry = (data) => post(`${BASE}/journal-entries`, data);
-export const postJournalEntry = (id) => post(`${BASE}/journal-entries/${id}/post`);
+// Body may carry `budget_override_reason` if the previous attempt returned
+// a 409 budget_breach (soft-warn-and-override model — see BudgetGuard).
+export const postJournalEntry = (id, body = {}) =>
+  post(`${BASE}/journal-entries/${id}/post`, body);
 export const getTrialBalance = (params = {}) => get(`${BASE}/trial-balance`, { params });
 
 // Invoices (Supplier)

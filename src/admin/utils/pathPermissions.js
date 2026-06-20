@@ -110,6 +110,11 @@ const RULES = [
   { prefix: "/finance/budgets", permission: "budgets.view" },
   { prefix: "/finance/inbox", permission: "finance-inbox.view" },
   { prefix: "/finance/cashier", permission: "fee-payments.view" },
+  // Board-pack reports — Balance Sheet, Monthly P&L + PDF download
+  { prefix: "/finance/balance-sheet", permission: "finance-reports.view" },
+  { prefix: "/finance/monthly-report", permission: "finance-reports.view" },
+  // Plain-English wizard for asset + liability bookkeeping
+  { prefix: "/finance/quick-entry", permission: "journal-entries.create" },
   { prefix: "/finance/reports", permission: "finance.view" },
   { prefix: "/finance/dashboard", permission: "finance.view" },
   { prefix: "/finance", permission: "finance.view" },

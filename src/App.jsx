@@ -198,6 +198,9 @@ const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolSh
 const FeePayments = lazy(() => import("./pages/finance/FeePayments"));
 const FeePaymentForm = lazy(() => import("./pages/finance/FeePaymentForm"));
 const FinanceDashboard = lazy(() => import("./pages/finance/FinanceDashboard"));
+const BalanceSheet = lazy(() => import("./pages/finance/BalanceSheet"));
+const MonthlyReport = lazy(() => import("./pages/finance/MonthlyReport"));
+const QuickEntry = lazy(() => import("./pages/finance/QuickEntry"));
 const FinanceAccounts = lazy(() => import("./pages/finance/Accounts"));
 const AccountForm = lazy(() => import("./pages/finance/AccountForm"));
 const ChartOfAccounts = lazy(() => import("./pages/finance/ChartOfAccounts"));
@@ -469,6 +472,9 @@ function App() {
             {/* Finance */}
             <Route path="finance" element={<Suspense fallback={<PageLoader />}><FinanceDashboard /></Suspense>} />
             <Route path="finance/dashboard" element={<Suspense fallback={<PageLoader />}><FinanceDashboard /></Suspense>} />
+            <Route path="finance/balance-sheet" element={<Suspense fallback={<PageLoader />}><BalanceSheet /></Suspense>} />
+            <Route path="finance/monthly-report" element={<Suspense fallback={<PageLoader />}><MonthlyReport /></Suspense>} />
+            <Route path="finance/quick-entry" element={<Suspense fallback={<PageLoader />}><QuickEntry /></Suspense>} />
             <Route path="finance/accounts" element={<Suspense fallback={<PageLoader />}><FinanceAccounts /></Suspense>} />
             <Route path="finance/accounts/create" element={<Suspense fallback={<PageLoader />}><AccountForm /></Suspense>} />
             <Route path="finance/accounts/edit/:id" element={<Suspense fallback={<PageLoader />}><AccountForm /></Suspense>} />

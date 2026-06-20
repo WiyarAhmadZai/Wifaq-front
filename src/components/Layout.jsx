@@ -1138,10 +1138,19 @@ export default function Layout() {
       { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
     ]},
     { label: "Reports", key: "finance-reports", children: [
+      // Board-pack — Assets / Liabilities / Equity snapshot + the monthly PDF
+      // the finance manager owes the owner each month.
+      { label: "Balance Sheet", path: "/finance/balance-sheet", permission: "finance-reports.view" },
+      { label: "Monthly Report", path: "/finance/monthly-report", permission: "finance-reports.view" },
       { label: "Class Collection", path: "/finance/reports/class-collection", permission: "fee-invoices.view" },
       { label: "Leadership Report", path: "/finance/reports/leadership", permission: "finance.view" },
     ]},
     { label: "Bookkeeping", key: "finance-bookkeeping", children: [
+      // Plain-English wizard for non-accountants to record assets / loans /
+      // owner contributions without thinking about debit vs credit.
+      // Named "Asset & Loan Book" so the menu label tells the user exactly
+      // what scope it covers (vs the routine income/expense flows under Daily).
+      { label: "Asset & Loan Book", path: "/finance/quick-entry", permission: "journal-entries.create" },
       { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
       // { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
       // { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },

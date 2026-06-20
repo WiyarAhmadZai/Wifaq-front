@@ -87,6 +87,7 @@ const LessonPlanBridge = lazy(() => import("./pages/education/LessonPlanBridge")
 const LessonPlanCurriculum = lazy(() => import("./pages/education/LessonPlanCurriculum"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
+const Drive = lazy(() => import("./pages/drive/Drive"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
 const Meetings = lazy(() => import("./pages/hr/Meetings"));
 const MeetingForm = lazy(() => import("./pages/hr/MeetingForm"));
@@ -317,6 +318,9 @@ function App() {
             <Route path="branches/create" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/edit/:id" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/show/:id" element={<Suspense fallback={<PageLoader />}><BranchShow /></Suspense>} />
+
+            {/* Drive — private per-user file manager */}
+            <Route path="drive" element={<Suspense fallback={<PageLoader />}><Drive /></Suspense>} />
 
             {/* Planning — Annual / Monthly / Weekly plans */}
             <Route path="planning" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />

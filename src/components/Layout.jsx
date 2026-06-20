@@ -1067,6 +1067,10 @@ export default function Layout() {
     { label: "Vehicles", path: "/transportation/vehicles", permission: "vehicles.view" },
   ];
 
+  const driveMenus = [
+    { label: "My Files", path: "/drive", permission: "drive.view" },
+  ];
+
   const recruitmentMenus = [
     { label: "Position Titles", path: "/recruitment/position-titles", permission: "position-titles.view" },
     { label: "Job Applications", path: "/recruitment/job-requisitions", permission: "job-requisitions.view" },
@@ -1345,6 +1349,25 @@ export default function Layout() {
             onClick={() => toggleMenu("planning")}
           >
             {visible(planningMenus).map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+          )}
+
+          {canSeeGroup(driveMenus) && (
+          <ParentMenu
+            icon={Icons.Departments}
+            label="Drive"
+            isOpen={openMenu.includes("drive")}
+            onClick={() => toggleMenu("drive")}
+          >
+            {visible(driveMenus).map((item) => (
               <SubMenuItem
                 key={item.path}
                 label={item.label}

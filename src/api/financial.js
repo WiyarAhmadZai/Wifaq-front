@@ -38,8 +38,43 @@ export const recordPartyReimbursement = (id, data) => post(`${BASE}/parties/${id
 export const getJournalEntries = (params = {}) => get(`${BASE}/journal-entries`, { params });
 export const getJournalEntry = (id) => get(`${BASE}/journal-entries/${id}`);
 export const createJournalEntry = (data) => post(`${BASE}/journal-entries`, data);
-export const postJournalEntry = (id) => post(`${BASE}/journal-entries/${id}/post`);
+// Body may carry `budget_override_reason` if the previous attempt returned
+// a 409 budget_breach (soft-warn-and-override model — see BudgetGuard).
+export const postJournalEntry = (id, body = {}) =>
+  post(`${BASE}/journal-entries/${id}/post`, body);
 export const getTrialBalance = (params = {}) => get(`${BASE}/trial-balance`, { params });
+
+// ── Finance reports ───────────────────────────────────────────────────
+// Backend-derived board-pack reports. Everything is computed from POSTED
+// journal entries only — drafts are excluded. The monthly endpoint also
+// has a /pdf companion that streams a print-ready board pack.
+export const getBalanceSheet = (asOf) =>
+  get(`${BASE}/reports/balance-sheet`, { params: asOf ? { as_of: asOf } : {} });
+export const getProfitLoss = (from, to) =>
+  get(`${BASE}/reports/profit-loss`, { params: { from, to } });
+export const getMonthlyReport = (year, month) =>
+  get(`${BASE}/reports/monthly`, { params: { year, month } });
+/**
+ * Download the monthly PDF as a Blob via axios (so the Sanctum auth header
+ * goes along) and trigger a browser save. Caller invokes:
+ *   await downloadMonthlyReportPdf(2026, 6);
+ */
+export const downloadMonthlyReportPdf = async (year, month) => {
+  const res = await get(`${BASE}/reports/monthly/pdf`, {
+    params: { year, month },
+    responseType: "blob",
+  });
+  const blob = new Blob([res.data], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `monthly-finance-report-${year}-${String(month).padStart(2, "0")}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoke after a tick to let the click handler finish in Safari.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 
 // Invoices (Supplier)
 export const getInvoices = (params = {}) => get(`${BASE}/invoices`, { params });

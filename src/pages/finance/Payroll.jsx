@@ -7,6 +7,7 @@ import {
 import { getAccounts } from "../../api/financial";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
+import BudgetWarningModal from "../../components/finance/BudgetWarningModal";
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -49,6 +50,13 @@ export default function Payroll() {
   const [paying, setPaying] = useState(false);
   const [receipt, setReceipt] = useState(null);
 
+  // Soft-warn-and-override (Option B). When the commit endpoint returns a
+  // 409 budget_breach we stash it here so the modal can render; confirming
+  // the modal re-issues the same commit with `budget_override_reason`.
+  const [budgetBreach, setBudgetBreach] = useState(null);
+  const [overridingBudget, setOverridingBudget] = useState(false);
+  const canOverrideBudget = hasPermission("budgets.override");
+
   useEffect(() => {
     fetchRuns();
     // Salaries are only ever paid from the Payroll Bank (chart 1112). The
@@ -90,6 +98,38 @@ export default function Payroll() {
   const toggleSkip = (staffId) =>
     setEdits((p) => ({ ...p, [staffId]: { ...p[staffId], skip: !p[staffId]?.skip } }));
 
+  // Submit the commit, optionally with a budget override reason. Used both
+  // by the initial Commit click (no reason) and by the modal's Confirm
+  // (with reason). On 409 + budget_breach we open the modal instead of
+  // showing a generic error.
+  const submitCommit = async (overrideReason) => {
+    try {
+      const per_staff = {};
+      Object.entries(edits).forEach(([sid, e]) => {
+        per_staff[sid] = { skip: !!e.skip, manual_deductions: (e.manual || []).filter((m) => m.amount > 0) };
+      });
+      const payload = {
+        period_year: year, period_month: month, per_staff,
+        ...(overrideReason ? { budget_override_reason: overrideReason } : {}),
+      };
+      const r = await commitPayroll(payload);
+      setBudgetBreach(null);
+      Swal.fire("Committed", r.data?.message || "Payroll committed.", "success");
+      setPreview(null);
+      await fetchRuns();
+      openRun(r.data?.data?.id);
+    } catch (e) {
+      if (e.response?.status === 409 && e.response.data?.budget_breach) {
+        setBudgetBreach(e.response.data.budget_breach);
+        return;
+      }
+      Swal.fire("Failed", e.response?.data?.message || "Commit failed.", "error");
+    } finally {
+      setCommitting(false);
+      setOverridingBudget(false);
+    }
+  };
+
   const commit = async () => {
     const ready = preview.rows.filter((r) => r.status === "ready" && !edits[r.staff_id]?.skip).length;
     const c = await Swal.fire({
@@ -99,21 +139,12 @@ export default function Payroll() {
     });
     if (!c.isConfirmed) return;
     setCommitting(true);
-    try {
-      const per_staff = {};
-      Object.entries(edits).forEach(([sid, e]) => {
-        per_staff[sid] = { skip: !!e.skip, manual_deductions: (e.manual || []).filter((m) => m.amount > 0) };
-      });
-      const r = await commitPayroll({ period_year: year, period_month: month, per_staff });
-      Swal.fire("Committed", r.data?.message || "Payroll committed.", "success");
-      setPreview(null);
-      await fetchRuns();
-      openRun(r.data?.data?.id);
-    } catch (e) {
-      Swal.fire("Failed", e.response?.data?.message || "Commit failed.", "error");
-    } finally {
-      setCommitting(false);
-    }
+    await submitCommit(null);
+  };
+
+  const handleBudgetOverride = async (reason) => {
+    setOverridingBudget(true);
+    await submitCommit(reason);
   };
 
   const openRun = async (id) => {
@@ -435,6 +466,15 @@ export default function Payroll() {
           </tbody>
         </table>
       </div>
+
+      <BudgetWarningModal
+        breach={budgetBreach}
+        title="Salaries budget would be exceeded"
+        canOverride={canOverrideBudget}
+        busy={overridingBudget}
+        onClose={() => setBudgetBreach(null)}
+        onConfirm={handleBudgetOverride}
+      />
     </div>
   );
 }

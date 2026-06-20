@@ -78,11 +78,18 @@ export default function Stock() {
   }, [items, filter, search]);
 
   const stats = useMemo(() => {
-    const s = { total: items.length, low: 0, out: 0, value: 0 };
+    const s = { total: items.length, low: 0, out: 0, value: 0, byBucket: {} };
     items.forEach((i) => {
       if (i.stock_state === "low") s.low++;
       if (i.stock_state === "out") s.out++;
-      s.value += (Number(i.quantity) || 0) * (Number(i.unit_price) || 0);
+      const v = (Number(i.quantity) || 0) * (Number(i.unit_price) || 0);
+      s.value += v;
+      // Roll up value by inventory bucket so the user sees the same totals
+      // that will appear under Assets → Inventory on the Balance Sheet.
+      const key = i.chart_account?.code
+        ? `${i.chart_account.code} ${i.chart_account.name}`
+        : "Uncategorised";
+      s.byBucket[key] = (s.byBucket[key] || 0) + v;
     });
     return s;
   }, [items]);
@@ -92,7 +99,10 @@ export default function Stock() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h2 className="text-base font-bold text-gray-800">Stock / Inventory</h2>
-          <p className="text-xs text-gray-500">On-hand quantities. Goods in from purchases, out as they're issued — every change is logged.</p>
+          <p className="text-xs text-gray-500">
+            Inventory is a <strong className="text-indigo-700">current asset</strong> — every item the school
+            holds counts under Assets on the Balance Sheet. Items in, items out, every change logged.
+          </p>
         </div>
         <button onClick={() => navigate("/purchase/stock/create")}
           className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
@@ -104,12 +114,56 @@ export default function Stock() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <SummaryCard label="Items" value={stats.total} accent="from-teal-600 to-teal-700" />
         <SummaryCard label="Low stock" value={stats.low} accent={stats.low ? "from-amber-500 to-amber-600" : "from-gray-500 to-gray-600"} />
         <SummaryCard label="Out of stock" value={stats.out} accent={stats.out ? "from-red-500 to-red-600" : "from-gray-500 to-gray-600"} />
-        <SummaryCard label="Stock value (AFN)" value={fmt(stats.value)} accent="from-gray-700 to-gray-800" />
+        <SummaryCard label="Asset value (AFN)" value={fmt(stats.value)} accent="from-indigo-600 to-purple-700" />
       </div>
+
+      {/* Inventory-by-bucket breakdown — makes the Balance Sheet roll-up
+          visible at a glance. Each row is a chart code under Assets. */}
+      {Object.keys(stats.byBucket).length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-3 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500">
+              Inventory rolls up to these Asset lines on the Balance Sheet
+            </p>
+            <p className="text-[10px] text-gray-400">{Object.keys(stats.byBucket).length} bucket(s)</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {Object.entries(stats.byBucket)
+              .sort((a, b) => b[1] - a[1])
+              .map(([label, value]) => {
+                const isUncat = label === "Uncategorised";
+                return (
+                  <div
+                    key={label}
+                    className={`px-3 py-2 rounded-lg border ${
+                      isUncat
+                        ? "bg-amber-50/50 border-amber-200"
+                        : "bg-indigo-50/50 border-indigo-100"
+                    }`}
+                  >
+                    <p className={`text-[10px] font-bold uppercase tracking-wider truncate ${
+                      isUncat ? "text-amber-700" : "text-indigo-700"
+                    }`}>
+                      {label}
+                    </p>
+                    <p className="text-sm font-black font-mono text-gray-800 mt-0.5">
+                      {fmt(value)} <span className="text-[10px] font-normal text-gray-500">AFN</span>
+                    </p>
+                    {isUncat && (
+                      <p className="text-[10px] text-amber-700 mt-0.5">
+                        Edit these to assign a bucket
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -132,28 +186,46 @@ export default function Stock() {
           <thead className="bg-gray-50 text-gray-500 uppercase text-[9px]">
             <tr>
               <th className="text-left px-3 py-2">Item</th>
-              <th className="text-left px-3 py-2">Category</th>
+              <th className="text-left px-3 py-2">Asset bucket</th>
               <th className="text-right px-3 py-2">On hand</th>
               <th className="text-right px-3 py-2">Min</th>
               <th className="text-right px-3 py-2">Unit price</th>
+              <th className="text-right px-3 py-2">Value</th>
               <th className="text-center px-3 py-2">State</th>
               <th className="text-center px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-8 text-xs text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400">Loading…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-8 text-xs text-gray-400 italic">No stock items.</td></tr>
+              <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400 italic">No stock items.</td></tr>
             ) : filtered.map((s) => {
               const st = STATE[s.stock_state] || STATE.ok;
+              const itemValue = (Number(s.quantity) || 0) * (Number(s.unit_price) || 0);
               return (
                 <tr key={s.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-800">{s.item_name}</td>
-                  <td className="px-3 py-2 text-gray-500">{s.category}</td>
+                  <td className="px-3 py-2">
+                    {/* Chart code + name — what this rolls up to on the Balance Sheet.
+                        Falls back to the free-text category for legacy rows. */}
+                    {s.chart_account ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {s.chart_account.code}
+                        </span>
+                        <span className="text-[11px] text-gray-700">{s.chart_account.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-amber-700 italic">
+                        {s.category || "Uncategorised"}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono font-semibold text-gray-800">{fmt(s.quantity)} <span className="text-[10px] font-normal text-gray-400">{s.unit}</span></td>
                   <td className="px-3 py-2 text-right text-gray-400 font-mono">{s.min_stock_level || "—"}</td>
                   <td className="px-3 py-2 text-right text-gray-600 font-mono">{s.unit_price ? fmt(s.unit_price) : "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono font-semibold text-indigo-700">{itemValue > 0 ? fmt(itemValue) : "—"}</td>
                   <td className="px-3 py-2 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${st.cls}`}>{st.label}</span>
                   </td>

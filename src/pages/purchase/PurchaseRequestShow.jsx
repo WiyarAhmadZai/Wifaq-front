@@ -22,6 +22,7 @@ import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
 import { useAuth } from "../../admin/context/AuthContext";
+import BudgetWarningModal from "../../components/finance/BudgetWarningModal";
 const STATUS = {
   draft:       { label: "Draft",       cls: "bg-gray-100 text-gray-700 border-gray-300" },
   pending:     { label: "Pending",     cls: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -57,6 +58,14 @@ export default function PurchaseRequestShow() {
   const [accounts, setAccounts] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [staffParties, setStaffParties] = useState([]);
+
+  // Soft-warn-and-override budget gate (Option B). When `complete` returns
+  // 409 + budget_breach we cache the breach + the original payload so the
+  // modal can re-issue the same request with `budgetOverrideReason`.
+  const [budgetBreach, setBudgetBreach] = useState(null);
+  const [budgetRetryPayload, setBudgetRetryPayload] = useState(null);
+  const [overridingBudget, setOverridingBudget] = useState(false);
+  const canOverrideBudget = hasPermission("budgets.override");
 
   useEffect(() => { fetchPR(); /* eslint-disable-next-line */ }, [id]);
 
@@ -127,6 +136,40 @@ export default function PurchaseRequestShow() {
     } finally {
       setBusy(false);
     }
+  };
+
+  // Complete with optional budget override. Used by both the first attempt
+  // from the modal (overrideReason = null) and the BudgetWarningModal retry.
+  const submitComplete = async (payload, overrideReason) => {
+    setBusy(true);
+    try {
+      await completePurchaseRequest(id, { ...payload, budgetOverrideReason: overrideReason });
+      setBudgetBreach(null);
+      setBudgetRetryPayload(null);
+      await fetchPR();
+      Swal.fire({
+        toast: true, position: "top-end", icon: "success",
+        title: overrideReason ? "Completed with override" : "Complete done",
+        timer: 1500, showConfirmButton: false,
+      });
+    } catch (err) {
+      if (err.response?.status === 409 && err.response.data?.budget_breach) {
+        // Pop the soft-warn modal; cache the payload so a retry uses identical args.
+        setBudgetRetryPayload(payload);
+        setBudgetBreach(err.response.data.budget_breach);
+        return;
+      }
+      Swal.fire("Failed", err.response?.data?.message || "Complete failed.", "error");
+    } finally {
+      setBusy(false);
+      setOverridingBudget(false);
+    }
+  };
+
+  const handleBudgetOverride = async (reason) => {
+    if (!budgetRetryPayload) return;
+    setOverridingBudget(true);
+    await submitComplete(budgetRetryPayload, reason);
   };
 
   const onSubmit  = () => runAction("Submit",   () => submitPurchaseRequest(id),  { confirm: true, confirmText: "Send for approval — you can no longer edit after this." });
@@ -491,20 +534,21 @@ export default function PurchaseRequestShow() {
           staffParties={staffParties}
           busy={busy}
           onClose={() => setCompleteOpen(false)}
-          onConfirm={async ({ paidFromPartyId, paidFromAccountId, completedAt, actualAmount, executedByPartyId, vendorInvoiceNumber, actualItems }) => {
+          onConfirm={async (payload) => {
             setCompleteOpen(false);
-            await runAction("Complete", () => completePurchaseRequest(id, {
-              paidFromPartyId,
-              paidFromAccountId,
-              completedAt,
-              actualAmount,
-              executedByPartyId,
-              vendorInvoiceNumber,
-              actualItems,
-            }));
+            await submitComplete(payload, null);
           }}
         />
       )}
+
+      <BudgetWarningModal
+        breach={budgetBreach}
+        title="Completing would exceed a budget"
+        canOverride={canOverrideBudget}
+        busy={overridingBudget}
+        onClose={() => { setBudgetBreach(null); setBudgetRetryPayload(null); }}
+        onConfirm={handleBudgetOverride}
+      />
     </div>
   );
 }

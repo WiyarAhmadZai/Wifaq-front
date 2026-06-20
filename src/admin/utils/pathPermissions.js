@@ -41,6 +41,11 @@ const RULES = [
   { prefix: "/education/elicitation", permission: "student-elicitation.view" },
   { prefix: "/education/synthesis", permission: "student-synthesis.view" },
   { prefix: "/education/annual-review", permission: "annual-review.view" },
+  // Lesson planning — one umbrella: list/review/analytics/templates need
+  // lesson-plans.view (reviewers/analysts also hold it); /create → .create,
+  // /edit → .update via action-swap. Backend additionally enforces
+  // lesson-plans.review / .analyze on those endpoints.
+  { prefix: "/education/lesson-plans", permission: "lesson-plans.view" },
   { prefix: "/education", permission: "student-observations.view" },
 
   // HR

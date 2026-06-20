@@ -72,9 +72,19 @@ const DailyWorks = lazy(() => import("./pages/hr/DailyWorks"));
 const EduDashboard = lazy(() => import("./pages/education/EduDashboard"));
 const DailyObservation = lazy(() => import("./pages/education/DailyObservation"));
 const Monitoring = lazy(() => import("./pages/education/Monitoring"));
+const MonitoringRecords = lazy(() => import("./pages/education/MonitoringRecords"));
 const Elicitation = lazy(() => import("./pages/education/Elicitation"));
 const Synthesis = lazy(() => import("./pages/education/Synthesis"));
 const AnnualReview = lazy(() => import("./pages/education/AnnualReview"));
+const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
+const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
+const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
+const LessonPlanReview = lazy(() => import("./pages/education/LessonPlanReview"));
+const LessonPlanInsights = lazy(() => import("./pages/education/LessonPlanInsights"));
+const LessonPlanTemplates = lazy(() => import("./pages/education/LessonPlanTemplates"));
+const LessonPlanShow = lazy(() => import("./pages/education/LessonPlanShow"));
+const LessonPlanBridge = lazy(() => import("./pages/education/LessonPlanBridge"));
+const LessonPlanCurriculum = lazy(() => import("./pages/education/LessonPlanCurriculum"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
@@ -148,6 +158,7 @@ const EnrolledStudents = lazy(() => import("./pages/studentMangement/EnrolledStu
 const FoundationRequests = lazy(() => import("./pages/studentMangement/FoundationRequests"));
 const FoundationRequestShow = lazy(() => import("./pages/studentMangement/FoundationRequestShow"));
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
+const StudentShow = lazy(() => import("./pages/studentMangement/StudentShow"));
 const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEnrollments"));
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
 
@@ -396,9 +407,22 @@ function App() {
             <Route path="education/dashboard" element={<Suspense fallback={<PageLoader />}><EduDashboard /></Suspense>} />
             <Route path="education/observations" element={<Suspense fallback={<PageLoader />}><DailyObservation /></Suspense>} />
             <Route path="education/monitoring" element={<Suspense fallback={<PageLoader />}><Monitoring /></Suspense>} />
+            <Route path="education/monitoring/:monitoringId/records" element={<Suspense fallback={<PageLoader />}><MonitoringRecords /></Suspense>} />
             <Route path="education/elicitation" element={<Suspense fallback={<PageLoader />}><Elicitation /></Suspense>} />
             <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
             <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />
+            <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
+            <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
+            <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />
+            <Route path="education/lesson-plans/edit/:id" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />
+            <Route path="education/lesson-plans/show/:id" element={<Suspense fallback={<PageLoader />}><LessonPlanShow /></Suspense>} />
+            <Route path="education/lesson-plans/review" element={<Suspense fallback={<PageLoader />}><LessonPlanReview /></Suspense>} />
+            <Route path="education/lesson-plans/insights" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights /></Suspense>} />
+            <Route path="education/lesson-plans/bridge" element={<Suspense fallback={<PageLoader />}><LessonPlanBridge /></Suspense>} />
+            <Route path="education/lesson-plans/balance" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights initialTab="balance" /></Suspense>} />
+            <Route path="education/lesson-plans/coverage" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights initialTab="coverage" /></Suspense>} />
+            <Route path="education/lesson-plans/curriculum" element={<Suspense fallback={<PageLoader />}><LessonPlanCurriculum /></Suspense>} />
+            <Route path="education/lesson-plans/templates" element={<Suspense fallback={<PageLoader />}><LessonPlanTemplates /></Suspense>} />
             <Route path="hr/planner" element={<Suspense fallback={<PageLoader />}><Planner /></Suspense>} />
             <Route path="hr/planner/create" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
             <Route path="hr/planner/edit/:id" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
@@ -438,7 +462,7 @@ function App() {
             <Route path="student-management/enrolled-students" element={<Suspense fallback={<PageLoader />}><EnrolledStudents /></Suspense>} />
             <Route path="student-management/students/create" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
-            <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
+            <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentShow /></Suspense>} />
             <Route path="student-management/foundation-requests" element={<Suspense fallback={<PageLoader />}><FoundationRequests /></Suspense>} />
             <Route path="student-management/foundation-requests/show/:id" element={<Suspense fallback={<PageLoader />}><FoundationRequestShow /></Suspense>} />
             <Route path="student-management/student-enrollments" element={<Suspense fallback={<PageLoader />}><StudentEnrollments /></Suspense>} />

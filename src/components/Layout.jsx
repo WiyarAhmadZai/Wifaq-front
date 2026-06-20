@@ -1117,6 +1117,18 @@ export default function Layout() {
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
     { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
   ];
+  // Lesson Planning — its own module (the 4D Lesson Plan), separate from the
+  // Student Development / observation engine.
+  const lessonPlanMenus = [
+    { label: "Lesson Planning", path: "/education/lesson-plans", permission: "lesson-plans.view" },
+    { label: "My Lesson Plans", path: "/education/lesson-plans/my", permission: "lesson-plans.view" },
+    { label: "Plan Review Queue", path: "/education/lesson-plans/review", permission: "lesson-plans.review" },
+    { label: "Plan → Register Bridge", path: "/education/lesson-plans/bridge", permission: "lesson-plans.analyze" },
+    { label: "4D Balance Analyzer", path: "/education/lesson-plans/balance", permission: "lesson-plans.analyze" },
+    { label: "Coverage Map", path: "/education/lesson-plans/coverage", permission: "lesson-plans.analyze" },
+    { label: "Curriculum Sync", path: "/education/lesson-plans/curriculum", permission: "lesson-plans.analyze" },
+    { label: "Plan Templates", path: "/education/lesson-plans/templates", permission: "lesson-plans.view" },
+  ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
     { label: "Subjects", path: "/class-management/subjects", permission: "subjects.view" },
@@ -1363,7 +1375,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(lessonPlanMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -1375,6 +1387,19 @@ export default function Layout() {
               onClick={() => toggleMenu("education")}
             >
               {visible(educationMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(lessonPlanMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Lesson Planning"
+              isOpen={openMenu.includes("lesson-planning")}
+              onClick={() => toggleMenu("lesson-planning")}
+            >
+              {visible(lessonPlanMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

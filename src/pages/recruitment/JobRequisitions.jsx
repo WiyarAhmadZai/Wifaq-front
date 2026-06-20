@@ -28,7 +28,7 @@ export default function JobRequisitions() {
         { key: "position_title", label: "Position" },
         { key: "employment_type", label: "Type", render: (val) => <span className="capitalize">{val?.replace(/_/g, " ")}</span> },
         { key: "number_of_positions", label: "Positions" },
-        { key: "department", label: "Department" },
+        { key: "department", label: "Department", render: (val, row) => row?.department_relation?.name || val || "-" },
         { key: "deadline_date", label: "Deadline", render: (val) => val ? fmtDate(val) : "-" },
         { key: "approval_status", label: "Status", render: statusBadge, isStatus: true },
       ]}

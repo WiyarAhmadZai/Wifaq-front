@@ -15,7 +15,7 @@ import {
   setWinningQuote,
 } from "../../api/purchaseRequests";
 import { getAccounts, getParties } from "../../api/financial";
-import { get } from "../../api/axios";
+import { get, API_BASE_URL } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -40,6 +40,11 @@ const TIMELINE = ["draft", "pending", "approved", "procurement", "completed"];
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 const today = () => new Date().toISOString().slice(0, 10);
+
+// Build a public-storage URL from a stored relative path. API_BASE_URL ends in
+// /api (it reuses the axios env var) so strip that to reach the /storage root.
+const STORAGE_BASE = API_BASE_URL.replace(/\/api\/?$/, "");
+const fileUrl = (path) => (path ? `${STORAGE_BASE}/storage/${path}` : null);
 
 export default function PurchaseRequestShow() {
   const { id } = useParams();
@@ -526,6 +531,13 @@ export default function PurchaseRequestShow() {
         </div>
       )}
 
+      {/* Attachment — supporting file uploaded with the request. Shown as a
+          preview card (image thumbnail / PDF embed) with a button that opens
+          the complete file in a new tab. */}
+      {pr.attachment_path && (
+        <AttachmentCard path={pr.attachment_path} name={pr.attachment_name} />
+      )}
+
       {/* Complete dialog */}
       {completeOpen && (
         <CompleteModal
@@ -549,6 +561,59 @@ export default function PurchaseRequestShow() {
         onClose={() => { setBudgetBreach(null); setBudgetRetryPayload(null); }}
         onConfirm={handleBudgetOverride}
       />
+    </div>
+  );
+}
+
+// Renders the request's uploaded file as a preview card. Images show a
+// thumbnail, PDFs an inline embed, anything else a generic file tile. The
+// header button (and clicking an image) opens the complete file in a new tab.
+function AttachmentCard({ path, name }) {
+  const url = fileUrl(path);
+  const ext = (name || path || "").split(".").pop().toLowerCase();
+  const isImage = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
+  const isPdf = ext === "pdf";
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mt-3">
+      <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-800">Attachment</p>
+            <p className="text-[10px] text-gray-400 truncate max-w-[16rem]">{name || path.split("/").pop()}</p>
+          </div>
+        </div>
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-[11px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1.5 flex-shrink-0">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          Open in new tab
+        </a>
+      </div>
+
+      <div className="bg-gray-50 p-3 flex items-center justify-center">
+        {isImage ? (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+            <img src={url} alt={name || "Attachment"} className="max-h-80 max-w-full rounded-lg shadow-sm object-contain" />
+          </a>
+        ) : isPdf ? (
+          <iframe src={url} title="Attachment preview" className="w-full h-96 rounded-lg bg-white border border-gray-200" />
+        ) : (
+          <a href={url} target="_blank" rel="noopener noreferrer"
+            className="flex flex-col items-center gap-2 py-8 px-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-xs text-gray-500">This file type can't be previewed here — open it in a new tab.</p>
+          </a>
+        )}
+      </div>
     </div>
   );
 }

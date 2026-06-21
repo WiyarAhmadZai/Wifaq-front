@@ -67,6 +67,7 @@ export default function CrudPage({
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterValues, setFilterValues] = useState({}); // { [key]: value }
+  const [filterOpen, setFilterOpen] = useState(false);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -245,21 +246,22 @@ export default function CrudPage({
         </div>
 
         {/* Search + filters */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="flex flex-wrap gap-2">
-            <div className="flex-1 min-w-[200px] relative">
+        <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input value={searchQuery} onChange={handleSearch}
                 placeholder={`Search ${title.toLowerCase()}...`}
                 className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
             </div>
-            {filters.map((f) => (
-              <select key={f.key} value={filterValues[f.key] ?? ""} onChange={(e) => setFilter(f.key, e.target.value)}
-                className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white max-w-[180px]">
-                <option value="">{f.allLabel || `All ${f.label}`}</option>
-                {(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            ))}
+            {filters.length > 0 && (
+              <button onClick={() => setFilterOpen((o) => !o)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${filterOpen || activeFilterCount ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                Filters
+                {activeFilterCount > 0 && <span className="w-4 h-4 rounded-full bg-white text-teal-700 text-[10px] font-bold flex items-center justify-center">{activeFilterCount}</span>}
+              </button>
+            )}
             {(searchQuery || activeFilterCount > 0) && (
               <button onClick={clearAll}
                 className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
@@ -267,6 +269,20 @@ export default function CrudPage({
               </button>
             )}
           </div>
+          {filterOpen && filters.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 pt-1 border-t border-gray-100">
+              {filters.map((f) => (
+                <div key={f.key} className="sm:flex-1 sm:min-w-0">
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{f.label}</label>
+                  <select value={filterValues[f.key] ?? ""} onChange={(e) => setFilter(f.key, e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">
+                    <option value="">{f.allLabel || "All"}</option>
+                    {(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

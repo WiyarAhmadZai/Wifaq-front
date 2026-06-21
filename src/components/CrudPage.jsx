@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { get, del, put } from "../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../admin/context/AuthContext";
+import ListExportActions from "./ListExportActions";
 
 export default function CrudPage({
   title,
@@ -100,6 +101,29 @@ export default function CrudPage({
 
   useEffect(() => { fetchItems(1, ""); }, []);
 
+  // Fetch EVERY page (respecting the current search + base filters) so the
+  // Excel/Print export covers all records, not just the visible page.
+  const fetchAllItems = useCallback(async () => {
+    const all = [];
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const params = new URLSearchParams();
+      params.append("page", page);
+      params.append("per_page", 1000);
+      if (searchQuery) params.append("search", searchQuery);
+      Object.entries(baseParams || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") params.append(k, v);
+      });
+      const response = await get(`${apiEndpoint}?${params.toString()}`);
+      const data = response.data?.data || response.data || [];
+      if (Array.isArray(data)) all.push(...data);
+      lastPage = response.data?.meta?.last_page || 1;
+      page += 1;
+    } while (page <= lastPage && page <= 200); // hard safety cap
+    return all;
+  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams)]);
+
   // Once items are loaded and the URL carries ?highlight=ID, scroll to that row
   // and pulse it for ~2.5s.
   useEffect(() => {
@@ -166,7 +190,8 @@ export default function CrudPage({
           <h1 className="text-lg font-bold text-gray-800">{title}</h1>
           <p className="text-xs text-gray-400 mt-0.5">Manage {title.toLowerCase()} records</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <ListExportActions getRows={fetchAllItems} columns={listColumns} title={title} />
           {extraHeaderButtons}
           {canCreate && createRoute && (
             <button onClick={() => navigate(createRoute)}

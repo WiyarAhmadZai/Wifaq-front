@@ -38,6 +38,7 @@ export default function PurchaseRequestForm() {
   const [priority, setPriority] = useState("medium");
   const [purpose, setPurpose] = useState("");
   const [notes, setNotes] = useState("");
+  const [attachment, setAttachment] = useState(null);
   const [items, setItems] = useState([blankItem()]);
 
   const [chart, setChart] = useState([]);
@@ -98,6 +99,7 @@ export default function PurchaseRequestForm() {
         priority,
         purpose,
         notes: notes || null,
+        attachment: attachment || null,
         items: cleanItems,
       });
       Swal.fire({
@@ -166,6 +168,42 @@ export default function PurchaseRequestForm() {
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
               placeholder="Optional context for the approver"
               className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
+          </div>
+
+          {/* Optional supporting file — quote scan, spec sheet, photo, PDF… */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Attachment</label>
+            {!attachment ? (
+              <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-teal-400 hover:bg-teal-50/40 transition-colors">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span className="text-xs text-gray-500">Click to upload a file (PDF, image, Word/Excel — max 10 MB)</span>
+                <input type="file" className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    if (f && f.size > 10 * 1024 * 1024) {
+                      Swal.fire("File too large", "Please pick a file under 10 MB.", "warning");
+                      e.target.value = "";
+                      return;
+                    }
+                    setAttachment(f);
+                  }} />
+              </label>
+            ) : (
+              <div className="flex items-center justify-between gap-2 px-3 py-2.5 border border-gray-200 rounded-lg bg-gray-50">
+                <span className="flex items-center gap-2 min-w-0">
+                  <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs text-gray-700 truncate">{attachment.name}</span>
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">({(attachment.size / 1024).toFixed(0)} KB)</span>
+                </span>
+                <button type="button" onClick={() => setAttachment(null)}
+                  className="text-[11px] font-semibold text-red-600 hover:text-red-800 flex-shrink-0">Remove</button>
+              </div>
+            )}
           </div>
         </div>
 

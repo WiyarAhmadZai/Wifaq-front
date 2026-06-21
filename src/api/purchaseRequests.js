@@ -2,10 +2,35 @@ import { get, post, put, del } from './axios';
 
 const BASE = '/purchase/purchase-requests';
 
+// Recursively flatten a nested object/array into FormData using PHP bracket
+// notation (items[0][item_name]) so Laravel parses it back into the same
+// shape the JSON path used. Skips null/undefined → backend treats as absent.
+const toFormData = (obj, fd = new FormData(), prefix = '') => {
+  Object.entries(obj).forEach(([key, value]) => {
+    const field = prefix ? `${prefix}[${key}]` : key;
+    if (value === null || value === undefined) return;
+    if (value instanceof File) {
+      fd.append(field, value);
+    } else if (Array.isArray(value)) {
+      value.forEach((v, i) => toFormData({ [i]: v }, fd, field));
+    } else if (typeof value === 'object') {
+      toFormData(value, fd, field);
+    } else {
+      fd.append(field, value);
+    }
+  });
+  return fd;
+};
+
 // CRUD
 export const listPurchaseRequests   = (params = {}) => get(BASE, { params });
 export const getPurchaseRequest     = (id)          => get(`${BASE}/${id}`);
-export const createPurchaseRequest  = (data)        => post(BASE, data);
+// When an `attachment` File is present we send multipart/form-data; otherwise
+// the plain JSON body (unchanged behaviour for callers without a file).
+export const createPurchaseRequest  = (data) =>
+  data?.attachment instanceof File
+    ? post(BASE, toFormData(data), { headers: { 'Content-Type': 'multipart/form-data' } })
+    : post(BASE, data);
 export const updatePurchaseRequest  = (id, data)    => put(`${BASE}/${id}`, data);
 export const deletePurchaseRequest  = (id)          => del(`${BASE}/${id}`);
 

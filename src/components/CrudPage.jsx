@@ -23,6 +23,12 @@ export default function CrudPage({
   statusSuffix = "",
   baseParams = {},
   /**
+   * Optional dropdown filters shown next to the search box.
+   * [{ key, label, options: [{ value, label }], allLabel? }]
+   * Selected values are sent as query params (key=value) and reset to page 1.
+   */
+  filters = [],
+  /**
    * Permission base name (e.g. "academic-terms", "parents"). When provided,
    * Create/Edit/Delete/Status buttons are hidden unless the user holds the
    * corresponding `{base}.create | .update | .delete | .manage` permission.
@@ -60,6 +66,7 @@ export default function CrudPage({
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterValues, setFilterValues] = useState({}); // { [key]: value }
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -73,6 +80,9 @@ export default function CrudPage({
       params.append("page", page);
       if (search) params.append("search", search);
       Object.entries(baseParams || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") params.append(k, v);
+      });
+      Object.entries(filterValues || {}).forEach(([k, v]) => {
         if (v !== undefined && v !== null && v !== "") params.append(k, v);
       });
 
@@ -97,7 +107,7 @@ export default function CrudPage({
       Swal.fire({ title: errorTitle, text: errorMessage, icon: "error", confirmButtonColor: "#0d9488" });
       setItems([]);
     } finally { setLoading(false); }
-  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams)]);
+  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams), JSON.stringify(filterValues)]);
 
   useEffect(() => { fetchItems(1, ""); }, []);
 
@@ -115,6 +125,9 @@ export default function CrudPage({
       Object.entries(baseParams || {}).forEach(([k, v]) => {
         if (v !== undefined && v !== null && v !== "") params.append(k, v);
       });
+      Object.entries(filterValues || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") params.append(k, v);
+      });
       const response = await get(`${apiEndpoint}?${params.toString()}`);
       const data = response.data?.data || response.data || [];
       if (Array.isArray(data)) all.push(...data);
@@ -122,7 +135,7 @@ export default function CrudPage({
       page += 1;
     } while (page <= lastPage && page <= 200); // hard safety cap
     return all;
-  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams)]);
+  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams), JSON.stringify(filterValues)]);
 
   // Once items are loaded and the URL carries ?highlight=ID, scroll to that row
   // and pulse it for ~2.5s.
@@ -149,6 +162,17 @@ export default function CrudPage({
     }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Refetch (page 1) whenever a dropdown filter changes.
+  const isFirstFilterRun = useRef(true);
+  useEffect(() => {
+    if (isFirstFilterRun.current) { isFirstFilterRun.current = false; return; }
+    fetchItems(1, searchQuery);
+  }, [JSON.stringify(filterValues)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setFilter = (key, value) => setFilterValues((prev) => ({ ...prev, [key]: value }));
+  const clearAll = () => { setSearchQuery(""); setFilterValues({}); };
+  const activeFilterCount = Object.values(filterValues).filter((v) => v !== "" && v != null).length;
 
   const handlePageChange = (page) => {
     fetchItems(page, searchQuery);
@@ -220,17 +244,24 @@ export default function CrudPage({
           ))}
         </div>
 
-        {/* Search */}
+        {/* Search + filters */}
         <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
+          <div className="flex flex-wrap gap-2">
+            <div className="flex-1 min-w-[200px] relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input value={searchQuery} onChange={handleSearch}
                 placeholder={`Search ${title.toLowerCase()}...`}
                 className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
             </div>
-            {searchQuery && (
-              <button onClick={() => { setSearchQuery(""); }}
+            {filters.map((f) => (
+              <select key={f.key} value={filterValues[f.key] ?? ""} onChange={(e) => setFilter(f.key, e.target.value)}
+                className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white max-w-[180px]">
+                <option value="">{f.allLabel || `All ${f.label}`}</option>
+                {(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            ))}
+            {(searchQuery || activeFilterCount > 0) && (
+              <button onClick={clearAll}
                 className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
                 Clear
               </button>

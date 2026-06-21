@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import CrudPage from "../../components/CrudPage";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
 import Swal from "sweetalert2";
 import { generateUniformInvoice } from "../../api/financial";
+import { get } from "../../api/axios";
 import { useNavigate } from "react-router-dom";
 
 import { fmtDate } from "../../utils/formErrors";
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+];
+const STUDENT_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "graduated", label: "Graduated" },
+  { value: "withdrawn", label: "Withdrawn" },
+  { value: "transferred", label: "Transferred" },
+];
 
 const statusBadge = (val) => {
   const map = {
@@ -44,6 +57,21 @@ export default function EnrolledStudents() {
   const navigate = useNavigate();
   const [transferStudent, setTransferStudent] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [grades, setGrades] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [terms, setTerms] = useState([]);
+  useEffect(() => {
+    get("/grades/list").then((r) => setGrades((r.data?.data || r.data || []).map((g) => ({ value: g.id, label: g.name })))).catch(() => {});
+    get("/class-management/classes/list?per_page=1000").then((r) => setClasses((r.data?.data || r.data || []).map((c) => ({ value: c.id, label: c.class_name })))).catch(() => {});
+    get("/academic-terms/list").then((r) => setTerms((r.data?.data || r.data || []).map((t) => ({ value: t.id, label: t.name })))).catch(() => {});
+  }, []);
+  const enrolledFilters = [
+    { key: "grade_id", label: "Grades", options: grades },
+    { key: "class_id", label: "Classes", options: classes },
+    { key: "academic_term_id", label: "Terms", options: terms },
+    { key: "gender", label: "Genders", options: GENDER_OPTIONS },
+    { key: "status", label: "Status", options: STUDENT_STATUS_OPTIONS },
+  ];
 
   const handleUniformInvoice = async (student) => {
     try {
@@ -99,6 +127,7 @@ export default function EnrolledStudents() {
         apiEndpoint="/student-management/students/list"
         deleteEndpoint="/student-management/students/delete"
         baseParams={PHASE_2_PARAMS}
+        filters={enrolledFilters}
         listColumns={[
           { key: "student_id", label: "Student ID" },
           { key: "full_name", label: "Name", render: (_, item) => `${item.first_name} ${item.last_name}` },

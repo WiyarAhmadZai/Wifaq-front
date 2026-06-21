@@ -217,10 +217,10 @@ export default function Students() {
     get("/class-management/classes/list?per_page=1000").then((r) => setClasses((r.data?.data || r.data || []).map((c) => ({ value: c.id, label: c.class_name })))).catch(() => {});
   }, []);
   const studentFilters = [
-    { key: "grade_id", label: "Grades", options: grades },
-    { key: "class_id", label: "Classes", options: classes },
-    { key: "gender", label: "Genders", options: GENDER_OPTIONS },
-    { key: "special_status", label: "Special", options: SPECIAL_STATUS_OPTIONS },
+    { key: "grade_id", label: "Grade", options: grades },
+    { key: "class_id", label: "Class", options: classes },
+    { key: "gender", label: "Gender", options: GENDER_OPTIONS },
+    { key: "special_status", label: "Special status", options: SPECIAL_STATUS_OPTIONS },
   ];
 
   const transferColumn = {

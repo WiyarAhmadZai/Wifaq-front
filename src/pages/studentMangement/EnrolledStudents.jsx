@@ -66,10 +66,10 @@ export default function EnrolledStudents() {
     get("/academic-terms/list").then((r) => setTerms((r.data?.data || r.data || []).map((t) => ({ value: t.id, label: t.name })))).catch(() => {});
   }, []);
   const enrolledFilters = [
-    { key: "grade_id", label: "Grades", options: grades },
-    { key: "class_id", label: "Classes", options: classes },
-    { key: "academic_term_id", label: "Terms", options: terms },
-    { key: "gender", label: "Genders", options: GENDER_OPTIONS },
+    { key: "grade_id", label: "Grade", options: grades },
+    { key: "class_id", label: "Class", options: classes },
+    { key: "academic_term_id", label: "Term", options: terms },
+    { key: "gender", label: "Gender", options: GENDER_OPTIONS },
     { key: "status", label: "Status", options: STUDENT_STATUS_OPTIONS },
   ];
 

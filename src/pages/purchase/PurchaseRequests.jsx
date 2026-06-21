@@ -2,8 +2,20 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { listPurchaseRequests, deletePurchaseRequest } from "../../api/purchaseRequests";
 import Swal from "sweetalert2";
+import ListExportActions from "../../components/ListExportActions";
 
 import { fmtDate } from "../../utils/formErrors";
+
+const PR_EXPORT_COLS = [
+  { key: "request_number", label: "PR #" },
+  { key: "purpose", label: "Purpose" },
+  { key: "requester.name", label: "Requester" },
+  { key: "priority", label: "Priority" },
+  { key: "items_count", label: "Items", exportValue: (it) => it.items_count ?? (it.items ? it.items.length : "") },
+  { key: "estimated_total", label: "Total (AFN)", exportValue: (it) => (it.estimated_total != null ? Number(it.estimated_total) : "") },
+  { key: "status", label: "Status" },
+  { key: "request_date", label: "Date", exportValue: (it) => (it.request_date ? String(it.request_date).slice(0, 10) : "") },
+];
 // Status palette — mirrors the backend enum on purchase_requests.status.
 const STATUS = {
   draft:       { label: "Draft",       cls: "bg-gray-50 text-gray-700 border-gray-200" },
@@ -55,6 +67,15 @@ export default function PurchaseRequests() {
   const onSearch = (e) => setSearch(e.target.value);
   const onSearchSubmit = (e) => { e.preventDefault(); fetchItems(); };
 
+  // Export/print: fetch all matching requests (not just the loaded page).
+  const fetchAllRequests = async () => {
+    const params = { per_page: 100000 };
+    if (filter !== "all") params.status = filter;
+    if (search) params.search = search;
+    const r = await listPurchaseRequests(params);
+    return r.data?.data?.data || r.data?.data || [];
+  };
+
   const handleDelete = async (id) => {
     const r = await Swal.fire({
       title: "Delete request?",
@@ -90,13 +111,16 @@ export default function PurchaseRequests() {
           <h2 className="text-base font-bold text-gray-800">Purchase Requests</h2>
           <p className="text-xs text-gray-500">Submit, approve, procure, and close out purchase requests.</p>
         </div>
-        <button onClick={() => navigate("/purchase/purchase-requests/create")}
-          className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Request
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <ListExportActions getRows={fetchAllRequests} columns={PR_EXPORT_COLS} title="Purchase Requests" />
+          <button onClick={() => navigate("/purchase/purchase-requests/create")}
+            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Request
+          </button>
+        </div>
       </div>
 
       {/* Summary */}

@@ -54,12 +54,14 @@ export default function StudentEnrollments() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterGrade, setFilterGrade] = useState("");
   const [filterClass, setFilterClass] = useState("");
   const [filterTerm, setFilterTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
 
+  const [grades, setGrades] = useState([]);
   const [classes, setClasses] = useState([]);
   const [terms, setTerms] = useState([]);
   const [transferStudent, setTransferStudent] = useState(null);
@@ -72,6 +74,7 @@ export default function StudentEnrollments() {
         params.append("page", page);
         params.append("registration_status", "phase_2");
         if (search) params.append("search", search);
+        if (filterGrade) params.append("grade_id", filterGrade);
         if (filterClass) params.append("class_id", filterClass);
         if (filterTerm) params.append("academic_term_id", filterTerm);
         if (filterStatus) params.append("status", filterStatus);
@@ -85,13 +88,13 @@ export default function StudentEnrollments() {
         setLoading(false);
       }
     },
-    [search, filterClass, filterTerm, filterStatus],
+    [search, filterGrade, filterClass, filterTerm, filterStatus],
   );
 
   useEffect(() => {
     const t = setTimeout(() => fetchItems(1), 400);
     return () => clearTimeout(t);
-  }, [search, filterClass, filterTerm, filterStatus]);
+  }, [search, filterGrade, filterClass, filterTerm, filterStatus]);
 
   // Pull every page (with the current filters) for the Excel/Print export.
   const fetchAllEnrollments = useCallback(async () => {
@@ -103,6 +106,7 @@ export default function StudentEnrollments() {
       params.append("per_page", 1000);
       params.append("registration_status", "phase_2");
       if (search) params.append("search", search);
+      if (filterGrade) params.append("grade_id", filterGrade);
       if (filterClass) params.append("class_id", filterClass);
       if (filterTerm) params.append("academic_term_id", filterTerm);
       if (filterStatus) params.append("status", filterStatus);
@@ -113,10 +117,14 @@ export default function StudentEnrollments() {
       page += 1;
     } while (page <= last && page <= 200);
     return all;
-  }, [search, filterClass, filterTerm, filterStatus]);
+  }, [search, filterGrade, filterClass, filterTerm, filterStatus]);
 
   useEffect(() => {
     (async () => {
+      try {
+        const r0 = await get("/grades/list");
+        setGrades(r0.data?.data || []);
+      } catch {}
       try {
         const r1 = await get("/class-management/classes/list?per_page=1000");
         setClasses(r1.data?.data || []);
@@ -128,7 +136,7 @@ export default function StudentEnrollments() {
     })();
   }, []);
 
-  const activeFilters = [filterClass, filterTerm, filterStatus].filter(Boolean).length;
+  const activeFilters = [filterGrade, filterClass, filterTerm, filterStatus].filter(Boolean).length;
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
@@ -221,7 +229,7 @@ export default function StudentEnrollments() {
           </button>
           {(activeFilters > 0 || search) && (
             <button
-              onClick={() => { setSearch(""); setFilterClass(""); setFilterTerm(""); setFilterStatus(""); }}
+              onClick={() => { setSearch(""); setFilterGrade(""); setFilterClass(""); setFilterTerm(""); setFilterStatus(""); }}
               className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
             >
               Clear
@@ -229,7 +237,14 @@ export default function StudentEnrollments() {
           )}
         </div>
         {filterOpen && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 border-t border-gray-100">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Grade</label>
+              <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">
+                <option value="">All Grades</option>
+                {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Class</label>
               <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">

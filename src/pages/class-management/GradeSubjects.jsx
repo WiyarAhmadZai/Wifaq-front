@@ -71,6 +71,16 @@ export default function GradeSubjects() {
   const [loadingClasses, setLoadingClasses] = useState(false);
   const [savingClasses, setSavingClasses] = useState(false);
 
+  // Fast "grid" data-entry mode (subjects × classes matrix)
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+  const [gridClasses, setGridClasses] = useState([]);
+  const [gridSubjects, setGridSubjects] = useState([]);
+  const [gridAssign, setGridAssign] = useState({}); // "subjectId-classId" -> teacher_id
+  const [assignedNames, setAssignedNames] = useState({}); // teacherId -> name (for already-assigned teachers)
+  const [loadingGrid, setLoadingGrid] = useState(false);
+  const [savingGrid, setSavingGrid] = useState(false);
+  const [gridDirty, setGridDirty] = useState(false);
+
   // Add form
   const [addSubjectId, setAddSubjectId] = useState('');
 
@@ -110,6 +120,73 @@ export default function GradeSubjects() {
 
   const selectedGradeData = grades.find(g => g.id == selectedGrade);
   const isPrimary = !!selectedGradeData?.is_primary;
+
+  // ---- Fast grid mode ----
+  const fetchGrid = async () => {
+    setLoadingGrid(true);
+    try {
+      const res = await get(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      setGridClasses(res.data?.classes || []);
+      setGridSubjects(res.data?.subjects || []);
+      setGridAssign(res.data?.assignments || {});
+      setAssignedNames(res.data?.assigned_teachers || {});
+      setGridDirty(false);
+    } catch {
+      setGridClasses([]); setGridSubjects([]); setGridAssign({}); setAssignedNames({});
+    } finally {
+      setLoadingGrid(false);
+    }
+  };
+
+  // Load (or reload) the grid whenever it's shown, the grade/term changes, or
+  // the subject list changes (add / remove / bulk / copy).
+  useEffect(() => {
+    if (viewMode === 'grid' && selectedGrade && selectedTerm && !isPrimary) fetchGrid();
+  }, [viewMode, selectedGrade, selectedTerm, items]);
+
+  const setGridCell = (subjectId, classId, teacherId) => {
+    setGridAssign(prev => ({ ...prev, [`${subjectId}-${classId}`]: teacherId || null }));
+    setGridDirty(true);
+  };
+
+  const applyRowToAll = (subjectId, teacherId) => {
+    setGridAssign(prev => {
+      const next = { ...prev };
+      gridClasses.forEach(c => { next[`${subjectId}-${c.id}`] = teacherId || null; });
+      return next;
+    });
+    setGridDirty(true);
+  };
+
+  const saveGrid = async () => {
+    setSavingGrid(true);
+    try {
+      const assignments = [];
+      gridSubjects.forEach(s => gridClasses.forEach(c => {
+        assignments.push({
+          subject_id: s.subject_id,
+          school_class_id: c.id,
+          teacher_id: gridAssign[`${s.subject_id}-${c.id}`] || null,
+        });
+      }));
+      await post('/class-management/grade-subjects/grid', {
+        grade_id: selectedGrade,
+        academic_term_id: selectedTerm,
+        assignments,
+      });
+      setGridDirty(false);
+      await fetchItems();
+      await fetchFormData();
+      await fetchGrid();
+      Swal.fire({ icon: 'success', title: 'All assignments saved', timer: 1300, showConfirmButton: false });
+    } catch (error) {
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to save');
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setSavingGrid(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!addSubjectId) return;
@@ -360,12 +437,113 @@ export default function GradeSubjects() {
 
           {/* Subject List */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-sm font-bold text-gray-800">Subjects for {gradeName}</h3>
-              <span className="text-xs text-gray-400">{items.length} subjects</span>
+              <div className="flex items-center gap-3">
+                {!isPrimary && (
+                  <div className="inline-flex rounded-xl border border-gray-200 p-0.5 bg-gray-50">
+                    <button onClick={() => setViewMode('list')}
+                      className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${viewMode === 'list' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      List
+                    </button>
+                    <button onClick={() => setViewMode('grid')}
+                      className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1 ${viewMode === 'grid' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                      Fast grid
+                    </button>
+                  </div>
+                )}
+                <span className="text-xs text-gray-400">{items.length} subjects</span>
+              </div>
             </div>
 
-            {loading ? (
+            {viewMode === 'grid' && !isPrimary ? (
+              loadingGrid ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
+                </div>
+              ) : gridSubjects.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-gray-400">No subjects assigned to this grade yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Add subjects above, then assign teachers here</p>
+                </div>
+              ) : gridClasses.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-gray-400">No active classes in this grade/term yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Create classes for this grade & term first</p>
+                </div>
+              ) : (
+                <>
+                  <div className="px-5 py-2.5 bg-teal-50/60 border-b border-teal-100 flex items-center justify-between gap-3 flex-wrap">
+                    <p className="text-[11px] text-teal-800">
+                      Pick a teacher in each cell, or use <strong>“set all classes”</strong> under a subject to fill its whole row. Then save once.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {gridDirty && <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>}
+                      <button onClick={saveGrid} disabled={savingGrid || !gridDirty}
+                        className="px-4 py-1.5 bg-teal-600 text-white text-[11px] font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                        {savingGrid && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                        {savingGrid ? 'Saving...' : 'Save all'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider min-w-[190px]">Subject \ Class</th>
+                          {gridClasses.map(c => (
+                            <th key={c.id} className="px-3 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider min-w-[150px]">
+                              {c.class_name}
+                              {c.shift && <span className={`ml-1 px-1 py-0.5 rounded text-[8px] font-semibold ${c.shift === 'morning' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}>{c.shift === 'morning' ? 'AM' : 'PM'}</span>}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {gridSubjects.map(s => (
+                          <tr key={s.subject_id} className="hover:bg-gray-50/40">
+                            <td className="sticky left-0 z-10 bg-white px-4 py-2 align-top">
+                              <p className="text-sm font-semibold text-gray-800 leading-tight">{s.subject_name}</p>
+                              <p className="text-[10px] text-gray-400">{s.subject_code}{s.weekly_hours ? ` · ${s.weekly_hours}h` : ''}</p>
+                              <select defaultValue="" onChange={e => { const v = e.target.value; if (v === '') return; applyRowToAll(s.subject_id, v === '__none__' ? '' : v); e.target.value = ''; }}
+                                className="mt-1.5 w-full px-1.5 py-1 border border-gray-200 rounded-lg text-[10px] bg-white outline-none text-gray-500 focus:ring-2 focus:ring-teal-500">
+                                <option value="">↳ set all classes…</option>
+                                <option value="__none__">(clear all)</option>
+                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                            </td>
+                            {gridClasses.map(c => {
+                              const key = `${s.subject_id}-${c.id}`;
+                              const val = gridAssign[key] || '';
+                              return (
+                                <td key={c.id} className="px-2 py-2">
+                                  <select value={val} onChange={e => setGridCell(s.subject_id, c.id, e.target.value)}
+                                    className={`w-full px-2 py-1.5 border rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-teal-500 ${val ? 'border-teal-200 text-gray-800' : 'border-gray-200 text-gray-400'}`}>
+                                    <option value="">— none —</option>
+                                    {val && !teachers.some(t => t.id == val) && assignedNames[val] && (
+                                      <option value={val}>{assignedNames[val]} (current)</option>
+                                    )}
+                                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h)</option>)}
+                                  </select>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+                    <button onClick={saveGrid} disabled={savingGrid || !gridDirty}
+                      className="px-5 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                      {savingGrid && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                      {savingGrid ? 'Saving...' : 'Save all assignments'}
+                    </button>
+                  </div>
+                </>
+              )
+            ) : loading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
               </div>

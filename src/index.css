@@ -202,3 +202,9 @@ header { font-size: 0.8125rem; }
   color: #6b7280 !important;
   text-align: center !important;
 }
+
+/* Slide-over drawer (Activity Log detail, etc.) */
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}

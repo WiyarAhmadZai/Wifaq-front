@@ -14,6 +14,7 @@ const RULES = [
   { prefix: "/admin/roles", permission: "roles.view" },
   { prefix: "/admin/permissions", permission: "permissions.view" },
   { prefix: "/admin/users", permission: "users.view" },
+  { prefix: "/admin/activity-logs", permission: "activity-logs.view" },
 
   // Branches
   { prefix: "/branches", permission: "branches.view" },

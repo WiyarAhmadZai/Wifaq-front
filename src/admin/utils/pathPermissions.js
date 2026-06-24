@@ -36,6 +36,7 @@ const RULES = [
   { prefix: "/class-management/exams", permission: "classes.view" }, // legacy — share classes perm
 
   // Education & Formation — student observation
+  { prefix: "/education/4d-self-rating", permission: "student-profiles.view" },
   { prefix: "/education/dashboard", permission: "student-observations.view" },
   { prefix: "/education/observations", permission: "student-observations.view" },
   { prefix: "/education/monitoring", permission: "student-monitoring.view" },
@@ -90,6 +91,7 @@ const RULES = [
   { prefix: "/student-management/enrolled-students", permission: "enrolled-students.view" },
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   { prefix: "/student-management/student-enrollments", permission: "student-enrollments.view" },
+  { prefix: "/student-management/students/profile", permission: "student-profiles.view" },
   { prefix: "/student-management/students", permission: "students.view" },
   { prefix: "/student-management/parents", permission: "parents.view" },
   { prefix: "/student-management/grades", permission: "grades.view" },

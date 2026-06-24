@@ -1121,6 +1121,7 @@ export default function Layout() {
     { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
     { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
+    { label: "Record 4D Rating", path: "/education/4d-self-rating", permission: "student-profiles.update" },
   ];
   // Lesson Planning — its own module (the 4D Lesson Plan), separate from the
   // Student Development / observation engine.

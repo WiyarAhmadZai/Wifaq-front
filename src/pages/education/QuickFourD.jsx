@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { get, post } from "../../api/axios";
 import { toastSuccess, toastError } from "../../utils/toast";
 import { TEAL, TEAL_LT, PAPER, Hero } from "./lessonPlanUi";
@@ -17,6 +18,7 @@ const blankScores = () =>
   Object.fromEntries(DIMS.flatMap((d) => [[`${d.key}_score`, ""], [`${d.key}_note`, ""]]));
 
 export default function QuickFourD() {
+  const navigate = useNavigate();
   // student search
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -96,7 +98,10 @@ export default function QuickFourD() {
                   <p className="text-[11px] text-gray-500 truncate">{student.student_id} · {student.school_class?.class_name || "—"}</p>
                 </div>
               </div>
-              <button onClick={clearStudent} className="text-[11px] font-bold px-2 py-1 rounded-lg hover:bg-white" style={{ color: TEAL }}>Change</button>
+              <div className="flex items-center gap-1.5 flex-none">
+                <button onClick={() => navigate(`/student-management/students/profile/${student.id}`)} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg text-white" style={{ background: TEAL }}>Full شناسنامه →</button>
+                <button onClick={clearStudent} className="text-[11px] font-bold px-2 py-1.5 rounded-lg hover:bg-white" style={{ color: TEAL }}>Change</button>
+              </div>
             </div>
           ) : (
             <div className="relative" ref={boxRef}>
@@ -165,7 +170,7 @@ export default function QuickFourD() {
         </div>
 
         <p className="text-[11px] text-gray-400 text-center">
-          Need the full شناسنامه? Open a student → <span style={{ color: TEAL }}>شناسنامه</span> for all sections.
+          Pick a student, then open <span style={{ color: TEAL }}>Full شناسنامه</span> to record every other section (story, habits, family…).
         </p>
       </div>
     </div>

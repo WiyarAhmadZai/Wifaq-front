@@ -1098,6 +1098,7 @@ export default function Layout() {
     { label: "Roles", path: "/admin/roles", permission: "roles.view" },
     { label: "Permissions", path: "/admin/permissions", permission: "permissions.view" },
     { label: "Users & Access", path: "/admin/users", permission: "users.view" },
+    { label: "Activity Log", path: "/admin/activity-logs", permission: "activity-logs.view" },
   ];
 
   const branchesMenus = [

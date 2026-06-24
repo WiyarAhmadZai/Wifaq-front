@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { get, post, put, del } from '../../api/axios';
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { get, post, del } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 function SearchSelect({ options, value, onChange, placeholder = 'Select...', getLabel = o => o, getValue = o => o }) {
@@ -64,12 +64,25 @@ export default function GradeSubjects() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editTeacher, setEditTeacher] = useState('');
+
+  // Per-class teacher assignment panel (non-primary grades)
+  const [expandedSubjectId, setExpandedSubjectId] = useState(null);
+  const [classRows, setClassRows] = useState([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
+  const [savingClasses, setSavingClasses] = useState(false);
+
+  // Fast "grid" data-entry mode (subjects × classes matrix)
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+  const [gridClasses, setGridClasses] = useState([]);
+  const [gridSubjects, setGridSubjects] = useState([]);
+  const [gridAssign, setGridAssign] = useState({}); // "subjectId-classId" -> teacher_id
+  const [assignedNames, setAssignedNames] = useState({}); // teacherId -> name (for already-assigned teachers)
+  const [loadingGrid, setLoadingGrid] = useState(false);
+  const [savingGrid, setSavingGrid] = useState(false);
+  const [gridDirty, setGridDirty] = useState(false);
 
   // Add form
   const [addSubjectId, setAddSubjectId] = useState('');
-  const [addTeacherId, setAddTeacherId] = useState('');
 
   // Copy from term modal
   const [showCopyModal, setShowCopyModal] = useState(false);
@@ -108,6 +121,73 @@ export default function GradeSubjects() {
   const selectedGradeData = grades.find(g => g.id == selectedGrade);
   const isPrimary = !!selectedGradeData?.is_primary;
 
+  // ---- Fast grid mode ----
+  const fetchGrid = async () => {
+    setLoadingGrid(true);
+    try {
+      const res = await get(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      setGridClasses(res.data?.classes || []);
+      setGridSubjects(res.data?.subjects || []);
+      setGridAssign(res.data?.assignments || {});
+      setAssignedNames(res.data?.assigned_teachers || {});
+      setGridDirty(false);
+    } catch {
+      setGridClasses([]); setGridSubjects([]); setGridAssign({}); setAssignedNames({});
+    } finally {
+      setLoadingGrid(false);
+    }
+  };
+
+  // Load (or reload) the grid whenever it's shown, the grade/term changes, or
+  // the subject list changes (add / remove / bulk / copy).
+  useEffect(() => {
+    if (viewMode === 'grid' && selectedGrade && selectedTerm && !isPrimary) fetchGrid();
+  }, [viewMode, selectedGrade, selectedTerm, items]);
+
+  const setGridCell = (subjectId, classId, teacherId) => {
+    setGridAssign(prev => ({ ...prev, [`${subjectId}-${classId}`]: teacherId || null }));
+    setGridDirty(true);
+  };
+
+  const applyRowToAll = (subjectId, teacherId) => {
+    setGridAssign(prev => {
+      const next = { ...prev };
+      gridClasses.forEach(c => { next[`${subjectId}-${c.id}`] = teacherId || null; });
+      return next;
+    });
+    setGridDirty(true);
+  };
+
+  const saveGrid = async () => {
+    setSavingGrid(true);
+    try {
+      const assignments = [];
+      gridSubjects.forEach(s => gridClasses.forEach(c => {
+        assignments.push({
+          subject_id: s.subject_id,
+          school_class_id: c.id,
+          teacher_id: gridAssign[`${s.subject_id}-${c.id}`] || null,
+        });
+      }));
+      await post('/class-management/grade-subjects/grid', {
+        grade_id: selectedGrade,
+        academic_term_id: selectedTerm,
+        assignments,
+      });
+      setGridDirty(false);
+      await fetchItems();
+      await fetchFormData();
+      await fetchGrid();
+      Swal.fire({ icon: 'success', title: 'All assignments saved', timer: 1300, showConfirmButton: false });
+    } catch (error) {
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to save');
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setSavingGrid(false);
+    }
+  };
+
   const handleAdd = async () => {
     if (!addSubjectId) return;
     setIsAdding(true);
@@ -116,9 +196,9 @@ export default function GradeSubjects() {
         grade_id: selectedGrade,
         academic_term_id: selectedTerm,
         subject_id: addSubjectId,
-        teacher_id: isPrimary ? null : (addTeacherId || null),
+        teacher_id: null, // teachers are assigned per class below
       });
-      setAddSubjectId(''); setAddTeacherId('');
+      setAddSubjectId('');
       await fetchItems();
       await fetchFormData();
       Swal.fire({ icon: 'success', title: 'Subject added', timer: 1200, showConfirmButton: false });
@@ -131,19 +211,54 @@ export default function GradeSubjects() {
     }
   };
 
-  const handleUpdate = async (id) => {
+  // Open/close the per-class teacher panel for a subject and load its classes.
+  const toggleExpand = async (item) => {
+    if (expandedSubjectId === item.subject_id) {
+      setExpandedSubjectId(null);
+      setClassRows([]);
+      return;
+    }
+    setExpandedSubjectId(item.subject_id);
+    setClassRows([]);
+    setLoadingClasses(true);
     try {
-      await put(`/class-management/grade-subjects/${id}`, {
-        teacher_id: editTeacher || null,
+      const res = await get(`/class-management/grade-subjects/class-assignments?grade_id=${selectedGrade}&subject_id=${item.subject_id}&academic_term_id=${selectedTerm}`);
+      setClassRows(res.data?.data || []);
+    } catch {
+      setClassRows([]);
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
+
+  const setClassTeacher = (classId, teacherId) => {
+    setClassRows(prev => prev.map(r => r.school_class_id === classId ? { ...r, teacher_id: teacherId || null } : r));
+  };
+
+  const applyTeacherToAll = (teacherId) => {
+    setClassRows(prev => prev.map(r => ({ ...r, teacher_id: teacherId || null })));
+  };
+
+  const saveClassTeachers = async (item) => {
+    setSavingClasses(true);
+    try {
+      await post('/class-management/grade-subjects/class-assignments', {
+        grade_id: selectedGrade,
+        subject_id: item.subject_id,
+        academic_term_id: selectedTerm,
+        assignments: classRows.map(r => ({ school_class_id: r.school_class_id, teacher_id: r.teacher_id || null })),
       });
       await fetchItems();
       await fetchFormData();
-      setEditingId(null);
-      Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
+      setExpandedSubjectId(null);
+      setClassRows([]);
+      Swal.fire({ icon: 'success', title: 'Class teachers saved', timer: 1200, showConfirmButton: false });
     } catch (error) {
       const errs = error.response?.data?.errors;
-      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to update');
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to save');
       Swal.fire('Error', msg, 'error');
+    } finally {
+      setSavingClasses(false);
     }
   };
 
@@ -216,11 +331,6 @@ export default function GradeSubjects() {
     }
   };
 
-  const startEdit = (item) => {
-    setEditingId(item.id);
-    setEditTeacher(item.teacher_id || '');
-  };
-
   const gradeName = grades.find(g => g.id == selectedGrade)?.name || '';
   const availableSubjects = subjects.filter(s =>
     !items.some(i => i.subject_id === s.id) &&
@@ -232,7 +342,7 @@ export default function GradeSubjects() {
       {/* Header */}
       <div>
         <h1 className="text-lg font-bold text-gray-800">Grade Subjects</h1>
-        <p className="text-xs text-gray-400 mt-0.5">Assign subjects and teachers to grade levels — shared by all classes in the grade</p>
+        <p className="text-xs text-gray-400 mt-0.5">Define each grade's subjects, then assign a teacher per class — different classes can have different teachers</p>
       </div>
 
       {/* Grade & Term Selection */}
@@ -299,8 +409,8 @@ export default function GradeSubjects() {
           {/* Add Subject */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-1">Add Subject to {gradeName}</h3>
-            <p className="text-[11px] text-gray-400 mb-4">Weekly hours are automatically taken from the subject's definition</p>
-            <div className={`grid grid-cols-1 ${isPrimary ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3 items-end`}>
+            <p className="text-[11px] text-gray-400 mb-4">Add the subject first, then {isPrimary ? "each class uses its own supervisor" : "assign a teacher per class from the list below"}. Weekly hours come from the subject definition.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <div>
                 <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Subject *</label>
                 <SearchSelect options={availableSubjects} value={addSubjectId} onChange={v => setAddSubjectId(v || '')}
@@ -308,23 +418,6 @@ export default function GradeSubjects() {
                   getLabel={s => `${s.subject_code} — ${s.subject_name}${s.weekly_hours ? ` (${s.weekly_hours}h/week)` : ''}`}
                   getValue={s => s.id} />
               </div>
-              {!isPrimary && (
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Teacher</label>
-                  <select value={addTeacherId} onChange={e => setAddTeacherId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
-                    <option value="">Select teacher...</option>
-                    {teachers.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.available_hours}h available)
-                      </option>
-                    ))}
-                  </select>
-                  {teachers.length === 0 && (
-                    <p className="text-[10px] text-amber-600 mt-1">All teachers are at full capacity</p>
-                  )}
-                </div>
-              )}
               <button onClick={handleAdd} disabled={!addSubjectId || isAdding}
                 className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]">
                 {isAdding ? (
@@ -344,12 +437,113 @@ export default function GradeSubjects() {
 
           {/* Subject List */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-sm font-bold text-gray-800">Subjects for {gradeName}</h3>
-              <span className="text-xs text-gray-400">{items.length} subjects</span>
+              <div className="flex items-center gap-3">
+                {!isPrimary && (
+                  <div className="inline-flex rounded-xl border border-gray-200 p-0.5 bg-gray-50">
+                    <button onClick={() => setViewMode('list')}
+                      className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${viewMode === 'list' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      List
+                    </button>
+                    <button onClick={() => setViewMode('grid')}
+                      className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1 ${viewMode === 'grid' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                      Fast grid
+                    </button>
+                  </div>
+                )}
+                <span className="text-xs text-gray-400">{items.length} subjects</span>
+              </div>
             </div>
 
-            {loading ? (
+            {viewMode === 'grid' && !isPrimary ? (
+              loadingGrid ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
+                </div>
+              ) : gridSubjects.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-gray-400">No subjects assigned to this grade yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Add subjects above, then assign teachers here</p>
+                </div>
+              ) : gridClasses.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-gray-400">No active classes in this grade/term yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Create classes for this grade & term first</p>
+                </div>
+              ) : (
+                <>
+                  <div className="px-5 py-2.5 bg-teal-50/60 border-b border-teal-100 flex items-center justify-between gap-3 flex-wrap">
+                    <p className="text-[11px] text-teal-800">
+                      Pick a teacher in each cell, or use <strong>“set all classes”</strong> under a subject to fill its whole row. Then save once.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {gridDirty && <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>}
+                      <button onClick={saveGrid} disabled={savingGrid || !gridDirty}
+                        className="px-4 py-1.5 bg-teal-600 text-white text-[11px] font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                        {savingGrid && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                        {savingGrid ? 'Saving...' : 'Save all'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider min-w-[190px]">Subject \ Class</th>
+                          {gridClasses.map(c => (
+                            <th key={c.id} className="px-3 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider min-w-[150px]">
+                              {c.class_name}
+                              {c.shift && <span className={`ml-1 px-1 py-0.5 rounded text-[8px] font-semibold ${c.shift === 'morning' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}>{c.shift === 'morning' ? 'AM' : 'PM'}</span>}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {gridSubjects.map(s => (
+                          <tr key={s.subject_id} className="hover:bg-gray-50/40">
+                            <td className="sticky left-0 z-10 bg-white px-4 py-2 align-top">
+                              <p className="text-sm font-semibold text-gray-800 leading-tight">{s.subject_name}</p>
+                              <p className="text-[10px] text-gray-400">{s.subject_code}{s.weekly_hours ? ` · ${s.weekly_hours}h` : ''}</p>
+                              <select defaultValue="" onChange={e => { const v = e.target.value; if (v === '') return; applyRowToAll(s.subject_id, v === '__none__' ? '' : v); e.target.value = ''; }}
+                                className="mt-1.5 w-full px-1.5 py-1 border border-gray-200 rounded-lg text-[10px] bg-white outline-none text-gray-500 focus:ring-2 focus:ring-teal-500">
+                                <option value="">↳ set all classes…</option>
+                                <option value="__none__">(clear all)</option>
+                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                            </td>
+                            {gridClasses.map(c => {
+                              const key = `${s.subject_id}-${c.id}`;
+                              const val = gridAssign[key] || '';
+                              return (
+                                <td key={c.id} className="px-2 py-2">
+                                  <select value={val} onChange={e => setGridCell(s.subject_id, c.id, e.target.value)}
+                                    className={`w-full px-2 py-1.5 border rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-teal-500 ${val ? 'border-teal-200 text-gray-800' : 'border-gray-200 text-gray-400'}`}>
+                                    <option value="">— none —</option>
+                                    {val && !teachers.some(t => t.id == val) && assignedNames[val] && (
+                                      <option value={val}>{assignedNames[val]} (current)</option>
+                                    )}
+                                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h)</option>)}
+                                  </select>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+                    <button onClick={saveGrid} disabled={savingGrid || !gridDirty}
+                      className="px-5 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                      {savingGrid && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                      {savingGrid ? 'Saving...' : 'Save all assignments'}
+                    </button>
+                  </div>
+                </>
+              )
+            ) : loading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
               </div>
@@ -365,14 +559,19 @@ export default function GradeSubjects() {
                     <tr className="bg-gray-50 border-b border-gray-100">
                       <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Subject</th>
                       <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Teacher</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Teachers (per class)</th>
                       <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Hours/Week</th>
                       <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {items.map(item => (
-                      <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
+                    {items.map(item => {
+                      const expanded = expandedSubjectId === item.subject_id;
+                      const total = item.classes_total ?? 0;
+                      const assigned = item.classes_assigned ?? 0;
+                      return (
+                      <Fragment key={item.id}>
+                      <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="px-4 py-3">
                           <p className="text-sm font-semibold text-gray-800">{item.subject_name}</p>
                           <p className="text-[10px] text-gray-400">{item.subject_code}</p>
@@ -382,19 +581,13 @@ export default function GradeSubjects() {
                         </td>
                         <td className="px-4 py-3">
                           {isPrimary ? (
-                            <span className="text-xs text-amber-700 italic">Class supervisor</span>
-                          ) : editingId === item.id ? (
-                            <select value={editTeacher} onChange={e => setEditTeacher(e.target.value)}
-                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 bg-white outline-none">
-                              <option value="">No teacher</option>
-                              {/* Include current teacher even if "full" so user can keep them */}
-                              {item.teacher_id && !teachers.some(t => t.id == item.teacher_id) && (
-                                <option value={item.teacher_id}>{item.teacher_name} (current)</option>
-                              )}
-                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h available)</option>)}
-                            </select>
+                            <span className="text-xs text-amber-700 italic">Class supervisor (all subjects)</span>
+                          ) : total === 0 ? (
+                            <span className="text-xs text-gray-400">No classes in this grade/term yet</span>
                           ) : (
-                            <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${assigned === 0 ? 'bg-gray-100 text-gray-500' : assigned < total ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                              {assigned}/{total} classes assigned
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -402,29 +595,73 @@ export default function GradeSubjects() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            {editingId === item.id ? (
-                              <>
-                                <button onClick={() => handleUpdate(item.id)}
-                                  className="px-2.5 py-1.5 bg-teal-600 text-white text-[10px] font-semibold rounded-lg hover:bg-teal-700">Save</button>
-                                <button onClick={() => setEditingId(null)}
-                                  className="px-2.5 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-semibold rounded-lg hover:bg-gray-200">Cancel</button>
-                              </>
-                            ) : (
-                              <>
-                                <button onClick={() => startEdit(item)}
-                                  className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                </button>
-                                <button onClick={() => handleDelete(item.id)}
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remove">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                              </>
+                            {!isPrimary && total > 0 && (
+                              <button onClick={() => toggleExpand(item)}
+                                className={`px-2.5 py-1.5 text-[10px] font-semibold rounded-lg transition-colors ${expanded ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-teal-600 text-white hover:bg-teal-700'}`}>
+                                {expanded ? 'Close' : 'Assign teachers'}
+                              </button>
                             )}
+                            <button onClick={() => handleDelete(item.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remove subject from grade">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      {expanded && (
+                        <tr className="bg-teal-50/40">
+                          <td colSpan={5} className="px-4 py-4">
+                            {loadingClasses ? (
+                              <div className="py-6 text-center"><div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-teal-600 border-t-transparent" /></div>
+                            ) : classRows.length === 0 ? (
+                              <p className="text-xs text-gray-400 text-center py-3">No active classes found for this grade & term.</p>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <p className="text-xs font-bold text-gray-700">Assign a teacher for {item.subject_name} in each class</p>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-gray-400">Set all to:</span>
+                                    <select onChange={e => { applyTeacherToAll(e.target.value); e.target.value=''; }} defaultValue=""
+                                      className="px-2 py-1 border border-gray-200 rounded-lg text-[11px] bg-white outline-none focus:ring-2 focus:ring-teal-500">
+                                      <option value="">— pick —</option>
+                                      <option value="">(none)</option>
+                                      {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {classRows.map(row => (
+                                    <div key={row.school_class_id} className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
+                                      <span className="text-xs font-semibold text-gray-700 w-24 truncate" title={row.class_name}>{row.class_name}</span>
+                                      <select value={row.teacher_id || ''} onChange={e => setClassTeacher(row.school_class_id, e.target.value)}
+                                        className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-teal-500">
+                                        <option value="">No teacher</option>
+                                        {/* keep currently-assigned teacher selectable even if now full */}
+                                        {row.teacher_id && !teachers.some(t => t.id == row.teacher_id) && (
+                                          <option value={row.teacher_id}>{row.teacher_name} (current)</option>
+                                        )}
+                                        {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h)</option>)}
+                                      </select>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button onClick={() => { setExpandedSubjectId(null); setClassRows([]); }}
+                                    className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg hover:bg-gray-50">Cancel</button>
+                                  <button onClick={() => saveClassTeachers(item)} disabled={savingClasses}
+                                    className="px-4 py-1.5 bg-teal-600 text-white text-[11px] font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+                                    {savingClasses && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                                    {savingClasses ? 'Saving...' : 'Save class teachers'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

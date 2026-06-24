@@ -15,6 +15,7 @@ const AdminRoleShow = lazy(() => import("./admin/pages/AdminRoleShow"));
 const AdminPermissions = lazy(() => import("./admin/pages/AdminPermissions"));
 const AdminUsers = lazy(() => import("./admin/pages/AdminUsers"));
 const AdminUserShow = lazy(() => import("./admin/pages/AdminUserShow"));
+const ActivityLogs = lazy(() => import("./admin/pages/ActivityLogs"));
 const Forbidden = lazy(() => import("./admin/pages/Forbidden"));
 
 // Loading spinner shown while lazy components load
@@ -633,6 +634,11 @@ function App() {
             <Route path="admin/users/:id" element={
               <Protected permission="users.view">
                 <Suspense fallback={<PageLoader />}><AdminUserShow /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/activity-logs" element={
+              <Protected permission="activity-logs.view">
+                <Suspense fallback={<PageLoader />}><ActivityLogs /></Suspense>
               </Protected>
             } />
           </Route>

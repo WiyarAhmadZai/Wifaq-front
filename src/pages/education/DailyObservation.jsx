@@ -107,7 +107,7 @@ export default function DailyObservation() {
     return { c: "#5d7273", bg: "#eef3f3", label: `${s.days_since}d` };
   };
   const seenToday = roster.filter((s) => s.seen_today).length;
-  const filtered = query ? roster.filter((s) => s.full_name.toLowerCase().includes(query.toLowerCase())) : roster;
+  const filtered = query ? roster.filter((s) => `${s.full_name} ${s.father_name || ""}`.toLowerCase().includes(query.toLowerCase())) : roster;
 
   return (
     <div className="min-h-screen" style={{ background: PAPER }}>
@@ -151,6 +151,7 @@ export default function DailyObservation() {
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(s.full_name)}</div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-gray-800 truncate">{s.full_name}</p>
+                    {s.father_name && <p className="text-[10px] text-gray-500 truncate">{s.gender === "female" ? "D/O" : "S/O"} {s.father_name}</p>}
                     <p className="text-[10px] text-gray-400">{s.total_count} obs</p>
                   </div>
                   <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0" style={{ background: b.bg, color: b.c }}>{b.label}</span>
@@ -180,6 +181,7 @@ export default function DailyObservation() {
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black text-white flex-shrink-0" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(selected.full_name)}</div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-black text-gray-800 truncate">{selected.full_name}</h2>
+                  {selected.father_name && <p className="text-[11px] text-gray-500 truncate">{selected.gender === "female" ? "D/O" : "S/O"} {selected.father_name}</p>}
                   <p className="text-[11px] text-gray-400">{selected.total_count} observation{selected.total_count === 1 ? "" : "s"} · {selected.seen_today ? "seen today" : selected.days_since === null ? "never observed" : `last ${selected.days_since}d ago`}</p>
                 </div>
                 {!adding && <button onClick={() => setAdding(true)} className="px-4 py-2 rounded-xl text-xs font-bold text-white" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>＋ Observe</button>}

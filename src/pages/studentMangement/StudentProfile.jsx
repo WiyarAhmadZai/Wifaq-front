@@ -115,6 +115,28 @@ export default function StudentProfile() {
     } finally { setSaving(false); }
   };
 
+  // Open the printable HTML report in a new tab (Save-as-PDF from the browser).
+  const openReport = async () => {
+    try {
+      const r = await get(`/student-management/students/${id}/profile/report`, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([r.data], { type: "text/html" }));
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch { toastError("Could not open the report."); }
+  };
+  // Download the full شناسنامه as a branded PDF (mpdf, server-side).
+  const downloadPdf = async () => {
+    try {
+      const r = await get(`/student-management/students/${id}/profile/report?format=pdf`, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([r.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `profile-${(data?.student?.full_name || "student").replace(/\s+/g, "-")}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch { toastError("Could not generate the PDF."); }
+  };
+
   if (loading) return <div className="min-h-screen bg-gray-50/60"><Spinner /></div>;
   if (!data) return null;
 
@@ -131,9 +153,11 @@ export default function StudentProfile() {
           <button onClick={() => navigate(-1)} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
-          <button onClick={() => navigate(`/student-management/students/show/${id}`)} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold">
-            Full record →
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={openReport} title="Open the printable report" className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold">🖨 Print</button>
+            <button onClick={downloadPdf} title="Download the full شناسنامه as PDF" className="px-3 py-2 bg-white text-teal-700 hover:bg-teal-50 rounded-xl text-sm font-semibold">⬇ PDF</button>
+            <button onClick={() => navigate(`/student-management/students/show/${id}`)} className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold">Full record →</button>
+          </div>
         </div>
       </div>
 

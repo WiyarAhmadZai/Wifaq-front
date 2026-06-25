@@ -184,6 +184,7 @@ const PositionTitleForm = lazy(() => import("./pages/recruitment/PositionTitleFo
 const Classes = lazy(() => import("./pages/class-management/Classes"));
 const ClassesForm = lazy(() => import("./pages/class-management/ClassesForm"));
 const ClassesShow = lazy(() => import("./pages/class-management/ClassesShow"));
+const ClassStudents = lazy(() => import("./pages/class-management/ClassStudents"));
 const GradeSubjects = lazy(() => import("./pages/class-management/GradeSubjects"));
 const Subjects = lazy(() => import("./pages/class-management/Subjects"));
 const SubjectsForm = lazy(() => import("./pages/class-management/SubjectsForm"));
@@ -351,6 +352,7 @@ function App() {
             <Route path="class-management/classes/create" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />
             <Route path="class-management/classes/edit/:id" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />
             <Route path="class-management/classes/show/:id" element={<Suspense fallback={<PageLoader />}><ClassesShow /></Suspense>} />
+            <Route path="class-management/classes/students/:id" element={<Suspense fallback={<PageLoader />}><ClassStudents /></Suspense>} />
             <Route path="class-management/grade-subjects" element={<Suspense fallback={<PageLoader />}><GradeSubjects /></Suspense>} />
             <Route path="class-management/subjects" element={<Suspense fallback={<PageLoader />}><Subjects /></Suspense>} />
             <Route path="class-management/subjects/create" element={<Suspense fallback={<PageLoader />}><SubjectsForm /></Suspense>} />

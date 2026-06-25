@@ -90,6 +90,11 @@ const LessonPlanCurriculum = lazy(() => import("./pages/education/LessonPlanCurr
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const Drive = lazy(() => import("./pages/drive/Drive"));
+const Questionnaires = lazy(() => import("./pages/questionnaire/Questionnaires"));
+const QuestionnaireForm = lazy(() => import("./pages/questionnaire/QuestionnaireForm"));
+const QuestionnaireResponses = lazy(() => import("./pages/questionnaire/QuestionnaireResponses"));
+const QuestionnaireShow = lazy(() => import("./pages/questionnaire/QuestionnaireShow"));
+const MyQuestionnaire = lazy(() => import("./pages/questionnaire/MyQuestionnaire"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
 const Meetings = lazy(() => import("./pages/hr/Meetings"));
 const MeetingForm = lazy(() => import("./pages/hr/MeetingForm"));
@@ -207,6 +212,7 @@ const Applications = lazy(() => import("./pages/recruitment/Applications"));
 const ApplicationForm = lazy(() => import("./pages/recruitment/ApplicationForm"));
 const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow"));
 const PublicApplicationForm = lazy(() => import("./pages/recruitment/PublicApplicationForm"));
+const PublicQuestionnaire = lazy(() => import("./pages/public/PublicQuestionnaire"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
 const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolShow"));
@@ -301,6 +307,10 @@ function App() {
             <Route path="/careers/apply" element={<Suspense fallback={<PageLoader />}><PublicApplicationForm /></Suspense>} />
             <Route path="/apply" element={<Navigate to="/careers/apply" replace />} />
 
+            {/* Public weekly questionnaire — shareable link, no login required */}
+            <Route path="/questionnaire" element={<Suspense fallback={<PageLoader />}><PublicQuestionnaire /></Suspense>} />
+            <Route path="/parent-questionnaire" element={<Navigate to="/questionnaire" replace />} />
+
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="departments" element={<Navigate to="/hr/departments" replace />} />
@@ -328,6 +338,15 @@ function App() {
 
             {/* Drive — private per-user file manager */}
             <Route path="drive" element={<Suspense fallback={<PageLoader />}><Drive /></Suspense>} />
+
+            {/* Questionnaires — weekly parent evaluations */}
+            <Route path="questionnaires" element={<Suspense fallback={<PageLoader />}><Questionnaires /></Suspense>} />
+            <Route path="questionnaires/create" element={<Suspense fallback={<PageLoader />}><QuestionnaireForm /></Suspense>} />
+            <Route path="questionnaires/edit/:id" element={<Suspense fallback={<PageLoader />}><QuestionnaireForm /></Suspense>} />
+            <Route path="questionnaires/:id/responses" element={<Suspense fallback={<PageLoader />}><QuestionnaireResponses /></Suspense>} />
+            <Route path="questionnaires/:id" element={<Suspense fallback={<PageLoader />}><QuestionnaireShow /></Suspense>} />
+            {/* Parent's own questionnaire (reached from the bell notification) */}
+            <Route path="my-questionnaire" element={<Suspense fallback={<PageLoader />}><MyQuestionnaire /></Suspense>} />
 
             {/* Planning — Annual / Monthly / Weekly plans */}
             <Route path="planning" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />

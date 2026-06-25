@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { get } from "../api/axios";
 
 import { fmtDate } from "../utils/formErrors";
+import QuestionnaireCompletionCard from "./questionnaire/QuestionnaireCompletionCard";
 
 /**
  * Role-aware home dashboard. The backend returns only the sections the caller
@@ -161,6 +162,9 @@ export default function Dashboard() {
           </div>
           );
         })()}
+
+        {/* ─── Weekly questionnaire completion ─── */}
+        <QuestionnaireCompletionCard />
 
         {/* ─── On Leave Today ─── */}
         {onLeaveToday.length > 0 && (

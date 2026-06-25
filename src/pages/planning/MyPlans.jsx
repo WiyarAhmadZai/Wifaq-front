@@ -5,6 +5,17 @@ import { listPlans, deletePlan, PLAN_TYPES, PLAN_STATES } from "../../api/planni
 import { useAuth } from "../../admin/context/AuthContext";
 import { PageHeader, StatGrid, EmptyState, Spinner } from "../../components/hr/HrUI";
 import { StatusPill, ProgressBar, planProgress } from "./planUtils";
+import ListExportActions from "../../components/ListExportActions";
+
+const PLAN_EXPORT_COLS = [
+  { key: "title", label: "Plan" },
+  { key: "type", label: "Type" },
+  { key: "period_year", label: "Year" },
+  { key: "status", label: "State" },
+  { key: "objectives_count", label: "Objectives" },
+  { key: "items_count", label: "Items" },
+  { key: "progress", label: "Progress %", exportValue: (p) => (p.progress != null ? p.progress : "") },
+];
 
 const ICON = "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2";
 
@@ -85,15 +96,18 @@ export default function MyPlans() {
         subtitle="Annual, monthly and weekly plans · all states"
         icon={ICON}
         actions={
-          canCreate && (
-            <button
-              onClick={() => navigate("/planning/plans/create")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              New Plan
-            </button>
-          )
+          <div className="flex flex-wrap gap-2 items-center">
+            <ListExportActions getRows={() => filtered} columns={PLAN_EXPORT_COLS} title="My Plans" />
+            {canCreate && (
+              <button
+                onClick={() => navigate("/planning/plans/create")}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-teal-700 text-xs font-bold rounded-xl hover:bg-teal-50"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                New Plan
+              </button>
+            )}
+          </div>
         }
       />
 

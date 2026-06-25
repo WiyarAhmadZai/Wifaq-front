@@ -3,8 +3,25 @@ import { useNavigate } from "react-router-dom";
 import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
+import ListExportActions from "../../components/ListExportActions";
 
 import { fmtDate } from "../../utils/formErrors";
+
+// Columns used for Excel export / print of the enrollments list.
+const EXPORT_COLUMNS = [
+  { key: "student_id", label: "Student ID" },
+  { key: "name", label: "Name", exportValue: (it) => `${it.first_name || ""} ${it.last_name || ""}`.trim() },
+  { key: "class", label: "Class", exportValue: (it) => it.school_class?.class_name || "" },
+  { key: "term", label: "Academic Term", exportValue: (it) => it.academic_term?.name || "" },
+  { key: "father", label: "Father", exportValue: (it) => it.family?.father_name || "" },
+  { key: "family_id", label: "Family ID", exportValue: (it) => it.family?.family_id || "" },
+  { key: "father_phone", label: "Father Phone", exportValue: (it) => it.family?.father_phone || "" },
+  { key: "fee", label: "Monthly Fee", exportValue: (it) => (it.final_fee ? Number(it.final_fee) : "") },
+  { key: "enrolled", label: "Enrolled At", exportValue: (it) => (it.phase_2_completed_at ? fmtDate(it.phase_2_completed_at) : "") },
+  { key: "status", label: "Status", exportValue: (it) => it.status || "" },
+  { key: "type", label: "Type", exportValue: (it) => it.enrollment_type || "" },
+  { key: "transfer", label: "Transfer", exportValue: (it) => (it.enrollment_type === "transfer" ? (it.transfer_case_status || "pending") : "") },
+];
 
 const TRANSFER_STEP_SHORT = {
   transfer_agreement: "Agreement done",
@@ -37,12 +54,14 @@ export default function StudentEnrollments() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterGrade, setFilterGrade] = useState("");
   const [filterClass, setFilterClass] = useState("");
   const [filterTerm, setFilterTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
 
+  const [grades, setGrades] = useState([]);
   const [classes, setClasses] = useState([]);
   const [terms, setTerms] = useState([]);
   const [transferStudent, setTransferStudent] = useState(null);
@@ -55,6 +74,7 @@ export default function StudentEnrollments() {
         params.append("page", page);
         params.append("registration_status", "phase_2");
         if (search) params.append("search", search);
+        if (filterGrade) params.append("grade_id", filterGrade);
         if (filterClass) params.append("class_id", filterClass);
         if (filterTerm) params.append("academic_term_id", filterTerm);
         if (filterStatus) params.append("status", filterStatus);
@@ -68,16 +88,43 @@ export default function StudentEnrollments() {
         setLoading(false);
       }
     },
-    [search, filterClass, filterTerm, filterStatus],
+    [search, filterGrade, filterClass, filterTerm, filterStatus],
   );
 
   useEffect(() => {
     const t = setTimeout(() => fetchItems(1), 400);
     return () => clearTimeout(t);
-  }, [search, filterClass, filterTerm, filterStatus]);
+  }, [search, filterGrade, filterClass, filterTerm, filterStatus]);
+
+  // Pull every page (with the current filters) for the Excel/Print export.
+  const fetchAllEnrollments = useCallback(async () => {
+    const all = [];
+    let page = 1, last = 1;
+    do {
+      const params = new URLSearchParams();
+      params.append("page", page);
+      params.append("per_page", 1000);
+      params.append("registration_status", "phase_2");
+      if (search) params.append("search", search);
+      if (filterGrade) params.append("grade_id", filterGrade);
+      if (filterClass) params.append("class_id", filterClass);
+      if (filterTerm) params.append("academic_term_id", filterTerm);
+      if (filterStatus) params.append("status", filterStatus);
+      const res = await get(`/student-management/students/list?${params.toString()}`);
+      const data = res.data?.data || [];
+      if (Array.isArray(data)) all.push(...data);
+      last = res.data?.meta?.last_page || 1;
+      page += 1;
+    } while (page <= last && page <= 200);
+    return all;
+  }, [search, filterGrade, filterClass, filterTerm, filterStatus]);
 
   useEffect(() => {
     (async () => {
+      try {
+        const r0 = await get("/grades/list");
+        setGrades(r0.data?.data || []);
+      } catch {}
       try {
         const r1 = await get("/class-management/classes/list?per_page=1000");
         setClasses(r1.data?.data || []);
@@ -89,7 +136,7 @@ export default function StudentEnrollments() {
     })();
   }, []);
 
-  const activeFilters = [filterClass, filterTerm, filterStatus].filter(Boolean).length;
+  const activeFilters = [filterGrade, filterClass, filterTerm, filterStatus].filter(Boolean).length;
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
@@ -125,15 +172,18 @@ export default function StudentEnrollments() {
           <h1 className="text-lg font-bold text-gray-800">Phase 2 Enrollments</h1>
           <p className="text-xs text-gray-400 mt-0.5">Officially enrolled students — Phase 2 completed</p>
         </div>
-        <button
-          onClick={() => navigate("/student-management/student-enrollments/create")}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Enrollment
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <ListExportActions getRows={fetchAllEnrollments} columns={EXPORT_COLUMNS} title="Phase 2 Enrollments" />
+          <button
+            onClick={() => navigate("/student-management/student-enrollments/create")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Enrollment
+          </button>
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -179,7 +229,7 @@ export default function StudentEnrollments() {
           </button>
           {(activeFilters > 0 || search) && (
             <button
-              onClick={() => { setSearch(""); setFilterClass(""); setFilterTerm(""); setFilterStatus(""); }}
+              onClick={() => { setSearch(""); setFilterGrade(""); setFilterClass(""); setFilterTerm(""); setFilterStatus(""); }}
               className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
             >
               Clear
@@ -187,7 +237,14 @@ export default function StudentEnrollments() {
           )}
         </div>
         {filterOpen && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 border-t border-gray-100">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Grade</label>
+              <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">
+                <option value="">All Grades</option>
+                {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Class</label>
               <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">

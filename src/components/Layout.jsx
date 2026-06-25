@@ -1071,6 +1071,12 @@ export default function Layout() {
     { label: "My Files", path: "/drive", permission: "drive.view" },
   ];
 
+  const questionnaireMenus = [
+    { label: "All Questionnaires", path: "/questionnaires", permission: "questionnaires.view" },
+    { label: "New Questionnaire", path: "/questionnaires/create", permission: "questionnaires.create" },
+    { label: "Answer Questionnaire", path: "/my-questionnaire", permission: "questionnaires.answer" },
+  ];
+
   const recruitmentMenus = [
     { label: "Position Titles", path: "/recruitment/position-titles", permission: "position-titles.view" },
     { label: "Job Applications", path: "/recruitment/job-requisitions", permission: "job-requisitions.view" },
@@ -1379,6 +1385,25 @@ export default function Layout() {
             onClick={() => toggleMenu("drive")}
           >
             {visible(driveMenus).map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+          )}
+
+          {canSeeGroup(questionnaireMenus) && (
+          <ParentMenu
+            icon={Icons.Dashboard}
+            label="Questionnaires"
+            isOpen={openMenu.includes("questionnaires")}
+            onClick={() => toggleMenu("questionnaires")}
+          >
+            {visible(questionnaireMenus).map((item) => (
               <SubMenuItem
                 key={item.path}
                 label={item.label}

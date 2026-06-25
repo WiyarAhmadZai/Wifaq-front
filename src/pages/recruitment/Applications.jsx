@@ -2,8 +2,18 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, del } from "../../api/axios";
 import Swal from "sweetalert2";
+import ListExportActions from "../../components/ListExportActions";
 
 import { fmtDate } from "../../utils/formErrors";
+
+const APP_EXPORT_COLS = [
+  { key: "full_name", label: "Applicant" },
+  { key: "job_posting.title", label: "Job Posting" },
+  { key: "contact_number", label: "Contact" },
+  { key: "source", label: "Source" },
+  { key: "status", label: "Status" },
+  { key: "created_at", label: "Applied", exportValue: (it) => (it.created_at ? String(it.created_at).slice(0, 10) : "") },
+];
 
 const pipelineStages = [
   { key: "received", label: "Received", color: "bg-blue-500", light: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -94,6 +104,16 @@ export default function Applications() {
 
   useEffect(() => { fetchCounts(); }, []);
 
+  // Export/print: fetch ALL matching applications (endpoint supports per_page).
+  const fetchAllApplications = async () => {
+    const params = new URLSearchParams();
+    params.append("per_page", 9999);
+    if (activeFilter !== "all") params.append("status", activeFilter);
+    if (urlSearch) params.append("search", urlSearch);
+    const r = await get(`/recruitment/applications?${params.toString()}`);
+    return r.data?.data || [];
+  };
+
   const handleSearch = (e) => setSearchQuery(e.target.value);
 
   // Debounce typing into the URL (resets to page 1 on a new search).
@@ -142,6 +162,7 @@ export default function Applications() {
             <input type="text" value={searchQuery} onChange={handleSearch} placeholder="Search candidates..."
               className="w-full sm:w-64 pl-10 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
+          <ListExportActions getRows={fetchAllApplications} columns={APP_EXPORT_COLS} title="Applications" />
           <button onClick={() => navigate("/recruitment/applications/create")}
             className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

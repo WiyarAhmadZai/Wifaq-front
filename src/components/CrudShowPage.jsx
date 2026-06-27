@@ -4,6 +4,7 @@ import { get, del } from '../api/axios';
 import Swal from 'sweetalert2';
 
 import { fmtDate, fmtDateTime } from "../utils/formErrors";
+import { useAuth } from "../admin/context/AuthContext";
 
 const Icons = {
   ArrowLeft: () => (
@@ -85,11 +86,21 @@ const DetailRow = ({ label, value, isStatus = false }) => (
   </div>
 );
 
-export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, editRoute, deleteEndpoint = null }) {
+export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, editRoute, deleteEndpoint = null, permissionBase = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Permission resolution. If no base provided → all true (legacy behavior),
+  // mirroring CrudPage so callers opt in by passing `permissionBase`.
+  const permCheck = (action) => {
+    if (!permissionBase) return true;
+    return hasPermission(`${permissionBase}.${action}`) || hasPermission(`${permissionBase}.manage`);
+  };
+  const canUpdate = permCheck("update");
+  const canDelete = permCheck("delete");
 
   useEffect(() => {
     fetchItem();
@@ -195,20 +206,24 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => navigate(`${editRoute}/${id}`)}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Edit />
-            Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Trash />
-            Delete
-          </button>
+          {canUpdate && editRoute && (
+            <button
+              onClick={() => navigate(`${editRoute}/${id}`)}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Edit />
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Trash />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 

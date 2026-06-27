@@ -13,8 +13,13 @@ const WELFARE_ROLES = ["super-admin", "admin", "hr-manager", "welfare-officer"];
 
 export default function WelfareAlerts() {
   const location = useLocation();
-  const { hasRole } = useAuth() || {};
-  const canManage = WELFARE_ROLES.some((r) => hasRole?.(r));
+  const { hasRole, hasPermission } = useAuth() || {};
+  // Hide the management action (Update) when the user lacks permission. Falls
+  // back to the role list for environments where the permission isn't seeded.
+  const permCheck = (action) =>
+    hasPermission?.(`welfare-alerts.${action}`) || hasPermission?.('welfare-alerts.manage');
+  const canManage =
+    permCheck('manage') || permCheck('update') || WELFARE_ROLES.some((r) => hasRole?.(r));
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState({ status: "" });

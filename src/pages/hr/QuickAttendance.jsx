@@ -4,8 +4,11 @@ import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 export default function QuickAttendance() {
   const navigate = useNavigate();
+  // Marking attendance is a write — gate it behind `attendance.manage`.
+  const { canManage } = useResourcePermissions("attendance");
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
     return d.toISOString().slice(0, 10);
@@ -324,6 +327,8 @@ export default function QuickAttendance() {
                         <p className="text-xs text-center text-slate-500 italic">
                           Completed
                         </p>
+                      ) : !canManage ? (
+                        <p className="text-xs text-center text-slate-400">—</p>
                       ) : (
                         <div className="flex justify-center items-center gap-1 flex-wrap">
                           <button

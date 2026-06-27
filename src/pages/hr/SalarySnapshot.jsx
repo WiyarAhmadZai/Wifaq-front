@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get, del } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const DEMO_ITEMS = [
   { id: 1, staff_id: 1, staff_name: "Ahmad Rahimi", staff_code: "WS-2026-001", snapshot_month: "2026-03-01", rank_level: 5, base_salary: 25000, housing_allowance: 3000, transport_allowance: 2000, family_allowance: 2000, other_allowances: 0, total_package: 32000, reason: "Annual increment" },
@@ -13,6 +14,7 @@ const DEMO_ITEMS = [
 
 export default function SalarySnapshot() {
   const navigate = useNavigate();
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions('salary-snapshot');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -53,11 +55,13 @@ export default function SalarySnapshot() {
             <h1 className="text-sm font-bold text-white">Salary Snapshots</h1>
             <p className="text-xs text-teal-100 mt-0.5">{items.length} records</p>
           </div>
-          <button onClick={() => navigate('/hr/salary-snapshot/create')}
-            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            New Snapshot
-          </button>
+          {canCreate && (
+            <button onClick={() => navigate('/hr/salary-snapshot/create')}
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              New Snapshot
+            </button>
+          )}
         </div>
       </div>
 
@@ -136,14 +140,18 @@ export default function SalarySnapshot() {
                             className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                           </button>
-                          <button onClick={() => navigate(`/hr/salary-snapshot/edit/${item.id}`)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                          </button>
-                          <button onClick={() => handleDelete(item.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
+                          {canUpdate && (
+                            <button onClick={() => navigate(`/hr/salary-snapshot/edit/${item.id}`)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(item.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -155,7 +163,9 @@ export default function SalarySnapshot() {
               <div className="text-center py-12">
                 <svg className="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 <p className="text-sm text-gray-400 font-medium">No snapshots found</p>
-                <button onClick={() => navigate('/hr/salary-snapshot/create')} className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">Create your first snapshot</button>
+                {canCreate && (
+                  <button onClick={() => navigate('/hr/salary-snapshot/create')} className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">Create your first snapshot</button>
+                )}
               </div>
             )}
           </div>

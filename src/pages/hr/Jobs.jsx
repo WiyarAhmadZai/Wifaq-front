@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get, post, del, put } from '../../api/axios';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const Icons = {
   Plus: () => (
@@ -53,6 +54,8 @@ const getTypeBadge = (type) => {
 
 export default function Jobs() {
   const navigate = useNavigate();
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions('job-postings');
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -168,13 +171,15 @@ export default function Jobs() {
           <h2 className="text-base font-bold text-gray-800">Job Postings</h2>
           <p className="text-xs text-gray-500 mt-0.5">Manage job postings and vacancies</p>
         </div>
-        <button
-          onClick={handleCreate}
-          className="w-full sm:w-auto px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1.5 font-medium text-xs"
-        >
-          <Icons.Plus />
-          Add Job Posting
-        </button>
+        {canCreate && (
+          <button
+            onClick={handleCreate}
+            className="w-full sm:w-auto px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1.5 font-medium text-xs"
+          >
+            <Icons.Plus />
+            Add Job Posting
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -298,13 +303,15 @@ export default function Jobs() {
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openStatusModal(item)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Update Status"
-                        >
-                          <Icons.Status />
-                        </button>
+                        {canUpdate && (
+                          <button
+                            onClick={() => openStatusModal(item)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Update Status"
+                          >
+                            <Icons.Status />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleView(item)}
                           className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors"
@@ -312,20 +319,24 @@ export default function Jobs() {
                         >
                           <Icons.Eye />
                         </button>
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                          title="Edit"
-                        >
-                          <Icons.Edit />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Delete"
-                        >
-                          <Icons.Trash />
-                        </button>
+                        {canUpdate && (
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                            title="Edit"
+                          >
+                            <Icons.Edit />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete"
+                          >
+                            <Icons.Trash />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -341,12 +352,14 @@ export default function Jobs() {
               <p className="text-gray-500 text-xs">
                 {items.length === 0 ? 'No job postings found' : 'No job postings match your filters'}
               </p>
-              <button
-                onClick={handleCreate}
-                className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs"
-              >
-                Create your first job posting
-              </button>
+              {canCreate && (
+                <button
+                  onClick={handleCreate}
+                  className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                >
+                  Create your first job posting
+                </button>
+              )}
             </div>
           )}
         </div>

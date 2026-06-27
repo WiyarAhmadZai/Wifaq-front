@@ -18,6 +18,7 @@ export default function AttendanceShow() {
       fields={attendanceFields}
       listRoute="/hr/attendance"
       editRoute="/hr/attendance/edit"
+      permissionBase="attendance"
     />
   );
 }

@@ -22,6 +22,11 @@ const RULES = [
   // Planning — Annual / Monthly / Weekly plans (top-level "Planning" menu).
   { prefix: "/planning", permission: "planning.view" },
 
+  // Weekly parent questionnaires (admin). One umbrella rule: the action is
+  // derived from the tail — /create → create, /edit/:id → update,
+  // /:id and /:id/responses → view — with questionnaires.manage as override.
+  { prefix: "/questionnaires", permission: "questionnaires.view" },
+
   // Recruitment — position titles
   { prefix: "/recruitment/position-titles", permission: "position-titles.view" },
 
@@ -169,6 +174,11 @@ const PUBLIC_PATHS = new Set([
   // feed (backend's /api/notifications already scopes the response to the
   // logged-in user). No permission needed.
   "/notifications",
+  // Parent's own questionnaire answering page — backend route is
+  // withoutMiddleware('path.permission') and row-scopes to the caller, so any
+  // authenticated user may open it. The sidebar link is gated by
+  // questionnaires.answer so only parents actually see it.
+  "/my-questionnaire",
 ]);
 
 /**

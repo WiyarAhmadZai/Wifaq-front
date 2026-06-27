@@ -405,8 +405,11 @@ function NotificationBell() {
     } catch { /* ignore */ }
   }, []);
 
-  // OS notification — used when the tab is hidden so the user notices.
-  // Requests permission once on first call; subsequent calls just fire.
+  // OS notification — fires even when the tab is hidden (WhatsApp-Web style).
+  // Mobile browsers forbid `new Notification()` (Illegal constructor) — they
+  // REQUIRE the service worker's registration.showNotification(). So we prefer
+  // the service worker everywhere and only fall back to the constructor on
+  // desktop when no service worker is available.
   const showOsNotification = useCallback((n) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission === 'denied') return;
@@ -414,17 +417,37 @@ function NotificationBell() {
       Notification.requestPermission(); // picked up on the next poll
       return;
     }
+    const d = n.data || {};
+    const title = d.title || 'New notification';
+    const opts = { body: d.message || '', icon: '/favicon.ico', tag: `wen-${n.id}`, renotify: true, data: { link: d.link || '/' } };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.showNotification(title, opts))
+        .catch(() => {
+          // Desktop fallback if the SW isn't controlling yet.
+          try {
+            const notif = new Notification(title, opts);
+            notif.onclick = () => { window.focus(); if (d.link) navigate(d.link); notif.close(); };
+          } catch { /* ignore */ }
+        });
+      return;
+    }
     try {
-      const d = n.data || {};
-      const title = d.title || 'New notification';
-      const body  = d.message || '';
-      const notif = new Notification(title, { body, icon: '/favicon.ico', tag: `wen-${n.id}` });
-      notif.onclick = () => {
-        window.focus();
-        if (d.link) navigate(d.link);
-        notif.close();
-      };
+      const notif = new Notification(title, opts);
+      notif.onclick = () => { window.focus(); if (d.link) navigate(d.link); notif.close(); };
     } catch { /* ignore */ }
+  }, [navigate]);
+
+  // Register the service worker and navigate when a notification is clicked.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* ignore */ });
+    const onMsg = (e) => {
+      if (e.data?.type === 'notif-navigate' && e.data.link) navigate(e.data.link);
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
   }, [navigate]);
 
   const fetchNotifications = useCallback(async () => {

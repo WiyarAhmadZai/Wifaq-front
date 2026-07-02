@@ -53,6 +53,22 @@ export const studentSubject = (studentId, subjectId, params = {}) =>
 export const academicSummary = (studentId, params = {}) =>
   get(`${BASE}/student/${studentId}/academic-summary`, { params });
 
+// ── Term exams (year-defining: midterm /40 + final /60 + re-exam /100) ──
+export const TERM_EXAMS = [
+  { key: "midterm", label: "Midterm", max: 40 },
+  { key: "final", label: "Final term", max: 60 },
+  { key: "reexam", label: "Re-exam", max: 100 },
+];
+export const termExamFormData = () => get(`${BASE}/term-exams/form-data`);
+export const termExamSheet = (params) => get(`${BASE}/term-exams/sheet`, { params });
+export const saveTermExam = (data) => post(`${BASE}/term-exams/save`, data);
+
+// ── Promotion ───────────────────────────────────────────────────────────
+export const promotionBoard = (params) => get(`${BASE}/promotion/board`, { params });
+export const confirmPromotion = (data) => post(`${BASE}/promotion/confirm`, data);
+export const assignPromotion = (data) => post(`${BASE}/promotion/assign`, data);
+export const studentAcademicHistory = (studentId) => get(`${BASE}/promotion/student/${studentId}/history`);
+
 // ── Admin panels (leadership) ───────────────────────────────────────────
 export const crossClassSummary = (params = {}) => get(`${BASE}/admin/cross-class-summary`, { params });
 export const homeworkCompliance = () => get(`${BASE}/admin/homework-compliance`);

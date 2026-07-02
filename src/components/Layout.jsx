@@ -1146,6 +1146,8 @@ export default function Layout() {
     { label: "Homework Queue", path: "/education/gradebook/homework", permission: "gradebook.view" },
     { label: "Assign Homework", path: "/education/gradebook/homework/new", permission: "gradebook.create" },
     { label: "New Assessment", path: "/education/gradebook/assessments/new", permission: "gradebook.create" },
+    { label: "Term Exams", path: "/education/gradebook/term-exams", permission: "gradebook.create" },
+    { label: "Promotion Board", path: "/education/gradebook/promotion", permission: "gradebook.view" },
     { label: "Analytics", path: "/education/gradebook/analytics", permission: "gradebook.analyze" },
   ];
   const classMgmtMenus = [

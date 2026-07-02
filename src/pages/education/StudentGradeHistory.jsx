@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { studentSubject } from "../../api/gradebook";
 import { Hero, Spinner } from "./lessonPlanUi";
-import { PAPER, DIMAP, scoreColor, fmtScore } from "./gradebookUi";
+import { PAPER, GOLD, DIMAP, scoreColor, fmtScore } from "./gradebookUi";
 
 /** One student's grade history in a subject — period summary + recent assessments. */
 export default function StudentGradeHistory() {
+  const navigate = useNavigate();
   const { studentId, subjectId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +24,9 @@ export default function StudentGradeHistory() {
   const ps = data.period_summary || {};
   return (
     <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
-      <Hero title={data.student?.name} subtitle={`${data.subject?.name} · ${data.month}`} />
+      <Hero title={data.student?.name} subtitle={`${data.subject?.name} · ${data.month}`}
+        right={<button onClick={() => navigate(`/education/gradebook/student/${studentId}/academic-history`)}
+          className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: GOLD, color: "#052528" }}>Academic history →</button>} />
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
         <div className="grid grid-cols-3 gap-3">
           <Stat label="Month avg" value={fmtScore(ps.avg)} color={scoreColor(ps.avg)} />

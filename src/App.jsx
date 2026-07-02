@@ -93,6 +93,9 @@ const MarkingScreen = lazy(() => import("./pages/education/MarkingScreen"));
 const StudentGradeHistory = lazy(() => import("./pages/education/StudentGradeHistory"));
 const HomeworkQueue = lazy(() => import("./pages/education/HomeworkQueue"));
 const AssignHomework = lazy(() => import("./pages/education/AssignHomework"));
+const TermExamSheet = lazy(() => import("./pages/education/TermExamSheet"));
+const PromotionBoard = lazy(() => import("./pages/education/PromotionBoard"));
+const StudentAcademicHistory = lazy(() => import("./pages/education/StudentAcademicHistory"));
 const GradebookDashboard = lazy(() => import("./pages/education/GradebookDashboard"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
@@ -471,6 +474,9 @@ function App() {
             <Route path="education/gradebook/homework/new" element={<Suspense fallback={<PageLoader />}><AssignHomework /></Suspense>} />
             <Route path="education/gradebook/analytics" element={<Suspense fallback={<PageLoader />}><GradebookDashboard /></Suspense>} />
             <Route path="education/gradebook/student/:studentId/subject/:subjectId" element={<Suspense fallback={<PageLoader />}><StudentGradeHistory /></Suspense>} />
+            <Route path="education/gradebook/term-exams" element={<Suspense fallback={<PageLoader />}><TermExamSheet /></Suspense>} />
+            <Route path="education/gradebook/promotion" element={<Suspense fallback={<PageLoader />}><PromotionBoard /></Suspense>} />
+            <Route path="education/gradebook/student/:studentId/academic-history" element={<Suspense fallback={<PageLoader />}><StudentAcademicHistory /></Suspense>} />
             <Route path="hr/planner" element={<Suspense fallback={<PageLoader />}><Planner /></Suspense>} />
             <Route path="hr/planner/create" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
             <Route path="hr/planner/edit/:id" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />

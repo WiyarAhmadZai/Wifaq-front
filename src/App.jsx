@@ -87,6 +87,13 @@ const LessonPlanTemplates = lazy(() => import("./pages/education/LessonPlanTempl
 const LessonPlanShow = lazy(() => import("./pages/education/LessonPlanShow"));
 const LessonPlanBridge = lazy(() => import("./pages/education/LessonPlanBridge"));
 const LessonPlanCurriculum = lazy(() => import("./pages/education/LessonPlanCurriculum"));
+const ClassGradebook = lazy(() => import("./pages/education/ClassGradebook"));
+const NewAssessment = lazy(() => import("./pages/education/NewAssessment"));
+const MarkingScreen = lazy(() => import("./pages/education/MarkingScreen"));
+const StudentGradeHistory = lazy(() => import("./pages/education/StudentGradeHistory"));
+const HomeworkQueue = lazy(() => import("./pages/education/HomeworkQueue"));
+const AssignHomework = lazy(() => import("./pages/education/AssignHomework"));
+const GradebookDashboard = lazy(() => import("./pages/education/GradebookDashboard"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const Drive = lazy(() => import("./pages/drive/Drive"));
@@ -455,6 +462,15 @@ function App() {
             <Route path="education/lesson-plans/coverage" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights initialTab="coverage" /></Suspense>} />
             <Route path="education/lesson-plans/curriculum" element={<Suspense fallback={<PageLoader />}><LessonPlanCurriculum /></Suspense>} />
             <Route path="education/lesson-plans/templates" element={<Suspense fallback={<PageLoader />}><LessonPlanTemplates /></Suspense>} />
+
+            {/* Gradebook + Homework */}
+            <Route path="education/gradebook" element={<Suspense fallback={<PageLoader />}><ClassGradebook /></Suspense>} />
+            <Route path="education/gradebook/mark" element={<Suspense fallback={<PageLoader />}><MarkingScreen /></Suspense>} />
+            <Route path="education/gradebook/assessments/new" element={<Suspense fallback={<PageLoader />}><NewAssessment /></Suspense>} />
+            <Route path="education/gradebook/homework" element={<Suspense fallback={<PageLoader />}><HomeworkQueue /></Suspense>} />
+            <Route path="education/gradebook/homework/new" element={<Suspense fallback={<PageLoader />}><AssignHomework /></Suspense>} />
+            <Route path="education/gradebook/analytics" element={<Suspense fallback={<PageLoader />}><GradebookDashboard /></Suspense>} />
+            <Route path="education/gradebook/student/:studentId/subject/:subjectId" element={<Suspense fallback={<PageLoader />}><StudentGradeHistory /></Suspense>} />
             <Route path="hr/planner" element={<Suspense fallback={<PageLoader />}><Planner /></Suspense>} />
             <Route path="hr/planner/create" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
             <Route path="hr/planner/edit/:id" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />

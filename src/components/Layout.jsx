@@ -1141,6 +1141,13 @@ export default function Layout() {
     { label: "Curriculum Sync", path: "/education/lesson-plans/curriculum", permission: "lesson-plans.analyze" },
     { label: "Plan Templates", path: "/education/lesson-plans/templates", permission: "lesson-plans.view" },
   ];
+  const gradebookMenus = [
+    { label: "Gradebook", path: "/education/gradebook", permission: "gradebook.view" },
+    { label: "Homework Queue", path: "/education/gradebook/homework", permission: "gradebook.view" },
+    { label: "Assign Homework", path: "/education/gradebook/homework/new", permission: "gradebook.create" },
+    { label: "New Assessment", path: "/education/gradebook/assessments/new", permission: "gradebook.create" },
+    { label: "Analytics", path: "/education/gradebook/analytics", permission: "gradebook.analyze" },
+  ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
     { label: "Subjects", path: "/class-management/subjects", permission: "subjects.view" },
@@ -1434,7 +1441,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(lessonPlanMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -1459,6 +1466,19 @@ export default function Layout() {
               onClick={() => toggleMenu("lesson-planning")}
             >
               {visible(lessonPlanMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(gradebookMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Gradebook & Homework"
+              isOpen={openMenu.includes("gradebook")}
+              onClick={() => toggleMenu("gradebook")}
+            >
+              {visible(gradebookMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

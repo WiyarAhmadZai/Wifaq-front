@@ -45,11 +45,21 @@ export default function PromotionBoard() {
     }).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { if (classId && termId) load(); }, [classId, termId]); // eslint-disable-line
+  // Reload when the class/term selection changes (clear any stale status then).
+  useEffect(() => { if (classId && termId) { setMsg(""); setErr(""); load(); } }, [classId, termId]); // eslint-disable-line
 
+  // Auto-dismiss a success banner so it reads as a per-action confirmation.
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(""), 4000);
+    return () => clearTimeout(t);
+  }, [msg]);
+
+  // load() clears only the error — it must NOT wipe a success message set by the
+  // action that just triggered the reload.
   function load() {
-    setBusy(true); setErr(""); setMsg("");
-    promotionBoard({ class_id: classId, term_id: termId })
+    setBusy(true); setErr("");
+    return promotionBoard({ class_id: classId, term_id: termId })
       .then((r) => setBoard(r.data))
       .catch((e) => setErr(e.response?.data?.message || "Could not load the board."))
       .finally(() => setBusy(false));

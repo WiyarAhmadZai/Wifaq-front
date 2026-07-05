@@ -77,6 +77,8 @@ const MonitoringRecords = lazy(() => import("./pages/education/MonitoringRecords
 const Elicitation = lazy(() => import("./pages/education/Elicitation"));
 const Synthesis = lazy(() => import("./pages/education/Synthesis"));
 const AnnualReview = lazy(() => import("./pages/education/AnnualReview"));
+const StudentCards = lazy(() => import("./pages/education/StudentCards"));
+const CardRankings = lazy(() => import("./pages/education/CardRankings"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -438,6 +440,8 @@ function App() {
             <Route path="education/elicitation" element={<Suspense fallback={<PageLoader />}><Elicitation /></Suspense>} />
             <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
             <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />
+            <Route path="education/cards" element={<Suspense fallback={<PageLoader />}><StudentCards /></Suspense>} />
+            <Route path="education/card-rankings" element={<Suspense fallback={<PageLoader />}><CardRankings /></Suspense>} />
             <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
             <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
             <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />

@@ -185,6 +185,12 @@ const PUBLIC_PATHS = new Set([
   // authenticated user may open it. The sidebar link is gated by
   // questionnaires.answer so only parents actually see it.
   "/my-questionnaire",
+  // Parent portal — a parent's own children's homework + grades. Backend
+  // (/api/parent/gradebook/*) is withoutMiddleware('path.permission') and
+  // verifies Family.user_id ownership, so any authenticated user may open the
+  // page; it just shows their own children. The sidebar link is gated by the
+  // parent role so only parents see it.
+  "/my-children",
 ]);
 
 /**

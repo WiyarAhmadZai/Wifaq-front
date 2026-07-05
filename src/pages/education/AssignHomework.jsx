@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { assessmentFormData, assignHomework } from "../../api/gradebook";
-import { Page, Header, Card, Field, Select, Input, Textarea, Btn, Banner, EmptyState, Spinner, ICON } from "./gradebookUi";
+import { Page, Header, Card, Field, Select, Input, Textarea, Btn, Banner, EmptyState, Spinner, Loading, LoadingRow, ICON } from "./gradebookUi";
 
 /** Directly assign homework to one of the teacher's class+subjects. */
 export default function AssignHomework() {
@@ -37,7 +37,7 @@ export default function AssignHomework() {
     } catch (e) { setErr(e.response?.data?.message || "Could not assign homework."); setSaving(false); }
   }
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
 
   return (
     <Page size="form">

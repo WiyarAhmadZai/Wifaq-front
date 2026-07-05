@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { crossClassSummary, homeworkCompliance, coaching } from "../../api/gradebook";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, StatGrid, Section, InfoNote,
-  BalanceBar, EmptyState, Spinner, ICON, scoreColor, fmtScore,
+  BalanceBar, EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
 } from "./gradebookUi";
 
 /** Leadership panel: cross-class averages + 4D balance, homework compliance,
@@ -22,7 +22,7 @@ export default function GradebookDashboard() {
     ]).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
   if (forbidden) return <Page><Header icon={ICON.chart} title="Gradebook analytics" /><EmptyState icon={ICON.chart} title="Leadership only" description="This panel is available to deputies and administrators." /></Page>;
 
   const o = cross?.overall || {};

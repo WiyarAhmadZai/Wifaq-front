@@ -4,7 +4,7 @@ import { termExamFormData, promotionBoard, confirmPromotion, assignPromotion } f
 import { useAuth } from "../../admin/context/AuthContext";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Select, Btn, Banner,
-  StatGrid, EmptyState, Spinner, ICON,
+  StatGrid, EmptyState, Spinner, Loading, LoadingRow, ICON,
 } from "./gradebookUi";
 
 const DECISION = {
@@ -81,7 +81,7 @@ export default function PromotionBoard() {
     } catch (e) { setErr(e.response?.data?.message || "Assign failed."); setBusy(false); }
   }
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
   const s = board?.summary;
 
   return (
@@ -108,7 +108,7 @@ export default function PromotionBoard() {
             </div>
           </Card>
 
-          {busy && <Spinner />}
+          {busy && <LoadingRow />}
 
           {!busy && board && (
             <>

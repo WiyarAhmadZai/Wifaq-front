@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { termExamFormData, termExamSheet, saveTermExam, TERM_EXAMS } from "../../api/gradebook";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Select, Input, Segmented,
-  Btn, Banner, EmptyState, Spinner, ICON, fmtScore,
+  Btn, Banner, EmptyState, Spinner, Loading, LoadingRow, ICON, fmtScore,
 } from "./gradebookUi";
 
 /** Enter the two year-defining term exams (midterm /40, final /60) + re-exam
@@ -60,7 +60,7 @@ export default function TermExamSheet() {
     } catch (e) { setErr(e.response?.data?.message || "Save failed."); setBusy(false); }
   }
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
   const pairs = meta?.pairs || [];
 
   return (
@@ -88,7 +88,7 @@ export default function TermExamSheet() {
             </div>
           </Card>
 
-          {busy && <Spinner />}
+          {busy && <LoadingRow />}
           {!busy && exam === "reexam" && visible.length === 0 && (
             <EmptyState icon={ICON.check} title="No re-exams needed" description="No student failed the two term exams in this subject." />
           )}

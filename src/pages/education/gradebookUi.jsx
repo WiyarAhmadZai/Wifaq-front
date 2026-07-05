@@ -32,6 +32,20 @@ export function Page({ children, size = "wide" }) {
   );
 }
 
+/** Full-page loading state — spinner centered in the viewport. */
+export function Loading() {
+  return (
+    <div className="min-h-[70vh] bg-gray-50/60 flex items-center justify-center">
+      <Spinner />
+    </div>
+  );
+}
+
+/** Inline (in-content) loading — spinner centered horizontally with breathing room. */
+export function LoadingRow() {
+  return <div className="flex justify-center py-16"><Spinner /></div>;
+}
+
 /** The app's teal PageHeader banner, with an optional back link above it. */
 export function Header({ icon = ICON.book, title, subtitle, actions, onBack }) {
   return (

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { studentSubject } from "../../api/gradebook";
 import {
-  Page, Header, Card, StatGrid, Pill, Btn, EmptyState, Spinner, ICON, DIMAP, scoreColor, fmtScore,
+  Page, Header, Card, StatGrid, Pill, Btn, EmptyState, Spinner, Loading, LoadingRow, ICON, DIMAP, scoreColor, fmtScore,
 } from "./gradebookUi";
 
 /** One student's grade history in a subject — period summary + recent assessments. */
@@ -16,7 +16,7 @@ export default function StudentGradeHistory() {
     studentSubject(studentId, subjectId).then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
   }, [studentId, subjectId]);
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
   if (!data) return <Page><Header icon={ICON.book} title="Grade history" onBack={() => navigate(-1)} /><EmptyState title="Not available" /></Page>;
 
   const ps = data.period_summary || {};

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { homeworkQueue, homeworkAssignment, markHomework } from "../../api/gradebook";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Btn, InfoNote,
-  EmptyState, Spinner, ICON, scoreColor, fmtScore,
+  EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
 } from "./gradebookUi";
 
 /** Teacher's homework review queue. */
@@ -19,14 +19,14 @@ export default function HomeworkQueue() {
   const openAssignment = (id) => { setBusy(true); homeworkAssignment(id).then((r) => setOpen(r.data)).catch(() => setOpen(null)).finally(() => setBusy(false)); };
   const setStatus = async (submissionId, status) => { await markHomework(submissionId, { status }); openAssignment(open.data.id); };
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
 
   if (open) {
     return (
       <Page>
         <Header icon={ICON.clipboard} title="Review homework" subtitle={`${open.data?.schoolClass?.class_name} · ${open.data?.subject?.subject_name}`} onBack={() => setOpen(null)} />
         <InfoNote title="Homework">{open.data?.homework_text}</InfoNote>
-        {busy && <Spinner />}
+        {busy && <LoadingRow />}
         <TableCard>
           <thead><tr><th className={thCls}>Student</th><th className={thCls}>Status</th><th className={`${thCls} text-right`}>Action</th></tr></thead>
           <tbody>

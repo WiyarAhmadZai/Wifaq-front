@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { studentAcademicHistory } from "../../api/gradebook";
 import {
-  Page, Header, Card, Avatar, Pill, EmptyState, Spinner, ICON, scoreColor, fmtScore,
+  Page, Header, Card, Avatar, Pill, EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
 } from "./gradebookUi";
 
 const OUTCOME = {
@@ -23,7 +23,7 @@ export default function StudentAcademicHistory() {
     studentAcademicHistory(studentId).then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
   }, [studentId]);
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
   if (!data) return <Page><Header icon={ICON.cap} title="Academic history" onBack={() => navigate(-1)} /><EmptyState title="Not available" /></Page>;
 
   return (

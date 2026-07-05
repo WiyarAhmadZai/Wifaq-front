@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getTags, getAssessment, homeworkSubmission, saveGrade } from "../../api/gradebook";
 import {
   Page, Header, Card, Avatar, Btn, Banner, Field, Textarea, GradeSlider, DimensionPicker,
-  TagPicker, EmptyState, Spinner, ICON, fmtScore,
+  TagPicker, EmptyState, Spinner, Loading, LoadingRow, ICON, fmtScore,
 } from "./gradebookUi";
 
 /**
@@ -78,7 +78,7 @@ export default function MarkingScreen() {
   function advance() { setSaving(false); if (idx + 1 >= queue.length) setDone(true); else { setIdx((i) => i + 1); resetForm(); } }
   function skip() { if (idx + 1 >= queue.length) setDone(true); else { setIdx((i) => i + 1); resetForm(); } }
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
 
   if (done) {
     return (

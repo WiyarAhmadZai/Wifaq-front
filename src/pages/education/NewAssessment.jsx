@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { assessmentFormData, createAssessment, ASSESSMENT_TYPES } from "../../api/gradebook";
 import {
-  Page, Header, Card, Field, Select, Input, Btn, Banner, DimensionPicker, EmptyState, Spinner, ICON, TEAL,
+  Page, Header, Card, Field, Select, Input, Btn, Banner, DimensionPicker, EmptyState, Spinner, Loading, LoadingRow, ICON, TEAL,
 } from "./gradebookUi";
 
 /** Create a standalone assessment; on success jump straight to the marking screen. */
@@ -41,7 +41,7 @@ export default function NewAssessment() {
     } catch (e) { setErr(e.response?.data?.message || "Could not create the assessment."); setSaving(false); }
   }
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
 
   return (
     <Page size="form">

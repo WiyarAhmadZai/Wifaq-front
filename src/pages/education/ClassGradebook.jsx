@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { assessmentFormData, classGradebook, listAssessments } from "../../api/gradebook";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Select, Btn,
-  StatGrid, Section, BalanceBar, EmptyState, Spinner, ICON, scoreColor, fmtScore,
+  StatGrid, Section, BalanceBar, EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
 } from "./gradebookUi";
 
 /** Class gradebook: pick a class+subject, see the monthly average, 4D balance,
@@ -30,7 +30,7 @@ export default function ClassGradebook() {
     ]).finally(() => setBusy(false));
   }, [sel]);
 
-  if (loading) return <Page><Spinner /></Page>;
+  if (loading) return <Loading />;
   const pairKey = (p) => `${p.school_class_id}:${p.subject_id}`;
   const newAssessment = () => navigate(`/education/gradebook/assessments/new?class=${sel.school_class_id}&subject=${sel.subject_id}`);
 
@@ -50,7 +50,7 @@ export default function ClassGradebook() {
             </Select>
           </Card>
 
-          {busy && <Spinner />}
+          {busy && <LoadingRow />}
 
           {!busy && data && (
             <>

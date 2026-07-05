@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { homeworkQueue, homeworkAssignment, markHomework } from "../../api/gradebook";
 import {
-  Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Btn, InfoNote,
+  Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Btn, InfoNote, Select,
   EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
 } from "./gradebookUi";
 
@@ -13,6 +13,7 @@ export default function HomeworkQueue() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [classFilter, setClassFilter] = useState("");
 
   const loadQueue = () => homeworkQueue().then((r) => setAssignments(r.data?.data || [])).catch(() => setAssignments([]));
   useEffect(() => { loadQueue().finally(() => setLoading(false)); }, []);
@@ -24,7 +25,7 @@ export default function HomeworkQueue() {
   if (open) {
     return (
       <Page>
-        <Header icon={ICON.clipboard} title="Review homework" subtitle={`${open.data?.schoolClass?.class_name} · ${open.data?.subject?.subject_name}`} onBack={() => setOpen(null)} />
+        <Header icon={ICON.clipboard} title="Review homework" subtitle={`${open.data?.class_name || ""} · ${open.data?.subject_name || ""}`} onBack={() => setOpen(null)} />
         <InfoNote title="The task the students were given">{open.data?.homework_text}</InfoNote>
         <InfoNote tone="gray" title="What to do here">
           For each student, tap <b>Grade →</b> to score their work — it opens the marking screen and the grade flows into the gradebook. <b>Mark submitted</b> is optional: use it to note a student handed in paper work before you grade. A number instead of buttons means that student is already graded.
@@ -71,12 +72,27 @@ export default function HomeworkQueue() {
         <EmptyState icon={ICON.clipboard} title="No homework yet"
           description="Write a homework inside a lesson plan and save it, or tap ＋ Assign homework to give a class a task right now — either way it shows up here."
           action={<div className="mt-3"><Btn tone="primary" onClick={() => navigate("/education/gradebook/homework/new")}>Assign homework</Btn></div>} />
-      ) : (
+      ) : (() => {
+        // Class filter — options derived from the loaded homework.
+        const classes = Object.values(
+          assignments.reduce((acc, a) => { if (a.school_class_id) acc[a.school_class_id] = { id: a.school_class_id, name: a.class_name || `Class ${a.school_class_id}` }; return acc; }, {})
+        ).sort((x, y) => x.name.localeCompare(y.name));
+        const shown = classFilter ? assignments.filter((a) => String(a.school_class_id) === String(classFilter)) : assignments;
+        return (
+        <>
+          {classes.length > 1 && (
+            <div className="mb-3 max-w-xs">
+              <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
+                <option value="">All classes ({assignments.length})</option>
+                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </div>
+          )}
         <div className="grid sm:grid-cols-2 gap-3">
-          {assignments.map((a) => (
+          {shown.map((a) => (
             <button key={a.id} onClick={() => openAssignment(a.id)} className="text-left bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-bold text-gray-800 truncate">{a.schoolClass?.class_name} · {a.subject?.subject_name}</span>
+                <span className="text-sm font-bold text-gray-800 truncate">{a.class_name} · {a.subject_name}</span>
                 <span className="text-[11px] text-gray-400 shrink-0">due {a.due_date}</span>
               </div>
               <p className="text-xs text-gray-500 mt-1 line-clamp-2">{a.homework_text}</p>
@@ -88,7 +104,10 @@ export default function HomeworkQueue() {
             </button>
           ))}
         </div>
-      )}
+        {shown.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No homework for this class.</p>}
+        </>
+        );
+      })()}
     </Page>
   );
 }

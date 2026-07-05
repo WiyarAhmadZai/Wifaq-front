@@ -5,12 +5,23 @@ import {
   Page, Header, Card, StatGrid, Pill, Btn, EmptyState, Spinner, Loading, LoadingRow, ICON, DIMAP, scoreColor, fmtScore,
 } from "./gradebookUi";
 
-/** One student's grade history in a subject — period summary + recent assessments. */
+const TYPE_FILTERS = [
+  { key: "all", label: "All", types: [] },
+  { key: "homework", label: "Homework", types: ["homework"] },
+  { key: "quiz", label: "Quizzes", types: ["short_quiz"] },
+  { key: "exam", label: "Exams", types: ["monthly_exam", "term_exam"] },
+  { key: "project", label: "Projects", types: ["project"] },
+  { key: "activity", label: "Activities", types: ["class_activity"] },
+];
+
+/** One student's grade history in a subject — period summary + a per-type filter
+ *  (isolate all homework, quizzes, exams…) so hundreds of grades stay analysable. */
 export default function StudentGradeHistory() {
   const navigate = useNavigate();
   const { studentId, subjectId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState("all");
 
   useEffect(() => {
     studentSubject(studentId, subjectId).then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
@@ -20,6 +31,14 @@ export default function StudentGradeHistory() {
   if (!data) return <Page><Header icon={ICON.book} title="Grade history" onBack={() => navigate(-1)} /><EmptyState title="Not available" /></Page>;
 
   const ps = data.period_summary || {};
+  const all = data.grades || [];
+  // Filter by assessment type so a teacher can isolate e.g. all homework.
+  const match = TYPE_FILTERS.find((t) => t.key === typeFilter);
+  const shown = typeFilter === "all" ? all : all.filter((g) => match.types.includes(g.assessment?.assessment_type));
+  const shownAvg = shown.length
+    ? (shown.reduce((s, g) => s + (g.score / g.score_max) * 10, 0) / shown.length)
+    : null;
+
   return (
     <Page>
       <Header icon={ICON.book} title={data.student?.name} subtitle={`${data.subject?.name} · ${data.month}`} onBack={() => navigate(-1)}
@@ -27,15 +46,31 @@ export default function StudentGradeHistory() {
 
       <StatGrid stats={[
         { label: "Month average", value: fmtScore(ps.avg), tone: "teal", hint: `${ps.count || 0} grades` },
-        { label: "Count", value: ps.count || 0, tone: "blue" },
-        { label: "Trend", value: ps.trend === "up" ? "▲ up" : ps.trend === "down" ? "▼ down" : "▬ stable", tone: ps.trend === "up" ? "emerald" : ps.trend === "down" ? "red" : "gray" },
+        { label: typeFilter === "all" ? "Total graded" : `${match.label} count`, value: shown.length, tone: "blue" },
+        { label: typeFilter === "all" ? "Trend" : `${match.label} average`, value: typeFilter === "all" ? (ps.trend === "up" ? "▲ up" : ps.trend === "down" ? "▼ down" : "▬ stable") : fmtScore(shownAvg), tone: typeFilter === "all" ? (ps.trend === "up" ? "emerald" : ps.trend === "down" ? "red" : "gray") : "purple" },
       ]} />
 
-      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 px-1">Recent assessments</p>
-      {(data.grades || []).length === 0 && <EmptyState icon={ICON.book} title="No grades in this subject yet" />}
+      {/* Assessment-type filter — isolate homework, quizzes, exams, etc. */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {TYPE_FILTERS.map((t) => {
+          const n = t.key === "all" ? all.length : all.filter((g) => t.types.includes(g.assessment?.assessment_type)).length;
+          return (
+            <button key={t.key} onClick={() => setTypeFilter(t.key)}
+              className="px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors"
+              style={typeFilter === t.key ? { background: "#0D5C63", color: "#fff", borderColor: "#0D5C63" } : { background: "#fff", color: "#0D5C63", borderColor: "#e5e7eb" }}>
+              {t.label} {n > 0 && <span className="opacity-70">· {n}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 px-1">
+        {typeFilter === "all" ? "Assessments" : match.label} ({shown.length})
+      </p>
+      {shown.length === 0 && <EmptyState icon={ICON.book} title={typeFilter === "all" ? "No grades in this subject yet" : `No ${match.label.toLowerCase()} grades yet`} />}
 
       <div className="space-y-3">
-        {(data.grades || []).map((g) => {
+        {shown.map((g) => {
           const dim = DIMAP[g.dimension];
           return (
             <Card key={g.id} accent={dim?.color}>

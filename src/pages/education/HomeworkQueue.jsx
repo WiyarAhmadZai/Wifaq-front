@@ -25,7 +25,10 @@ export default function HomeworkQueue() {
     return (
       <Page>
         <Header icon={ICON.clipboard} title="Review homework" subtitle={`${open.data?.schoolClass?.class_name} · ${open.data?.subject?.subject_name}`} onBack={() => setOpen(null)} />
-        <InfoNote title="Homework">{open.data?.homework_text}</InfoNote>
+        <InfoNote title="The task the students were given">{open.data?.homework_text}</InfoNote>
+        <InfoNote tone="gray" title="What to do here">
+          For each student, tap <b>Grade →</b> to score their work — it opens the marking screen and the grade flows into the gradebook. <b>Mark submitted</b> is optional: use it to note a student handed in paper work before you grade. A number instead of buttons means that student is already graded.
+        </InfoNote>
         {busy && <LoadingRow />}
         <TableCard>
           <thead><tr><th className={thCls}>Student</th><th className={thCls}>Status</th><th className={`${thCls} text-right`}>Action</th></tr></thead>
@@ -58,9 +61,15 @@ export default function HomeworkQueue() {
       <Header icon={ICON.clipboard} title="Homework" subtitle="Assign & review"
         actions={<Btn tone="white" onClick={() => navigate("/education/gradebook/homework/new")}>＋ Assign homework</Btn>} />
 
+      <InfoNote title="How homework works — 3 steps">
+        <b>1. Assign</b> — two ways: write a homework in a <b>lesson plan</b> and save it (it appears here automatically), or tap <b>＋ Assign homework</b> to give a class a task directly. &nbsp;
+        <b>2. Open</b> a homework below to see every student in the class. &nbsp;
+        <b>3. Grade</b> each student — the score goes straight into the gradebook and the parent is notified.
+      </InfoNote>
+
       {assignments.length === 0 ? (
         <EmptyState icon={ICON.clipboard} title="No homework yet"
-          description="Tap ＋ Assign to give a class an assignment now — or deliver a lesson plan that has homework text and it appears here automatically."
+          description="Write a homework inside a lesson plan and save it, or tap ＋ Assign homework to give a class a task right now — either way it shows up here."
           action={<div className="mt-3"><Btn tone="primary" onClick={() => navigate("/education/gradebook/homework/new")}>Assign homework</Btn></div>} />
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">

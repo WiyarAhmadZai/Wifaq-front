@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
 import PathPermissionGate from "../admin/guards/PathPermissionGate";
+import ErrorBoundary from "./ErrorBoundary";
 
 const PageFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -440,9 +441,19 @@ function NotificationBell() {
   }, [navigate]);
 
   // Register the service worker and navigate when a notification is clicked.
+  // The SW is registered ONLY in production — running a service worker under the
+  // Vite dev server breaks HMR and can leave the page stuck loading. In dev we
+  // proactively unregister any stale SW so a previously-registered one can't
+  // interfere.
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('/sw.js').catch(() => { /* ignore */ });
+    if (import.meta.env.PROD) {
+      navigator.serviceWorker.register('/sw.js').catch(() => { /* ignore */ });
+    } else if (navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => { /* ignore */ });
+    }
     const onMsg = (e) => {
       if (e.data?.type === 'notif-navigate' && e.data.link) navigate(e.data.link);
     };
@@ -1150,6 +1161,8 @@ export default function Layout() {
     { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
     { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
+    { label: "Student Cards", path: "/education/cards", permission: "student-cards.view" },
+    { label: "Card Rankings", path: "/education/card-rankings", permission: "student-card-rankings.view" },
   ];
   // Lesson Planning — its own module (the 4D Lesson Plan), separate from the
   // Student Development / observation engine.
@@ -1752,7 +1765,9 @@ export default function Layout() {
         <div className="flex-1 overflow-auto">
           <Suspense fallback={<PageFallback />}>
             <PathPermissionGate>
-              <Outlet />
+              <ErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </ErrorBoundary>
             </PathPermissionGate>
           </Suspense>
         </div>

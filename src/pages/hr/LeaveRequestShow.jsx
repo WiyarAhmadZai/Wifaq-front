@@ -44,6 +44,9 @@ export default function LeaveRequestShow() {
   const [announceSearch, setAnnounceSearch] = useState("");
   const [announceMessage, setAnnounceMessage] = useState("");
   const [announceSending, setAnnounceSending] = useState(false);
+  // Granted leave window — lets HR approve fewer days than requested.
+  const [approvedFrom, setApprovedFrom] = useState("");
+  const [approvedTo, setApprovedTo] = useState("");
 
   // "Can manage" — HR roles OR the explicit approve/manage permission.
   // Same gate the backend uses, so any user the admin grants the permission
@@ -105,6 +108,9 @@ export default function LeaveRequestShow() {
     setAnnounceSearch("");
     setAnnounceMessage("");
     setAnnounceUsers([]);
+    // Default the granted window to the full requested range; HR can shorten it.
+    setApprovedFrom((data?.from_date || "").slice(0, 10));
+    setApprovedTo((data?.to_date || data?.from_date || "").slice(0, 10));
     setAnnounceOpen(true);
   };
   const approve = openAnnounce;
@@ -160,7 +166,11 @@ export default function LeaveRequestShow() {
     setAnnounceSending(true);
     try {
       if (data?.status !== "approved") {
-        await put(`/hr/leave-requests/${id}/status`, { status: "approved" });
+        await put(`/hr/leave-requests/${id}/status`, {
+          status: "approved",
+          approved_from_date: approvedFrom || undefined,
+          approved_to_date: approvedTo || undefined,
+        });
       }
       if (announcePicked.length > 0) {
         await post(`/hr/leave-requests/${id}/announce`, {
@@ -325,6 +335,23 @@ export default function LeaveRequestShow() {
                 <Cell label="To" value={data.to_date ? fmtDate(data.to_date) : "-"} />
                 <Cell label="Total Days" value={totalDays} accent />
               </div>
+              {data.status === "approved" && (() => {
+                const approvedDays = daysBetween(data.approved_from_date || data.from_date, data.approved_to_date || data.to_date);
+                const shortened = approvedDays < totalDays;
+                return (
+                  <div className={`mt-3 rounded-xl p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 ${shortened ? "bg-amber-50 border border-amber-200" : "bg-emerald-50 border border-emerald-200"}`}>
+                    <Cell label="Approved From" value={(data.approved_from_date || data.from_date) ? fmtDate(data.approved_from_date || data.from_date) : "-"} />
+                    <Cell label="Approved To" value={(data.approved_to_date || data.to_date) ? fmtDate(data.approved_to_date || data.to_date) : "-"} />
+                    <Cell label="Approved Days" value={approvedDays} accent />
+                    {shortened && (
+                      <div className="bg-white/60 rounded-xl p-3">
+                        <p className="text-[9px] text-gray-500 uppercase">Not Counted</p>
+                        <p className="text-xs font-bold text-amber-700 mt-0.5">{totalDays - approvedDays} day{totalDays - approvedDays === 1 ? "" : "s"} declined</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {data.reason && (
@@ -406,6 +433,44 @@ export default function LeaveRequestShow() {
                   </svg>
                 </button>
               </div>
+
+              {!isApproved && (
+                <div className="px-5 py-3 border-b border-gray-100 bg-emerald-50/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                      Days to approve
+                    </label>
+                    <span className="text-[11px] text-gray-600">
+                      Requested <b>{daysBetween(data.from_date, data.to_date)}</b> day{daysBetween(data.from_date, data.to_date) === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="date"
+                      value={approvedFrom}
+                      min={(data.from_date || "").slice(0, 10)}
+                      max={approvedTo || (data.to_date || data.from_date || "").slice(0, 10)}
+                      onChange={(e) => setApprovedFrom(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
+                    />
+                    <span className="text-gray-400">→</span>
+                    <input
+                      type="date"
+                      value={approvedTo}
+                      min={approvedFrom || (data.from_date || "").slice(0, 10)}
+                      max={(data.to_date || data.from_date || "").slice(0, 10)}
+                      onChange={(e) => setApprovedTo(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-emerald-300 focus:outline-none"
+                    />
+                    <span className="text-xs font-bold text-emerald-700 whitespace-nowrap">
+                      = {daysBetween(approvedFrom, approvedTo)} day{daysBetween(approvedFrom, approvedTo) === 1 ? "" : "s"} approved
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Shorten the window to grant fewer days — only the approved days count against the staff member's leave balance.
+                  </p>
+                </div>
+              )}
 
               <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <input

@@ -22,6 +22,11 @@ const RULES = [
   // Planning — Annual / Monthly / Weekly plans (top-level "Planning" menu).
   { prefix: "/planning", permission: "planning.view" },
 
+  // Weekly parent questionnaires (admin). One umbrella rule: the action is
+  // derived from the tail — /create → create, /edit/:id → update,
+  // /:id and /:id/responses → view — with questionnaires.manage as override.
+  { prefix: "/questionnaires", permission: "questionnaires.view" },
+
   // Recruitment — position titles
   { prefix: "/recruitment/position-titles", permission: "position-titles.view" },
 
@@ -43,6 +48,10 @@ const RULES = [
   { prefix: "/education/elicitation", permission: "student-elicitation.view" },
   { prefix: "/education/synthesis", permission: "student-synthesis.view" },
   { prefix: "/education/annual-review", permission: "annual-review.view" },
+  // Student development cards — card-rankings must come before the /cards + the
+  // umbrella /education rule (longest-prefix sort handles it either way).
+  { prefix: "/education/card-rankings", permission: "student-card-rankings.view" },
+  { prefix: "/education/cards", permission: "student-cards.view" },
   // Lesson planning — one umbrella: list/review/analytics/templates need
   // lesson-plans.view (reviewers/analysts also hold it); /create → .create,
   // /edit → .update via action-swap. Backend additionally enforces
@@ -171,6 +180,11 @@ const PUBLIC_PATHS = new Set([
   // feed (backend's /api/notifications already scopes the response to the
   // logged-in user). No permission needed.
   "/notifications",
+  // Parent's own questionnaire answering page — backend route is
+  // withoutMiddleware('path.permission') and row-scopes to the caller, so any
+  // authenticated user may open it. The sidebar link is gated by
+  // questionnaires.answer so only parents actually see it.
+  "/my-questionnaire",
 ]);
 
 /**

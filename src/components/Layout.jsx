@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
 import PathPermissionGate from "../admin/guards/PathPermissionGate";
+import ErrorBoundary from "./ErrorBoundary";
 
 const PageFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -405,8 +406,11 @@ function NotificationBell() {
     } catch { /* ignore */ }
   }, []);
 
-  // OS notification — used when the tab is hidden so the user notices.
-  // Requests permission once on first call; subsequent calls just fire.
+  // OS notification — fires even when the tab is hidden (WhatsApp-Web style).
+  // Mobile browsers forbid `new Notification()` (Illegal constructor) — they
+  // REQUIRE the service worker's registration.showNotification(). So we prefer
+  // the service worker everywhere and only fall back to the constructor on
+  // desktop when no service worker is available.
   const showOsNotification = useCallback((n) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission === 'denied') return;
@@ -414,17 +418,47 @@ function NotificationBell() {
       Notification.requestPermission(); // picked up on the next poll
       return;
     }
+    const d = n.data || {};
+    const title = d.title || 'New notification';
+    const opts = { body: d.message || '', icon: '/favicon.ico', tag: `wen-${n.id}`, renotify: true, data: { link: d.link || '/' } };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.showNotification(title, opts))
+        .catch(() => {
+          // Desktop fallback if the SW isn't controlling yet.
+          try {
+            const notif = new Notification(title, opts);
+            notif.onclick = () => { window.focus(); if (d.link) navigate(d.link); notif.close(); };
+          } catch { /* ignore */ }
+        });
+      return;
+    }
     try {
-      const d = n.data || {};
-      const title = d.title || 'New notification';
-      const body  = d.message || '';
-      const notif = new Notification(title, { body, icon: '/favicon.ico', tag: `wen-${n.id}` });
-      notif.onclick = () => {
-        window.focus();
-        if (d.link) navigate(d.link);
-        notif.close();
-      };
+      const notif = new Notification(title, opts);
+      notif.onclick = () => { window.focus(); if (d.link) navigate(d.link); notif.close(); };
     } catch { /* ignore */ }
+  }, [navigate]);
+
+  // Register the service worker and navigate when a notification is clicked.
+  // The SW is registered ONLY in production — running a service worker under the
+  // Vite dev server breaks HMR and can leave the page stuck loading. In dev we
+  // proactively unregister any stale SW so a previously-registered one can't
+  // interfere.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    if (import.meta.env.PROD) {
+      navigator.serviceWorker.register('/sw.js').catch(() => { /* ignore */ });
+    } else if (navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => { /* ignore */ });
+    }
+    const onMsg = (e) => {
+      if (e.data?.type === 'notif-navigate' && e.data.link) navigate(e.data.link);
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
   }, [navigate]);
 
   const fetchNotifications = useCallback(async () => {
@@ -1128,6 +1162,8 @@ export default function Layout() {
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
     { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
     { label: "Record 4D Rating", path: "/education/4d-self-rating", permission: "student-profiles.update" },
+    { label: "Student Cards", path: "/education/cards", permission: "student-cards.view" },
+    { label: "Card Rankings", path: "/education/card-rankings", permission: "student-card-rankings.view" },
   ];
   // Lesson Planning — its own module (the 4D Lesson Plan), separate from the
   // Student Development / observation engine.
@@ -1752,7 +1788,9 @@ export default function Layout() {
         <div className="flex-1 overflow-auto">
           <Suspense fallback={<PageFallback />}>
             <PathPermissionGate>
-              <Outlet />
+              <ErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </ErrorBoundary>
             </PathPermissionGate>
           </Suspense>
         </div>

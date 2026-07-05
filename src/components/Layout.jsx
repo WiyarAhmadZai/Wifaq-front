@@ -1004,7 +1004,7 @@ function ProfileButton() {
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasPermission, isSuperAdmin } = useAuth();
+  const { hasPermission, isSuperAdmin, hasRole } = useAuth();
   const [openMenu, setOpenMenu] = useState([]);
   const [openSubMenu, setOpenSubMenu] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1457,6 +1457,18 @@ export default function Layout() {
                 onClick={closeSidebar}
               />
             ))}
+          </ParentMenu>
+          )}
+
+          {/* Parent portal — only for parent accounts. */}
+          {hasRole("parent") && (
+          <ParentMenu
+            icon={Icons.Teacher}
+            label="My Children"
+            isOpen={openMenu.includes("my-children")}
+            onClick={() => toggleMenu("my-children")}
+          >
+            <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
           </ParentMenu>
           )}
 

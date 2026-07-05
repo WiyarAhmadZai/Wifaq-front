@@ -107,6 +107,7 @@ const QuestionnaireForm = lazy(() => import("./pages/questionnaire/Questionnaire
 const QuestionnaireResponses = lazy(() => import("./pages/questionnaire/QuestionnaireResponses"));
 const QuestionnaireShow = lazy(() => import("./pages/questionnaire/QuestionnaireShow"));
 const MyQuestionnaire = lazy(() => import("./pages/questionnaire/MyQuestionnaire"));
+const ParentGradebook = lazy(() => import("./pages/parent/ParentGradebook"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
 const Meetings = lazy(() => import("./pages/hr/Meetings"));
 const MeetingForm = lazy(() => import("./pages/hr/MeetingForm"));
@@ -359,6 +360,7 @@ function App() {
             <Route path="questionnaires/:id" element={<Suspense fallback={<PageLoader />}><QuestionnaireShow /></Suspense>} />
             {/* Parent's own questionnaire (reached from the bell notification) */}
             <Route path="my-questionnaire" element={<Suspense fallback={<PageLoader />}><MyQuestionnaire /></Suspense>} />
+            <Route path="my-children" element={<Suspense fallback={<PageLoader />}><ParentGradebook /></Suspense>} />
 
             {/* Planning — Annual / Monthly / Weekly plans */}
             <Route path="planning" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />

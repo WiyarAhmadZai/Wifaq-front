@@ -70,6 +70,14 @@ export const confirmPromotion = (data) => post(`${BASE}/promotion/confirm`, data
 export const assignPromotion = (data) => post(`${BASE}/promotion/assign`, data);
 export const studentAcademicHistory = (studentId) => get(`${BASE}/promotion/student/${studentId}/history`);
 
+// ── Parent-facing (scoped to the parent's own children) ─────────────────
+export const parentChildren = () => get(`/parent/gradebook/children`);
+export const parentHomework = (params = {}) => get(`/parent/gradebook/homework`, { params });
+export const parentHomeworkShow = (id) => get(`/parent/gradebook/homework/${id}`);
+export const parentSubmitHomework = (id, formData) =>
+  post(`/parent/gradebook/homework/${id}/submit`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+export const parentFeed = (params = {}) => get(`/parent/gradebook/feed`, { params });
+
 // ── Admin panels (leadership) ───────────────────────────────────────────
 export const crossClassSummary = (params = {}) => get(`${BASE}/admin/cross-class-summary`, { params });
 export const homeworkCompliance = () => get(`${BASE}/admin/homework-compliance`);

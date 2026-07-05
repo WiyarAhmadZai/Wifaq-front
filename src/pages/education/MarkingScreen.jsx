@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getTags, getAssessment, homeworkSubmission, saveGrade, rewardGrade } from "../../api/gradebook";
 import {
   Page, Header, Card, Avatar, Btn, Banner, Field, Textarea, GradeSlider, DimensionPicker,
-  TagPicker, EmptyState, Spinner, Loading, LoadingRow, ICON, fmtScore,
+  TagPicker, EmptyState, Spinner, Loading, LoadingRow, ICON, fmtScore, mediaUrl,
 } from "./gradebookUi";
 
 /**
@@ -142,7 +142,7 @@ export default function MarkingScreen() {
       <div className="space-y-4">
         {ctx?.mode === "homework" && (ctx.photo || ctx.parentNote) && (
           <Card>
-            {ctx.photo && <img src={ctx.photo} alt="submission" className="w-full rounded-xl mb-2 max-h-64 object-contain" />}
+            {ctx.photo && <a href={mediaUrl(ctx.photo)} target="_blank" rel="noreferrer"><img src={mediaUrl(ctx.photo)} alt="submission" className="w-full rounded-xl mb-2 max-h-72 object-contain bg-gray-50" /></a>}
             {ctx.parentNote && <p className="text-xs text-gray-600"><b>Note:</b> {ctx.parentNote}</p>}
           </Card>
         )}

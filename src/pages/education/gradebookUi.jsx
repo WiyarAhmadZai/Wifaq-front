@@ -7,6 +7,19 @@ export const TEAL = "#0D5C63";
 export const GOLD = "#C9A227";
 export const DIMAP = Object.fromEntries(DIMENSIONS.map((d) => [d.key, d]));
 
+/**
+ * Resolve a stored file path/URL (e.g. a homework photo) against the backend
+ * origin. The backend may store an absolute URL built from APP_URL (which can
+ * carry the wrong host/port, e.g. http://localhost vs :8000) — so we keep only
+ * its path and prepend the API origin the frontend actually talks to.
+ */
+const MEDIA_ORIGIN = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/api\/?$/, "");
+export function mediaUrl(u) {
+  if (!u) return u;
+  try { return MEDIA_ORIGIN + new URL(u).pathname; }
+  catch { return MEDIA_ORIGIN + (String(u).startsWith("/") ? u : `/${u}`); }
+}
+
 // Re-export the app's shared building blocks so the gradebook pages use the very
 // same components as the rest of the admin app (HR / Finance / Class Mgmt).
 export { StatGrid, Section, Pill, InfoNote, EmptyState, Spinner };

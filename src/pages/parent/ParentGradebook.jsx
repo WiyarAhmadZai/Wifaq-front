@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { parentChildren, parentHomework, parentSubmitHomework, parentFeed } from "../../api/gradebook";
 import {
   Page, Header, Card, Segmented, Select, Pill, Btn, Banner, Textarea,
-  EmptyState, Loading, LoadingRow, ICON, scoreColor, fmtScore, Avatar,
+  EmptyState, Loading, LoadingRow, ICON, scoreColor, fmtScore, Avatar, mediaUrl,
 } from "../education/gradebookUi";
 
 const MUTED = "#5d7273";
@@ -153,8 +153,8 @@ export default function ParentGradebook() {
                           </div>
 
                           {h.photo_url && (
-                            <a href={h.photo_url} target="_blank" rel="noreferrer" className="block mt-3">
-                              <img src={h.photo_url} alt="submitted work" className="rounded-xl max-h-48 w-full object-cover border border-gray-100" />
+                            <a href={mediaUrl(h.photo_url)} target="_blank" rel="noreferrer" className="block mt-3">
+                              <img src={mediaUrl(h.photo_url)} alt="submitted work" className="rounded-xl max-h-48 w-full object-cover border border-gray-100" />
                             </a>
                           )}
                           {h.note && !isEditing && <p className="mt-2 text-xs text-gray-500 italic">“{h.note}”</p>}

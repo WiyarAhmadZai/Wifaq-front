@@ -2,15 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { termExamFormData, promotionBoard, confirmPromotion, assignPromotion } from "../../api/gradebook";
 import { useAuth } from "../../admin/context/AuthContext";
-import { Hero, Spinner } from "./lessonPlanUi";
-import { PAPER, TEAL } from "./gradebookUi";
+import {
+  Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Select, Btn, Banner,
+  StatGrid, EmptyState, Spinner, ICON,
+} from "./gradebookUi";
 
 const DECISION = {
-  promote:    { label: "Promote", bg: "#e6f3ec", fg: "#2E7D5B" },
-  graduate:   { label: "Graduate", bg: "#eee9f6", fg: "#6b54a8" },
-  reexam:     { label: "Re-exam", bg: "#fbf0db", fg: "#9a6a12" },
-  repeat:     { label: "Repeat", bg: "#f7e3e1", fg: "#C0473F" },
-  incomplete: { label: "Incomplete", bg: "#eef3f3", fg: "#5d7273" },
+  promote:    { label: "Promote", tone: "emerald" },
+  graduate:   { label: "Graduate", tone: "purple" },
+  reexam:     { label: "Re-exam", tone: "amber" },
+  repeat:     { label: "Repeat", tone: "red" },
+  incomplete: { label: "Incomplete", tone: "gray" },
 };
 
 export default function PromotionBoard() {
@@ -27,8 +29,6 @@ export default function PromotionBoard() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-
-  // assign controls
   const [targetClassId, setTargetClassId] = useState("");
   const [targetTermId, setTargetTermId] = useState("");
 
@@ -45,18 +45,9 @@ export default function PromotionBoard() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Reload when the class/term selection changes (clear any stale status then).
   useEffect(() => { if (classId && termId) { setMsg(""); setErr(""); load(); } }, [classId, termId]); // eslint-disable-line
+  useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(""), 5000); return () => clearTimeout(t); }, [msg]);
 
-  // Auto-dismiss a success banner so it reads as a per-action confirmation.
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(""), 4000);
-    return () => clearTimeout(t);
-  }, [msg]);
-
-  // load() clears only the error — it must NOT wipe a success message set by the
-  // action that just triggered the reload.
   function load() {
     setBusy(true); setErr("");
     return promotionBoard({ class_id: classId, term_id: termId })
@@ -65,24 +56,16 @@ export default function PromotionBoard() {
       .finally(() => setBusy(false));
   }
 
-  const promotedIds = useMemo(
-    () => (board?.students || []).filter((s) => s.decision === "promote").map((s) => s.student_id),
-    [board]
-  );
+  const promotedIds = useMemo(() => (board?.students || []).filter((s) => s.decision === "promote").map((s) => s.student_id), [board]);
 
   async function confirm(force = false) {
-    setErr(""); setMsg("");
-    setBusy(true);
+    setErr(""); setMsg(""); setBusy(true);
     try {
       const r = await confirmPromotion({ class_id: classId, term_id: termId, force });
-      setMsg(r.data?.message || "Confirmed.");
-      load();
+      await load(); setMsg(r.data?.message || "Confirmed.");
     } catch (e) {
       const m = e.response?.data?.message || "Confirm failed.";
-      // Offer force when blocked on incomplete.
-      if (e.response?.status === 422 && /missing term-exam/.test(m) && window.confirm(`${m}\n\nConfirm anyway (skip incomplete students)?`)) {
-        return confirm(true);
-      }
+      if (e.response?.status === 422 && /missing term-exam/.test(m) && window.confirm(`${m}\n\nConfirm anyway (skip incomplete students)?`)) return confirm(true);
       setErr(m); setBusy(false);
     }
   }
@@ -94,116 +77,113 @@ export default function PromotionBoard() {
     setBusy(true);
     try {
       const r = await assignPromotion({ student_ids: promotedIds, from_term_id: termId, target_class_id: Number(targetClassId), target_term_id: Number(targetTermId) });
-      setMsg(r.data?.message || "Assigned.");
-      load();
-    } catch (e) {
-      setErr(e.response?.data?.message || "Assign failed.");
-      setBusy(false);
-    }
+      await load(); setMsg(r.data?.message || "Assigned.");
+    } catch (e) { setErr(e.response?.data?.message || "Assign failed."); setBusy(false); }
   }
 
-  if (loading) return <div style={{ background: PAPER, minHeight: "100vh" }}><Spinner /></div>;
-
+  if (loading) return <Page><Spinner /></Page>;
   const s = board?.summary;
+
   return (
-    <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
-      <Hero title="Promotion board" subtitle={board?.class ? `${board.class.name} · ${board.class.grade}` : "Year-end decisions"} />
-      {msg && <div className="sticky top-0 z-10 text-center text-xs font-bold text-white py-2" style={{ background: "#2E7D5B" }}>{msg}</div>}
-      {err && <div className="sticky top-0 z-10 text-center text-xs font-bold text-white py-2" style={{ background: "#C0473F" }}>{err}</div>}
+    <Page>
+      <Header icon={ICON.cap} title="Promotion Board"
+        subtitle={board?.class ? `${board.class.name} · ${board.class.grade}` : "Year-end decisions"} onBack={() => navigate(-1)} />
 
-      <div className="max-w-3xl mx-auto px-4 py-4 space-y-3">
-        {classes.length === 0 ? (
-          <div className="rounded-2xl border bg-white p-6 text-center text-xs text-gray-500" style={{ borderColor: "#dbe8e8" }}>
-            No classes available to you.
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <select value={classId || ""} onChange={(e) => setClassId(Number(e.target.value))}
-                className="text-sm border rounded-lg px-2 py-2 bg-white" style={{ borderColor: "#dbe8e8" }}>
+      {msg && <Banner onClose={() => setMsg("")}>{msg}</Banner>}
+      {err && <Banner kind="error" onClose={() => setErr("")}>{err}</Banner>}
+
+      {classes.length === 0 ? (
+        <EmptyState icon={ICON.cap} title="No classes available to you"
+          description="You need a class assigned in Class Management → Grade Subjects to review promotions." />
+      ) : (
+        <>
+          <Card className="mb-4">
+            <div className="grid sm:grid-cols-2 gap-3 max-w-lg">
+              <Select value={classId || ""} onChange={(e) => setClassId(Number(e.target.value))}>
                 {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <select value={termId || ""} onChange={(e) => setTermId(Number(e.target.value))}
-                className="text-sm border rounded-lg px-2 py-2 bg-white" style={{ borderColor: "#dbe8e8" }}>
+              </Select>
+              <Select value={termId || ""} onChange={(e) => setTermId(Number(e.target.value))}>
                 {terms.map((t) => <option key={t.id} value={t.id}>{t.name}{t.is_current ? " (current)" : ""}</option>)}
-              </select>
+              </Select>
             </div>
+          </Card>
 
-            {busy && <Spinner />}
+          {busy && <Spinner />}
 
-            {!busy && board && (
-              <>
-                {s && (
-                  <div className="grid grid-cols-5 gap-2 text-center">
-                    <Cnt label="Promote" v={s.promote} tone="#2E7D5B" />
-                    <Cnt label="Graduate" v={s.graduate} tone="#6b54a8" />
-                    <Cnt label="Re-exam" v={s.reexam} tone="#9a6a12" />
-                    <Cnt label="Repeat" v={s.repeat} tone="#C0473F" />
-                    <Cnt label="Incompl." v={s.incomplete} tone="#5d7273" />
-                  </div>
-                )}
+          {!busy && board && (
+            <>
+              {s && (
+                <StatGrid stats={[
+                  { label: "Promote", value: s.promote, tone: "emerald", hint: "moving up a grade" },
+                  { label: "Graduate", value: s.graduate, tone: "purple", hint: "finished the last grade" },
+                  { label: "Re-exam", value: s.reexam, tone: "amber", hint: "1–3 subjects failed" },
+                  { label: "Repeat", value: s.repeat, tone: "red", hint: "more than 3 failed" },
+                ]} />
+              )}
 
-                <div className="rounded-xl border bg-white divide-y" style={{ borderColor: "#dbe8e8" }}>
+              <TableCard>
+                <thead>
+                  <tr>
+                    <th className={thCls}>Student</th>
+                    <th className={thCls}>Failed subjects</th>
+                    <th className={`${thCls} text-right`}>Decision</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {(board.students || []).map((st) => {
                     const d = DECISION[st.decision] || DECISION.incomplete;
-                    const failedNames = (st.subjects || []).filter((x) => ["fail", "reexam_fail"].includes(x.status)).map((x) => x.subject_name);
+                    const failed = (st.subjects || []).filter((x) => ["fail", "reexam_fail"].includes(x.status)).map((x) => x.subject_name);
                     return (
-                      <button key={st.student_id} onClick={() => navigate(`/education/gradebook/student/${st.student_id}/academic-history`)}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-teal-50/40">
-                        <span className="flex-1">
-                          <span className="text-xs font-semibold text-gray-700">{st.name}</span>
-                          {failedNames.length > 0 && <span className="block text-[10px] text-red-500">failed: {failedNames.join(", ")}</span>}
-                        </span>
-                        {st.confirmed && <span className="text-[9px] font-bold text-gray-400">confirmed</span>}
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: d.bg, color: d.fg }}>{d.label}</span>
-                      </button>
+                      <tr key={st.student_id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/education/gradebook/student/${st.student_id}/academic-history`)}>
+                        <td className={tdCls}>
+                          <div className="flex items-center gap-3">
+                            <Avatar name={st.name} />
+                            <div>
+                              <div className="font-semibold text-gray-800">{st.name}</div>
+                              <div className="text-[11px] text-gray-400">{st.subjects?.length || 0} subjects{st.confirmed ? " · ✓ confirmed" : ""}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className={tdCls}>{failed.length ? <span className="text-red-600 text-xs">{failed.join(", ")}</span> : <span className="text-gray-300">—</span>}</td>
+                        <td className={`${tdCls} text-right`}><Pill tone={d.tone}>{d.label}</Pill></td>
+                      </tr>
                     );
                   })}
-                  {(board.students || []).length === 0 && <div className="px-3 py-4 text-[11px] text-gray-400 text-center">No active students.</div>}
-                </div>
+                  {(board.students || []).length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-400">No active students.</td></tr>}
+                </tbody>
+              </TableCard>
 
-                {canPromote && (
-                  <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: "#dbe8e8", background: "#fff" }}>
-                    <button onClick={() => confirm(false)} disabled={busy}
-                      className="w-full px-4 py-2.5 rounded-lg text-sm font-bold text-white disabled:opacity-40" style={{ background: TEAL }}>
-                      Confirm decisions
-                    </button>
-
-                    <div className="pt-2 border-t" style={{ borderColor: "#eef3f3" }}>
-                      <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Assign promoted → next-grade class</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <select value={targetClassId} onChange={(e) => setTargetClassId(e.target.value)}
-                          className="text-xs border rounded-lg px-2 py-2 bg-white" style={{ borderColor: "#dbe8e8" }}>
-                          <option value="">Target class…</option>
-                          {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <select value={targetTermId} onChange={(e) => setTargetTermId(e.target.value)}
-                          className="text-xs border rounded-lg px-2 py-2 bg-white" style={{ borderColor: "#dbe8e8" }}>
-                          {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                      </div>
-                      <button onClick={assign} disabled={busy || !promotedIds.length}
-                        className="w-full mt-2 px-4 py-2 rounded-lg text-xs font-bold border disabled:opacity-40" style={{ borderColor: TEAL, color: TEAL }}>
-                        Move {promotedIds.length} promoted student(s) →
-                      </button>
-                      <p className="text-[10px] text-gray-400 mt-1">Only students whose confirmed target grade matches the chosen class's grade are moved.</p>
+              {canPromote && (board.students || []).length > 0 && (
+                <Card className="mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">Leadership actions</p>
+                      <p className="text-[11px] text-gray-400">Confirm records the decisions; assign moves promoted students to their next grade.</p>
                     </div>
                   </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+                  <Btn tone="primary" size="lg" full onClick={() => confirm(false)} disabled={busy}>Confirm decisions</Btn>
 
-function Cnt({ label, v, tone }) {
-  return (
-    <div className="rounded-xl border bg-white py-2" style={{ borderColor: "#dbe8e8" }}>
-      <div className="text-lg font-black" style={{ color: tone }}>{v ?? 0}</div>
-      <div className="text-[9px] text-gray-400 font-bold uppercase">{label}</div>
-    </div>
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">Assign promoted → next-grade class</p>
+                    <div className="grid sm:grid-cols-3 gap-2 items-end">
+                      <Select value={targetClassId} onChange={(e) => setTargetClassId(e.target.value)}>
+                        <option value="">Target class…</option>
+                        {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </Select>
+                      <Select value={targetTermId} onChange={(e) => setTargetTermId(e.target.value)}>
+                        {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </Select>
+                      <Btn tone="outline" onClick={assign} disabled={busy || !promotedIds.length}>Move {promotedIds.length} promoted →</Btn>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1.5">Only students whose confirmed target grade matches the chosen class are moved.</p>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </Page>
   );
 }

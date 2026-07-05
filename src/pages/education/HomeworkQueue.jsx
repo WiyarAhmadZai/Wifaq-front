@@ -1,94 +1,85 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { homeworkQueue, homeworkAssignment, markHomework } from "../../api/gradebook";
-import { Hero, Spinner } from "./lessonPlanUi";
-import { PAPER, TEAL, GOLD, scoreColor, fmtScore } from "./gradebookUi";
+import {
+  Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Btn, InfoNote,
+  EmptyState, Spinner, ICON, scoreColor, fmtScore,
+} from "./gradebookUi";
 
-/** Teacher's homework review queue: assignments (seeded from delivered lesson
- *  plans) with per-student rows to review / grade. */
+/** Teacher's homework review queue. */
 export default function HomeworkQueue() {
   const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(null);      // { data, submissions }
+  const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const loadQueue = () => homeworkQueue().then((r) => setAssignments(r.data?.data || [])).catch(() => setAssignments([]));
-
   useEffect(() => { loadQueue().finally(() => setLoading(false)); }, []);
+  const openAssignment = (id) => { setBusy(true); homeworkAssignment(id).then((r) => setOpen(r.data)).catch(() => setOpen(null)).finally(() => setBusy(false)); };
+  const setStatus = async (submissionId, status) => { await markHomework(submissionId, { status }); openAssignment(open.data.id); };
 
-  const openAssignment = (id) => {
-    setBusy(true);
-    homeworkAssignment(id).then((r) => setOpen(r.data)).catch(() => setOpen(null)).finally(() => setBusy(false));
-  };
-
-  const setStatus = async (submissionId, status) => {
-    await markHomework(submissionId, { status });
-    openAssignment(open.data.id);
-  };
-
-  if (loading) return <div style={{ background: PAPER, minHeight: "100vh" }}><Spinner /></div>;
+  if (loading) return <Page><Spinner /></Page>;
 
   if (open) {
     return (
-      <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
-        <Hero title="Review homework" subtitle={`${open.data?.schoolClass?.class_name} · ${open.data?.subject?.subject_name}`}
-          right={<button onClick={() => setOpen(null)} className="px-3 py-2 rounded-xl text-xs font-bold text-white/90 border border-white/30">← Queue</button>} />
-        <div className="max-w-2xl mx-auto px-4 py-4 space-y-2">
-          <p className="text-[11px] text-gray-500 bg-white rounded-lg border p-3" style={{ borderColor: "#dbe8e8" }}>{open.data?.homework_text}</p>
-          {busy && <Spinner />}
-          {(open.submissions || []).map((s) => (
-            <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border bg-white" style={{ borderColor: "#eef3f3" }}>
-              <span className="flex-1 text-xs font-semibold text-gray-700">
-                {s.student?.first_name} {s.student?.last_name}
-                <span className="block text-[10px] text-gray-400">{s.status}{s.submitted_at ? ` · ${new Date(s.submitted_at).toLocaleDateString()}` : ""}</span>
-              </span>
-              {s.grade
-                ? <span className="text-sm font-black" style={{ color: scoreColor((s.grade.score / s.grade.score_max) * 10) }}>{fmtScore(s.grade.score)}</span>
-                : (
-                  <>
-                    {s.status !== "not_submitted" && s.status !== "submitted" && (
-                      <button onClick={() => setStatus(s.id, "submitted")} className="text-[10px] font-bold px-2 py-1 rounded border" style={{ borderColor: "#dbe8e8", color: TEAL }}>Mark submitted</button>
+      <Page>
+        <Header icon={ICON.clipboard} title="Review homework" subtitle={`${open.data?.schoolClass?.class_name} · ${open.data?.subject?.subject_name}`} onBack={() => setOpen(null)} />
+        <InfoNote title="Homework">{open.data?.homework_text}</InfoNote>
+        {busy && <Spinner />}
+        <TableCard>
+          <thead><tr><th className={thCls}>Student</th><th className={thCls}>Status</th><th className={`${thCls} text-right`}>Action</th></tr></thead>
+          <tbody>
+            {(open.submissions || []).map((s) => (
+              <tr key={s.id} className="hover:bg-gray-50">
+                <td className={tdCls}><div className="flex items-center gap-3"><Avatar name={`${s.student?.first_name || "?"}`} /><span className="font-semibold text-gray-800">{s.student?.first_name} {s.student?.last_name}</span></div></td>
+                <td className={tdCls}><span className="capitalize text-gray-500 text-xs">{s.status}{s.submitted_at ? ` · ${new Date(s.submitted_at).toLocaleDateString()}` : ""}</span></td>
+                <td className={`${tdCls} text-right`}>
+                  {s.grade
+                    ? <span className="text-base font-black tabular-nums" style={{ color: scoreColor((s.grade.score / s.grade.score_max) * 10) }}>{fmtScore(s.grade.score)}</span>
+                    : (
+                      <div className="inline-flex gap-1.5">
+                        {s.status !== "not_submitted" && s.status !== "submitted" && <Btn tone="ghost" onClick={() => setStatus(s.id, "submitted")}>Mark submitted</Btn>}
+                        <Btn tone="primary" onClick={() => navigate(`/education/gradebook/mark?submission=${s.id}`)}>Grade →</Btn>
+                      </div>
                     )}
-                    <button onClick={() => navigate(`/education/gradebook/mark?submission=${s.id}`)}
-                      className="text-[10px] font-bold px-2 py-1 rounded text-white" style={{ background: TEAL }}>Grade →</button>
-                  </>
-                )}
-            </div>
-          ))}
-          {(open.submissions || []).length === 0 && <p className="text-[11px] text-gray-400">No students on this homework.</p>}
-        </div>
-      </div>
+                </td>
+              </tr>
+            ))}
+            {(open.submissions || []).length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-400">No students on this homework.</td></tr>}
+          </tbody>
+        </TableCard>
+      </Page>
     );
   }
 
   return (
-    <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
-      <Hero title="Homework" subtitle="Assign & review"
-        right={<button onClick={() => navigate("/education/gradebook/homework/new")}
-          className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: GOLD, color: "#052528" }}>＋ Assign homework</button>} />
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-2">
-        {assignments.length === 0 && (
-          <div className="rounded-2xl border bg-white p-6 text-center text-xs text-gray-500" style={{ borderColor: "#dbe8e8" }}>
-            No homework yet. Tap <b>＋ Assign homework</b> to give a class an assignment now — or deliver a lesson plan that has homework text and it shows up here automatically.
-          </div>
-        )}
-        {assignments.map((a) => (
-          <button key={a.id} onClick={() => openAssignment(a.id)}
-            className="w-full text-left px-3 py-3 rounded-xl border bg-white hover:bg-teal-50/40" style={{ borderColor: "#dbe8e8" }}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-700">{a.schoolClass?.class_name} · {a.subject?.subject_name}</span>
-              <span className="text-[10px] text-gray-400">due {a.due_date}</span>
-            </div>
-            <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{a.homework_text}</p>
-            <div className="flex gap-3 mt-2 text-[10px] font-bold">
-              <span className="text-gray-500">{a.waiting_count} waiting</span>
-              <span style={{ color: "#2E7D5B" }}>{a.graded_count} graded</span>
-              <span className="text-gray-400">{a.total_count} total</span>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
+    <Page>
+      <Header icon={ICON.clipboard} title="Homework" subtitle="Assign & review"
+        actions={<Btn tone="white" onClick={() => navigate("/education/gradebook/homework/new")}>＋ Assign homework</Btn>} />
+
+      {assignments.length === 0 ? (
+        <EmptyState icon={ICON.clipboard} title="No homework yet"
+          description="Tap ＋ Assign to give a class an assignment now — or deliver a lesson plan that has homework text and it appears here automatically."
+          action={<div className="mt-3"><Btn tone="primary" onClick={() => navigate("/education/gradebook/homework/new")}>Assign homework</Btn></div>} />
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {assignments.map((a) => (
+            <button key={a.id} onClick={() => openAssignment(a.id)} className="text-left bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-bold text-gray-800 truncate">{a.schoolClass?.class_name} · {a.subject?.subject_name}</span>
+                <span className="text-[11px] text-gray-400 shrink-0">due {a.due_date}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{a.homework_text}</p>
+              <div className="flex gap-1.5 mt-3">
+                <Pill tone="gray">{a.waiting_count} waiting</Pill>
+                <Pill tone="emerald">{a.graded_count} graded</Pill>
+                <Pill tone="teal">{a.total_count} total</Pill>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </Page>
   );
 }

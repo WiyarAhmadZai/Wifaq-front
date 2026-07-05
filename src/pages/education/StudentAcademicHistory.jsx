@@ -1,87 +1,93 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { studentAcademicHistory } from "../../api/gradebook";
-import { Hero, Spinner } from "./lessonPlanUi";
-import { PAPER, scoreColor, fmtScore } from "./gradebookUi";
+import {
+  Page, Header, Card, Avatar, Pill, EmptyState, Spinner, ICON, scoreColor, fmtScore,
+} from "./gradebookUi";
 
 const OUTCOME = {
-  promoted:  { label: "Promoted", bg: "#e6f3ec", fg: "#2E7D5B" },
-  graduated: { label: "Graduated", bg: "#eee9f6", fg: "#6b54a8" },
-  retained:  { label: "Repeated", bg: "#f7e3e1", fg: "#C0473F" },
-  reexam:    { label: "Re-exam", bg: "#fbf0db", fg: "#9a6a12" },
+  promoted:  { label: "Promoted", tone: "emerald" },
+  graduated: { label: "Graduated", tone: "purple" },
+  retained:  { label: "Repeated", tone: "red" },
+  reexam:    { label: "Re-exam", tone: "amber" },
 };
 
-/** Year-by-year academic record: per subject midterm/final/total/status + the
- *  promotion outcome. The "easy grade history" view. */
+/** Year-by-year academic record: per subject midterm/final/total/status + outcome. */
 export default function StudentAcademicHistory() {
+  const navigate = useNavigate();
   const { studentId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    studentAcademicHistory(studentId)
-      .then((r) => setData(r.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
+    studentAcademicHistory(studentId).then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
   }, [studentId]);
 
-  if (loading) return <div style={{ background: PAPER, minHeight: "100vh" }}><Spinner /></div>;
-  if (!data) return <div style={{ background: PAPER, minHeight: "100vh" }} className="p-8 text-center text-sm text-gray-500">Not available.</div>;
+  if (loading) return <Page><Spinner /></Page>;
+  if (!data) return <Page><Header icon={ICON.cap} title="Academic history" onBack={() => navigate(-1)} /><EmptyState title="Not available" /></Page>;
 
   return (
-    <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
-      <Hero title={data.student?.name} subtitle="Academic history · term exams & promotion" />
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {(data.years || []).length === 0 && (
-          <div className="rounded-2xl border bg-white p-6 text-center text-xs text-gray-500" style={{ borderColor: "#dbe8e8" }}>
-            No term-exam history yet.
-          </div>
-        )}
+    <Page>
+      <Header icon={ICON.cap} title={data.student?.name} subtitle="Term exams & promotion · year by year" onBack={() => navigate(-1)} />
+
+      {(data.years || []).length === 0 && (
+        <EmptyState icon={ICON.cap} title="No term-exam history yet"
+          description="Once this student's term exams are entered, each year appears here with results and outcome." />
+      )}
+
+      <div className="space-y-4">
         {(data.years || []).map((y) => {
           const o = OUTCOME[y.outcome];
+          const passed = (y.subjects || []).filter((s) => s.passed === true || (s.passed === false && s.reexam >= 40)).length;
           return (
-            <div key={y.term_id} className="rounded-2xl border bg-white p-4" style={{ borderColor: "#dbe8e8" }}>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <p className="text-sm font-black text-gray-700">{y.term_name || `Year #${y.term_id}`}</p>
-                  <p className="text-[11px] text-gray-400">{y.grade}{y.class ? ` · ${y.class}` : ""}</p>
+            <Card key={y.term_id} pad={false}>
+              <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-gray-100">
+                <Avatar name={y.grade || "?"} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-teal-800 truncate">{y.term_name || `Year #${y.term_id}`}</p>
+                  <p className="text-[11px] text-teal-700/70">{y.grade}{y.class ? ` · ${y.class}` : ""}</p>
                 </div>
-                {o && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: o.bg, color: o.fg }}>{o.label}</span>}
+                {o && <Pill tone={o.tone}>{o.label}</Pill>}
               </div>
 
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="text-gray-400">
-                    <th className="text-left font-semibold py-1">Subject</th>
-                    <th className="font-semibold">Mid /40</th>
-                    <th className="font-semibold">Final /60</th>
-                    <th className="font-semibold">Total</th>
-                    <th className="font-semibold">Re-exam</th>
-                    <th className="font-semibold">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(y.subjects || []).map((sub, i) => (
-                    <tr key={i} className="border-t" style={{ borderColor: "#f0f4f4" }}>
-                      <td className="py-1.5 text-gray-700 font-semibold">{sub.subject}{sub.flag ? " ⚠" : ""}</td>
-                      <td className="text-center">{fmtScore(sub.midterm)}</td>
-                      <td className="text-center">{fmtScore(sub.final)}</td>
-                      <td className="text-center font-bold" style={{ color: scoreColor((sub.total / 100) * 10) }}>{fmtScore(sub.total)}</td>
-                      <td className="text-center">{fmtScore(sub.reexam)}</td>
-                      <td className="text-center font-bold" style={{ color: sub.passed === false ? "#C0473F" : sub.passed ? "#2E7D5B" : "#9aa7a8" }}>
-                        {sub.passed === false ? "Fail" : sub.passed ? "Pass" : "—"}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      <th className="text-left px-5 py-2">Subject</th>
+                      <th className="px-2 py-2">Mid /40</th>
+                      <th className="px-2 py-2">Final /60</th>
+                      <th className="px-2 py-2">Total</th>
+                      <th className="px-2 py-2">Re-exam</th>
+                      <th className="text-right px-5 py-2">Result</th>
                     </tr>
-                  ))}
-                  {(y.subjects || []).length === 0 && (
-                    <tr><td colSpan={6} className="py-2 text-center text-gray-400">No term-exam scores recorded.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {(y.subjects || []).map((sub, i) => (
+                      <tr key={i} className="border-t border-gray-50 text-sm">
+                        <td className="px-5 py-2.5 font-semibold text-gray-700">{sub.subject}{sub.flag ? " ⚠" : ""}</td>
+                        <td className="px-2 py-2.5 text-center text-gray-600">{fmtScore(sub.midterm)}</td>
+                        <td className="px-2 py-2.5 text-center text-gray-600">{fmtScore(sub.final)}</td>
+                        <td className="px-2 py-2.5 text-center font-bold tabular-nums" style={{ color: scoreColor((sub.total / 100) * 10) }}>{fmtScore(sub.total)}</td>
+                        <td className="px-2 py-2.5 text-center text-gray-600">{fmtScore(sub.reexam)}</td>
+                        <td className="px-5 py-2.5 text-right">
+                          {sub.passed === false && !(sub.reexam >= 40) ? <Pill tone="red">Fail</Pill>
+                            : sub.passed || sub.reexam >= 40 ? <Pill tone="emerald">Pass</Pill>
+                              : <span className="text-gray-300">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                    {(y.subjects || []).length === 0 && <tr><td colSpan={6} className="px-5 py-3 text-center text-sm text-gray-400">No term-exam scores recorded.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+              {(y.subjects || []).length > 0 && (
+                <p className="text-[11px] text-gray-400 px-5 py-2 border-t border-gray-50">{passed}/{y.subjects.length} subjects passed{y.decision ? ` · decision: ${y.decision}` : ""}</p>
+              )}
+            </Card>
           );
         })}
       </div>
-    </div>
+    </Page>
   );
 }

@@ -4,6 +4,8 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
 import PathPermissionGate from "../admin/guards/PathPermissionGate";
 import ErrorBoundary from "./ErrorBoundary";
+import MessagesButton from "../chat/components/MessagesButton";
+import ChatDrawer from "../chat/components/ChatDrawer";
 
 const PageFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -1133,6 +1135,8 @@ export default function Layout() {
     { label: "Permissions", path: "/admin/permissions", permission: "permissions.view" },
     { label: "Users & Access", path: "/admin/users", permission: "users.view" },
     { label: "Activity Log", path: "/admin/activity-logs", permission: "activity-logs.view" },
+    // No `permission` → visible to super-admins only (matches the route guard).
+    { label: "Chat Settings", path: "/admin/chat-settings" },
   ];
 
   const branchesMenus = [
@@ -1755,6 +1759,7 @@ export default function Layout() {
                   AR
                 </button>
               </div>
+              <MessagesButton />
               <NotificationBell />
               <ProfileButton />
             </div>
@@ -1772,6 +1777,10 @@ export default function Layout() {
           </Suspense>
         </div>
       </main>
+
+      {/* Real-time chat drawer (WhatsApp-style). Global overlay — the user never
+          leaves the current page. */}
+      <ChatDrawer />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { getTags, getAssessment, homeworkSubmission, saveGrade } from "../../api/gradebook";
+import { getTags, getAssessment, homeworkSubmission, saveGrade, rewardGrade } from "../../api/gradebook";
 import {
   Page, Header, Card, Avatar, Btn, Banner, Field, Textarea, GradeSlider, DimensionPicker,
   TagPicker, EmptyState, Spinner, Loading, LoadingRow, ICON, fmtScore,
@@ -28,6 +28,8 @@ export default function MarkingScreen() {
   const [flash, setFlash] = useState("");
   const [graded, setGraded] = useState(0);
   const [done, setDone] = useState(false);
+  const [rewarding, setRewarding] = useState(false);
+  const [rewarded, setRewarded] = useState(false);
 
   const [score, setScore] = useState(7);
   const [dimension, setDimension] = useState("intellectual");
@@ -59,7 +61,7 @@ export default function MarkingScreen() {
   const scoreMax = ctx?.score_max || 10;
   const canSave = current && tagId && score != null && !saving;
 
-  const resetForm = () => { setTagId(null); setNote(""); setSuggestions([]); setScore(Math.round(scoreMax * 0.7 * 2) / 2); if (ctx?.primary) setDimension(ctx.primary); };
+  const resetForm = () => { setTagId(null); setNote(""); setSuggestions([]); setRewarded(false); setRewarding(false); setScore(Math.round(scoreMax * 0.7 * 2) / 2); if (ctx?.primary) setDimension(ctx.primary); };
 
   async function handleSave() {
     if (!canSave) return;
@@ -75,6 +77,21 @@ export default function MarkingScreen() {
       advance();
     } catch (e) { setErr(e.response?.data?.message || "Save failed — the grade was not recorded."); setSaving(false); }
   }
+  async function issueReward() {
+    const s = suggestions.find((x) => x.type === "vats" && x.grade_id);
+    if (!s || rewarding || rewarded) return;
+    setRewarding(true);
+    try {
+      const r = await rewardGrade(s.grade_id);
+      setRewarded(true);
+      setFlash(r.data?.message || "Reward recorded.");
+    } catch (e) {
+      setErr(e.response?.data?.message || "Could not record the reward.");
+    } finally {
+      setRewarding(false);
+    }
+  }
+
   function advance() { setSaving(false); if (idx + 1 >= queue.length) setDone(true); else { setIdx((i) => i + 1); resetForm(); } }
   function skip() { if (idx + 1 >= queue.length) setDone(true); else { setIdx((i) => i + 1); resetForm(); } }
 
@@ -138,7 +155,16 @@ export default function MarkingScreen() {
         {suggestions.length > 0 ? (
           <Card accent="#C9A227" className="bg-amber-50/40">
             {suggestions.map((s, i) => <p key={i} className="text-xs text-gray-700 font-semibold mb-1">💡 {s.message}</p>)}
-            <p className="text-[11px] text-gray-400 mb-2">Grade saved. Act on it from the VATS / Observation modules, then continue.</p>
+            {suggestions.some((s) => s.type === "vats" && s.grade_id) && (
+              <div className="mb-2"><Btn tone="gold" full onClick={issueReward} disabled={rewarding || rewarded}>
+                {rewarding ? "Recording…" : rewarded ? "✓ Reward recorded" : "🎖 Issue reward"}
+              </Btn></div>
+            )}
+            <p className="text-[11px] text-gray-400 mb-2">
+              {suggestions.some((s) => s.type === "observation")
+                ? "Grade saved · the mentor was notified about the low-grade pattern."
+                : "Grade saved. Record the reward above, then continue."}
+            </p>
             <Btn tone="primary" full onClick={advance}>Continue →</Btn>
           </Card>
         ) : (

@@ -37,6 +37,7 @@ export const getAssessment = (id) => get(`${BASE}/assessments/${id}`);
 export const saveGrade = (data) => post(`${BASE}/grades`, data);
 export const updateGrade = (id, data) => put(`${BASE}/grades/${id}`, data);
 export const voidGrade = (id, voided_reason) => post(`${BASE}/grades/${id}/void`, { voided_reason });
+export const rewardGrade = (id) => post(`${BASE}/grades/${id}/reward`, {});
 
 // ── Homework review queue ───────────────────────────────────────────────
 export const assignHomework = (data) => post(`${BASE}/homework`, data);

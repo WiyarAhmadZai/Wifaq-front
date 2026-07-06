@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./admin/context/AuthContext";
+import { ChatProvider } from "./chat/ChatContext";
 import Protected from "./admin/guards/Protected";
 
 const AdminRoles = lazy(() => import("./admin/pages/AdminRoles"));
@@ -43,6 +44,7 @@ const Login = lazy(() => import("./pages/Login"));
 const MyProfile = lazy(() => import("./pages/MyProfile"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
+const ChatSettings = lazy(() => import("./pages/system/ChatSettings"));
 
 // HR — VATS / Welfare / Holidays (new modules)
 const VatsDashboard = lazy(() => import("./pages/hr/VatsDashboard"));
@@ -311,6 +313,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <ChatProvider>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
@@ -675,9 +678,15 @@ function App() {
                 <Suspense fallback={<PageLoader />}><ActivityLogs /></Suspense>
               </Protected>
             } />
+            <Route path="admin/chat-settings" element={
+              <Protected role="super-admin">
+                <Suspense fallback={<PageLoader />}><ChatSettings /></Suspense>
+              </Protected>
+            } />
           </Route>
           </Routes>
         </Suspense>
+        </ChatProvider>
       </AuthProvider>
     </Router>
   );

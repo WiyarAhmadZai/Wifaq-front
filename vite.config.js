@@ -32,6 +32,8 @@ export default defineConfig({
       'sweetalert2',
       'react-select',
       'react-icons/fi',
+      'laravel-echo',
+      'pusher-js',
     ],
   },
 })

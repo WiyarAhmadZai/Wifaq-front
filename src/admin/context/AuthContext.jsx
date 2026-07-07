@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { accessApi } from "../services/accessApi";
 import { hasPermission, hasRole, can, isSuperAdmin } from "../utils/permissions";
 import { useIdleLogout } from "../../hooks/useIdleLogout";
+import { clearApiCache } from "../../api/axios";
 
 const AuthContext = createContext(null);
 
@@ -63,6 +64,8 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem("token");
+    // Purge cached API data so the next user on this browser starts clean.
+    clearApiCache();
     // Reset the once-per-session "you have unread popups" flag so the next
     // login shows the floating notification cards again.
     sessionStorage.removeItem("wen:notif-popups-seen");

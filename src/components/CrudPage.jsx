@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { get, del, put } from "../api/axios";
+import { get, del, put, peekCache } from "../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../admin/context/AuthContext";
 import ListExportActions from "./ListExportActions";
@@ -75,19 +75,33 @@ export default function CrudPage({
   const [savingStatus, setSavingStatus] = useState(false);
 
   const fetchItems = useCallback(async (page = 1, search = searchQuery) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.append("page", page);
-      if (search) params.append("search", search);
-      Object.entries(baseParams || {}).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && v !== "") params.append(k, v);
-      });
-      Object.entries(filterValues || {}).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && v !== "") params.append(k, v);
-      });
+    const params = new URLSearchParams();
+    params.append("page", page);
+    if (search) params.append("search", search);
+    Object.entries(baseParams || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") params.append(k, v);
+    });
+    Object.entries(filterValues || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") params.append(k, v);
+    });
+    const url = `${apiEndpoint}?${params.toString()}`;
 
-      const response = await get(`${apiEndpoint}?${params.toString()}`);
+    // Stale-while-revalidate: if this exact query is already cached locally,
+    // paint it instantly (no spinner) and let the request below revalidate in
+    // the background. The server answers 304 when nothing changed, or 200 with
+    // fresh rows — either way the view converges without a blank loading state.
+    const cached = peekCache(url);
+    if (cached) {
+      const cData = cached?.data || cached || [];
+      setItems(Array.isArray(cData) ? cData : []);
+      if (cached?.meta) setMeta(cached.meta);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const response = await get(url);
       const data = response.data?.data || response.data || [];
       setItems(Array.isArray(data) ? data : []);
       if (response.data?.meta) setMeta(response.data.meta);
@@ -105,8 +119,12 @@ export default function CrudPage({
         else if (status === 422) { errorTitle = "Validation Error (422)"; errorMessage = data?.message || "Validation failed."; }
         else { errorTitle = `Error (${status})`; errorMessage = data?.message || `HTTP ${status} error`; }
       } else if (error.request) { errorTitle = "Network Error"; errorMessage = "Cannot connect to server."; }
-      Swal.fire({ title: errorTitle, text: errorMessage, icon: "error", confirmButtonColor: "#0d9488" });
-      setItems([]);
+      // If we already painted cached rows, keep them on-screen instead of
+      // wiping to an error state — the user still sees the last-known-good data.
+      if (!cached) {
+        Swal.fire({ title: errorTitle, text: errorMessage, icon: "error", confirmButtonColor: "#0d9488" });
+        setItems([]);
+      }
     } finally { setLoading(false); }
   }, [apiEndpoint, searchQuery, JSON.stringify(baseParams), JSON.stringify(filterValues)]);
 

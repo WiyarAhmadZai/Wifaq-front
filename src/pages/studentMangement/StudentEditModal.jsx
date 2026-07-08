@@ -35,8 +35,9 @@ const STUDENT_FIELDS = [
   "transportation_required", "transport_route_id", "transport_vehicle_id",
   "transport_pickup_point", "transport_pickup_time", "transport_dropoff_point",
   "transport_monthly_fee",
-  "need_uniform", "uniform_price", "uniform_chest", "uniform_waist",
+  "uniform_required", "need_uniform", "uniform_price", "uniform_chest", "uniform_waist",
   "uniform_height", "uniform_shoulder", "uniform_sleeve", "tailor_note",
+  "employee_parent_staff_id", "parental_consent",
   "transfer_case_status", "transfer_additional_notes",
 ];
 
@@ -51,7 +52,7 @@ const FAMILY_FIELDS = [
 
 const BOOL_FIELDS = new Set([
   "has_special_health_condition", "has_special_needs",
-  "transportation_required", "need_uniform",
+  "transportation_required", "need_uniform", "uniform_required", "parental_consent",
 ]);
 
 const GENDER = [{ v: "male", l: "Male" }, { v: "female", l: "Female" }];
@@ -75,18 +76,22 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   const [family, setFamily] = useState(null);
   const [familyId, setFamilyId] = useState(null);
   const [classes, setClasses] = useState([]);
+  const [employeeParents, setEmployeeParents] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [vehicles, setVehicles] = useState([]);
 
-  // Load the full student record (+ family) and reference lists.
+  // Load the full student record (+ family) and reference lists. Classes and
+  // employee parents come from the students form-data endpoint (gated by the
+  // student permission the caller already holds) — NOT the class-management
+  // endpoint, which needs a separate classes.view permission.
   useEffect(() => {
     let alive = true;
     setLoading(true);
     (async () => {
       try {
-        const [sRes, cRes, rRes] = await Promise.all([
+        const [sRes, fRes, rRes] = await Promise.all([
           get(`/student-management/students/show/${studentId}`),
-          get("/class-management/classes/list?per_page=1000").catch(() => ({ data: [] })),
+          get("/student-management/students/form-data").catch(() => ({ data: {} })),
           get("/transportation/routes/active/list").catch(() => ({ data: [] })),
         ]);
         if (!alive) return;
@@ -94,7 +99,17 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
         setStudent(data);
         setFamily(data.family || null);
         setFamilyId(data.family?.id || data.family_id || null);
-        setClasses((cRes.data?.data || cRes.data || []).map((c) => ({ value: c.id, label: c.class_name })));
+
+        // Build the class options and ALWAYS include the student's current class
+        // (the form-data list hides full / other-term classes, so the student's
+        // own class may be absent — seed it so the value always renders).
+        const listClasses = (fRes.data?.classes || []).map((c) => ({ value: c.id, label: c.class_name }));
+        const current = data.school_class;
+        if (current?.id && !listClasses.some((c) => c.value === current.id)) {
+          listClasses.unshift({ value: current.id, label: current.class_name });
+        }
+        setClasses(listClasses);
+        setEmployeeParents((fRes.data?.employee_parents || []).map((s) => ({ value: s.id, label: s.name })));
         setRoutes((rRes.data?.data || rRes.data || []).map((r) => ({ value: r.id, label: r.name || r.route_name || `Route #${r.id}` })));
       } catch (e) {
         Swal.fire("Error", e.response?.data?.message || "Failed to load student data", "error");
@@ -196,20 +211,31 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
           ) : (
             <>
               {tab === "student" && (
-                <Grid>
-                  <ReadOnly label="Student ID" value={student.student_id} />
-                  <Text label="First name" value={student.first_name} onChange={(v) => setS("first_name", v)} />
-                  <Text label="Last name" value={student.last_name} onChange={(v) => setS("last_name", v)} />
-                  <DateField label="Date of birth" value={student.date_of_birth} onChange={(v) => setS("date_of_birth", v)} />
-                  <Select label="Gender" value={student.gender} options={GENDER} onChange={(v) => setS("gender", v)} />
-                  <Select label="Class" value={student.school_class_id} options={classes.map((c) => ({ v: c.value, l: c.label }))} onChange={(v) => setS("school_class_id", v ? Number(v) : null)} />
-                  <Select label="Enrollment type" value={student.enrollment_type} options={ENROLLMENT_TYPE} onChange={(v) => setS("enrollment_type", v)} />
-                  <Select label="Status" value={student.status} options={STATUS} onChange={(v) => setS("status", v)} />
-                  <Select label="Special status" value={student.special_status} options={SPECIAL_STATUS} onChange={(v) => setS("special_status", v)} />
-                  <Select label="Discount %" value={student.discount_percent} options={DISCOUNTS} onChange={(v) => setS("discount_percent", v === "" ? null : Number(v))} />
-                  <NumberField label="Child order in family" value={student.child_order_in_family} onChange={(v) => setS("child_order_in_family", v)} />
-                  <DateField label="Enrollment date" value={student.enrollment_date} onChange={(v) => setS("enrollment_date", v)} />
-                </Grid>
+                <>
+                  <Grid>
+                    <ReadOnly label="Student ID" value={student.student_id} />
+                    <Text label="First name" value={student.first_name} onChange={(v) => setS("first_name", v)} />
+                    <Text label="Last name" value={student.last_name} onChange={(v) => setS("last_name", v)} />
+                    <DateField label="Date of birth" value={student.date_of_birth} onChange={(v) => setS("date_of_birth", v)} />
+                    <Select label="Gender" value={student.gender} options={GENDER} onChange={(v) => setS("gender", v)} />
+                    <Select label="Class" value={student.school_class_id} options={classes.map((c) => ({ v: c.value, l: c.label }))} onChange={(v) => setS("school_class_id", v ? Number(v) : null)} />
+                    <ReadOnly label="Grade" value={student.school_class?.grade?.name} />
+                    <ReadOnly label="Academic term" value={student.academic_term?.name} />
+                    <Select label="Enrollment type" value={student.enrollment_type} options={ENROLLMENT_TYPE} onChange={(v) => setS("enrollment_type", v)} />
+                    <Select label="Status" value={student.status} options={STATUS} onChange={(v) => setS("status", v)} />
+                    <Select label="Special status" value={student.special_status} options={SPECIAL_STATUS} onChange={(v) => setS("special_status", v)} />
+                    <Select label="Employee parent (staff)" value={student.employee_parent_staff_id} options={employeeParents.map((s) => ({ v: s.value, l: s.label }))} onChange={(v) => setS("employee_parent_staff_id", v ? Number(v) : null)} />
+                    <Select label="Discount %" value={student.discount_percent} options={DISCOUNTS} onChange={(v) => setS("discount_percent", v === "" ? null : Number(v))} />
+                    <NumberField label="Child order in family" value={student.child_order_in_family} onChange={(v) => setS("child_order_in_family", v)} />
+                    <DateField label="Enrollment date" value={student.enrollment_date} onChange={(v) => setS("enrollment_date", v)} />
+                  </Grid>
+                  <div className="flex flex-wrap gap-5 mt-2">
+                    <Check label="Parental consent" checked={student.parental_consent} onChange={(v) => setS("parental_consent", v)} />
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-2">
+                    Fees (base, discount, final) are recalculated automatically when class, discount, special status or child order change.
+                  </p>
+                </>
               )}
 
               {tab === "education" && (
@@ -253,7 +279,10 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
                   </Grid>
 
                   <SectionTitle>Uniform</SectionTitle>
-                  <Check label="Needs uniform" checked={student.need_uniform} onChange={(v) => setS("need_uniform", v)} />
+                  <div className="flex flex-wrap gap-5 mb-1">
+                    <Check label="Uniform required (registration)" checked={student.uniform_required} onChange={(v) => setS("uniform_required", v)} />
+                    <Check label="Needs uniform (sizing)" checked={student.need_uniform} onChange={(v) => setS("need_uniform", v)} />
+                  </div>
                   <Grid>
                     <NumberField label="Uniform price" value={student.uniform_price} onChange={(v) => setS("uniform_price", v)} />
                     <Text label="Chest" value={student.uniform_chest} onChange={(v) => setS("uniform_chest", v)} />

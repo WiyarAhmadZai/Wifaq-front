@@ -12,7 +12,8 @@ export default function QuickAttendance() {
   });
   const [dailySheet, setDailySheet] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(null); // employee_id or "row-id" when updating
+  const [actionLoading, setActionLoading] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     fetchDailySheet();
@@ -46,12 +47,25 @@ export default function QuickAttendance() {
           "info",
         );
       } else {
-        // Use backend quick check-in so Time In is taken automatically by the system
-        await post("/hr/attendances/check-in", {
+        const response = await post("/hr/attendances/check-in", {
           employee_id: row.employee.id,
         });
+        const updatedAttendance = response.data.attendance;
+        setDailySheet(prev => ({
+          ...prev,
+          rows: prev.rows.map(r => 
+            r.employee.id === row.employee.id 
+              ? { 
+                  ...r, 
+                  status: updatedAttendance.status,
+                  arrived: updatedAttendance.arrived ? updatedAttendance.arrived.substring(0, 5) : null,
+                  check_out: updatedAttendance.check_out ? updatedAttendance.check_out.substring(0, 5) : null,
+                  attendance_id: updatedAttendance.id
+                }
+              : r
+          )
+        }));
       }
-      await fetchDailySheet();
     } catch (error) {
       const msg =
         error.response?.data?.error ||
@@ -76,16 +90,30 @@ export default function QuickAttendance() {
           "info",
         );
       } else {
-        await post("/hr/attendances/check-out", {
+        const response = await post("/hr/attendances/check-out", {
           employee_id: row.employee.id,
         });
+        const updatedAttendance = response.data.attendance;
+        setDailySheet(prev => ({
+          ...prev,
+          rows: prev.rows.map(r => 
+            r.employee.id === row.employee.id 
+              ? { 
+                  ...r, 
+                  status: r.status,
+                  arrived: r.arrived,
+                  check_out: updatedAttendance.check_out ? updatedAttendance.check_out.substring(0, 5) : null,
+                  working_hours: response.data.working_hours
+                }
+              : r
+          )
+        }));
         Swal.fire(
           "Success",
           "Check-out recorded. Time Out set by system.",
           "success",
         );
       }
-      await fetchDailySheet();
     } catch (error) {
       const msg =
         error.response?.data?.error ||
@@ -109,16 +137,31 @@ export default function QuickAttendance() {
         arrived: null,
         check_out: null,
       };
+      let response;
       if (row.attendance_id) {
-        await put(`/hr/attendances/${row.attendance_id}`, payload);
+        response = await put(`/hr/attendances/${row.attendance_id}`, payload);
       } else {
-        await post("/hr/attendances", {
+        response = await post("/hr/attendances", {
           date: selectedDate,
           employee_id: row.employee.id,
           status: "absent",
         });
       }
-      await fetchDailySheet();
+      const updatedAttendance = response.data;
+      setDailySheet(prev => ({
+        ...prev,
+        rows: prev.rows.map(r => 
+          r.employee.id === row.employee.id 
+            ? { 
+                ...r, 
+                status: updatedAttendance.status,
+                arrived: null,
+                check_out: null,
+                attendance_id: updatedAttendance.id
+              }
+            : r
+        )
+      }));
     } catch (error) {
       const msg =
         error.response?.data?.error ||
@@ -161,8 +204,20 @@ export default function QuickAttendance() {
     row.arrived &&
     !row.check_out;
   const quickLimitReached = dailySheet?.quick_limit_reached === true;
-  // Once this staff has both Time In and Time Out, no more changes allowed for that staff
   const isRowLocked = (row) => !!(row.arrived && row.check_out);
+
+  const formatTime12Hour = (time24) => {
+    if (!time24) return "";
+    const [hours, minutes] = time24.split(":");
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const filteredRows = dailySheet?.rows?.filter((row) =>
+    row.employee.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   return (
     <div className="px-4 py-6 mx-auto">
@@ -196,14 +251,26 @@ export default function QuickAttendance() {
             <strong>Pending</strong> (not absent).
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-black bg-white">
-            Date
-          </label>
-          <DateField
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-black bg-white">
+              Date
+            </label>
+            <DateField
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              disabled
+              className="bg-gray-100 border border-slate-300 rounded-lg px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search staff name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -282,7 +349,7 @@ export default function QuickAttendance() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {dailySheet.rows.map((row) => (
+                {filteredRows.map((row) => (
                   <tr key={row.employee.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-xs font-medium text-teal-600">
                       #{String(row.index).padStart(4, "0")}
@@ -298,26 +365,14 @@ export default function QuickAttendance() {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-800">
-                      {row.employee.department || "â€”"}
+                      {row.employee.department || "—"}
                     </td>
                     <td className="px-3 py-2">{getStatusBadge(row.status)}</td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        value={row.arrived || ""}
-                        disabled
-                        readOnly
-                        className="w-20 rounded px-1 py-0.5 text-[10px] bg-gray-100 border border-transparent text-gray-500 cursor-not-allowed"
-                      />
+                    <td className="px-3 py-2 text-xs text-gray-600">
+                      {formatTime12Hour(row.arrived)}
                     </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        value={row.check_out || ""}
-                        disabled
-                        readOnly
-                        className="w-20 rounded px-1 py-0.5 text-[10px] bg-gray-100 border border-transparent text-gray-500 cursor-not-allowed"
-                      />
+                    <td className="px-3 py-2 text-xs text-gray-600">
+                      {formatTime12Hour(row.check_out)}
                     </td>
                     <td className="px-3 py-2">
                       {isRowLocked(row) ? (

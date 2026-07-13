@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put, API_BASE_URL } from '../../api/axios';
+import { get, del, put, API_BASE_URL, peekCache } from '../../api/axios';
 import { listDepartments } from '../../api/departments';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
@@ -34,6 +34,8 @@ export default function Staff() {
 
   const fetchBranches = async () => {
     try {
+      const __cached = peekCache('/branches/list');
+      if (__cached) setBranches(__cached?.data || __cached || []);
       const res = await get('/branches/list');
       setBranches(res.data?.data || res.data || []);
     } catch { setBranches([]); }
@@ -41,6 +43,8 @@ export default function Staff() {
 
   const fetchDepartments = async () => {
     try {
+      const __cached = peekCache('/hr/departments/list', { active_only: 1 });
+      if (__cached) setDepartments(__cached?.data || __cached || []);
       const res = await listDepartments({ active_only: 1 });
       setDepartments(res.data?.data || res.data || []);
     } catch { setDepartments([]); }
@@ -48,6 +52,8 @@ export default function Staff() {
 
   const fetchPositionTitles = async () => {
     try {
+      const __cached = peekCache('/hr/staff/position-titles/list');
+      if (__cached) setPositionTitles(__cached || {});
       const res = await get('/hr/staff/position-titles/list');
       setPositionTitles(res.data || {});
     } catch { setPositionTitles({}); }
@@ -64,6 +70,12 @@ export default function Staff() {
       if (branchFilter) params.append('branch_id', branchFilter);
       if (contractFilter) params.append('contract_type', contractFilter);
 
+      const __cached = peekCache(`/hr/staff/list?${params.toString()}`);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        setPagination({ current_page: __cached?.current_page || 1, last_page: __cached?.last_page || 1, total: __cached?.total || 0 });
+        setLoading(false);
+      }
       const res = await get(`/hr/staff/list?${params.toString()}`);
       const data = res.data;
       setItems(data?.data || []);

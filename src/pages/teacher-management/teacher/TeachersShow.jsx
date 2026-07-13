@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, del } from '../../../api/axios';
+import { get, del, peekCache } from '../../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../../admin/utils/useResourcePermissions';
 
@@ -27,6 +27,14 @@ export default function TeachersShow() {
     (async () => {
       setLoading(true);
       try {
+        const __t = peekCache(`/teacher-management/teachers/show/${id}`);
+        const __terms = peekCache('/academic-terms/list');
+        if (__t) { setTeacher(__t?.data); setLoading(false); }
+        if (__terms) {
+          const cachedTerms = __terms?.data || [];
+          setTerms(cachedTerms);
+          if (cachedTerms.length) setSelectedTerm(cachedTerms[cachedTerms.length - 1].id);
+        }
         const [tRes, termRes] = await Promise.all([
           get(`/teacher-management/teachers/show/${id}`),
           get('/academic-terms/list'),
@@ -49,7 +57,10 @@ export default function TeachersShow() {
     if (!selectedTerm || !id) return;
     (async () => {
       try {
-        const res = await get(`/class-management/schedule/teacher?teacher_id=${id}&academic_term_id=${selectedTerm}`);
+        const url = `/class-management/schedule/teacher?teacher_id=${id}&academic_term_id=${selectedTerm}`;
+        const __cached = peekCache(url);
+        if (__cached) setSchedule(__cached);
+        const res = await get(url);
         setSchedule(res.data);
       } catch { setSchedule(null); }
     })();

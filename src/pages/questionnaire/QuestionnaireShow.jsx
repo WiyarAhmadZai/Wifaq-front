@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getQuestionnaire } from "../../api/questionnaires";
+import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 
 const TYPE_LABEL = { choice: "Multiple choice", yesno: "Yes / No", text: "Short answer", file: "File / image upload" };
@@ -12,6 +13,8 @@ export default function QuestionnaireShow() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache(`/questionnaires/${id}`);
+    if (__cached) { setQ(__cached?.data || null); setLoading(false); }
     getQuestionnaire(id).then((r) => setQ(r.data?.data || null)).catch(() => setQ(null)).finally(() => setLoading(false));
   }, [id]);
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -66,6 +66,14 @@ export default function EventForm() {
 
   const loadEvent = async () => {
     setLoading(true);
+    const __cached = peekCache(`/events/${id}`);
+    if (__cached) {
+      const d = __cached?.data || __cached;
+      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming" });
+      if (d.roles?.length) setRoles(d.roles.map((r) => ({ user_id: r.user_id, role_name: r.role_name, notes: r.notes || "", userName: r.user?.name || "" })));
+      if (d.requirements?.length) setRequirements(d.requirements.map((r) => ({ description: r.description, assigned_to_id: r.assigned_to_id || "", is_completed: r.is_completed || false })));
+      setLoading(false);
+    }
     try {
       const res = await get(`/events/${id}`);
       const d = res.data?.data || res.data;

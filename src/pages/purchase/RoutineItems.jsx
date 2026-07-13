@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listRoutineItems, deleteRoutineItem, recordRoutinePurchase } from "../../api/routineItems";
 import { getAccounts, getParties } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -58,6 +59,12 @@ export default function RoutineItems() {
       if (filter === "inactive") params.active_only = false;
       if (filter === "due")      params.due_only = true;
       if (search) params.search = search;
+      const __cached = peekCache("/purchase/routine-items", params);
+      if (__cached) {
+        const cachedRows = __cached?.data?.data || __cached?.data || [];
+        setItems(Array.isArray(cachedRows) ? cachedRows : []);
+        setLoading(false);
+      }
       const r = await listRoutineItems(params);
       // Backend returns Laravel paginator → response.data.data.data
       const rows = r.data?.data?.data || r.data?.data || [];

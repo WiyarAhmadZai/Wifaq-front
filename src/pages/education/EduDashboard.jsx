@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 
 const TEAL = "#0D5C63";
 const GOLD = "#C9A227";
@@ -47,6 +47,8 @@ export default function EduDashboard() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/student-observations/dashboard");
+    if (__cached) { setData(__cached); setLoading(false); }
     try { const r = await get("/student-observations/dashboard"); setData(r.data); }
     catch { setData(null); }
     finally { setLoading(false); }

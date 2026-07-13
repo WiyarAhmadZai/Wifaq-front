@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 
@@ -43,6 +43,8 @@ export default function WelfareCheckin() {
   useEffect(() => { fetchHistory(); }, []);
 
   const fetchHistory = async () => {
+    const __cached = peekCache("/welfare/checkins");
+    if (__cached) setHistory(__cached?.data || []);
     try { const r = await get("/welfare/checkins"); setHistory(r.data?.data || []); } catch { setHistory([]); }
   };
 

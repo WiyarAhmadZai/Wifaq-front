@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { FiAward, FiTrendingUp, FiAlertTriangle, FiEdit2, FiTrash2, FiUsers } from "react-icons/fi";
 import { PageHeader, EmptyState, Spinner, Pill, InfoNote, DateField } from "../../components/hr/HrUI";
@@ -62,12 +62,16 @@ export default function VatsCards() {
 
   const fetchAll = async () => {
     setLoading(true);
+    const __cached = peekCache("/vats/cards");
+    if (__cached) { setCards(__cached?.data || []); setLoading(false); }
     try { const r = await get("/vats/cards"); setCards(r.data?.data || []); }
     catch { setCards([]); }
     finally { setLoading(false); }
   };
 
   const fetchThresholds = async () => {
+    const __cached = peekCache("/vats/slips/thresholds");
+    if (__cached) setThresholds(__cached || { data: [], targets: { positive: 4, concern: 4 } });
     try { const r = await get("/vats/slips/thresholds"); setThresholds(r.data || { data: [], targets: { positive: 4, concern: 4 } }); }
     catch { setThresholds({ data: [], targets: { positive: 4, concern: 4 } }); }
   };

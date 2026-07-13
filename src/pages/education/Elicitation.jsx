@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 
@@ -41,6 +41,8 @@ export default function Elicitation() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/student-elicitations");
+    if (__cached) { setList(__cached?.data || []); setCanManage(!!__cached?.can_manage); setLoading(false); }
     try { const r = await get("/student-elicitations"); setList(r.data?.data || []); setCanManage(!!r.data?.can_manage); }
     catch { setList([]); } finally { setLoading(false); }
   }, []);

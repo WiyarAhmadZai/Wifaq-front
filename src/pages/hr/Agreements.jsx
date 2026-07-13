@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -99,6 +99,12 @@ export default function Agreements() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache("/hr/agreements/list");
+      if (__cached) {
+        const __cd = __cached?.data || __cached || [];
+        setItems(Array.isArray(__cd) ? __cd : []);
+        setLoading(false);
+      }
       const res = await get("/hr/agreements/list");
       const data = res.data?.data || res.data || [];
       setItems(Array.isArray(data) ? data : []);

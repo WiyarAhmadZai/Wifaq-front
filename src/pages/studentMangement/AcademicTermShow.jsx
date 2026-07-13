@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -82,6 +82,8 @@ export default function AcademicTermShow() {
 
   const fetchTerm = async () => {
     setLoading(true);
+    const __cached = peekCache(`/academic-terms/show/${id}`);
+    if (__cached) { setTerm(__cached?.data ?? __cached); setLoading(false); }
     try {
       const response = await get(`/academic-terms/show/${id}`);
       const termData = response.data?.data || response.data;

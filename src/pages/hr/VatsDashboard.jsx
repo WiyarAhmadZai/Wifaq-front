@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { PageHeader, StatGrid, Section, Pill, Spinner, InfoNote } from "../../components/hr/HrUI";
 import { useVatsThresholds } from "../../components/hr/useVats";
 
@@ -27,6 +27,13 @@ export default function VatsDashboard() {
   useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
+    const __o = peekCache("/vats/observations?per_page=200");
+    const __c = peekCache("/vats/cards");
+    const __i = peekCache("/vats/interventions?per_page=200");
+    if (__o) setObs(__o?.data || []);
+    if (__c) setCards(__c?.data || []);
+    if (__i) setInterventions(__i?.data?.data || __i?.data || []);
+    if (__o && __c && __i) setLoading(false);
     try {
       const [o, c, i] = await Promise.all([
         get("/vats/observations?per_page=200"),

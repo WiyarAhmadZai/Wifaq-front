@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtMonth } from "../../utils/formErrors";
@@ -30,7 +30,10 @@ export default function Events() {
 
   const fetchItems = async () => {
     setLoading(true);
-    try { const res = await get("/events"); setItems(res.data?.data || res.data || []); }
+    try {
+      const __cached = peekCache("/events");
+      if (__cached) { setItems(__cached?.data || __cached || []); setLoading(false); }
+      const res = await get("/events"); setItems(res.data?.data || res.data || []); }
     catch { setItems([]); }
     finally { setLoading(false); }
   };

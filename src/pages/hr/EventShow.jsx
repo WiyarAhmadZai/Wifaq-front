@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, put, del } from "../../api/axios";
+import { get, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -23,6 +23,11 @@ export default function EventShow() {
   const statusRef = useRef(null);
 
   useEffect(() => {
+    const __cached = peekCache(`/events/${id}`);
+    if (__cached) {
+      setData(__cached?.data || __cached);
+      setLoading(false);
+    }
     get(`/events/${id}`).then((r) => setData(r.data?.data || r.data)).catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
   }, [id]);
 

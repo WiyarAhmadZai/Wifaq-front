@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 /* ── Brand tokens ── */
@@ -46,6 +46,8 @@ export default function DailyObservation() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    const __cached = peekCache("/student-observations/my-classes");
+    if (__cached) { const l = __cached?.data || []; setClasses(l); if (l.length) setActiveClass(l[0].id); setLoadingClasses(false); }
     get("/student-observations/my-classes")
       .then((r) => { const l = r.data?.data || []; setClasses(l); if (l.length) setActiveClass(l[0].id); })
       .catch(() => setClasses([]))
@@ -55,6 +57,8 @@ export default function DailyObservation() {
   const loadRoster = useCallback(() => {
     if (!activeClass) return;
     setLoadingRoster(true);
+    const __cached = peekCache(`/student-observations/roster?class_id=${activeClass}`);
+    if (__cached) { setRoster(__cached?.data || []); setLoadingRoster(false); }
     get(`/student-observations/roster?class_id=${activeClass}`)
       .then((r) => setRoster(r.data?.data || []))
       .catch(() => setRoster([]))
@@ -67,6 +71,8 @@ export default function DailyObservation() {
     const p = new URLSearchParams({ student_id: sid });
     if (from) p.append("from", from);
     if (to) p.append("to", to);
+    const __cached = peekCache(`/student-observations?${p.toString()}`);
+    if (__cached) { setHistory(__cached?.data || []); setLoadingHistory(false); }
     get(`/student-observations?${p.toString()}`)
       .then((r) => setHistory(r.data?.data || []))
       .catch(() => setHistory([]))

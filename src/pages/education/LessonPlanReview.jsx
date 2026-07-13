@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { fmtDate } from "../../utils/formErrors";
 import { TEAL, PAPER, Hero, Spinner, StatusPill, DimensionDots } from "./lessonPlanUi";
@@ -15,6 +15,8 @@ export default function LessonPlanReview() {
 
   const load = useCallback(() => {
     setLoading(true);
+    const __cached = peekCache("/lesson-plans/review");
+    if (__cached) { setRows(__cached?.data || []); setStats(__cached?.stats || null); setLoading(false); }
     get("/lesson-plans/review")
       .then((r) => { setRows(r.data?.data || []); setStats(r.data?.stats || null); })
       .catch((e) => { if (e.response?.status === 403) setForbidden(true); setRows([]); })

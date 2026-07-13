@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get } from '../../api/axios';
+import { get, peekCache } from '../../api/axios';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const RATING_LABELS = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent' };
@@ -22,6 +22,11 @@ export default function AddVendorShow() {
   useEffect(() => { fetchVendor(); }, [id]);
 
   const fetchVendor = async () => {
+    const __cached = peekCache(`/hr/vendors/${id}`);
+    if (__cached) {
+      setVendor(__cached?.data || __cached);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/vendors/${id}`);
       setVendor(res.data?.data || res.data);

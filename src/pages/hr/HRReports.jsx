@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
@@ -56,6 +56,11 @@ export default function HRReports() {
   const [d, setD] = useState(null);
 
   useEffect(() => {
+    const __cached = peekCache("/hr/reports/dashboard");
+    if (__cached) {
+      setD(__cached?.data || {});
+      setLoading(false);
+    }
     get("/hr/reports/dashboard")
       .then((res) => setD(res.data?.data || {}))
       .catch(() => setD({}))

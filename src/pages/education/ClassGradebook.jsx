@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { assessmentFormData, classGradebook, listAssessments } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Select, Btn,
   StatGrid, Section, BalanceBar, EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
@@ -18,12 +19,17 @@ export default function ClassGradebook() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    const __cached = peekCache("/gradebook/assessments/form-data");
+    if (__cached) { const p = __cached?.pairs || []; setPairs(p); if (p.length) setSel(p[0]); setLoading(false); }
     assessmentFormData().then((r) => { const p = r.data?.pairs || []; setPairs(p); if (p.length) setSel(p[0]); }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     if (!sel) return;
     setBusy(true);
+    const __data = peekCache(`/gradebook/class/${sel.school_class_id}/subject/${sel.subject_id}`, {});
+    const __assess = peekCache("/gradebook/assessments", { school_class_id: sel.school_class_id });
+    if (__data) { setData(__data); setAssessments(__assess?.data || []); setBusy(false); }
     Promise.all([
       classGradebook(sel.school_class_id, sel.subject_id).then((r) => setData(r.data)).catch(() => setData(null)),
       listAssessments({ school_class_id: sel.school_class_id }).then((r) => setAssessments(r.data?.data || [])).catch(() => setAssessments([])),

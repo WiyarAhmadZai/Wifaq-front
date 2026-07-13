@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -36,6 +36,11 @@ export default function AttendanceForm() {
   }, [id]);
 
   const fetchEmployees = async () => {
+    const __cached = peekCache("/hr/staff/list?per_page=1000");
+    if (__cached) {
+      const staffData = __cached?.data || __cached || [];
+      setEmployees(Array.isArray(staffData) ? staffData : []);
+    }
     try {
       const response = await get("/hr/staff/list?per_page=1000");
       const staffData = response.data?.data || response.data || [];
@@ -47,6 +52,20 @@ export default function AttendanceForm() {
 
   const fetchAttendance = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/attendances/${id}`);
+    if (__cached) {
+      const data = __cached;
+      setFormData({
+        date: data.date || "",
+        employee_id: data.employee_id || "",
+        status: data.status || "present",
+        arrived: data.arrived || "",
+        check_out: data.check_out || "",
+        notes: data.notes || "",
+        left_without_notice: data.left_without_notice || false,
+      });
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/attendances/${id}`);
       const data = response.data;

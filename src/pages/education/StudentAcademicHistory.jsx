@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { studentAcademicHistory } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, Avatar, Pill, EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
 } from "./gradebookUi";
@@ -20,6 +21,8 @@ export default function StudentAcademicHistory() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache(`/gradebook/promotion/student/${studentId}/history`);
+    if (__cached) { setData(__cached); setLoading(false); }
     studentAcademicHistory(studentId).then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
   }, [studentId]);
 

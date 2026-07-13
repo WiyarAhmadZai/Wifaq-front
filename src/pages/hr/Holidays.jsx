@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -29,6 +29,11 @@ export default function Holidays() {
 
   const fetchAll = async () => {
     setLoading(true);
+    const __cached = peekCache(`/holidays?year=${year}`);
+    if (__cached) {
+      setItems(__cached?.data || []);
+      setLoading(false);
+    }
     try {
       const r = await get(`/holidays?year=${year}`);
       setItems(r.data?.data || []);

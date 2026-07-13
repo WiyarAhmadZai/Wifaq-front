@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const TEAL = "#0D5C63";
@@ -53,6 +53,8 @@ export default function CardRankings() {
 
   const load = useCallback(async (p) => {
     setLoading(true);
+    const __cached = peekCache(`/student-cards/rankings?period=${p}`);
+    if (__cached) { setData(__cached); setLoading(false); }
     try {
       const res = await get(`/student-cards/rankings?period=${p}`);
       setData(res.data);

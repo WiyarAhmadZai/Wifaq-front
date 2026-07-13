@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, put } from "../../api/axios";
+import { get, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 
@@ -31,6 +31,8 @@ export default function FoundationRequestShow() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/foundation-requests/show/${id}`);
+    if (__cached) { const d = __cached?.data; setItem(d); setApproveAmount(d?.help_requested || ""); setLoading(false); }
     try {
       const res = await get(`/student-management/foundation-requests/show/${id}`);
       const d = res.data?.data;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get } from '../../api/axios';
+import { get, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
@@ -18,6 +18,11 @@ export default function JobApplicationShow() {
   }, [id]);
 
   const fetchApplication = async () => {
+    const __cached = peekCache(`/hr/job-applications/${id}`);
+    if (__cached) {
+      setApplication(__cached);
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/job-applications/${id}`);
       setApplication(response.data);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { homeworkQueue, homeworkAssignment, markHomework } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, Avatar, Pill, Btn, InfoNote, Input, Select,
   EmptyState, Loading, LoadingRow, ICON, scoreColor, fmtScore,
@@ -39,8 +40,17 @@ export default function HomeworkQueue() {
   const [studentSearch, setStudentSearch] = useState(""); // review-view student search
 
   const loadQueue = () => homeworkQueue().then((r) => setAssignments(r.data?.data || [])).catch(() => setAssignments([]));
-  useEffect(() => { loadQueue().finally(() => setLoading(false)); }, []);
-  const openAssignment = (id) => { setStudentSearch(""); setBusy(true); homeworkAssignment(id).then((r) => setOpen(r.data)).catch(() => setOpen(null)).finally(() => setBusy(false)); };
+  useEffect(() => {
+    const __cached = peekCache("/gradebook/homework/queue", {});
+    if (__cached) { setAssignments(__cached?.data || []); setLoading(false); }
+    loadQueue().finally(() => setLoading(false));
+  }, []);
+  const openAssignment = (id) => {
+    setStudentSearch(""); setBusy(true);
+    const __cached = peekCache(`/gradebook/homework/assignment/${id}`);
+    if (__cached) { setOpen(__cached); setBusy(false); }
+    homeworkAssignment(id).then((r) => setOpen(r.data)).catch(() => setOpen(null)).finally(() => setBusy(false));
+  };
   const setStatus = async (submissionId, status) => { await markHomework(submissionId, { status }); openAssignment(open.data.id); };
 
   if (loading) return <Loading />;

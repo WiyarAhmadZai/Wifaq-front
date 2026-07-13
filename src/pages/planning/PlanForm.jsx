@@ -6,7 +6,7 @@ import {
   PLAN_TYPES, SHAMSI_MONTHS, DIMENSIONS, KR_TYPES,
 } from "../../api/planning";
 import { getChartOfAccounts } from "../../api/financial";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { PageHeader, Section, DateField, Spinner } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { Balance4D } from "./planUtils";
@@ -84,6 +84,12 @@ export default function PlanForm() {
   const fileRef = useRef(null);
 
   useEffect(() => {
+    const __opts = peekCache("/planning/options");
+    if (__opts) { const d = __opts?.data || {}; setDepartments(d.departments || []); setStaff(d.staff || []); }
+    const __chart = peekCache("/financial/chart-of-accounts", {});
+    if (__chart) setChart(__chart?.data || []);
+    const __stock = peekCache("/purchase/stock");
+    if (__stock) setStockRows(__stock?.data?.data || __stock?.data || []);
     getPlanOptions()
       .then((r) => {
         const d = r.data?.data || {};
@@ -102,6 +108,8 @@ export default function PlanForm() {
   useEffect(() => {
     const parentType = form.type === "monthly" ? "annual" : form.type === "weekly" ? "monthly" : null;
     if (!parentType) { setParentPlans([]); return; }
+    const __parents = peekCache("/planning/plans", { type: parentType });
+    if (__parents) setParentPlans(__parents?.data || __parents || []);
     listPlans({ type: parentType })
       .then((r) => setParentPlans(r.data?.data || r.data || []))
       .catch(() => setParentPlans([]));

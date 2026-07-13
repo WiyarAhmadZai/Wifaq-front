@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -24,6 +24,11 @@ export default function QuickAttendance() {
   const fetchDailySheet = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/hr/attendances/daily-sheet?date=${selectedDate}`);
+      if (__cached) {
+        setDailySheet(__cached);
+        setLoading(false);
+      }
       const response = await get(
         `/hr/attendances/daily-sheet?date=${selectedDate}`,
       );

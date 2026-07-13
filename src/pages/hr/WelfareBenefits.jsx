@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { get, post, del } from "../../api/axios";
+import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, StatGrid, DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
@@ -31,6 +31,12 @@ export default function WelfareBenefits() {
 
   const fetchAll = async () => {
     setLoading(true);
+    const __params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+    const __cached = peekCache(`/welfare/benefits?${__params}`);
+    if (__cached) {
+      setItems(__cached?.data?.data || __cached?.data || []);
+      setLoading(false);
+    }
     try {
       const params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
       const r = await get(`/welfare/benefits?${params}`);

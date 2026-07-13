@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { get, post, del } from "../../api/axios";
+import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, Pill, Section, InfoNote, DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
@@ -38,6 +38,13 @@ export default function VatsInterventions() {
 
   const fetchAll = async () => {
     setLoading(true);
+    const __params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+    const __cached = peekCache(`/vats/interventions?${__params}`);
+    if (__cached) {
+      const data = __cached?.data;
+      setItems(data?.data || data || []);
+      setLoading(false);
+    }
     try {
       const params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
       const r = await get(`/vats/interventions?${params}`);

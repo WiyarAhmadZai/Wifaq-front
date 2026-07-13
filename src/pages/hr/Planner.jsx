@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
@@ -67,6 +67,12 @@ export default function Planner() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/hr/planners');
+      if (__cached) {
+        const __d = __cached?.data || __cached || [];
+        if (__d.length) setItems(__d);
+        setLoading(false);
+      }
       const response = await get('/hr/planners');
       const data = response.data?.data || response.data || [];
       if (data.length) setItems(data);

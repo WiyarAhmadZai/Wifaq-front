@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 import { useAuth } from "../../admin/context/AuthContext";
@@ -131,6 +131,23 @@ export default function LeaveRequestForm() {
 
   const fetchLeaveRequest = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/leave-requests/${id}`);
+    if (__cached) {
+      const d = __cached?.data || __cached;
+      setForm({
+        staff_id: d.staff_id || "",
+        leave_type: d.leave_type || "",
+        from_date: d.from_date ? fmtDate(d.from_date) : "",
+        to_date: d.to_date ? fmtDate(d.to_date) : "",
+        reason: d.reason || "",
+        coverage_plan: d.coverage_plan || "",
+        status: d.status || "pending",
+      });
+      if (d.staff) {
+        setSelectedStaff(d.staff);
+      }
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/leave-requests/${id}`);
       const d = res.data?.data || res.data;

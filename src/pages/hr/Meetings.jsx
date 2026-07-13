@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post, del } from "../../api/axios";
+import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -35,6 +35,12 @@ export default function Meetings() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache("/meetings");
+      if (__cached) {
+        const __cd = __cached?.data || __cached || [];
+        setItems(Array.isArray(__cd) ? __cd : []);
+        setLoading(false);
+      }
       const res = await get("/meetings");
       const data = res.data?.data || res.data || [];
       setItems(Array.isArray(data) ? data : []);

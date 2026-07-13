@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { get, post, put, del } from '../../api/axios';
+import { get, post, put, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const DAY_LABELS = {
@@ -40,11 +40,19 @@ export default function Schedule() {
   useEffect(() => {
     (async () => {
       try {
+        const __fd = peekCache('/class-management/schedule/form-data');
+        if (__fd) {
+          setTerms(__fd?.academic_terms || []);
+          setTeachers(__fd?.teachers || []);
+          if (__fd?.academic_terms?.length) setSelectedTerm(__fd.academic_terms[0].id);
+        }
         const res = await get('/class-management/schedule/form-data');
         setTerms(res.data?.academic_terms || []);
         setTeachers(res.data?.teachers || []);
         if (res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
         // Fetch grades list
+        const __g = peekCache('/grades/list');
+        if (__g) setGrades(__g?.data || []);
         const gRes = await get('/grades/list');
         setGrades(gRes.data?.data || []);
       } catch {}
@@ -55,6 +63,8 @@ export default function Schedule() {
     if (!selectedTerm) return;
     (async () => {
       try {
+        const __c = peekCache(`/class-management/schedule/form-data?academic_term_id=${selectedTerm}`);
+        if (__c) setClasses(__c?.classes || []);
         const res = await get(`/class-management/schedule/form-data?academic_term_id=${selectedTerm}`);
         setClasses(res.data?.classes || []);
       } catch {}
@@ -75,6 +85,8 @@ export default function Schedule() {
     setLoading(true);
     setAllSchedules(null);
     try {
+      const __c = peekCache(`/class-management/schedule/class?class_id=${selectedClass}`);
+      if (__c) { setScheduleData(__c); setLoading(false); }
       const res = await get(`/class-management/schedule/class?class_id=${selectedClass}`);
       setScheduleData(res.data);
     } catch { setScheduleData(null); }

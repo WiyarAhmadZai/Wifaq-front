@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createRoutineItem, getRoutineItem, updateRoutineItem } from "../../api/routineItems";
 import { getChartOfAccounts } from "../../api/financial";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -51,6 +51,21 @@ export default function RoutineItemForm() {
     }).catch(() => setStockRows([]));
 
     if (isEdit) {
+      const __cached = peekCache(`/purchase/routine-items/${id}`);
+      if (__cached?.data) {
+        const row = __cached.data;
+        setItemName(row.item_name || "");
+        setUnit(row.unit || "piece");
+        setStandardQty(row.standard_quantity || 1);
+        setFrequencyDays(row.frequency_days || 30);
+        setEstimatedPrice(row.estimated_unit_price || "");
+        setStockId(row.stock_id || "");
+        setChartAccountId(row.chart_account_id || "");
+        setLastPurchaseDate(row.last_purchase_date || "");
+        setIsActive(row.is_active ?? true);
+        setNotes(row.notes || "");
+        setLoading(false);
+      }
       getRoutineItem(id)
         .then((r) => {
           const row = r.data?.data;

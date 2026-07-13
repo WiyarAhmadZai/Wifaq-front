@@ -5,6 +5,7 @@ import {
   getPlan, submitPlan, approvePlan, rejectPlan, completePlan, archivePlan, addDiscussion,
   getPlanAccess, updatePlanAccess,
 } from "../../api/planning";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { PageHeader, Section, Spinner, EmptyState } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
@@ -32,6 +33,12 @@ export default function PlanShow() {
 
   const load = async () => {
     setLoading(true);
+    const __cached = peekCache(`/planning/plans/${id}`);
+    if (__cached) {
+      setPlan(__cached?.data ?? __cached);
+      setMeta(__cached?.meta || {});
+      setLoading(false);
+    }
     try {
       const res = await getPlan(id);
       setPlan(res.data?.data || res.data);

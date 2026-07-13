@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
@@ -30,6 +30,12 @@ export default function AddVendor() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/hr/vendors');
+      if (__cached) {
+        const __list = __cached?.data || __cached || [];
+        setItems(__list.length ? __list : DEMO_VENDORS);
+        setLoading(false);
+      }
       const res = await get('/hr/vendors');
       const list = res.data?.data || res.data || [];
       setItems(list.length ? list : DEMO_VENDORS);

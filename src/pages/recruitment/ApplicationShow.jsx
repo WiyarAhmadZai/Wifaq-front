@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, put, post, del } from "../../api/axios";
+import { get, put, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -118,6 +118,15 @@ export default function ApplicationShow() {
 
   const fetchData = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/applications/${id}`);
+    if (__cached) {
+      const appData = __cached?.data || __cached;
+      setData(appData);
+      if (appData?.documents) {
+        setDocuments(appData.documents);
+      }
+      setLoading(false);
+    }
     try {
       const response = await get(`/recruitment/applications/${id}`);
       const appData = response.data?.data || response.data;

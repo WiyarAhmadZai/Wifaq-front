@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { assessmentFormData, assignHomework } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import { Page, Header, Card, Field, Select, Input, Textarea, Btn, Banner, EmptyState, Spinner, Loading, LoadingRow, ICON } from "./gradebookUi";
 
 /** Directly assign homework to one of the teacher's class+subjects. */
@@ -16,6 +17,12 @@ export default function AssignHomework() {
   const [form, setForm] = useState({ school_class_id: "", subject_id: "", homework_text: "", due_date: in2days });
 
   useEffect(() => {
+    const __cached = peekCache("/gradebook/assessments/form-data");
+    if (__cached) {
+      const p = __cached?.pairs || []; setPairs(p);
+      if (p.length) setForm((f) => ({ ...f, school_class_id: p[0].school_class_id, subject_id: p[0].subject_id }));
+      setLoading(false);
+    }
     assessmentFormData().then((r) => {
       const p = r.data?.pairs || []; setPairs(p);
       if (p.length) setForm((f) => ({ ...f, school_class_id: p[0].school_class_id, subject_id: p[0].subject_id }));

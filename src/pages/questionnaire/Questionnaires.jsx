@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { listQuestionnaires, deleteQuestionnaire, publishQuestionnaire, closeQuestionnaire } from "../../api/questionnaires";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { fmtDate } from "../../utils/formErrors";
 
@@ -21,6 +22,8 @@ export default function Questionnaires() {
 
   const load = async () => {
     setLoading(true);
+    const __cached = peekCache("/questionnaires", { per_page: 1000 });
+    if (__cached) { setItems(__cached?.data || []); setLoading(false); }
     try {
       const r = await listQuestionnaires({ per_page: 1000 });
       setItems(r.data?.data || []);

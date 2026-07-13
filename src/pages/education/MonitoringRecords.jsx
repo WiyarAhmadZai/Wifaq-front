@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const TEAL = "#0D5C63", TEAL_LT = "#14919B", GOLD = "#C9A227", PAPER = "#F4F8F8";
@@ -31,6 +31,8 @@ export default function MonitoringRecords() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-monitorings/${monitoringId}/records`);
+    if (__cached) { setStudent(__cached?.student || null); setRecords(__cached?.data || []); setCanRecord(!!__cached?.can_record); setLoading(false); }
     try {
       const r = await get(`/student-monitorings/${monitoringId}/records`);
       setStudent(r.data?.student || null);

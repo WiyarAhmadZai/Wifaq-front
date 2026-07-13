@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { termExamFormData, termExamSheet, saveTermExam, TERM_EXAMS } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Select, Input, Segmented,
   Btn, Banner, EmptyState, Spinner, Loading, LoadingRow, ICON, fmtScore,
@@ -21,6 +22,15 @@ export default function TermExamSheet() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
+    const __cached = peekCache("/gradebook/term-exams/form-data");
+    if (__cached) {
+      setMeta(__cached);
+      const p = __cached?.pairs || [];
+      if (p.length) setPair(p[0]);
+      const cur = (__cached?.terms || []).find((t) => t.is_current) || __cached?.terms?.[0];
+      if (cur) setTermId(cur.id);
+      setLoading(false);
+    }
     termExamFormData().then((r) => {
       setMeta(r.data);
       const p = r.data?.pairs || [];
@@ -35,6 +45,8 @@ export default function TermExamSheet() {
 
   function loadSheet() {
     setBusy(true); setErr("");
+    const __cached = peekCache("/gradebook/term-exams/sheet", { class_id: pair.school_class_id, subject_id: pair.subject_id, term_id: termId });
+    if (__cached) { setRows((__cached?.data || []).map((x) => ({ ...x }))); setBusy(false); }
     termExamSheet({ class_id: pair.school_class_id, subject_id: pair.subject_id, term_id: termId })
       .then((r) => setRows((r.data?.data || []).map((x) => ({ ...x }))))
       .catch(() => setRows([])).finally(() => setBusy(false));

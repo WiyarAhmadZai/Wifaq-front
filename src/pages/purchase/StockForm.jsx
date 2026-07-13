@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import { getChartOfAccounts } from "../../api/financial";
 
 const fmt = (n) =>
@@ -52,6 +52,23 @@ export default function StockForm() {
       .finally(() => setLoadingChart(false));
 
     if (isEdit) {
+      const __cached = peekCache(`/purchase/stock/show/${id}`);
+      if (__cached?.data) {
+        const d = __cached.data;
+        setForm({
+          item_name: d.item_name || "",
+          asset_chart_account_id: d.asset_chart_account_id || "",
+          category: d.category || "",
+          quantity: d.quantity ?? 0,
+          unit: d.unit || "pcs",
+          unit_price: d.unit_price ?? "",
+          min_stock_level: d.min_stock_level ?? 0,
+          location: d.location || "",
+          notes: d.notes || "",
+          status: d.status || "active",
+        });
+        setLoading(false);
+      }
       get(`/purchase/stock/show/${id}`)
         .then((r) => {
           const d = r.data?.data;

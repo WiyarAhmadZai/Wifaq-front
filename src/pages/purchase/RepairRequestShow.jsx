@@ -5,6 +5,7 @@ import {
   startRepair, closeRepair, cancelRepairRequest,
 } from "../../api/repairRequests";
 import { getAccounts, getParties, getChartOfAccounts } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -50,6 +51,8 @@ export default function RepairRequestShow() {
   const fetchRR = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/purchase/repair-requests/${id}`);
+      if (__cached) { setRr(__cached?.data || null); setLoading(false); }
       const r = await getRepairRequest(id);
       setRr(r.data?.data || null);
     } catch {

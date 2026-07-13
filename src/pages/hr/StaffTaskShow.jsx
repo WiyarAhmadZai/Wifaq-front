@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del, put, API_BASE_URL } from '../../api/axios';
+import { get, del, put, API_BASE_URL, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -137,6 +137,11 @@ export default function StaffTaskShow() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/staff-tasks/${id}`);
+    if (__cached) {
+      setData(__cached);
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/staff-tasks/${id}`);
       setData(response.data);

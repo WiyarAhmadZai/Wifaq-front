@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -113,6 +113,11 @@ export default function Contracts() {
       if (filters.search) queryParams.append("search", filters.search);
       const queryString = queryParams.toString();
       const apiUrl = queryString ? `/hr/contracts/list?${queryString}` : "/hr/contracts/list";
+      const __cached = peekCache(apiUrl);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        setLoading(false);
+      }
       const response = await get(apiUrl);
       setItems(response.data?.data || []);
     } catch (error) {

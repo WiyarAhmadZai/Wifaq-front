@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -63,6 +63,11 @@ function MyWorks() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/daily-works/my${date ? `?date=${date}` : ""}`);
+    if (__cached) {
+      setData(__cached);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/daily-works/my${date ? `?date=${date}` : ""}`);
       setData(res.data);
@@ -159,6 +164,11 @@ function AssignWorks({ canCreate, canUpdate, canDelete }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/hr/daily-works");
+    if (__cached) {
+      setItems(__cached?.data || []);
+      setLoading(false);
+    }
     try {
       const res = await get("/hr/daily-works");
       setItems(res.data?.data || []);
@@ -381,6 +391,11 @@ function MonitorWorks() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/daily-works/overview?date=${date}`);
+    if (__cached) {
+      setRows(__cached?.rows || []);
+      setLoading(false);
+    }
     try {
       const r = await get(`/hr/daily-works/overview?date=${date}`);
       setRows(r.data?.rows || []);

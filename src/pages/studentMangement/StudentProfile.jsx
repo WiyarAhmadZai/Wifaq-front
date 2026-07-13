@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, put, post } from "../../api/axios";
+import { get, put, post, peekCache } from "../../api/axios";
 import { toastSuccess, toastError } from "../../utils/toast";
 import Modal from "../../components/Modal";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -95,6 +95,8 @@ export default function StudentProfile() {
 
   const load = useCallback(() => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/students/${id}/profile`);
+    if (__cached) { setData(__cached?.data || null); setLoading(false); }
     get(`/student-management/students/${id}/profile`)
       .then((r) => setData(r.data?.data || null))
       .catch((e) => { toastError(e.response?.data?.message || "Failed to load profile"); navigate("/student-management/students"); })

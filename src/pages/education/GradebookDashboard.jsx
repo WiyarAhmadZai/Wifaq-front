@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { crossClassSummary, homeworkCompliance, coaching } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, StatGrid, Section, InfoNote,
   BalanceBar, EmptyState, Spinner, Loading, LoadingRow, ICON, scoreColor, fmtScore,
@@ -15,6 +16,10 @@ export default function GradebookDashboard() {
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
+    const __cross = peekCache("/gradebook/admin/cross-class-summary", {});
+    const __hw = peekCache("/gradebook/admin/homework-compliance");
+    const __coach = peekCache("/gradebook/admin/coaching");
+    if (__cross) { setCross(__cross); if (__hw) setHw(__hw); setCoach(__coach?.data || []); setLoading(false); }
     Promise.all([
       crossClassSummary().then((r) => setCross(r.data)).catch((e) => { if (e.response?.status === 403) setForbidden(true); }),
       homeworkCompliance().then((r) => setHw(r.data)).catch(() => {}),

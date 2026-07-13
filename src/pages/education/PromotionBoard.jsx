@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { termExamFormData, promotionBoard, confirmPromotion, assignPromotion } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import {
   Page, Header, Card, TableCard, thCls, tdCls, Avatar, Pill, Select, Btn, Banner,
@@ -33,6 +34,18 @@ export default function PromotionBoard() {
   const [targetTermId, setTargetTermId] = useState("");
 
   useEffect(() => {
+    const __cached = peekCache("/gradebook/term-exams/form-data");
+    if (__cached) {
+      const uniq = {};
+      (__cached?.pairs || []).forEach((p) => { uniq[p.school_class_id] = p.class_name; });
+      const cl = Object.entries(uniq).map(([id, name]) => ({ id: Number(id), name }));
+      setClasses(cl);
+      setTerms(__cached?.terms || []);
+      if (cl.length) setClassId(cl[0].id);
+      const cur = (__cached?.terms || []).find((t) => t.is_current) || __cached?.terms?.[0];
+      if (cur) { setTermId(cur.id); setTargetTermId(cur.id); }
+      setLoading(false);
+    }
     termExamFormData().then((r) => {
       const uniq = {};
       (r.data?.pairs || []).forEach((p) => { uniq[p.school_class_id] = p.class_name; });
@@ -50,6 +63,8 @@ export default function PromotionBoard() {
 
   function load() {
     setBusy(true); setErr("");
+    const __cached = peekCache("/gradebook/promotion/board", { class_id: classId, term_id: termId });
+    if (__cached) { setBoard(__cached); setBusy(false); }
     return promotionBoard({ class_id: classId, term_id: termId })
       .then((r) => setBoard(r.data))
       .catch((e) => setErr(e.response?.data?.message || "Could not load the board."))

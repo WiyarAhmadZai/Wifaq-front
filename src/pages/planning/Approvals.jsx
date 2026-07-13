@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listAwaitingApproval } from "../../api/planning";
+import { peekCache } from "../../api/axios";
 import { PageHeader, EmptyState, Spinner, InfoNote } from "../../components/hr/HrUI";
 import { fmtDate } from "../../utils/formErrors";
 import { StatusPill } from "./planUtils";
@@ -13,6 +14,8 @@ export default function Approvals() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache("/planning/plans", { awaiting_approval: 1 });
+    if (__cached) { setPlans(__cached?.data || __cached || []); setLoading(false); }
     listAwaitingApproval()
       .then((r) => setPlans(r.data?.data || r.data || []))
       .catch(() => setPlans([]))

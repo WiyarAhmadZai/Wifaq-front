@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put, post, API_BASE_URL } from '../../api/axios';
+import { get, del, put, post, API_BASE_URL, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { fmtDate } from "../../utils/formErrors";
 import Select2 from '../../components/hr/Select2';
@@ -119,6 +119,12 @@ export default function StaffTask() {
 
   const fetchItems = async () => {
     setLoading(true);
+    const __cached = peekCache('/hr/staff-tasks');
+    if (__cached) {
+      const cData = __cached?.data || __cached || [];
+      setItems(Array.isArray(cData) ? cData : []);
+      setLoading(false);
+    }
     try {
       const response = await get('/hr/staff-tasks');
       const data = response.data?.data || response.data || [];

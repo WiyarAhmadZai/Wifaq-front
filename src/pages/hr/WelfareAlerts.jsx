@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { get, put } from "../../api/axios";
+import { get, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, EmptyState, Spinner, Pill, StatGrid, DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
@@ -31,6 +31,11 @@ export default function WelfareAlerts() {
     setLoading(true);
     try {
       const params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+      const __cached = peekCache(`/welfare/alerts?${params}`);
+      if (__cached) {
+        setAlerts(__cached?.data?.data || __cached?.data || []);
+        setLoading(false);
+      }
       const r = await get(`/welfare/alerts?${params}`);
       setAlerts(r.data?.data?.data || r.data?.data || []);
     } catch { setAlerts([]); }

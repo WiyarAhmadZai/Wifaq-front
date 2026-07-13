@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import SubjectsImport from './SubjectsImport';
 
@@ -28,6 +28,8 @@ export default function Subjects() {
   useEffect(() => {
     (async () => {
       try {
+        const __g = peekCache('/grades/list');
+        if (__g) setGrades(__g?.data || []);
         const res = await get('/grades/list');
         setGrades(res.data?.data || []);
       } catch {}
@@ -43,6 +45,12 @@ export default function Subjects() {
       if (filters.search) params.append('search', filters.search);
       if (filters.category) params.append('category', filters.category);
       if (filters.grade_id) params.append('grade_id', filters.grade_id);
+      const __cached = peekCache(`/class-management/subjects/list?${params.toString()}`);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        setPagination({ current_page: __cached?.current_page || 1, last_page: __cached?.last_page || 1, total: __cached?.total || 0 });
+        setLoading(false);
+      }
       const res = await get(`/class-management/subjects/list?${params.toString()}`);
       const data = res.data;
       setItems(data?.data || []);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del } from '../api/axios';
+import { get, del, peekCache } from '../api/axios';
 import Swal from 'sweetalert2';
 
 import { fmtDate, fmtDateTime } from "../utils/formErrors";
@@ -107,13 +107,23 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
   }, [id]);
 
   const fetchItem = async () => {
-    setLoading(true);
+    const url = `${apiEndpoint}/${id}`;
+    // Stale-while-revalidate: paint the cached record instantly (no spinner),
+    // then revalidate. The server returns 304 when unchanged, or fresh data.
+    const cached = peekCache(url);
+    if (cached) {
+      setData(cached?.data || cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const response = await get(`${apiEndpoint}/${id}`);
+      const response = await get(url);
       const itemData = response.data?.data || response.data;
       setData(itemData);
     } catch (error) {
-      Swal.fire('Error', 'Failed to load data', 'error');
+      // Keep the cached record visible on failure; only error out when blank.
+      if (!cached) Swal.fire('Error', 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }

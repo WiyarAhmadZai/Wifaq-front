@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 import LeaveRejectModal from "../../components/hr/LeaveRejectModal";
@@ -84,6 +84,11 @@ export default function LeaveRequestShow() {
   const load = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/hr/leave-requests/${id}`);
+      if (__cached) {
+        setData(__cached?.data || __cached);
+        setLoading(false);
+      }
       const res = await get(`/hr/leave-requests/${id}`);
       setData(res.data?.data || res.data);
     } catch {

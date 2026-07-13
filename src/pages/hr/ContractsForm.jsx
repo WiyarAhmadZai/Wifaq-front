@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -93,6 +93,34 @@ export default function ContractsForm() {
 
   const fetchContract = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/contracts/show/${id}`);
+    if (__cached) {
+      const data = __cached;
+      setFormData({
+        staff_id: data.staff_id || "",
+        contract_type: data.contract_type || "",
+        start_date: formatDateForInput(data.start_date),
+        end_date: formatDateForInput(data.end_date),
+        has_probation: data.has_probation || false,
+        probation_end_date: formatDateForInput(data.probation_end_date),
+        salary: data.salary || "",
+        salary_currency: data.salary_currency || "AFN",
+        allowances: data.allowances || {},
+        expected_time: data.expected_time || "",
+        benefits: data.benefits || {},
+        annual_leave_days: data.annual_leave_days ?? 20,
+        status: data.status || "draft",
+      });
+      if (data.staff) {
+        const staffName = data.staff.application?.full_name || `Staff #${data.staff.employee_id}`;
+        setSelectedStaff({
+          id: data.staff.id,
+          full_name: staffName,
+          employee_id: data.staff.employee_id,
+        });
+      }
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/contracts/show/${id}`);
       const data = response.data;

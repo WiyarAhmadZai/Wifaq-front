@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 import { TEAL, PAPER, Hero, Spinner } from "./lessonPlanUi";
 
@@ -22,6 +22,8 @@ export default function LessonPlanCurriculum() {
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
+    const __cached = peekCache("/lesson-plans/analytics/curriculum");
+    if (__cached) { setData(__cached); setLoading(false); }
     get("/lesson-plans/analytics/curriculum")
       .then((r) => setData(r.data))
       .catch((e) => { if (e.response?.status === 403) setForbidden(true); })

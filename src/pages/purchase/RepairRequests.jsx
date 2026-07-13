@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteRepairRequest, listRepairRequests } from "../../api/repairRequests";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -33,6 +34,12 @@ export default function RepairRequests() {
       const params = { per_page: 100 };
       if (filter !== "all") params.status = filter;
       if (search) params.search = search;
+      const __cached = peekCache("/purchase/repair-requests", params);
+      if (__cached) {
+        const cachedRows = __cached?.data?.data || __cached?.data || [];
+        setItems(Array.isArray(cachedRows) ? cachedRows : []);
+        setLoading(false);
+      }
       const r = await listRepairRequests(params);
       const rows = r.data?.data?.data || r.data?.data || [];
       setItems(Array.isArray(rows) ? rows : []);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { assessmentFormData, createAssessment, ASSESSMENT_TYPES } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, Field, Select, Input, Btn, Banner, DimensionPicker, EmptyState, Spinner, Loading, LoadingRow, ICON, TEAL,
 } from "./gradebookUi";
@@ -21,6 +22,12 @@ export default function NewAssessment() {
   });
 
   useEffect(() => {
+    const __cached = peekCache("/gradebook/assessments/form-data");
+    if (__cached) {
+      const p = __cached?.pairs || []; setPairs(p);
+      if (!form.school_class_id && p.length) setForm((f) => ({ ...f, school_class_id: p[0].school_class_id, subject_id: p[0].subject_id }));
+      setLoading(false);
+    }
     assessmentFormData().then((r) => {
       const p = r.data?.pairs || []; setPairs(p);
       if (!form.school_class_id && p.length) setForm((f) => ({ ...f, school_class_id: p[0].school_class_id, subject_id: p[0].subject_id }));

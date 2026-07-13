@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createRepairRequest, getRepairRequest, updateRepairRequest } from "../../api/repairRequests";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -23,6 +24,17 @@ export default function RepairRequestForm() {
 
   useEffect(() => {
     if (!isEdit) return;
+    const __cached = peekCache(`/purchase/repair-requests/${id}`);
+    if (__cached?.data) {
+      const x = __cached.data;
+      setItemName(x.item_name || "");
+      setQuantity(x.quantity || 1);
+      setIssue(x.issue_description || "");
+      setReportedDate(x.reported_date || today());
+      setEstimatedCost(x.estimated_cost || "");
+      setWantsReplacement(x.create_purchase_request ?? true);
+      setLoading(false);
+    }
     getRepairRequest(id)
       .then((r) => {
         const x = r.data?.data;

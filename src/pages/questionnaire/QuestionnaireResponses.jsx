@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getResponses, getQuestionnaire } from "../../api/questionnaires";
-import { API_BASE_URL } from "../../api/axios";
+import { API_BASE_URL, peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 
 const fileUrl = (p) => (p?.startsWith("http") ? p : `${API_BASE_URL}/storage/${p}`);
@@ -18,6 +18,10 @@ export default function QuestionnaireResponses() {
   const [open, setOpen] = useState(null);
 
   useEffect(() => {
+    const __cachedQ = peekCache(`/questionnaires/${id}`);
+    if (__cachedQ) setTitle(__cachedQ?.data?.title || "");
+    const __cachedR = peekCache(`/questionnaires/${id}/responses`);
+    if (__cachedR) { setResponses(__cachedR?.data || []); setStats(__cachedR?.stats || null); setLoading(false); }
     getQuestionnaire(id).then((r) => setTitle(r.data?.data?.title || "")).catch(() => {});
     getResponses(id).then((r) => { setResponses(r.data?.data || []); setStats(r.data?.stats || null); })
       .catch(() => {}).finally(() => setLoading(false));

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, post, del } from '../../api/axios';
+import { get, post, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../admin/context/AuthContext';
 import Can from '../../admin/guards/Can';
@@ -38,6 +38,12 @@ export default function Classes() {
       if (search) params.append('search', search);
       if (filterGrade) params.append('grade_id', filterGrade);
       if (filterStatus) params.append('status', filterStatus);
+      const __cached = peekCache(`/class-management/classes/list?${params.toString()}`);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        if (__cached?.meta) setMeta(__cached.meta);
+        setLoading(false);
+      }
       const res = await get(`/class-management/classes/list?${params.toString()}`);
       setItems(res.data?.data || []);
       if (res.data?.meta) setMeta(res.data.meta);
@@ -56,10 +62,14 @@ export default function Classes() {
   useEffect(() => {
     (async () => {
       try {
+        const __g = peekCache('/grades/list');
+        if (__g) setGrades(__g?.data || []);
         const res = await get('/grades/list');
         setGrades(res.data?.data || []);
       } catch {}
       try {
+        const __t = peekCache('/academic-terms/list');
+        if (__t) setAcademicTerms(__t?.data || []);
         const res = await get('/academic-terms/list');
         setAcademicTerms(res.data?.data || []);
       } catch {}

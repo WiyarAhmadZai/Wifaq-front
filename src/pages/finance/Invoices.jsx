@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getInvoices, deleteInvoice, approveInvoice } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -33,6 +34,8 @@ export default function Invoices() {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/financial/invoices', {});
+      if (__cached) { setItems(__cached?.data || []); setLoading(false); }
       const response = await getInvoices();
       setItems(response.data?.data || []);
     } catch (error) {

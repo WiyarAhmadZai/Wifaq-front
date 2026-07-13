@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../context/AuthContext";
 import Can from "../guards/Can";
 import UserFormModal from "../components/UserFormModal";
@@ -20,6 +21,9 @@ export default function AdminUsers() {
 
   const fetchItems = async (page = 1) => {
     setLoading(true);
+    const __q = new URLSearchParams({ page, search, role: filterRole }).toString();
+    const __cached = peekCache(`/access/users${__q ? `?${__q}` : ""}`);
+    if (__cached) { setItems(__cached?.data || []); if (__cached?.meta) setMeta(__cached.meta); setLoading(false); }
     try {
       const res = await accessApi.listUsers({ page, search, role: filterRole });
       setItems(res.data?.data || []);
@@ -32,6 +36,8 @@ export default function AdminUsers() {
   };
 
   useEffect(() => {
+    const __cached = peekCache("/access/roles?per_page=100");
+    if (__cached) setRoles(__cached?.data || []);
     accessApi.listRoles({ per_page: 100 }).then((r) => setRoles(r.data?.data || [])).catch(() => {});
   }, []);
 

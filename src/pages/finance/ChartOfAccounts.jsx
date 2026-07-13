@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getChartOfAccounts, deleteChartOfAccount } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const typeColors = {
@@ -39,6 +40,8 @@ export default function ChartOfAccounts() {
   const fetchAccounts = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/financial/chart-of-accounts', {});
+      if (__cached) { setItems(__cached?.data || []); setLoading(false); }
       const response = await getChartOfAccounts();
       setItems(response.data?.data || []);
     } catch (error) {

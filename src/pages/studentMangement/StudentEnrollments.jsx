@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
 import ListExportActions from "../../components/ListExportActions";
@@ -79,7 +79,10 @@ export default function StudentEnrollments() {
         if (filterTerm) params.append("academic_term_id", filterTerm);
         if (filterStatus) params.append("status", filterStatus);
 
-        const res = await get(`/student-management/students/list?${params.toString()}`);
+        const __url = `/student-management/students/list?${params.toString()}`;
+        const __cached = peekCache(__url);
+        if (__cached) { setItems(__cached?.data || []); if (__cached?.meta) setMeta(__cached.meta); setLoading(false); }
+        const res = await get(__url);
         setItems(res.data?.data || []);
         if (res.data?.meta) setMeta(res.data.meta);
       } catch {
@@ -122,14 +125,20 @@ export default function StudentEnrollments() {
   useEffect(() => {
     (async () => {
       try {
+        const __g = peekCache("/grades/list");
+        if (__g) setGrades(__g?.data || []);
         const r0 = await get("/grades/list");
         setGrades(r0.data?.data || []);
       } catch {}
       try {
+        const __c = peekCache("/class-management/classes/list?per_page=1000");
+        if (__c) setClasses(__c?.data || []);
         const r1 = await get("/class-management/classes/list?per_page=1000");
         setClasses(r1.data?.data || []);
       } catch {}
       try {
+        const __t = peekCache("/academic-terms/list");
+        if (__t) setTerms(__t?.data || []);
         const r2 = await get("/academic-terms/list");
         setTerms(r2.data?.data || []);
       } catch {}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFinanceDashboard } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
@@ -33,6 +34,19 @@ export default function FinanceDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/financial/dashboard');
+      const __d = __cached?.data;
+      if (__d) {
+        setData({
+          accounts: __d.accounts || [],
+          budgets: __d.budgets || [],
+          pendingInvoices: __d.pending_supplier_invoices || [],
+          pendingFeeInvoices: __d.pending_fee_invoices || [],
+          recentJournal: __d.recent_journal_entries || [],
+          totals: __d.totals || {},
+        });
+        setLoading(false);
+      }
       const dash = await getFinanceDashboard();
       setData({
         accounts: dash.accounts || [],

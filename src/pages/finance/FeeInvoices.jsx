@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getFeeInvoices, getFeeInvoiceMonths } from "../../api/financial";
-import { del } from "../../api/axios";
+import { del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -105,6 +105,8 @@ export default function FeeInvoices() {
         params.year = Number(y);
         params.month = Number(m);
       }
+      const __cached = peekCache('/financial/fees/invoices', params);
+      if (__cached) { setItems(__cached?.data?.data || __cached?.data || []); setLoading(false); }
       const response = await getFeeInvoices(params);
       setItems(response.data?.data?.data || response.data?.data || []);
     } catch (error) {
@@ -138,6 +140,8 @@ export default function FeeInvoices() {
   // so the filter never offers a month with zero results.
   const [months, setMonths] = useState([]);
   useEffect(() => {
+    const __cachedMonths = peekCache('/financial/fees/invoices/months');
+    if (__cachedMonths) setMonths(Array.isArray(__cachedMonths.data) ? __cachedMonths.data : []);
     getFeeInvoiceMonths()
       .then((res) => setMonths(Array.isArray(res.data?.data) ? res.data.data : []))
       .catch(() => setMonths([]));

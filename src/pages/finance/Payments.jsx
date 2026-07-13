@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPayments, deletePayment, clearPayment } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -29,6 +30,8 @@ export default function Payments() {
   const fetchPayments = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/financial/payments', {});
+      if (__cached) { setItems(__cached?.data || []); setLoading(false); }
       const response = await getPayments();
       setItems(response.data?.data || []);
     } catch (error) {

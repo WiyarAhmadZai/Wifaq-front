@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getFeePayments } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 
 import { fmtDate } from "../../utils/formErrors";
 const methodLabels = {
@@ -27,6 +28,13 @@ export default function FeePayments() {
         const params = { per_page: 50 };
         if (fromDate) params.from_date = fromDate;
         if (toDate) params.to_date = toDate;
+        const __cached = peekCache('/financial/fees/payments', params);
+        if (__cached && !cancelled) {
+          const craw = __cached?.data;
+          const crows = craw?.data ?? craw ?? [];
+          setPayments(Array.isArray(crows) ? crows : []);
+          setLoading(false);
+        }
         const res = await getFeePayments(params);
         const raw = res.data?.data;
         const rows = raw?.data ?? raw ?? [];

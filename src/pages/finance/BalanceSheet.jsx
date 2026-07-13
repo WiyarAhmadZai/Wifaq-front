@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getBalanceSheet } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import { DateField } from "../../components/hr/HrUI";
 
 const fmt = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -25,6 +26,8 @@ export default function BalanceSheet() {
     setLoading(true);
     setError(null);
     try {
+      const __cached = peekCache('/financial/reports/balance-sheet', dateStr ? { as_of: dateStr } : {});
+      if (__cached) { setReport(__cached?.data || null); setLoading(false); }
       const res = await getBalanceSheet(dateStr);
       setReport(res.data?.data || null);
     } catch (e) {

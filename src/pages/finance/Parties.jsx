@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getParties, createParty } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const typeColors = {
@@ -25,6 +26,8 @@ export default function Parties() {
       const params = {};
       if (filter !== "all") params.party_type = filter;
       if (search) params.search = search;
+      const __cached = peekCache('/financial/parties', params);
+      if (__cached) { setItems(__cached?.data?.data || __cached?.data || []); setLoading(false); }
       const response = await getParties(params);
       setItems(response.data?.data?.data || response.data?.data || []);
     } catch (error) {

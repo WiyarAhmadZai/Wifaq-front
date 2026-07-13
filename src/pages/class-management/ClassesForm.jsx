@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const SECTIONS = ['A', 'B', 'C', 'D', 'E'];
@@ -129,6 +129,13 @@ export default function ClassesForm() {
   useEffect(() => {
     (async () => {
       setLoadingData(true);
+      const __fd = peekCache('/class-management/classes/form-data');
+      if (__fd) {
+        setGrades(__fd?.grades || []);
+        setAcademicTerms(__fd?.academic_terms || []);
+        setTeachers(__fd?.teachers || []);
+        if (!isEdit) setLoadingData(false);
+      }
       try {
         const res = await get('/class-management/classes/form-data');
         setGrades(res.data?.grades || []);

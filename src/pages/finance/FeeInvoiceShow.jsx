@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { del } from "../../api/axios";
+import { del, peekCache } from "../../api/axios";
 import { getFeeInvoice, regenerateFeeInvoice } from "../../api/financial";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -36,6 +36,8 @@ export default function FeeInvoiceShow() {
 
   const loadInvoice = () => {
     setLoading(true);
+    const __cached = peekCache(`/financial/fees/invoices/${id}`);
+    if (__cached) { const inv = __cached?.data; if (inv) { setData(inv); setLoading(false); } }
     getFeeInvoice(id)
       .then((r) => {
         const inv = r.data?.data;

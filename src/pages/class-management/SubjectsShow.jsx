@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
@@ -23,6 +23,8 @@ export default function SubjectsShow() {
   const fetchItem = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/class-management/subjects/show/${id}`);
+      if (__cached) { setData(__cached?.data || __cached); setLoading(false); }
       const res = await get(`/class-management/subjects/show/${id}`);
       setData(res.data?.data || res.data);
     } catch {

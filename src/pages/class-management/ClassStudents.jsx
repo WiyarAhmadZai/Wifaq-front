@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 
 const STATUS = {
@@ -22,6 +22,8 @@ export default function ClassStudents() {
 
   useEffect(() => {
     setLoading(true);
+    const __cached = peekCache(`/class-management/classes/students/${id}`);
+    if (__cached) { setInfo(__cached?.class || null); setRows(__cached?.data || []); setLoading(false); }
     get(`/class-management/classes/students/${id}`)
       .then((r) => { setInfo(r.data?.class || null); setRows(r.data?.data || []); })
       .catch((e) => { if (e.response?.status === 403) setForbidden(true); })

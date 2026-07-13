@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -81,6 +81,13 @@ export default function StudentForm() {
   useEffect(() => {
     (async () => {
       try {
+        const __fd = peekCache("/student-management/students/form-data");
+        if (__fd) {
+          setFamilies(__fd?.families || []);
+          setClasses(__fd?.classes || []);
+          setCurrentTerm(__fd?.current_term || null);
+          setEmployeeParents(__fd?.employee_parents || []);
+        }
         const res = await get("/student-management/students/form-data");
         setFamilies(res.data?.families || []);
         setClasses(res.data?.classes || []);
@@ -135,8 +142,35 @@ export default function StudentForm() {
     }
   };
 
+  const seedStudentForm = (d) => ({
+    family_id: d.family_id || "",
+    first_name: d.first_name || "",
+    last_name: d.last_name || "",
+    date_of_birth: d.date_of_birth?.split("T")[0] || "",
+    gender: d.gender || "",
+    school_class_id: d.school_class_id || "",
+    enrollment_date: d.enrollment_date?.split("T")[0] || "",
+    enrollment_type: d.enrollment_type || "new",
+    uniform_required: d.uniform_required || false,
+    transportation_required: d.transportation_required || false,
+    is_fourth_child: (d.child_order_in_family || 0) >= 4 || d.special_status === "fourth_child",
+    child_order_in_family: d.child_order_in_family || "",
+    special_status: d.special_status || "none",
+    employee_parent_staff_id: d.employee_parent_staff_id || "",
+    discount_percent: d.discount_percent || 0,
+    foundation_help_requested: d.foundation_help_requested || false,
+    foundation_help_requested_amount: d.foundation_help_requested_amount || "",
+  });
+
   const loadStudent = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/students/show/${id}`);
+    if (__cached?.data) {
+      const d = __cached.data;
+      setForm(seedStudentForm(d));
+      if (d.family) setFamilySearch(`${d.family.family_id} - ${d.family.father_name}`);
+      setLoading(false);
+    }
     try {
       const res = await get(`/student-management/students/show/${id}`);
       const d = res.data?.data;

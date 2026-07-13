@@ -5,6 +5,7 @@ import {
   commitPayroll, payPayrollRun, payPayslip,
 } from "../../api/payroll";
 import { getAccounts } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 import BudgetWarningModal from "../../components/finance/BudgetWarningModal";
@@ -68,6 +69,8 @@ export default function Payroll() {
 
   const fetchRuns = async () => {
     try {
+      const __cached = peekCache('/financial/payroll-runs', { per_page: 50 });
+      if (__cached) setRuns(__cached?.data?.data || __cached?.data || []);
       const r = await listPayrollRuns({ per_page: 50 });
       setRuns(r.data?.data?.data || r.data?.data || []);
     } catch { setRuns([]); }

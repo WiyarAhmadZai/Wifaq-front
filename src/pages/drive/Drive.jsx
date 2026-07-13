@@ -5,6 +5,7 @@ import {
   listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder,
   fileRawBlob, fileDownloadBlob,
 } from "../../api/drive";
+import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 
 const fmtSize = (n) => {
@@ -47,6 +48,8 @@ export default function Drive() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/drive", folderId ? { folder_id: folderId } : {});
+    if (__cached) { setData(__cached?.data || { current: null, breadcrumb: [], folders: [], files: [] }); setLoading(false); }
     try {
       const res = await listDrive(folderId);
       setData(res.data?.data || { current: null, breadcrumb: [], folders: [], files: [] });

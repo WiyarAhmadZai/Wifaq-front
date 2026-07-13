@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
-import { get, post, put, del, API_BASE_URL } from "../../api/axios";
+import { get, post, put, del, API_BASE_URL, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -228,6 +228,8 @@ export default function StudentEnrollmentForm() {
   }, []);
 
   const fetchPhase1Students = async () => {
+    const __cached = peekCache("/student-management/students/list?registration_status=phase_1&per_page=1000");
+    if (__cached) { const d = __cached?.data || []; setPhase1Students(Array.isArray(d) ? d : []); }
     try {
       const response = await get("/student-management/students/list?registration_status=phase_1&per_page=1000");
       const data = response.data?.data || [];
@@ -238,6 +240,16 @@ export default function StudentEnrollmentForm() {
   };
 
   const fetchSelectedStudent = async (studentId) => {
+    const __cached = peekCache(`/student-management/students/show/${studentId}`);
+    if (__cached) {
+      const data = __cached?.data ?? __cached;
+      setSelectedStudent(data);
+      if (data?.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => { docsMap[doc.document_type] = doc; });
+        setUploadedDocs(docsMap);
+      }
+    }
     try {
       const response = await get(`/student-management/students/show/${studentId}`);
       const data = response.data?.data || response.data;
@@ -289,6 +301,8 @@ export default function StudentEnrollmentForm() {
   useEffect(() => {
     (async () => {
       try {
+        const __cached = peekCache("/transportation/routes/active/list");
+        if (__cached) { const d = __cached?.data || __cached || []; setRoutes(Array.isArray(d) ? d : []); }
         const res = await get("/transportation/routes/active/list");
         const data = res.data?.data || res.data || [];
         setRoutes(Array.isArray(data) ? data : []);
@@ -303,6 +317,8 @@ export default function StudentEnrollmentForm() {
     if (formData.transport_route_id) {
       (async () => {
         try {
+          const __cached = peekCache(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
+          if (__cached) { const d = __cached?.data || __cached || []; setVehicles(Array.isArray(d) ? d : []); }
           const res = await get(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
           const data = res.data?.data || res.data || [];
           setVehicles(Array.isArray(data) ? data : []);

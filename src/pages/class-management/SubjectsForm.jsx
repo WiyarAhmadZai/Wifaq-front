@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from '../../utils/formErrors';
 
@@ -57,6 +57,8 @@ export default function SubjectsForm() {
   useEffect(() => {
     (async () => {
       try {
+        const __g = peekCache('/grades/list');
+        if (__g) setGrades(__g?.data || []);
         const res = await get('/grades/list');
         setGrades(res.data?.data || []);
       } catch {}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { activityLogsApi } from '../../api/activityLogs';
+import { peekCache } from '../../api/axios';
 import { useActivityLogs } from '../../hooks/useActivityLogs';
 import ActivityLogDrawer from '../components/ActivityLogDrawer';
 
@@ -34,6 +35,8 @@ export default function ActivityLogs() {
   const [selected, setSelected] = useState(null); // { id, fallback }
 
   useEffect(() => {
+    const __cached = peekCache('/activity-logs/filters');
+    if (__cached) setFacets(__cached?.data || { log_names: [], events: [], subject_types: [] });
     activityLogsApi.filters()
       .then((res) => setFacets(res.data?.data || { log_names: [], events: [], subject_types: [] }))
       .catch(() => {});

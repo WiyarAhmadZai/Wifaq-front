@@ -117,6 +117,30 @@ export default function PlanForm() {
 
   useEffect(() => {
     if (!isEdit || loadedRef.current) return;
+    const __cached = peekCache(`/planning/plans/${id}`);
+    if (__cached) {
+      const p = __cached?.data ?? __cached;
+      setForm({
+        title: p.title || "", type: p.type || "annual", parent_id: p.parent_id || "",
+        period_year: p.period_year || "", period_month: p.period_month || "", period_week: p.period_week || "",
+        start_date: p.start_date?.slice(0, 10) || "", end_date: p.end_date?.slice(0, 10) || "",
+        department_id: p.department_id || "", narrative: p.narrative || "",
+      });
+      setObjectives((p.objectives || []).length
+        ? p.objectives.map((o) => ({
+            statement: o.statement, primary_4d_dimension: o.primary_4d_dimension,
+            key_results: (o.key_results || []).length
+              ? o.key_results.map((k) => ({
+                  statement: k.statement, kr_type: k.kr_type || "percentage",
+                  baseline: k.baseline ?? "", target: k.target ?? "", unit: k.unit || "",
+                  current_value: k.current_value ?? "", confidence_score: k.confidence_score ?? "",
+                }))
+              : [blankKr()],
+          }))
+        : [blankObjective()]);
+      hydrateItems(p.items || []);
+      setLoading(false);
+    }
     (async () => {
       try {
         const res = await getPlan(id);

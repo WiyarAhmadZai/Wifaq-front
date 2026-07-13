@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getJournalEntries, postJournalEntry } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -20,6 +21,8 @@ export default function JournalEntries() {
     try {
       const params = {};
       if (status !== "all") params.status = status;
+      const __cached = peekCache('/financial/journal-entries', params);
+      if (__cached) { setItems(__cached?.data?.data || __cached?.data || []); setLoading(false); }
       const res = await getJournalEntries(params);
       setItems(res.data?.data?.data || res.data?.data || []);
     } catch (e) {

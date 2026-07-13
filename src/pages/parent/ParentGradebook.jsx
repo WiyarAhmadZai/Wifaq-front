@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { parentChildren, parentHomework, parentSubmitHomework, parentFeed } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, Segmented, Select, Pill, Btn, Banner, Textarea,
   EmptyState, Loading, LoadingRow, ICON, scoreColor, fmtScore, Avatar, mediaUrl,
@@ -41,6 +42,8 @@ export default function ParentGradebook() {
   const [note, setNote] = useState("");
 
   useEffect(() => {
+    const __cached = peekCache('/parent/gradebook/children');
+    if (__cached) { const c = __cached?.data || []; setChildren(c); if (c.length === 1) setChildId(String(c[0].id)); setLoading(false); }
     parentChildren()
       .then((r) => { const c = r.data?.data || []; setChildren(c); if (c.length === 1) setChildId(String(c[0].id)); })
       .finally(() => setLoading(false));
@@ -52,6 +55,10 @@ export default function ParentGradebook() {
   function load() {
     setBusy(true); setErr("");
     const params = childId ? { child_id: childId } : {};
+    const __hw = peekCache('/parent/gradebook/homework', params);
+    if (__hw) setHomework(__hw?.data || []);
+    const __fd = peekCache('/parent/gradebook/feed', params);
+    if (__fd) setFeed(__fd?.data || []);
     Promise.all([
       parentHomework(params).then((r) => setHomework(r.data?.data || [])).catch(() => setHomework([])),
       parentFeed(params).then((r) => setFeed(r.data?.data || [])).catch(() => setFeed([])),

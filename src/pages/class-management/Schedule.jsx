@@ -162,6 +162,8 @@ export default function Schedule() {
   const fetchGradeSchedule = async () => {
     setLoading(true);
     try {
+      const __c = peekCache(`/class-management/schedule/grade?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      if (__c) { setGradeData(__c); setActiveGradeTab(0); setScheduleData(null); setLoading(false); }
       const res = await get(`/class-management/schedule/grade?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
       setGradeData(res.data);
       setActiveGradeTab(0);
@@ -173,6 +175,8 @@ export default function Schedule() {
   const fetchTeacherSchedule = async () => {
     setLoading(true);
     try {
+      const __c = peekCache(`/class-management/schedule/teacher?teacher_id=${selectedTeacher}&academic_term_id=${selectedTerm}`);
+      if (__c) { setScheduleData(__c); setLoading(false); }
       const res = await get(`/class-management/schedule/teacher?teacher_id=${selectedTeacher}&academic_term_id=${selectedTerm}`);
       setScheduleData(res.data);
     } catch { setScheduleData(null); }

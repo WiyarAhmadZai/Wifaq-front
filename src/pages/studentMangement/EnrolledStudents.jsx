@@ -3,7 +3,7 @@ import CrudPage from "../../components/CrudPage";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
 import Swal from "sweetalert2";
 import { generateUniformInvoice } from "../../api/financial";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { useNavigate } from "react-router-dom";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -61,6 +61,12 @@ export default function EnrolledStudents() {
   const [classes, setClasses] = useState([]);
   const [terms, setTerms] = useState([]);
   useEffect(() => {
+    const __g = peekCache("/grades/list");
+    if (__g) setGrades((__g?.data || __g || []).map((g) => ({ value: g.id, label: g.name })));
+    const __c = peekCache("/class-management/classes/list?per_page=1000");
+    if (__c) setClasses((__c?.data || __c || []).map((c) => ({ value: c.id, label: c.class_name })));
+    const __t = peekCache("/academic-terms/list");
+    if (__t) setTerms((__t?.data || __t || []).map((t) => ({ value: t.id, label: t.name })));
     get("/grades/list").then((r) => setGrades((r.data?.data || r.data || []).map((g) => ({ value: g.id, label: g.name })))).catch(() => {});
     get("/class-management/classes/list?per_page=1000").then((r) => setClasses((r.data?.data || r.data || []).map((c) => ({ value: c.id, label: c.class_name })))).catch(() => {});
     get("/academic-terms/list").then((r) => setTerms((r.data?.data || r.data || []).map((t) => ({ value: t.id, label: t.name })))).catch(() => {});

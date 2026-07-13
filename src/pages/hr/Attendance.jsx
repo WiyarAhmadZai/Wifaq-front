@@ -54,12 +54,12 @@ export default function Attendance() {
       title="Staff Attendance"
       apiEndpoint={`/hr/attendances?date=${today}`}
       listColumns={[
-        { key: "date", label: "Date" },
-        { key: "employee_id", label: "Employee" },
+        { key: "date", label: "Date", exportValue: (item) => item.date ? item.date.split('T')[0] : '' },
+        { key: "employee_id", label: "Employee", exportValue: (item) => item.employee?.full_name || item.employee_id || '' },
         { key: "status", label: "Status" },
-        { key: "arrived", label: "Arrived" },
-        { key: "check_out", label: "Check Out" },
-        { key: "working_hours", label: "Working Hours" },
+        { key: "arrived", label: "Arrived", noExport: true },
+        { key: "check_out", label: "Check Out", noExport: true },
+        { key: "working_hours", label: "Working Hours", noExport: true },
       ]}
       createRoute="/hr/attendance/create"
       editRoute="/hr/attendance/edit"

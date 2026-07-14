@@ -94,7 +94,7 @@ export default function ClassGradebook() {
                     <thead><tr><th className={thCls}>Assessment</th><th className={`${thCls} text-right`}>Graded</th></tr></thead>
                     <tbody>
                       {assessments.map((a) => (
-                        <tr key={a.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/education/gradebook/mark?assessment=${a.id}`)}>
+                        <tr key={a.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/education/gradebook/assessments/${a.id}`)}>
                           <td className={tdCls}><div className="font-semibold text-gray-800">{a.title}</div><div className="text-[11px] text-gray-400 capitalize">{a.assessment_type?.replace("_", " ")} · {a.assessment_date}</div></td>
                           <td className={`${tdCls} text-right`}><Pill tone="teal">{a.grades_count} graded</Pill></td>
                         </tr>

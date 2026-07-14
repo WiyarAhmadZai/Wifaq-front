@@ -93,6 +93,8 @@ const LessonPlanBridge = lazy(() => import("./pages/education/LessonPlanBridge")
 const LessonPlanCurriculum = lazy(() => import("./pages/education/LessonPlanCurriculum"));
 const ClassGradebook = lazy(() => import("./pages/education/ClassGradebook"));
 const NewAssessment = lazy(() => import("./pages/education/NewAssessment"));
+const AssessmentList = lazy(() => import("./pages/education/AssessmentList"));
+const AssessmentDetail = lazy(() => import("./pages/education/AssessmentDetail"));
 const MarkingScreen = lazy(() => import("./pages/education/MarkingScreen"));
 const StudentGradeHistory = lazy(() => import("./pages/education/StudentGradeHistory"));
 const HomeworkQueue = lazy(() => import("./pages/education/HomeworkQueue"));
@@ -478,7 +480,9 @@ function App() {
             {/* Gradebook + Homework */}
             <Route path="education/gradebook" element={<Suspense fallback={<PageLoader />}><ClassGradebook /></Suspense>} />
             <Route path="education/gradebook/mark" element={<Suspense fallback={<PageLoader />}><MarkingScreen /></Suspense>} />
+            <Route path="education/gradebook/assessments" element={<Suspense fallback={<PageLoader />}><AssessmentList /></Suspense>} />
             <Route path="education/gradebook/assessments/new" element={<Suspense fallback={<PageLoader />}><NewAssessment /></Suspense>} />
+            <Route path="education/gradebook/assessments/:id" element={<Suspense fallback={<PageLoader />}><AssessmentDetail /></Suspense>} />
             <Route path="education/gradebook/homework" element={<Suspense fallback={<PageLoader />}><HomeworkQueue /></Suspense>} />
             <Route path="education/gradebook/homework/new" element={<Suspense fallback={<PageLoader />}><AssignHomework /></Suspense>} />
             <Route path="education/gradebook/analytics" element={<Suspense fallback={<PageLoader />}><GradebookDashboard /></Suspense>} />

@@ -44,7 +44,7 @@ export default function NewAssessment() {
     setSaving(true);
     try {
       const r = await createAssessment(form);
-      navigate(`/education/gradebook/mark?assessment=${r.data?.data?.id}`);
+      navigate(`/education/gradebook/assessments/${r.data?.data?.id}`);
     } catch (e) { setErr(e.response?.data?.message || "Could not create the assessment."); setSaving(false); }
   }
 
@@ -79,7 +79,7 @@ export default function NewAssessment() {
             <Field label="Total marks"><Input type="number" min="0.5" step="0.5" value={form.score_max} onChange={(e) => set("score_max", e.target.value)} /></Field>
             <Field label="Date"><Input type="date" value={form.assessment_date} onChange={(e) => set("assessment_date", e.target.value)} /></Field>
           </div>
-          <Btn tone="primary" size="lg" full onClick={submit} disabled={saving}>{saving ? "Creating…" : "Create & start grading →"}</Btn>
+          <Btn tone="primary" size="lg" full onClick={submit} disabled={saving}>{saving ? "Creating…" : "Create assessment →"}</Btn>
         </Card>
       )}
     </Page>

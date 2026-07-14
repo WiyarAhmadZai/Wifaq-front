@@ -149,6 +149,20 @@ export function Field({ label, hint, children }) {
     </label>
   );
 }
+/** A search input with a magnifier icon + clear button. */
+export function SearchBox({ value, onChange, placeholder = "Search…" }) {
+  return (
+    <div className="relative">
+      <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+      </svg>
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="w-full text-sm rounded-xl pl-9 pr-8 py-2.5 bg-white border border-gray-200 outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400" />
+      {value && <button onClick={() => onChange("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">✕</button>}
+    </div>
+  );
+}
+
 export function Select({ children, ...p }) { return <select {...p} className={inputCls}>{children}</select>; }
 export function Input(p) { return <input {...p} className={inputCls} />; }
 export function Textarea(p) { return <textarea {...p} className={`${inputCls} resize-none`} />; }

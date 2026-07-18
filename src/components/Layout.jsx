@@ -1135,6 +1135,7 @@ export default function Layout() {
     { label: "Permissions", path: "/admin/permissions", permission: "permissions.view" },
     { label: "Users & Access", path: "/admin/users", permission: "users.view" },
     { label: "Activity Log", path: "/admin/activity-logs", permission: "activity-logs.view" },
+    { label: "Trash", path: "/admin/trash", permission: "trash.view" },
     // No `permission` → visible to super-admins only (matches the route guard).
     { label: "Chat Settings", path: "/admin/chat-settings" },
   ];

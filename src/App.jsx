@@ -701,17 +701,17 @@ function App() {
 
             {/* DOB — birthdays for students, teachers and staff */}
             <Route path="dob/students" element={
-              <Protected permission="student-birthdays.view">
+              <Protected permission="birthdays.student.view">
                 <Suspense fallback={<PageLoader />}><StudentBirthdays /></Suspense>
               </Protected>
             } />
             <Route path="dob/teachers" element={
-              <Protected permission="teacher-birthdays.view">
+              <Protected permission="birthdays.teacher.view">
                 <Suspense fallback={<PageLoader />}><TeacherBirthdays /></Suspense>
               </Protected>
             } />
             <Route path="dob/staff" element={
-              <Protected permission="staff-birthdays.view">
+              <Protected permission="birthdays.staff.view">
                 <Suspense fallback={<PageLoader />}><StaffBirthdays /></Suspense>
               </Protected>
             } />

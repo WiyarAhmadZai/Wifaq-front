@@ -1100,9 +1100,9 @@ export default function Layout() {
   ];
   // DOB — birthdays for students, teachers and staff
   const dobMenus = [
-    { label: "Student DOB", path: "/dob/students", permission: "student-birthdays.view" },
-    { label: "Teacher DOB", path: "/dob/teachers", permission: "teacher-birthdays.view" },
-    { label: "Staff / Employee DOB", path: "/dob/staff", permission: "staff-birthdays.view" },
+    { label: "Student DOB", path: "/dob/students", permission: "birthdays.student.view" },
+    { label: "Teacher DOB", path: "/dob/teachers", permission: "birthdays.teacher.view" },
+    { label: "Staff / Employee DOB", path: "/dob/staff", permission: "birthdays.staff.view" },
   ];
 
   const transportationMenus = [

@@ -67,6 +67,9 @@ export default function BirthdayPage({ type, title, subtitle }) {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(25);
+  const [meta, setMeta] = useState(null);
 
   // Calendar state
   const today = useMemo(() => new Date(), []);
@@ -79,15 +82,28 @@ export default function BirthdayPage({ type, title, subtitle }) {
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await birthdaysApi.list(type, { scope, month: month || undefined, search: search || undefined, days: 30 });
+      const res = await birthdaysApi.list(type, {
+        scope,
+        month: month || undefined,
+        search: search || undefined,
+        days: 30,
+        page,
+        per_page: perPage,
+      });
       setRows(res.data?.data || []);
+      setMeta(res.data?.meta || null);
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to load birthdays", "error");
       setRows([]);
+      setMeta(null);
     } finally {
       setLoading(false);
     }
-  }, [type, scope, month, search]);
+  }, [type, scope, month, search, page, perPage]);
+
+  // Any filter change puts us back on page 1 (otherwise you can land on an
+  // out-of-range page for the new, smaller result set).
+  useEffect(() => { setPage(1); }, [type, scope, month, search, perPage]);
 
   const loadCalendar = useCallback(async () => {
     setLoading(true);
@@ -181,13 +197,24 @@ export default function BirthdayPage({ type, title, subtitle }) {
           </div>
         ) : view === "list" ? (
           <>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span><b className="text-gray-800">{rows.length}</b> {rows.length === 1 ? "person" : "people"}</span>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+              <span>
+                {meta?.total
+                  ? <>Showing <b className="text-gray-800">{meta.from}–{meta.to}</b> of <b className="text-gray-800">{meta.total}</b></>
+                  : <><b className="text-gray-800">0</b> people</>}
+              </span>
               {todayCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
                   🎂 {todayCount} birthday{todayCount === 1 ? "" : "s"} today
                 </span>
               )}
+              <label className="ml-auto flex items-center gap-1.5">
+                <span>Per page</span>
+                <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))}
+                  className="px-2 py-1 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
+                  {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50 overflow-hidden">
@@ -221,6 +248,10 @@ export default function BirthdayPage({ type, title, subtitle }) {
                 </div>
               ))}
             </div>
+
+            {meta && meta.last_page > 1 && (
+              <Pagination meta={meta} onChange={setPage} />
+            )}
           </>
         ) : (
           <CalendarView
@@ -244,6 +275,49 @@ export default function BirthdayPage({ type, title, subtitle }) {
           onClose={() => setDayDetail(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** Page navigation for the birthday list. Shows a windowed set of page numbers. */
+function Pagination({ meta, onChange }) {
+  const { current_page: current, last_page: last } = meta;
+
+  // Window of at most 5 page numbers centred on the current page.
+  const start = Math.max(1, Math.min(current - 2, last - 4));
+  const end = Math.min(last, start + 4);
+  const pages = [];
+  for (let p = start; p <= end; p++) pages.push(p);
+
+  const btn = "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+      <button onClick={() => onChange(1)} disabled={current === 1}
+        className={`${btn} bg-white border-gray-200 text-gray-600 hover:bg-gray-50`}>« First</button>
+      <button onClick={() => onChange(current - 1)} disabled={current === 1}
+        className={`${btn} bg-white border-gray-200 text-gray-600 hover:bg-gray-50`}>
+        <FiChevronLeft className="w-3.5 h-3.5" />
+      </button>
+
+      {start > 1 && <span className="px-1 text-xs text-gray-400">…</span>}
+      {pages.map((p) => (
+        <button key={p} onClick={() => onChange(p)}
+          className={`${btn} ${p === current ? "text-white border-transparent" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+          style={p === current ? { background: TEAL } : {}}>
+          {p}
+        </button>
+      ))}
+      {end < last && <span className="px-1 text-xs text-gray-400">…</span>}
+
+      <button onClick={() => onChange(current + 1)} disabled={current === last}
+        className={`${btn} bg-white border-gray-200 text-gray-600 hover:bg-gray-50`}>
+        <FiChevronRight className="w-3.5 h-3.5" />
+      </button>
+      <button onClick={() => onChange(last)} disabled={current === last}
+        className={`${btn} bg-white border-gray-200 text-gray-600 hover:bg-gray-50`}>Last »</button>
+
+      <span className="ml-2 text-[11px] text-gray-400">Page {current} of {last}</span>
     </div>
   );
 }

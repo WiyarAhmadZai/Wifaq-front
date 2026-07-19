@@ -19,6 +19,12 @@ const RULES = [
   // Branches
   { prefix: "/branches", permission: "branches.view" },
 
+  // DOB — birthdays for students / teachers / staff
+  { prefix: "/dob/students", permission: "student-birthdays.view" },
+  { prefix: "/dob/teachers", permission: "teacher-birthdays.view" },
+  { prefix: "/dob/staff", permission: "staff-birthdays.view" },
+  { prefix: "/dob", permission: "birthdays.view" },
+
   // Planning — Annual / Monthly / Weekly plans (top-level "Planning" menu).
   { prefix: "/planning", permission: "planning.view" },
 

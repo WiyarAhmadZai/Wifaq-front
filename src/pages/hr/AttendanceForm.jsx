@@ -154,7 +154,9 @@ export default function AttendanceForm() {
               value={formData.date}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
+              disabled={isEdit}
+              className={`w-full px-3 py-2 border rounded-lg text-xs ${isEdit ? "bg-gray-100 border-gray-300 text-gray-600 cursor-not-allowed" : "border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"}`} />
+            {isEdit && <p className="text-[10px] text-gray-500 mt-1">Historical dates cannot be modified</p>}
           </div>
 
           <div>

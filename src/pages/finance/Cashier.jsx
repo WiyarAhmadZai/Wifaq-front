@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import {
   getStudentStatement,
   getAccounts,
@@ -92,6 +92,23 @@ export default function Cashier() {
   const loadStatement = async () => {
     setLoadingStatement(true);
     try {
+      const __cached = peekCache(`/financial/fees/students/${selectedStudentId}/statement`, { filter: "outstanding" });
+      if (__cached) {
+        const cs = __cached?.data || null;
+        setStatement(cs);
+        if (cs?.invoices) {
+          const cnext = {};
+          for (const inv of cs.invoices) {
+            if (inv.voided_at) continue;
+            if (["pending", "partial", "overdue"].includes(inv.status)) {
+              const bal = Number(inv.final_amount) - Number(inv.amount_paid);
+              if (bal > 0) cnext[inv.id] = bal.toFixed(2);
+            }
+          }
+          setAllocations(cnext);
+        }
+        setLoadingStatement(false);
+      }
       const r = await getStudentStatement(selectedStudentId, { filter: "outstanding" });
       const s = r.data?.data || null;
       setStatement(s);

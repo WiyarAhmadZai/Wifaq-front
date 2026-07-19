@@ -6,6 +6,7 @@ import {
   getDepartment,
   updateDepartment,
 } from "../../api/departments";
+import { peekCache } from "../../api/axios";
 
 const Icons = {
   ArrowLeft: () => (
@@ -42,6 +43,17 @@ export default function DepartmentForm() {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      const __cached = peekCache(`/hr/departments/show/${id}`);
+      if (__cached) {
+        const cDept = __cached?.data || __cached;
+        setFormData({
+          name: cDept?.name || "",
+          code: cDept?.code || "",
+          description: cDept?.description || "",
+          is_active: cDept?.is_active !== false,
+        });
+        setLoading(false);
+      }
       try {
         const res = await getDepartment(id);
         const dept = res.data?.data || res.data;

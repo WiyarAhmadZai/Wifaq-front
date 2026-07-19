@@ -9,6 +9,7 @@ import {
   recordPartyRepayment,
   recordPartyReimbursement,
 } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -99,6 +100,8 @@ export default function PartyLedger() {
     setLoading(true);
     setLoadError(null);
     try {
+      const __cached = peekCache(`/financial/parties/${id}/ledger`, {});
+      if (__cached) { setData(__cached?.data || null); setLoading(false); }
       const r = await getPartyLedger(id);
       setData(r.data?.data || null);
     } catch (e) {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, put } from "../api/axios";
+import { get, put, peekCache } from "../api/axios";
 import Swal from "sweetalert2";
 
 /**
@@ -20,6 +20,8 @@ export default function Notifications() {
 
   const load = async () => {
     setLoading(true);
+    const __cached = peekCache("/notifications");
+    if (__cached) { setItems(__cached?.data || []); setLoading(false); }
     try {
       const res = await get("/notifications");
       setItems(res.data?.data || []);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getJournalEntry, postJournalEntry } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -24,6 +25,8 @@ export default function JournalEntryShow() {
   const fetchOne = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/financial/journal-entries/${id}`);
+      if (__cached) { setJe(__cached?.data ?? __cached); setLoading(false); }
       const res = await getJournalEntry(id);
       setJe(res.data?.data || res.data);
     } catch {

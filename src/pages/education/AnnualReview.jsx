@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 
@@ -31,6 +31,8 @@ export default function AnnualReview() {
   const [saving, setSaving] = useState(false);
 
   const loadPanels = useCallback(async () => {
+    const __cached = peekCache("/annual-review/panels");
+    if (__cached) { setPanels(__cached?.data || []); setMode("panels"); }
     try {
       const r = await get("/annual-review/panels");
       setPanels(r.data?.data || []);

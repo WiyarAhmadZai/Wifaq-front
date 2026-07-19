@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -73,6 +73,28 @@ export default function StaffTaskForm() {
 
   const fetchTask = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/staff-tasks/${id}`);
+    if (__cached) {
+      const d = __cached;
+      setForm({
+        staff_id: d.staff_id || "",
+        task: d.task || "",
+        task_type: d.task_type || "normal",
+        start_date: d.start_date?.split("T")[0] || "",
+        deadline: d.deadline?.split("T")[0] || "",
+        notes: d.notes || "",
+      });
+      if (d.staff) {
+        setSelectedStaff({
+          id: d.staff.id,
+          full_name: d.staff.application?.full_name || d.staff_name,
+          employee_id: d.staff.employee_id || "",
+          department: d.staff.department || "",
+          role_title: d.staff.role_title_en || "",
+        });
+      }
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/staff-tasks/${id}`);
       const d = res.data;

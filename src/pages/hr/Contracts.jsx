@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const Icons = {
   Plus: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>),
@@ -88,6 +89,7 @@ const getContractTimeInfo = (item) => {
 
 export default function Contracts() {
   const navigate = useNavigate();
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions('contracts');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: "", contract_type: "", search: "" });
@@ -111,6 +113,11 @@ export default function Contracts() {
       if (filters.search) queryParams.append("search", filters.search);
       const queryString = queryParams.toString();
       const apiUrl = queryString ? `/hr/contracts/list?${queryString}` : "/hr/contracts/list";
+      const __cached = peekCache(apiUrl);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        setLoading(false);
+      }
       const response = await get(apiUrl);
       setItems(response.data?.data || []);
     } catch (error) {
@@ -167,10 +174,12 @@ export default function Contracts() {
             className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors text-xs font-medium">
             Clear Filters
           </button>
-          <button onClick={() => navigate("/hr/contracts/create")}
-            className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-xs font-medium">
-            <Icons.Plus /> Add Contract
-          </button>
+          {canCreate && (
+            <button onClick={() => navigate("/hr/contracts/create")}
+              className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-xs font-medium">
+              <Icons.Plus /> Add Contract
+            </button>
+          )}
         </div>
       </div>
 
@@ -264,7 +273,7 @@ export default function Contracts() {
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {showRenewBtn && (
+                          {showRenewBtn && canCreate && (
                             <button onClick={() => handleOpenRenewModal(item)}
                               className="p-1 text-orange-600 hover:bg-orange-50 rounded transition-colors animate-pulse" title="Renew / Update Contract">
                               <Icons.Renew />
@@ -274,18 +283,24 @@ export default function Contracts() {
                             className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="View">
                             <Icons.Eye />
                           </button>
-                          <button onClick={() => navigate(`/hr/contracts/edit/${item.id}`)}
-                            className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors" title="Edit">
-                            <Icons.Edit />
-                          </button>
-                          <button onClick={() => handleOpenStatusModal(item)}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Update Status">
-                            <Icons.EditStatus />
-                          </button>
-                          <button onClick={() => handleDelete(item.id)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
-                            <Icons.Trash />
-                          </button>
+                          {canUpdate && (
+                            <button onClick={() => navigate(`/hr/contracts/edit/${item.id}`)}
+                              className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors" title="Edit">
+                              <Icons.Edit />
+                            </button>
+                          )}
+                          {canUpdate && (
+                            <button onClick={() => handleOpenStatusModal(item)}
+                              className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Update Status">
+                              <Icons.EditStatus />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(item.id)}
+                              className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                              <Icons.Trash />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -300,9 +315,11 @@ export default function Contracts() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <p className="text-gray-500 text-xs">No contracts found</p>
-              <button onClick={() => navigate("/hr/contracts/create")} className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs">
-                Create your first contract
-              </button>
+              {canCreate && (
+                <button onClick={() => navigate("/hr/contracts/create")} className="mt-3 text-teal-600 hover:text-teal-700 font-medium text-xs">
+                  Create your first contract
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { TEAL, PAPER, DIMENSIONS, DAY_LABEL, Hero, Spinner } from "./lessonPlanUi";
 
 /* 4D-balance cell colour — a coaching tool, never a score (guidelines §4.3). */
@@ -41,6 +41,8 @@ function Balance({ onForbid }) {
 
   useEffect(() => {
     setLoading(true);
+    const __cached = peekCache(`/lesson-plans/analytics/balance?month=${month}`);
+    if (__cached) { setData(__cached); setLoading(false); }
     get(`/lesson-plans/analytics/balance?month=${month}`)
       .then((r) => setData(r.data))
       .catch((e) => { if (e.response?.status === 403) onForbid(); })
@@ -96,6 +98,8 @@ function Coverage({ onForbid }) {
 
   useEffect(() => {
     setLoading(true);
+    const __cached = peekCache(`/lesson-plans/analytics/coverage?week=${week}`);
+    if (__cached) { setData(__cached); setLoading(false); }
     get(`/lesson-plans/analytics/coverage?week=${week}`)
       .then((r) => setData(r.data))
       .catch((e) => { if (e.response?.status === 403) onForbid(); })

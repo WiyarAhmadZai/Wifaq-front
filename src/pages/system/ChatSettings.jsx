@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { FiMessageSquare, FiClock, FiVolume2, FiTrash2 } from "react-icons/fi";
 import { chatApi } from "../../chat/chatApi";
+import { peekCache } from "../../api/axios";
 
 // Retention windows mirror the backend ChatSetting::RETENTION_DAYS keys.
 const RETENTION_OPTIONS = [
@@ -20,6 +21,8 @@ export default function ChatSettings() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    const __cached = peekCache('/chat/settings');
+    if (__cached?.data) { setRetention(__cached.data.retention_period); setSound(__cached.data.sound_enabled); setLoading(false); }
     chatApi.getSettings()
       .then((r) => {
         const d = r.data?.data;

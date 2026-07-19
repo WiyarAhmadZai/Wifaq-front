@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../context/AuthContext";
 import Can from "../guards/Can";
 
@@ -15,6 +16,9 @@ export default function AdminPermissions() {
 
   const fetchItems = async () => {
     setLoading(true);
+    const __q = new URLSearchParams({ search }).toString();
+    const __cached = peekCache(`/access/permissions${__q ? `?${__q}` : ""}`);
+    if (__cached) { setItems(__cached?.data || []); setLoading(false); }
     try {
       const res = await accessApi.listPermissions({ search });
       setItems(res.data?.data || []);

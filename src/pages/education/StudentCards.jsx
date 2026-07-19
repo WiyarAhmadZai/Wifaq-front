@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 
@@ -58,6 +58,15 @@ export default function StudentCards() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/student-cards");
+    if (__cached) {
+      const d = __cached;
+      setData(d);
+      setPerCard(d?.settings?.observations_per_card ?? 4);
+      setAutoIssue(Boolean(d?.settings?.auto_issue));
+      if (!d?.can_give) setTab("all");
+      setLoading(false);
+    }
     try {
       const res = await get("/student-cards");
       const d = res.data;

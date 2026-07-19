@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { DateField } from "../../components/hr/HrUI";
 
@@ -257,6 +257,12 @@ export default function PublicApplicationForm() {
 
   const fetchJobPostings = async () => {
     setLoading(true);
+    const __cached = peekCache("/public/recruitment/job-postings");
+    if (__cached) {
+      const __data = __cached?.data || [];
+      setJobPostings(Array.isArray(__data) ? __data : []);
+      setLoading(false);
+    }
     try {
       const response = await get("/public/recruitment/job-postings");
       const data = response.data?.data || [];

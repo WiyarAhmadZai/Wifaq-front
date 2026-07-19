@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
+import { peekCache } from "../../api/axios";
 import {
   createPositionTitle,
   getPositionTitle,
@@ -43,6 +44,18 @@ export default function PositionTitleForm() {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      const __cached = peekCache(`/recruitment/position-titles/show/${id}`);
+      if (__cached) {
+        const __row = __cached?.data || __cached;
+        setFormData({
+          name: __row?.name || "",
+          code: __row?.code || "",
+          label_native: __row?.label_native || "",
+          description: __row?.description || "",
+          is_active: __row?.is_active !== false,
+        });
+        setLoading(false);
+      }
       try {
         const res = await getPositionTitle(id);
         const row = res.data?.data || res.data;

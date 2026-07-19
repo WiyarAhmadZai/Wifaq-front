@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCompletion } from "../../api/questionnaires";
+import { peekCache } from "../../api/axios";
 
 // Dashboard card showing how many families have completed the live questionnaire.
 // Self-contained: fetches its own data and renders nothing if there's no live
@@ -10,6 +11,8 @@ export default function QuestionnaireCompletionCard() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
+    const __cached = peekCache("/questionnaires/completion");
+    if (__cached) setData(__cached?.data || null);
     getCompletion().then((r) => setData(r.data?.data || null)).catch(() => setData(null));
   }, []);
 

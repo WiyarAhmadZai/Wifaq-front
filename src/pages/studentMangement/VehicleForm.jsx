@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -34,6 +34,8 @@ export default function VehicleForm() {
   }, [id]);
 
   const fetchRoutes = async () => {
+    const __cached = peekCache("/transportation/routes/active/list");
+    if (__cached) { const d = __cached?.data || __cached || []; setRoutes(Array.isArray(d) ? d : []); }
     try {
       const response = await get("/transportation/routes/active/list");
       const data = response.data?.data || response.data || [];
@@ -45,6 +47,21 @@ export default function VehicleForm() {
 
   const fetchVehicle = async () => {
     setLoading(true);
+    const __cached = peekCache(`/transportation/vehicles/show/${id}`);
+    if (__cached) {
+      const vehicleData = __cached?.data ?? __cached;
+      setFormData({
+        plate_number: vehicleData.plate_number || "",
+        total_seats: vehicleData.total_seats || "",
+        route_id: vehicleData.route_id || "",
+        monthly_fee: vehicleData.monthly_fee || "",
+        driver_name: vehicleData.driver_name || "",
+        driver_contact: vehicleData.driver_contact || "",
+        driver_age: vehicleData.driver_age || "",
+        is_active: vehicleData.is_active ?? true,
+      });
+      setLoading(false);
+    }
     try {
       const response = await get(`/transportation/vehicles/show/${id}`);
       const vehicleData = response.data?.data || response.data;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 
@@ -124,6 +124,8 @@ export default function Synthesis() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/student-syntheses");
+    if (__cached) { setList(__cached?.data || []); setIsApprover(Boolean(__cached?.can_approve)); setLoading(false); }
     try {
       const r = await get("/student-syntheses");
       setList(r.data?.data || []);

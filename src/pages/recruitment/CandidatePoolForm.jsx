@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -37,6 +37,17 @@ export default function CandidatePoolForm() {
 
   const fetchPool = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/candidate-pool/${id}`);
+    if (__cached) {
+      const d = __cached?.data || __cached;
+      setFormData({
+        name: d.name || "",
+        category: d.category || "",
+        description: d.description || "",
+        is_active: d.is_active ?? true,
+      });
+      setLoading(false);
+    }
     try {
       const response = await get(`/recruitment/candidate-pool/${id}`);
       const d = response.data?.data || response.data;

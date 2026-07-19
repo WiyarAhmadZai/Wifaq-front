@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -129,8 +129,36 @@ export default function ParentForm() {
     if (isEdit) fetchParent();
   }, [id]);
 
+  const seedParent = (d) => ({
+    father_name: d.father_name || "",
+    father_name_en: d.father_name_en || "",
+    grandfather_name: d.grandfather_name || "",
+    grandfather_name_en: d.grandfather_name_en || "",
+    father_education_level: d.father_education_level || "",
+    father_occupation: d.father_occupation || "",
+    father_phone: d.father_phone || "",
+    email: d.email || "",
+    mother_name: d.mother_name || "",
+    mother_education_level: d.mother_education_level || "",
+    mother_phone: d.mother_phone || "",
+    mother_tongue: d.mother_tongue || "",
+    monthly_income_usd: d.monthly_income_usd || "",
+    number_of_family_members: d.number_of_family_members || "",
+    number_of_dependents: d.number_of_dependents || "",
+    income_category: d.income_category || "",
+    permanent_province: d.permanent_province || "",
+    permanent_district: d.permanent_district || "",
+    permanent_village: d.permanent_village || "",
+    temporary_province: d.temporary_province || "",
+    temporary_district: d.temporary_district || "",
+    temporary_village: d.temporary_village || "",
+    address: d.address || "",
+  });
+
   const fetchParent = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/families/show/${id}`);
+    if (__cached) { setFormData(seedParent(__cached?.data ?? __cached)); setLoading(false); }
     try {
       const response = await get(`/student-management/families/show/${id}`);
       const d = response.data?.data || response.data;

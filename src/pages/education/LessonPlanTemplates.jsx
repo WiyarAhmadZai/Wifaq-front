@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { TEAL, PAPER, DIMENSIONS, DIMAP, Hero, Spinner } from "./lessonPlanUi";
 
@@ -16,6 +16,8 @@ export default function LessonPlanTemplates() {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (dim) params.set("dimension", dim);
+    const __cached = peekCache("/lesson-plans/templates?" + params.toString());
+    if (__cached) { setRows(__cached?.data || []); setLoading(false); }
     const t = setTimeout(() => {
       get("/lesson-plans/templates?" + params.toString())
         .then((r) => setRows(r.data?.data || []))

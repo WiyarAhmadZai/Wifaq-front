@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 import { DateField } from "../../components/hr/HrUI";
@@ -107,6 +107,18 @@ export default function SalarySnapshotForm() {
 
   const loadSnapshot = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/salary-snapshots/${id}`);
+    if (__cached) {
+      const d = __cached?.data ?? __cached;
+      setForm({
+        staff_id: d.staff_id || '', snapshot_month: d.snapshot_month || '',
+        rank_level: d.rank_level || '', base_salary: d.base_salary || '',
+        housing_allowance: d.housing_allowance || '', transport_allowance: d.transport_allowance || '',
+        family_allowance: d.family_allowance || '', other_allowances: d.other_allowances || '',
+        reason: d.reason || '',
+      });
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/salary-snapshots/${id}`);
       const d = res.data?.data || res.data;

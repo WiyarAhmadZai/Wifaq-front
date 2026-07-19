@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { PageHeader, StatGrid, Section, Spinner, EmptyState, InfoNote } from "../../components/hr/HrUI";
 
 import { fmtDate, fmtDateTime, fmtMonth } from "../../utils/formErrors";
@@ -18,6 +18,15 @@ export default function WelfareDashboard() {
 
   const fetchAll = async () => {
     try {
+      const __aggC = peekCache("/welfare/checkins/aggregate");
+      const __alertsC = peekCache("/welfare/alerts");
+      const __benefitsC = peekCache("/welfare/benefits");
+      if (__aggC || __alertsC || __benefitsC) {
+        setAgg(__aggC?.data || []);
+        setAlerts(__alertsC?.data?.data || __alertsC?.data || []);
+        setBenefits(__benefitsC?.data?.data || __benefitsC?.data || []);
+        setLoading(false);
+      }
       const [a, al, b] = await Promise.all([
         get("/welfare/checkins/aggregate"),
         get("/welfare/alerts"),

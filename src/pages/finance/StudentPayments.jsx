@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getFeePayments, getFeeInvoices } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -65,6 +66,13 @@ export default function StudentPayments() {
 
   useEffect(() => {
     setLoading(true);
+    const __cachedP = peekCache('/financial/fees/payments', { student_id: studentId, per_page: 1000 });
+    const __cachedI = peekCache('/financial/fees/invoices', { student_id: studentId, per_page: 1000 });
+    if (__cachedP && __cachedI) {
+      setPayments(Array.isArray(__cachedP.data?.data ?? __cachedP.data) ? (__cachedP.data?.data ?? __cachedP.data) : []);
+      setInvoices(Array.isArray(__cachedI.data?.data ?? __cachedI.data) ? (__cachedI.data?.data ?? __cachedI.data) : []);
+      setLoading(false);
+    }
     Promise.all([
       getFeePayments({ student_id: studentId, per_page: 1000 }),
       getFeeInvoices({ student_id: studentId, per_page: 1000 }),

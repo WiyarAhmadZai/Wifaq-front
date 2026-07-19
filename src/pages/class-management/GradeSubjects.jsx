@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import { get, post, del } from '../../api/axios';
+import { get, post, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 function SearchSelect({ options, value, onChange, placeholder = 'Select...', getLabel = o => o, getValue = o => o }) {
@@ -93,6 +93,14 @@ export default function GradeSubjects() {
 
   const fetchFormData = async () => {
     try {
+      const __c = peekCache('/class-management/grade-subjects/form-data');
+      if (__c) {
+        setGrades(__c?.grades || []);
+        setAcademicTerms(__c?.academic_terms || []);
+        setSubjects(__c?.subjects || []);
+        setTeachers(__c?.teachers || []);
+        if (!selectedTerm && __c?.academic_terms?.length) setSelectedTerm(__c.academic_terms[0].id);
+      }
       const res = await get('/class-management/grade-subjects/form-data');
       setGrades(res.data?.grades || []);
       setAcademicTerms(res.data?.academic_terms || []);
@@ -112,6 +120,8 @@ export default function GradeSubjects() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __c = peekCache(`/class-management/grade-subjects?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      if (__c) { setItems(__c?.data || []); setLoading(false); }
       const res = await get(`/class-management/grade-subjects?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
       setItems(res.data?.data || []);
     } catch { setItems([]); }
@@ -125,6 +135,15 @@ export default function GradeSubjects() {
   const fetchGrid = async () => {
     setLoadingGrid(true);
     try {
+      const __c = peekCache(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      if (__c) {
+        setGridClasses(__c?.classes || []);
+        setGridSubjects(__c?.subjects || []);
+        setGridAssign(__c?.assignments || {});
+        setAssignedNames(__c?.assigned_teachers || {});
+        setGridDirty(false);
+        setLoadingGrid(false);
+      }
       const res = await get(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
       setGridClasses(res.data?.classes || []);
       setGridSubjects(res.data?.subjects || []);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 
 const STATUS_BADGE = {
   pending: "bg-amber-100 text-amber-700",
@@ -25,7 +25,10 @@ export default function FoundationRequests() {
       params.append("page", page);
       if (search) params.append("search", search);
       if (filterStatus) params.append("status", filterStatus);
-      const res = await get(`/student-management/foundation-requests/list?${params.toString()}`);
+      const __url = `/student-management/foundation-requests/list?${params.toString()}`;
+      const __cached = peekCache(__url);
+      if (__cached) { setItems(__cached?.data || []); setStats(__cached?.stats || {}); if (__cached?.meta) setMeta(__cached.meta); setLoading(false); }
+      const res = await get(__url);
       setItems(res.data?.data || []);
       setStats(res.data?.stats || {});
       if (res.data?.meta) setMeta(res.data.meta);

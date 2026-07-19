@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { get } from '../../api/axios';
+import { get, peekCache } from '../../api/axios';
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
@@ -26,6 +26,11 @@ export default function StaffLogs() {
 
   const fetchLogs = async () => {
     setLoading(true);
+    const __cached = peekCache('/hr/staff/logs?per_page=100');
+    if (__cached) {
+      setLogs(__cached?.data || []);
+      setLoading(false);
+    }
     try {
       const res = await get('/hr/staff/logs?per_page=100');
       setLogs(res.data?.data || []);

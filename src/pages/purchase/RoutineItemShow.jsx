@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { deleteRoutineItem, getRoutineItem } from "../../api/routineItems";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -14,6 +15,8 @@ export default function RoutineItemShow() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache(`/purchase/routine-items/${id}`);
+    if (__cached) { setRow(__cached?.data || null); setLoading(false); }
     getRoutineItem(id)
       .then((r) => setRow(r.data?.data || null))
       .catch(() => {

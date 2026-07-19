@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -89,6 +89,23 @@ export default function VendorContractsForm() {
 
   const fetchContract = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/vendor-contracts/show/${id}`);
+    if (__cached) {
+      const d = __cached;
+      setForm({
+        vendor_id: d.vendor_id || "",
+        contract_type: d.contract_type || "supply",
+        description: d.description || "",
+        start_date: d.start_date?.split("T")[0] || "",
+        end_date: d.end_date?.split("T")[0] || "",
+        amount: d.amount || "",
+        currency: d.currency || "AFN",
+        payment_terms: d.payment_terms || "",
+        notes: d.notes || "",
+      });
+      if (d.vendor) setSelectedVendor(d.vendor);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/vendor-contracts/show/${id}`);
       const d = res.data;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
-import { get, post, put, del, API_BASE_URL } from "../../api/axios";
+import { get, post, put, del, API_BASE_URL, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -228,6 +228,8 @@ export default function StudentEnrollmentForm() {
   }, []);
 
   const fetchPhase1Students = async () => {
+    const __cached = peekCache("/student-management/students/list?registration_status=phase_1&per_page=1000");
+    if (__cached) { const d = __cached?.data || []; setPhase1Students(Array.isArray(d) ? d : []); }
     try {
       const response = await get("/student-management/students/list?registration_status=phase_1&per_page=1000");
       const data = response.data?.data || [];
@@ -238,6 +240,16 @@ export default function StudentEnrollmentForm() {
   };
 
   const fetchSelectedStudent = async (studentId) => {
+    const __cached = peekCache(`/student-management/students/show/${studentId}`);
+    if (__cached) {
+      const data = __cached?.data ?? __cached;
+      setSelectedStudent(data);
+      if (data?.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => { docsMap[doc.document_type] = doc; });
+        setUploadedDocs(docsMap);
+      }
+    }
     try {
       const response = await get(`/student-management/students/show/${studentId}`);
       const data = response.data?.data || response.data;
@@ -289,6 +301,8 @@ export default function StudentEnrollmentForm() {
   useEffect(() => {
     (async () => {
       try {
+        const __cached = peekCache("/transportation/routes/active/list");
+        if (__cached) { const d = __cached?.data || __cached || []; setRoutes(Array.isArray(d) ? d : []); }
         const res = await get("/transportation/routes/active/list");
         const data = res.data?.data || res.data || [];
         setRoutes(Array.isArray(data) ? data : []);
@@ -303,6 +317,8 @@ export default function StudentEnrollmentForm() {
     if (formData.transport_route_id) {
       (async () => {
         try {
+          const __cached = peekCache(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
+          if (__cached) { const d = __cached?.data || __cached || []; setVehicles(Array.isArray(d) ? d : []); }
           const res = await get(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
           const data = res.data?.data || res.data || [];
           setVehicles(Array.isArray(data) ? data : []);
@@ -384,8 +400,51 @@ export default function StudentEnrollmentForm() {
     setVehicleSearch("");
   };
 
+  const seedEnrollmentForm = (data) => ({
+    previous_school_name: data.previous_school_name || "",
+    school_type: data.school_type || "",
+    last_class_completed: data.last_class_completed || "",
+    last_years_result: data.last_years_result || "",
+    result_percentage: data.result_percentage || "",
+    reason_for_change: data.reason_for_change || "",
+    how_did_you_hear: data.how_did_you_hear || "",
+    introducer_name: data.introducer_name || "",
+    introducer_contact: data.introducer_contact || "",
+    motivation_to_join: data.motivation_to_join || "",
+    has_special_health_condition: data.has_special_health_condition || false,
+    has_special_needs: data.has_special_needs || false,
+    health_details: data.health_details || "",
+    transport_route_id: data.transport_route_id || "",
+    transport_vehicle_id: data.transport_vehicle_id || "",
+    transport_monthly_fee: data.transport_monthly_fee || "",
+    transport_pickup_point: data.transport_pickup_point || "",
+    transport_pickup_time: data.transport_pickup_time || "",
+    transport_dropoff_point: data.transport_dropoff_point || "",
+    need_uniform: data.need_uniform || false,
+    uniform_price: data.uniform_price || "",
+    uniform_chest: data.uniform_chest || "",
+    uniform_waist: data.uniform_waist || "",
+    uniform_height: data.uniform_height || "",
+    uniform_shoulder: data.uniform_shoulder || "",
+    uniform_sleeve: data.uniform_sleeve || "",
+    tailor_note: data.tailor_note || "",
+    parental_consent: data.parental_consent || false,
+  });
+
   const fetchStudent = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/students/show/${id}`);
+    if (__cached) {
+      const data = __cached?.data ?? __cached;
+      setSelectedStudent(data);
+      if (data?.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => { docsMap[doc.document_type] = doc; });
+        setUploadedDocs(docsMap);
+      }
+      setFormData((prev) => ({ ...prev, ...seedEnrollmentForm(data) }));
+      setLoading(false);
+    }
     try {
       const response = await get(`/student-management/students/show/${id}`);
       const data = response.data?.data || response.data;

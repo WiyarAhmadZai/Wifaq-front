@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -87,6 +87,8 @@ export default function JobRequisitionShow() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/job-requisitions/${id}`);
+    if (__cached) { setData(__cached?.data || __cached); setLoading(false); }
     try {
       const response = await get(`/recruitment/job-requisitions/${id}`);
       setData(response.data?.data || response.data);

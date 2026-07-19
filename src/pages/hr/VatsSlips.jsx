@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { get, post, del } from "../../api/axios";
+import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import {
   FiStar, FiAlertTriangle, FiPlus, FiTrash2,
@@ -48,8 +48,13 @@ export default function VatsSlips() {
 
   const fetchAll = async () => {
     setLoading(true);
+    const params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+    const __cached = peekCache(`/vats/slips?${params}`);
+    if (__cached) {
+      setSlips(__cached?.data || []);
+      setLoading(false);
+    }
     try {
-      const params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
       const r = await get(`/vats/slips?${params}`);
       setSlips(r.data?.data || []);
     } catch { setSlips([]); }
@@ -57,10 +62,14 @@ export default function VatsSlips() {
   };
 
   const fetchStaff = async () => {
+    const __cached = peekCache("/hr/staff/list?per_page=200");
+    if (__cached) setStaff(__cached?.data || []);
     try { const r = await get("/hr/staff/list?per_page=200"); setStaff(r.data?.data || []); } catch {}
   };
 
   const fetchLeaderboard = async () => {
+    const __cached = peekCache("/vats/slips/leaderboard");
+    if (__cached) setLeaderboard(__cached || null);
     try {
       const r = await get("/vats/slips/leaderboard");
       setLeaderboard(r.data || null);

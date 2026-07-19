@@ -15,7 +15,7 @@ import {
   setWinningQuote,
 } from "../../api/purchaseRequests";
 import { getAccounts, getParties } from "../../api/financial";
-import { get, API_BASE_URL } from "../../api/axios";
+import { get, peekCache, API_BASE_URL } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -107,6 +107,8 @@ export default function PurchaseRequestShow() {
   const fetchPR = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/purchase/purchase-requests/${id}`);
+      if (__cached) { setPr(__cached?.data || null); setLoading(false); }
       const r = await getPurchaseRequest(id);
       setPr(r.data?.data || null);
     } catch (e) {

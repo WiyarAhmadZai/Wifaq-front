@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { listPlans, deletePlan, PLAN_TYPES, PLAN_STATES } from "../../api/planning";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { PageHeader, StatGrid, EmptyState, Spinner } from "../../components/hr/HrUI";
 import { StatusPill, ProgressBar, planProgress } from "./planUtils";
@@ -34,6 +35,12 @@ export default function MyPlans() {
   // progress bars update in place without a visible reload.
   const fetchPlans = async (silent = false) => {
     if (!silent) setLoading(true);
+    const __cached = peekCache("/planning/plans", {});
+    if (__cached) {
+      const data = __cached?.data || __cached || [];
+      setPlans(Array.isArray(data) ? data : []);
+      if (!silent) setLoading(false);
+    }
     try {
       const res = await listPlans();
       const data = res.data?.data || res.data || [];

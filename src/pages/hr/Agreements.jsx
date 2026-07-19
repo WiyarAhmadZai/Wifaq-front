@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 import { DateField } from "../../components/hr/HrUI";
 const Icons = {
@@ -85,6 +86,7 @@ const getPeriodInfo = (item) => {
 
 export default function Agreements() {
   const navigate = useNavigate();
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions('agreements');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: "", partner_type: "", collaboration_area: "", search: "" });
@@ -97,6 +99,12 @@ export default function Agreements() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache("/hr/agreements/list");
+      if (__cached) {
+        const __cd = __cached?.data || __cached || [];
+        setItems(Array.isArray(__cd) ? __cd : []);
+        setLoading(false);
+      }
       const res = await get("/hr/agreements/list");
       const data = res.data?.data || res.data || [];
       setItems(Array.isArray(data) ? data : []);
@@ -184,10 +192,12 @@ export default function Agreements() {
           <h1 className="text-lg font-bold text-gray-800">Agreements</h1>
           <p className="text-xs text-gray-400 mt-0.5">Collaboration agreements (تفاهم نامه) with partner institutions, schools, and organizations</p>
         </div>
-        <button onClick={() => navigate("/hr/agreements/create")}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
-          <Icons.Plus /> New Agreement
-        </button>
+        {canCreate && (
+          <button onClick={() => navigate("/hr/agreements/create")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
+            <Icons.Plus /> New Agreement
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -330,28 +340,34 @@ export default function Agreements() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          {showRenew && (
+                          {canUpdate && showRenew && (
                             <button onClick={() => openRenew(item)}
                               className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Renew / Extend">
                               <Icons.Renew />
                             </button>
                           )}
-                          <button onClick={(e) => handleStatusUpdate(e, item)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
-                            <Icons.Status />
-                          </button>
+                          {canUpdate && (
+                            <button onClick={(e) => handleStatusUpdate(e, item)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
+                              <Icons.Status />
+                            </button>
+                          )}
                           <button onClick={() => navigate(`/hr/agreements/show/${item.id}`)}
                             className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                             <Icons.Eye />
                           </button>
-                          <button onClick={() => navigate(`/hr/agreements/edit/${item.id}`)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                            <Icons.Edit />
-                          </button>
-                          <button onClick={(e) => handleDelete(e, item.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                            <Icons.Trash />
-                          </button>
+                          {canUpdate && (
+                            <button onClick={() => navigate(`/hr/agreements/edit/${item.id}`)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                              <Icons.Edit />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={(e) => handleDelete(e, item.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                              <Icons.Trash />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -368,10 +384,12 @@ export default function Agreements() {
               </div>
               <p className="text-sm font-medium text-gray-600">No agreements found</p>
               <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filters</p>
-              <button onClick={() => navigate("/hr/agreements/create")}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">
-                <Icons.Plus /> Create First Agreement
-              </button>
+              {canCreate && (
+                <button onClick={() => navigate("/hr/agreements/create")}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">
+                  <Icons.Plus /> Create First Agreement
+                </button>
+              )}
             </div>
           )}
 

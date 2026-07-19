@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { getPlan, getReflection, saveReflection } from "../../api/planning";
+import { peekCache } from "../../api/axios";
 import { PageHeader, Section, Spinner, InfoNote } from "../../components/hr/HrUI";
 
 const ICON = "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z";
@@ -17,6 +18,22 @@ export default function Reflect() {
   const [carry, setCarry] = useState({}); // item.id -> bool
 
   useEffect(() => {
+    const __planC = peekCache(`/planning/plans/${id}`);
+    if (__planC) {
+      const p = __planC?.data ?? __planC;
+      setPlan(p);
+      const __reflC = peekCache(`/planning/plans/${id}/reflection`);
+      const r = __reflC?.data ?? null;
+      if (r) {
+        setForm({ what_worked: r.what_worked || "", what_didnt: r.what_didnt || "", lessons: r.lessons || "" });
+        const sel = {}; (r.items_to_carry || []).forEach((iid) => (sel[iid] = true));
+        setCarry(sel);
+      } else {
+        const sel = {}; (p.items || []).forEach((it) => { if (it.state === "missed") sel[it.id] = true; });
+        setCarry(sel);
+      }
+      setLoading(false);
+    }
     (async () => {
       try {
         const p = (await getPlan(id)).data?.data;

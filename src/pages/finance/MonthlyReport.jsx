@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import { getMonthlyReport, downloadMonthlyReportPdf } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -34,6 +35,8 @@ export default function MonthlyReport() {
     setLoading(true);
     setError(null);
     try {
+      const __cached = peekCache('/financial/reports/monthly', { year: y, month: m });
+      if (__cached) { setReport(__cached?.data || null); setLoading(false); }
       const res = await getMonthlyReport(y, m);
       setReport(res.data?.data || null);
     } catch (e) {

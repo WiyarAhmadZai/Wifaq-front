@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../context/AuthContext";
 import Can from "../guards/Can";
 import PermissionPicker from "../components/PermissionPicker";
@@ -26,6 +27,18 @@ export default function AdminUserShow() {
     (async () => {
       setLoading(true);
       try {
+        const __u = peekCache(`/access/users/${id}`);
+        const __r = peekCache("/access/roles?per_page=100");
+        const __p = peekCache("/access/permissions");
+        if (__u?.data) {
+          const cd = __u.data;
+          setUser(cd);
+          setSelectedRoles(new Set(cd.roles || []));
+          setDirectPermissions(new Set(cd.all_permissions || cd.direct_permissions || []));
+          setLoading(false);
+        }
+        if (__r) setRoles(__r?.data || []);
+        if (__p) setAllPermissions(__p?.data || []);
         const [u, r, p] = await Promise.all([
           accessApi.showUser(id),
           accessApi.listRoles({ per_page: 100 }),

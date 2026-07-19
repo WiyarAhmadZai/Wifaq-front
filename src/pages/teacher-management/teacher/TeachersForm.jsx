@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, post, put } from '../../../api/axios';
+import { get, post, put, peekCache } from '../../../api/axios';
 import Swal from 'sweetalert2';
 
 const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white transition-colors placeholder-gray-400 outline-none';
@@ -76,6 +76,13 @@ export default function TeachersForm() {
       setLoading(true);
       try {
         if (isEdit) {
+          const __cached = peekCache(`/teacher-management/teachers/show/${id}`);
+          const cd = __cached?.data;
+          if (cd) {
+            setForm({ staff_id: cd.staff_id, weekly_hours: cd.weekly_hours || 20 });
+            setCurrentStaff({ id: cd.staff_id, name: cd.name, email: cd.email, role: cd.role });
+            setLoading(false);
+          }
           const res = await get(`/teacher-management/teachers/show/${id}`);
           const d = res.data?.data;
           if (d) {
@@ -83,6 +90,8 @@ export default function TeachersForm() {
             setCurrentStaff({ id: d.staff_id, name: d.name, email: d.email, role: d.role });
           }
         } else {
+          const __cached = peekCache('/teacher-management/teachers/available-staff');
+          if (__cached) { setAvailableStaff(__cached?.data || []); setLoading(false); }
           const res = await get('/teacher-management/teachers/available-staff');
           setAvailableStaff(res.data?.data || []);
         }

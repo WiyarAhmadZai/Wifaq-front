@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { get } from "../api/axios";
+import { get, peekCache } from "../api/axios";
 
 import { fmtDate } from "../utils/formErrors";
 import QuestionnaireCompletionCard from "./questionnaire/QuestionnaireCompletionCard";
@@ -28,6 +28,8 @@ export default function Dashboard() {
   // filters / search.
 
   const load = async () => {
+    const __cached = peekCache("/dashboard/summary");
+    if (__cached) { setData(__cached); setLoading(false); }
     try {
       const res = await get("/dashboard/summary");
       setData(res.data);
@@ -39,6 +41,8 @@ export default function Dashboard() {
   };
 
   const loadOnLeave = async () => {
+    const __cached = peekCache("/hr/leave-requests/on-leave-today");
+    if (__cached) setOnLeaveToday(__cached?.data || []);
     try {
       const res = await get("/hr/leave-requests/on-leave-today");
       setOnLeaveToday(res.data?.data || []);

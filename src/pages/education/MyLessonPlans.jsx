@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { fmtDate } from "../../utils/formErrors";
 import { TEAL, TEAL_LT, GOLD, PAPER, STATUS, Hero, Spinner, StatusPill, DimensionDots, DAY_LABEL } from "./lessonPlanUi";
@@ -31,6 +31,8 @@ export default function MyLessonPlans() {
 
   const load = useCallback(() => {
     setLoading(true);
+    const __cached = peekCache("/lesson-plans" + (filter ? `?status=${filter}` : ""));
+    if (__cached) { setRows(__cached?.data || []); setLoading(false); }
     get("/lesson-plans" + (filter ? `?status=${filter}` : ""))
       .then((r) => setRows(r.data?.data || []))
       .catch(() => setRows([]))

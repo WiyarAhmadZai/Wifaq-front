@@ -9,6 +9,7 @@ export default function PlannerShow() {
       fields={plannerFields}
       listRoute="/hr/planner"
       editRoute="/hr/planner/edit"
+      permissionBase="staff-task"
     />
   );
 }

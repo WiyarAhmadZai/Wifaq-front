@@ -9,6 +9,7 @@ import {
   getAccountMovements,
   getChartOfAccounts,
 } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -62,6 +63,8 @@ export default function Accounts() {
   const fetchAccounts = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/financial/accounts', {});
+      if (__cached) { setItems(__cached?.data || []); setLoading(false); }
       const response = await getAccounts();
       setItems(response.data?.data || []);
     } catch (error) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 /* ── Brand tokens ── */
@@ -37,6 +37,8 @@ export default function DailyObservation() {
   const [selected, setSelected] = useState(null);     // student row
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [fromDate, setFromDate] = useState("");       // history date filter — start
+  const [toDate, setToDate] = useState("");           // history date filter — end
 
   const [adding, setAdding] = useState(false);
   const [forms, setForms] = useState(blankForms());
@@ -44,6 +46,8 @@ export default function DailyObservation() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    const __cached = peekCache("/student-observations/my-classes");
+    if (__cached) { const l = __cached?.data || []; setClasses(l); if (l.length) setActiveClass(l[0].id); setLoadingClasses(false); }
     get("/student-observations/my-classes")
       .then((r) => { const l = r.data?.data || []; setClasses(l); if (l.length) setActiveClass(l[0].id); })
       .catch(() => setClasses([]))
@@ -53,6 +57,8 @@ export default function DailyObservation() {
   const loadRoster = useCallback(() => {
     if (!activeClass) return;
     setLoadingRoster(true);
+    const __cached = peekCache(`/student-observations/roster?class_id=${activeClass}`);
+    if (__cached) { setRoster(__cached?.data || []); setLoadingRoster(false); }
     get(`/student-observations/roster?class_id=${activeClass}`)
       .then((r) => setRoster(r.data?.data || []))
       .catch(() => setRoster([]))
@@ -60,15 +66,22 @@ export default function DailyObservation() {
   }, [activeClass]);
   useEffect(() => { loadRoster(); }, [loadRoster]);
 
-  const loadHistory = useCallback((sid) => {
+  const loadHistory = useCallback((sid, from = fromDate, to = toDate) => {
     setLoadingHistory(true);
-    get(`/student-observations?student_id=${sid}`)
+    const p = new URLSearchParams({ student_id: sid });
+    if (from) p.append("from", from);
+    if (to) p.append("to", to);
+    const __cached = peekCache(`/student-observations?${p.toString()}`);
+    if (__cached) { setHistory(__cached?.data || []); setLoadingHistory(false); }
+    get(`/student-observations?${p.toString()}`)
       .then((r) => setHistory(r.data?.data || []))
       .catch(() => setHistory([]))
       .finally(() => setLoadingHistory(false));
-  }, []);
+  }, [fromDate, toDate]);
 
-  const pick = (s) => { setSelected(s); setForms(blankForms()); setActiveDim("intellectual"); setAdding(false); loadHistory(s.id); };
+  // Selecting a student clears any active date filter and reloads a clean history.
+  const pick = (s) => { setSelected(s); setForms(blankForms()); setActiveDim("intellectual"); setAdding(false); setFromDate(""); setToDate(""); loadHistory(s.id, "", ""); };
+  const clearDates = () => { setFromDate(""); setToDate(""); if (selected) loadHistory(selected.id, "", ""); };
 
   const cur = forms[activeDim];
   const setCur = (patch) => setForms((f) => ({ ...f, [activeDim]: { ...f[activeDim], ...patch } }));
@@ -293,9 +306,24 @@ export default function DailyObservation() {
 
                 {/* History timeline */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Observation history</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Observation history</p>
+                    {/* Date-range filter */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <input type="date" value={fromDate} max={toDate || undefined}
+                        onChange={(e) => { setFromDate(e.target.value); loadHistory(selected.id, e.target.value, toDate); }}
+                        className="px-2 py-1 rounded-lg text-[11px] bg-white border focus:outline-none" style={{ borderColor: "#dbe8e8", color: TEAL }} />
+                      <span className="text-[10px] text-gray-400">→</span>
+                      <input type="date" value={toDate} min={fromDate || undefined}
+                        onChange={(e) => { setToDate(e.target.value); loadHistory(selected.id, fromDate, e.target.value); }}
+                        className="px-2 py-1 rounded-lg text-[11px] bg-white border focus:outline-none" style={{ borderColor: "#dbe8e8", color: TEAL }} />
+                      {(fromDate || toDate) && (
+                        <button onClick={clearDates} className="px-2 py-1 rounded-lg text-[10px] font-bold" style={{ background: "#E8F6F6", color: TEAL }}>Clear</button>
+                      )}
+                    </div>
+                  </div>
                   {loadingHistory ? <Spinner /> : history.length === 0 ? (
-                    <p className="text-xs text-gray-400 py-6 text-center">No observations yet for this student.</p>
+                    <p className="text-xs text-gray-400 py-6 text-center">{fromDate || toDate ? "No observations in this date range." : "No observations yet for this student."}</p>
                   ) : (
                     <div className="relative pl-5" style={{ borderLeft: "2px solid #e7f1f1", marginLeft: "4px" }}>
                       {history.map((o) => {
@@ -315,7 +343,10 @@ export default function DailyObservation() {
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
                               {o.is_usual && <span>Usual: <b className="text-gray-700">{o.is_usual}</b></span>}
                               {o.change_vs_before && <span>Change: <b className="text-gray-700">{o.change_vs_before}</b></span>}
-                              {o.observer && <span>by <b className="text-gray-700">{o.observer}</b></span>}
+                              <span className="inline-flex items-center gap-1" style={{ color: TEAL }}>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                Observed by <b>{o.observer || "—"}</b>
+                              </span>
                             </div>
                             {o.alternative_interpretation && <div className="mt-1.5 rounded-lg p-2 text-[11px]" style={{ background: "#fbf7ec", color: "#7a5410" }}><b>Alt:</b> {o.alternative_interpretation}</div>}
                             {o.recommendation && <div className="mt-1.5 rounded-lg p-2 text-[11px]" style={{ background: "#E8F6F6", color: TEAL }}><b>Recommendation:</b> {o.recommendation}</div>}

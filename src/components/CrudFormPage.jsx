@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, post, put } from '../api/axios';
+import { get, post, put, peekCache } from '../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from '../utils/formErrors';
 
@@ -67,15 +67,26 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
     }
   }, [formData.staff_id, selectOptions]);
 
+  const unwrap = (raw) =>
+    raw && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'data') ? raw.data : raw;
+
   const fetchItem = async () => {
-    setLoading(true);
+    const url = `${apiEndpoint}/${id}`;
+    // Instant paint from cache, then revalidate (304 when unchanged).
+    const cached = peekCache(url);
+    if (cached) {
+      const p = unwrap(cached);
+      setFormData(p && typeof p === 'object' ? p : {});
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const response = await get(`${apiEndpoint}/${id}`);
-      const raw = response.data;
-      const payload = raw && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'data') ? raw.data : raw;
+      const response = await get(url);
+      const payload = unwrap(response.data);
       setFormData(payload && typeof payload === 'object' ? payload : {});
     } catch (error) {
-      Swal.fire('Error', 'Failed to load data', 'error');
+      if (!cached) Swal.fire('Error', 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }

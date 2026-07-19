@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -99,6 +99,19 @@ export default function AddVendorForm() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/vendors/${id}`);
+    if (__cached) {
+      const d = __cached?.data || __cached;
+      setForm({
+        name: d.name || '', category: d.category || '', work_type: d.work_type || '',
+        contact: d.contact || '', address: d.address || '',
+        quality_rating: d.quality_rating || '', price_rating: d.price_rating || '',
+        deadline_rating: d.deadline_rating || '', response_rating: d.response_rating || '',
+        payment_terms: d.payment_terms || '', recommended_by: d.recommended_by || '',
+        date_engaged: d.date_engaged || '', notes: d.notes || '',
+      });
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/vendors/${id}`);
       const d = res.data?.data || res.data;

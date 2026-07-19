@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getLeadershipReport } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 
 const fmt = (n) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
 const fmtK = (n) => {
@@ -51,6 +52,8 @@ export default function LeadershipReport() {
   const fetchReport = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/financial/leadership-report', { year, month });
+      if (__cached) { setData(__cached?.data || null); setLoading(false); }
       const r = await getLeadershipReport({ year, month });
       setData(r.data?.data || null);
     } catch (e) { console.error(e); setData(null); }

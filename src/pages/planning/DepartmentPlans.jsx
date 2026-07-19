@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listPlans } from "../../api/planning";
+import { peekCache } from "../../api/axios";
 import { PageHeader, Section, Spinner, EmptyState } from "../../components/hr/HrUI";
 import { StatusPill, DimensionBadge, ProgressBar, planProgress } from "./planUtils";
 
@@ -12,6 +13,8 @@ export default function DepartmentPlans() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache("/planning/plans", {});
+    if (__cached) { setPlans(__cached?.data || __cached || []); setLoading(false); }
     listPlans()
       .then((r) => setPlans(r.data?.data || r.data || []))
       .catch(() => setPlans([]))

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -58,6 +58,22 @@ export default function VisitorLogForm() {
 
   const loadItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/visitor-logs/${id}`);
+    if (__cached) {
+      const d = __cached?.data ?? __cached;
+      setForm({
+        date: d.date ? fmtDate(d.date) : "",
+        visitor_name: d.visitor_name || "",
+        visitor_phone: d.visitor_phone || "",
+        purpose: d.purpose || "",
+        time_in: d.time_in ? d.time_in.substring(0, 5) : "",
+        time_out: d.time_out ? d.time_out.substring(0, 5) : "",
+        met_with: d.met_with || "",
+        notes: d.notes || "",
+      });
+      if (d.met_with) setStaffSearch(d.met_with);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/visitor-logs/${id}`);
       const d = res.data?.data || res.data;

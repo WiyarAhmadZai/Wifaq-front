@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -14,6 +14,8 @@ export default function VisitorLogShow() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache(`/hr/visitor-logs/${id}`);
+    if (__cached) { setData(__cached?.data ?? __cached); setLoading(false); }
     get(`/hr/visitor-logs/${id}`)
       .then((res) => setData(res.data?.data || res.data))
       .catch(() => Swal.fire("Error", "Failed to load visitor log", "error"))

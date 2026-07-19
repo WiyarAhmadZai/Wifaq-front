@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, post, del } from '../../api/axios';
+import { get, post, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../admin/context/AuthContext';
 import Can from '../../admin/guards/Can';
@@ -38,6 +38,12 @@ export default function Classes() {
       if (search) params.append('search', search);
       if (filterGrade) params.append('grade_id', filterGrade);
       if (filterStatus) params.append('status', filterStatus);
+      const __cached = peekCache(`/class-management/classes/list?${params.toString()}`);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        if (__cached?.meta) setMeta(__cached.meta);
+        setLoading(false);
+      }
       const res = await get(`/class-management/classes/list?${params.toString()}`);
       setItems(res.data?.data || []);
       if (res.data?.meta) setMeta(res.data.meta);
@@ -56,10 +62,14 @@ export default function Classes() {
   useEffect(() => {
     (async () => {
       try {
+        const __g = peekCache('/grades/list');
+        if (__g) setGrades(__g?.data || []);
         const res = await get('/grades/list');
         setGrades(res.data?.data || []);
       } catch {}
       try {
+        const __t = peekCache('/academic-terms/list');
+        if (__t) setAcademicTerms(__t?.data || []);
         const res = await get('/academic-terms/list');
         setAcademicTerms(res.data?.data || []);
       } catch {}
@@ -269,6 +279,9 @@ export default function Classes() {
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => navigate(`/class-management/classes/students/${item.id}`)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Students">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        </button>
                         <button onClick={() => navigate(`/class-management/classes/show/${item.id}`)} className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                         </button>

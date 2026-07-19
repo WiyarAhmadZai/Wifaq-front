@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
@@ -45,6 +45,13 @@ export default function ClassesShow() {
     (async () => {
       setLoading(true);
       try {
+        const __cached = peekCache(`/class-management/classes/show/${id}`);
+        if (__cached) {
+          setItem(__cached?.data ?? __cached);
+          const __sCached = peekCache(`/class-management/schedule/class?class_id=${id}`);
+          if (__sCached) setSchedule(__sCached);
+          setLoading(false);
+        }
         const res = await get(`/class-management/classes/show/${id}`);
         setItem(res.data?.data);
         // Fetch schedule

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { createQuestionnaire, updateQuestionnaire, getQuestionnaire } from "../../api/questionnaires";
+import { peekCache } from "../../api/axios";
 import { DateField } from "../../components/hr/HrUI";
 
 const input = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500";
@@ -25,6 +26,15 @@ export default function QuestionnaireForm() {
 
   useEffect(() => {
     if (!isEdit) return;
+    const seed = (q) => {
+      setForm({ title: q.title || "", topic: q.topic || "", description: q.description || "", week_of: q.week_of?.slice(0, 10) || "", is_public: q.is_public ?? true });
+      setQuestions((q.questions || []).length ? q.questions.map((qq) => ({
+        text: qq.text, type: qq.type,
+        options: qq.type === "choice" ? (qq.options || []).map((o) => o.text) : [],
+      })) : [blankQuestion()]);
+    };
+    const __cached = peekCache(`/questionnaires/${id}`);
+    if (__cached && (__cached?.data)) { seed(__cached.data); setLoading(false); }
     getQuestionnaire(id).then((r) => {
       const q = r.data?.data;
       if (q) {

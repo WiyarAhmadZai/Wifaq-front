@@ -4,6 +4,7 @@ import {
   listStock, deleteStock,
   issueStock, adjustStock, getStockMovements,
 } from "../../api/stock";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -38,6 +39,12 @@ export default function Stock() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache("/purchase/stock/index", {});
+      if (__cached) {
+        const cachedRows = __cached?.data?.data || __cached?.data || [];
+        setItems(Array.isArray(cachedRows) ? cachedRows : []);
+        setLoading(false);
+      }
       const r = await listStock();
       const rows = r.data?.data?.data || r.data?.data || [];
       setItems(Array.isArray(rows) ? rows : []);
@@ -410,6 +417,8 @@ function HistoryDrawer({ stock, onClose }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache(`/purchase/stock/movements/${stock.id}`);
+    if (__cached) { setRows(__cached?.data?.movements || []); setLoading(false); }
     getStockMovements(stock.id)
       .then((r) => setRows(r.data?.data?.movements || []))
       .catch(() => setRows([]))

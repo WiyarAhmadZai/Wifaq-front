@@ -47,6 +47,7 @@ const RULES = [
   { prefix: "/class-management/exams", permission: "classes.view" }, // legacy — share classes perm
 
   // Education & Formation — student observation
+  { prefix: "/education/4d-self-rating", permission: "student-profiles.view" },
   { prefix: "/education/dashboard", permission: "student-observations.view" },
   { prefix: "/education/observations", permission: "student-observations.view" },
   { prefix: "/education/monitoring", permission: "student-monitoring.view" },
@@ -105,6 +106,7 @@ const RULES = [
   { prefix: "/student-management/enrolled-students", permission: "enrolled-students.view" },
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   { prefix: "/student-management/student-enrollments", permission: "student-enrollments.view" },
+  { prefix: "/student-management/students/profile", permission: "student-profiles.view" },
   { prefix: "/student-management/students", permission: "students.view" },
   { prefix: "/student-management/parents", permission: "parents.view" },
   { prefix: "/student-management/grades", permission: "grades.view" },
@@ -189,6 +191,12 @@ const PUBLIC_PATHS = new Set([
   // authenticated user may open it. The sidebar link is gated by
   // questionnaires.answer so only parents actually see it.
   "/my-questionnaire",
+  // Parent portal — a parent's own children's homework + grades. Backend
+  // (/api/parent/gradebook/*) is withoutMiddleware('path.permission') and
+  // verifies Family.user_id ownership, so any authenticated user may open the
+  // page; it just shows their own children. The sidebar link is gated by the
+  // parent role so only parents see it.
+  "/my-children",
 ]);
 
 /**

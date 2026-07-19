@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -186,6 +186,13 @@ export default function Exams() {
 
   const fetchFormData = async () => {
     try {
+      const __c = peekCache("/class-management/exams/form-data");
+      if (__c) {
+        const cd = __c?.data || {};
+        setFormData(cd);
+        const ct = (cd.terms || []).find((t) => t.is_current) || cd.terms?.[0];
+        if (ct) setSelectedTerm(ct.id);
+      }
       const res = await get("/class-management/exams/form-data");
       const d = res.data?.data || {};
       setFormData(d);
@@ -230,6 +237,10 @@ export default function Exams() {
       setExams(cached);
       // skip the loader so the page feels instant; refetch silently in background
       showLoading = false;
+    } else {
+      // Fall back to the persisted (cross-session) API cache for instant paint
+      const __persisted = peekCache(`/class-management/exams/list?${cacheKey}`);
+      if (__persisted) { setExams(__persisted?.data || []); showLoading = false; }
     }
 
     if (showLoading) setLoading(true);

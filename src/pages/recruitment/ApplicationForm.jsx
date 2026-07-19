@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors, fmtDate } from "../../utils/formErrors";
 
@@ -120,8 +120,44 @@ export default function ApplicationForm() {
     }
   };
 
+  const mapApplication = (d) => {
+    let formattedDate = "";
+    if (d.date_of_birth) {
+      const date = new Date(d.date_of_birth);
+      formattedDate = date.toISOString().split('T')[0];
+    }
+    setFormData({
+      job_posting_id: d.job_posting_id || "",
+      full_name: d.full_name || "",
+      contact_number: d.contact_number || "",
+      email: d.email || "",
+      date_of_birth: formattedDate,
+      current_address: d.current_address || "",
+      place_of_origin: d.place_of_origin || "",
+      introduction: d.introduction || "",
+      facebook: d.facebook || "",
+      instagram: d.instagram || "",
+      twitter_x: d.twitter_x || "",
+      youtube: d.youtube || "",
+      motivation: d.motivation || "",
+      education_level: d.education_level || "",
+      field_of_study: d.field_of_study || "",
+      institution_name: d.institution_name || "",
+      total_experience_years: d.total_experience_years || 0,
+      unique_skill: d.unique_skill?.length > 0 ? d.unique_skill : [""],
+    });
+    if (d.met_requirements && Array.isArray(d.met_requirements)) {
+      setMetRequirements(d.met_requirements);
+    }
+    if (d.work_experiences && d.work_experiences.length > 0) {
+      setWorkExperiences(d.work_experiences);
+    }
+  };
+
   const fetchApplication = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/applications/${id}`);
+    if (__cached) { mapApplication(__cached?.data || __cached); setLoading(false); }
     try {
       const response = await get(`/recruitment/applications/${id}`);
       const d = response.data?.data || response.data;

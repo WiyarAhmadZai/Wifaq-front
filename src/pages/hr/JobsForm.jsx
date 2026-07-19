@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 import { DateField } from "../../components/hr/HrUI";
@@ -35,6 +35,25 @@ export default function JobsForm() {
 
   const fetchJob = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/jobs/${id}`);
+    if (__cached) {
+      const job = __cached?.data || __cached;
+      setFormData({
+        position: job.position || '',
+        department: job.department || '',
+        location: job.location || '',
+        employment_type: job.employment_type || 'full_time',
+        seats: job.seats || '',
+        salary_range: job.salary_range || '',
+        description: job.description || '',
+        requirements: job.requirements || '',
+        responsibilities: job.responsibilities || '',
+        benefits: job.benefits || '',
+        deadline: job.deadline || '',
+        status: job.status || 'draft'
+      });
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/jobs/${id}`);
       const job = response.data?.data || response.data;

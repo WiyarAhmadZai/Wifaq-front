@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -48,6 +48,8 @@ export default function CandidatePoolShow() {
 
   const fetchPool = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/candidate-pool/${id}`);
+    if (__cached) { setPool(__cached?.data || __cached); setMembers(__cached?.members || []); setLoading(false); }
     try {
       const response = await get(`/recruitment/candidate-pool/${id}`);
       setPool(response.data?.data || response.data);

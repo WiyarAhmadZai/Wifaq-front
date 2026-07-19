@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -24,6 +24,8 @@ export default function LessonPlanShow() {
 
   const load = useCallback(() => {
     setLoading(true);
+    const __cached = peekCache(`/lesson-plans/${id}`);
+    if (__cached) { setPlan(__cached?.data || null); setLoading(false); }
     get(`/lesson-plans/${id}`)
       .then((r) => setPlan(r.data?.data || null))
       .catch(() => { Swal.fire("Error", "Could not load this lesson plan.", "error"); navigate(-1); })

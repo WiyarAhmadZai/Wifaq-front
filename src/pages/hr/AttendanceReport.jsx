@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -30,6 +30,11 @@ export default function AttendanceReport() {
   }, []);
 
   const fetchEmployees = async () => {
+    const __cached = peekCache("/hr/staff/list?per_page=1000");
+    if (__cached) {
+      const staffData = __cached?.data || __cached || [];
+      setEmployees(Array.isArray(staffData) ? staffData : []);
+    }
     try {
       const response = await get("/hr/staff/list?per_page=1000");
       const staffData = response.data?.data || response.data || [];
@@ -54,6 +59,11 @@ export default function AttendanceReport() {
         queryParams.append("employee_id", filters.employee_id);
       }
 
+      const __cached = peekCache(`/hr/attendances/report?${queryParams.toString()}`);
+      if (__cached) {
+        setReportData(__cached);
+        setLoading(false);
+      }
       const response = await get(
         `/hr/attendances/report?${queryParams.toString()}`,
       );

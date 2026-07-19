@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { get, post } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { TEAL, TEAL_LT, GOLD } from "./lessonPlanUi";
 
@@ -16,6 +16,15 @@ export default function ReflectionModal({ plan, onClose, onSaved }) {
 
   useEffect(() => {
     let alive = true;
+    const __cached = peekCache(`/lesson-plans/${plan.id}`);
+    if (__cached) {
+      const ref = __cached?.data?.reflection;
+      if (ref) setForm({
+        what_worked: ref.what_worked || "", what_to_change: ref.what_to_change || "",
+        next_time: ref.next_time || "", support_request: ref.support_request || "", rating: ref.rating || 0,
+      });
+      setLoading(false);
+    }
     get(`/lesson-plans/${plan.id}`)
       .then((r) => {
         const ref = r.data?.data?.reflection;

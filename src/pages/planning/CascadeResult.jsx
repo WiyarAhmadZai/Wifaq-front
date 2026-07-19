@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getPlan } from "../../api/planning";
+import { peekCache } from "../../api/axios";
 import { PageHeader, Section, Spinner, EmptyState } from "../../components/hr/HrUI";
 import { fmtDateTime } from "../../utils/formErrors";
 
@@ -13,6 +14,8 @@ export default function CascadeResult() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache(`/planning/plans/${id}`);
+    if (__cached) { setPlan(__cached?.data ?? __cached); setLoading(false); }
     getPlan(id).then((r) => setPlan(r.data?.data || r.data)).catch(() => setPlan(null)).finally(() => setLoading(false));
   }, [id]);
 

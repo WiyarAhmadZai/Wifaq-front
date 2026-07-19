@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { getMyQuestionnaire, respondMyQuestionnaire, uploadAnswerFile } from "../../api/questionnaires";
+import { peekCache } from "../../api/axios";
 
 const TEAL = "#0d9488";
 
@@ -28,6 +29,8 @@ export default function MyQuestionnaire() {
   };
 
   useEffect(() => {
+    const __cached = peekCache("/my-questionnaire");
+    if (__cached) { setQ(__cached?.data || null); setAlreadyDone(!!__cached?.already_submitted); setLoading(false); }
     getMyQuestionnaire()
       .then((r) => { setQ(r.data?.data || null); setAlreadyDone(!!r.data?.already_submitted); })
       .catch(() => setQ(null))

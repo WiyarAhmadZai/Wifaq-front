@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 import { TEAL, TEAL_LT, GOLD, PAPER, Hero, Spinner, StatusPill, DimensionDots } from "./lessonPlanUi";
 
@@ -10,6 +10,8 @@ export default function LessonPlanDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const __cached = peekCache("/lesson-plans/dashboard");
+    if (__cached) { setData(__cached); setLoading(false); }
     get("/lesson-plans/dashboard")
       .then((r) => setData(r.data))
       .catch(() => setData(null))

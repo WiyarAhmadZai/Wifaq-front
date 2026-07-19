@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 const Icons = {
   Plus: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>),
   Eye: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>),
@@ -83,6 +84,7 @@ const getPeriodInfo = (item) => {
 
 export default function VendorContracts() {
   const navigate = useNavigate();
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions('vendor-contracts');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: "", contract_type: "", search: "" });
@@ -95,6 +97,12 @@ export default function VendorContracts() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache("/hr/vendor-contracts/list");
+      if (__cached) {
+        const __cd = __cached?.data || __cached || [];
+        setItems(Array.isArray(__cd) ? __cd : []);
+        setLoading(false);
+      }
       const res = await get("/hr/vendor-contracts/list");
       const data = res.data?.data || res.data || [];
       setItems(Array.isArray(data) ? data : []);
@@ -190,10 +198,12 @@ export default function VendorContracts() {
           <h1 className="text-lg font-bold text-gray-800">Vendor Contracts</h1>
           <p className="text-xs text-gray-400 mt-0.5">Manage external supplier and service contracts</p>
         </div>
-        <button onClick={() => navigate("/hr/vendor-contracts/create")}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
-          <Icons.Plus /> New Vendor Contract
-        </button>
+        {canCreate && (
+          <button onClick={() => navigate("/hr/vendor-contracts/create")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm">
+            <Icons.Plus /> New Vendor Contract
+          </button>
+        )}
       </div>
 
       {/* Stat cards */}
@@ -332,28 +342,34 @@ export default function VendorContracts() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          {showRenew && (
+                          {showRenew && canCreate && (
                             <button onClick={() => openRenew(item)}
                               className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Renew / Extend">
                               <Icons.Renew />
                             </button>
                           )}
-                          <button onClick={(e) => handleStatusUpdate(e, item)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
-                            <Icons.Status />
-                          </button>
+                          {canUpdate && (
+                            <button onClick={(e) => handleStatusUpdate(e, item)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
+                              <Icons.Status />
+                            </button>
+                          )}
                           <button onClick={() => navigate(`/hr/vendor-contracts/show/${item.id}`)}
                             className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                             <Icons.Eye />
                           </button>
-                          <button onClick={() => navigate(`/hr/vendor-contracts/edit/${item.id}`)}
-                            className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                            <Icons.Edit />
-                          </button>
-                          <button onClick={(e) => handleDelete(e, item.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                            <Icons.Trash />
-                          </button>
+                          {canUpdate && (
+                            <button onClick={() => navigate(`/hr/vendor-contracts/edit/${item.id}`)}
+                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                              <Icons.Edit />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={(e) => handleDelete(e, item.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                              <Icons.Trash />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -370,10 +386,12 @@ export default function VendorContracts() {
               </div>
               <p className="text-sm font-medium text-gray-600">No vendor contracts found</p>
               <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filters</p>
-              <button onClick={() => navigate("/hr/vendor-contracts/create")}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">
-                <Icons.Plus /> Create First Contract
-              </button>
+              {canCreate && (
+                <button onClick={() => navigate("/hr/vendor-contracts/create")}
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">
+                  <Icons.Plus /> Create First Contract
+                </button>
+              )}
             </div>
           )}
 

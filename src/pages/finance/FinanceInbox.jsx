@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, put, post } from "../../api/axios";
+import { get, put, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -27,6 +27,8 @@ export default function FinanceInbox() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
+      const __cached = peekCache("/notifications");
+      if (__cached) { setItems(__cached?.data || []); setUnreadCount(__cached?.unread_count || 0); setLoading(false); }
       const res = await get("/notifications");
       setItems(res.data?.data || []);
       setUnreadCount(res.data?.unread_count || 0);

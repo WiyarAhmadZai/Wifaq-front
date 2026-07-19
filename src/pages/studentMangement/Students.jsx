@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { put, get } from "../../api/axios";
+import { put, get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import CrudPage from "../../components/CrudPage";
 
@@ -213,6 +213,10 @@ export default function Students() {
   const [grades, setGrades] = useState([]);
   const [classes, setClasses] = useState([]);
   useEffect(() => {
+    const __g = peekCache("/grades/list");
+    if (__g) setGrades((__g?.data || __g || []).map((g) => ({ value: g.id, label: g.name })));
+    const __c = peekCache("/class-management/classes/list?per_page=1000");
+    if (__c) setClasses((__c?.data || __c || []).map((c) => ({ value: c.id, label: c.class_name })));
     get("/grades/list").then((r) => setGrades((r.data?.data || r.data || []).map((g) => ({ value: g.id, label: g.name })))).catch(() => {});
     get("/class-management/classes/list?per_page=1000").then((r) => setClasses((r.data?.data || r.data || []).map((c) => ({ value: c.id, label: c.class_name })))).catch(() => {});
   }, []);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
-import { get, put, post, del } from '../api/axios';
+import { get, put, post, del, peekCache } from '../api/axios';
 import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
 import Select2 from '../components/hr/Select2';
@@ -36,6 +36,9 @@ export default function MyProfile() {
 
   const fetchProfile = async () => {
     setLoading(true);
+    const __endpoint = userId ? `/profile/${userId}` : '/profile';
+    const __cached = peekCache(__endpoint);
+    if (__cached?.data) { setProfile(__cached.data); setLoading(false); }
     try {
       const endpoint = userId ? `/profile/${userId}` : '/profile';
       const res = await get(endpoint);

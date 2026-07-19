@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { listPurchaseRequests, deletePurchaseRequest } from "../../api/purchaseRequests";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import ListExportActions from "../../components/ListExportActions";
 
@@ -52,6 +53,12 @@ export default function PurchaseRequests() {
       const params = { per_page: 100 };
       if (filter !== "all") params.status = filter;
       if (search) params.search = search;
+      const __cached = peekCache("/purchase/purchase-requests", params);
+      if (__cached) {
+        const rows = __cached?.data?.data || __cached?.data || [];
+        setItems(Array.isArray(rows) ? rows : []);
+        setLoading(false);
+      }
       const response = await listPurchaseRequests(params);
       // Backend returns a Laravel paginator → rows in response.data.data
       const rows = response.data?.data?.data || response.data?.data || [];

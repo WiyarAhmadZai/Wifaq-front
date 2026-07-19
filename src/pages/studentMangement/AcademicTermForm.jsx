@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -30,6 +30,8 @@ export default function AcademicTermForm() {
 
   const fetchTerm = async () => {
     setLoading(true);
+    const __cached = peekCache(`/academic-terms/show/${id}`);
+    if (__cached) { setFormData(__cached); setLoading(false); }
     try {
       const response = await get(`/academic-terms/show/${id}`);
       setFormData(response.data);

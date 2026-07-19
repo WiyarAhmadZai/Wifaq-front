@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
@@ -245,6 +245,11 @@ export default function MeetingShow() {
   });
 
   const loadMeeting = useCallback(() => {
+    const __cached = peekCache(`/meetings/${id}`);
+    if (__cached) {
+      setData(__cached?.data || __cached);
+      setLoading(false);
+    }
     return get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data));
   }, [id]);
 

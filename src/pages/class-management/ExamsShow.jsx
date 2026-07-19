@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { get, del } from "../../api/axios";
+import { get, del, peekCache } from "../../api/axios";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 import { fmtDate } from "../../utils/formErrors";
@@ -46,6 +46,8 @@ export default function ExamsShow() {
   const fetchExam = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/class-management/exams/show/${id}`);
+      if (__cached) { setExam(__cached?.data || __cached); setLoading(false); }
       const res = await get(`/class-management/exams/show/${id}`);
       setExam(res.data?.data || res.data);
     } catch (err) {

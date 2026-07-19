@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { post } from '../api/axios';
+import { post, clearApiCache } from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../admin/context/AuthContext';
 
@@ -29,6 +29,10 @@ export default function Login() {
     try {
       const response = await post('/login', formData);
       const { token, user } = response.data;
+
+      // A fresh login may be a different user on this browser — drop any API
+      // cache belonging to the previous session so no stale rows leak across.
+      clearApiCache();
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));

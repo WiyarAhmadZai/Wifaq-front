@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, API_BASE_URL } from "../../api/axios";
+import { get, post, API_BASE_URL, peekCache } from "../../api/axios";
 import { listDepartments } from "../../api/departments";
 import Swal from "sweetalert2";
 
@@ -162,8 +162,41 @@ export default function StaffForm() {
     }
   };
 
+  const seedStaff = (d) => {
+    setForm(prev => ({
+      ...prev,
+      application_id: d.application_id || "",
+      father_name: d.father_name || "",
+      blood_type: d.blood_type || "",
+      branch_id: d.branch_id || "",
+      department: d.department || "",
+      department_id: d.department_id || "",
+      role_title_en: d.role_title_en || "",
+      contract_type: d.contract_type || "",
+      status: d.status || "active",
+    }));
+    if (d.profile_photo) {
+      setPhotoPreview(`${API_BASE_URL.replace(/\/api\/?$/, '')}/storage/${d.profile_photo}`);
+    }
+    if (d.application) {
+      setSelectedApplicant({
+        ...d.application,
+        position: d.role_title_en || d.application.job_posting?.requisition?.position_title || d.application.job_posting?.title || '',
+        department: d.department || d.application.job_posting?.requisition?.department || '',
+        employment_type: d.contract_type || d.application.job_posting?.requisition?.employment_type || '',
+        documents: d.application.documents || [],
+        offer: d.application.offer,
+      });
+    }
+  };
+
   const loadStaff = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/staff/show/${id}`);
+    if (__cached) {
+      seedStaff(__cached?.data || __cached);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/staff/show/${id}`);
       const d = res.data?.data || res.data;

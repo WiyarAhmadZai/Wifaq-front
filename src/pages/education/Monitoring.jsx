@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 
@@ -38,11 +38,15 @@ export default function Monitoring() {
 
   const loadBoard = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/student-monitorings");
+    if (__cached) { setBoard(__cached?.data || []); setCanManage(!!__cached?.can_manage); setLoading(false); }
     try { const r = await get("/student-monitorings"); setBoard(r.data?.data || []); setCanManage(!!r.data?.can_manage); }
     catch { setBoard([]); } finally { setLoading(false); }
   }, []);
   const loadFollowups = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache("/student-monitorings/followups");
+    if (__cached) { setFollowups(__cached?.data || []); setLoading(false); }
     try { const r = await get("/student-monitorings/followups"); setFollowups(r.data?.data || []); }
     catch { setFollowups([]); } finally { setLoading(false); }
   }, []);
@@ -51,6 +55,8 @@ export default function Monitoring() {
 
   const pick = async (row) => {
     setSelected(row); setAssignMentor(row.this_month?.mentor_id || ""); setDetailFollowups([]);
+    const __cached = peekCache(`/student-monitorings/followups?student_id=${row.student_id}`);
+    if (__cached) { setDetailFollowups(__cached?.data || []); }
     try { const r = await get(`/student-monitorings/followups?student_id=${row.student_id}`); setDetailFollowups(r.data?.data || []); } catch { setDetailFollowups([]); }
   };
 

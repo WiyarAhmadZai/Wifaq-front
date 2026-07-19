@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -28,6 +28,16 @@ export default function RouteForm() {
 
   const fetchRoute = async () => {
     setLoading(true);
+    const __cached = peekCache(`/transportation/routes/show/${id}`);
+    if (__cached) {
+      const routeData = __cached?.data ?? __cached;
+      setFormData({
+        route_name: routeData.route_name || "",
+        description: routeData.description || "",
+        is_active: routeData.is_active ?? true,
+      });
+      setLoading(false);
+    }
     try {
       const response = await get(`/transportation/routes/show/${id}`);
       const routeData = response.data?.data || response.data;

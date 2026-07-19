@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -107,8 +107,48 @@ export default function MeetingForm() {
 
   const clearAllParticipants = () => setParticipants([]);
 
+  const seedMeeting = (d) => {
+    const startIso = d.start_time ? String(d.start_time).replace(" ", "T") : "";
+    const endIso   = d.end_time   ? String(d.end_time).replace(" ", "T")   : "";
+    setForm({
+      title: d.title || "",
+      description: d.description || "",
+      meeting_date: startIso ? startIso.substring(0, 10) : "",
+      start_time: startIso ? startIso.substring(11, 16) : "",
+      end_time:   endIso   ? endIso.substring(11, 16)   : "",
+      location: d.location || "",
+      status: d.status || "scheduled",
+      meeting_type: d.meeting_type || "routine",
+      reminder_minutes_before:
+        d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
+          ? 180
+          : Number(d.reminder_minutes_before),
+      recurrence: d.recurrence || "",
+      recurrence_until: d.recurrence_until ? String(d.recurrence_until).substring(0, 10) : "",
+    });
+    if (d.participants?.length) {
+      setParticipants(d.participants.map((p) => ({
+        id: p.id,
+        name: p.name || `User #${p.id}`,
+      })));
+    }
+    if (d.agenda_items?.length) {
+      setAgendaItems(d.agenda_items.map((a) => ({
+        title: a.title || "",
+        description: a.description || "",
+        assigned_to_id: a.assigned_to_id || "",
+        duration_min: a.duration_min || "",
+      })));
+    }
+  };
+
   const loadMeeting = async () => {
     setLoading(true);
+    const __cached = peekCache(`/meetings/${id}`);
+    if (__cached) {
+      seedMeeting(__cached?.data || __cached);
+      setLoading(false);
+    }
     try {
       const res = await get(`/meetings/${id}`);
       const d = res.data?.data || res.data;

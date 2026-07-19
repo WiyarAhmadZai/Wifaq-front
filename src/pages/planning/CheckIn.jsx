@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { getPlan, storeCheckIn } from "../../api/planning";
+import { peekCache } from "../../api/axios";
 import { PageHeader, Section, Spinner, InfoNote } from "../../components/hr/HrUI";
 import { DimensionBadge, ProgressBar } from "./planUtils";
 
@@ -17,6 +18,22 @@ export default function CheckIn() {
   const [draft, setDraft] = useState({}); // kr.id -> {current_value, confidence_score, flag_at_risk, narrative}
 
   useEffect(() => {
+    const __cached = peekCache(`/planning/plans/${id}`);
+    if (__cached) {
+      const p = __cached?.data ?? __cached;
+      setPlan(p);
+      const seed = {};
+      (p.objectives || []).forEach((o) => (o.key_results || []).forEach((k) => {
+        seed[k.id] = {
+          current_value: k.current_value ?? "",
+          confidence_score: k.confidence_score ?? "",
+          flag_at_risk: !!k.at_risk,
+          narrative: "",
+        };
+      }));
+      setDraft(seed);
+      setLoading(false);
+    }
     getPlan(id).then((r) => {
       const p = r.data?.data || r.data;
       setPlan(p);

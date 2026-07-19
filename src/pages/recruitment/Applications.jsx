@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import ListExportActions from "../../components/ListExportActions";
 
@@ -72,7 +72,16 @@ export default function Applications() {
       if (status !== "all") params.append("status", status);
       if (search) params.append("search", search);
 
-      const response = await get(`/recruitment/applications?${params.toString()}`);
+      const __url = `/recruitment/applications?${params.toString()}`;
+      const __cached = peekCache(__url);
+      if (__cached) {
+        const __d = __cached?.data || [];
+        setItems(Array.isArray(__d) ? __d : []);
+        if (__cached?.meta) setMeta(__cached.meta);
+        setLoading(false);
+      }
+
+      const response = await get(__url);
       const data = response.data?.data || [];
       setItems(Array.isArray(data) ? data : []);
       if (response.data?.meta) setMeta(response.data.meta);
@@ -85,6 +94,14 @@ export default function Applications() {
 
   const fetchCounts = async () => {
     try {
+      const __cachedCounts = peekCache("/recruitment/applications?per_page=9999");
+      if (__cachedCounts) {
+        const __all = __cachedCounts?.data || [];
+        const __counts = {};
+        pipelineStages.forEach((s) => { __counts[s.key] = 0; });
+        __all.forEach((item) => { if (__counts[item.status] !== undefined) __counts[item.status]++; });
+        setStageCounts(__counts);
+      }
       const response = await get("/recruitment/applications?per_page=9999");
       const all = response.data?.data || [];
       const counts = {};

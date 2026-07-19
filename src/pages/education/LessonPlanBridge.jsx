@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import { TEAL, GOLD, PAPER, DAY_LABEL, Hero, Spinner, StatusPill } from "./lessonPlanUi";
 
@@ -17,6 +17,8 @@ export default function LessonPlanBridge() {
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
+    const __cached = peekCache("/lesson-plans/bridge");
+    if (__cached) { setData(__cached); setLoading(false); }
     get("/lesson-plans/bridge")
       .then((r) => setData(r.data))
       .catch((e) => { if (e.response?.status === 403) setForbidden(true); })

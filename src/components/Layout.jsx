@@ -1006,7 +1006,7 @@ function ProfileButton() {
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasPermission, isSuperAdmin } = useAuth();
+  const { hasPermission, isSuperAdmin, hasRole } = useAuth();
   const [openMenu, setOpenMenu] = useState([]);
   const [openSubMenu, setOpenSubMenu] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1142,6 +1142,7 @@ export default function Layout() {
     { label: "Permissions", path: "/admin/permissions", permission: "permissions.view" },
     { label: "Users & Access", path: "/admin/users", permission: "users.view" },
     { label: "Activity Log", path: "/admin/activity-logs", permission: "activity-logs.view" },
+    { label: "Trash", path: "/admin/trash", permission: "trash.view" },
     // No `permission` → visible to super-admins only (matches the route guard).
     { label: "Chat Settings", path: "/admin/chat-settings" },
   ];
@@ -1172,6 +1173,7 @@ export default function Layout() {
     { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
     { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
+    { label: "Record 4D Rating", path: "/education/4d-self-rating", permission: "student-profiles.update" },
     { label: "Student Cards", path: "/education/cards", permission: "student-cards.view" },
     { label: "Card Rankings", path: "/education/card-rankings", permission: "student-card-rankings.view" },
   ];
@@ -1186,6 +1188,15 @@ export default function Layout() {
     { label: "Coverage Map", path: "/education/lesson-plans/coverage", permission: "lesson-plans.analyze" },
     { label: "Curriculum Sync", path: "/education/lesson-plans/curriculum", permission: "lesson-plans.analyze" },
     { label: "Plan Templates", path: "/education/lesson-plans/templates", permission: "lesson-plans.view" },
+  ];
+  const gradebookMenus = [
+    { label: "Gradebook", path: "/education/gradebook", permission: "gradebook.view" },
+    { label: "Homework Queue", path: "/education/gradebook/homework", permission: "gradebook.view" },
+    { label: "Assign Homework", path: "/education/gradebook/homework/new", permission: "gradebook.create" },
+    { label: "Assessments", path: "/education/gradebook/assessments", permission: "gradebook.view" },
+    { label: "Term Exams", path: "/education/gradebook/term-exams", permission: "gradebook.create" },
+    { label: "Promotion Board", path: "/education/gradebook/promotion", permission: "gradebook.view" },
+    { label: "Analytics", path: "/education/gradebook/analytics", permission: "gradebook.analyze" },
   ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
@@ -1461,6 +1472,18 @@ export default function Layout() {
           </ParentMenu>
           )}
 
+          {/* Parent portal — only for parent accounts. */}
+          {hasRole("parent") && (
+          <ParentMenu
+            icon={Icons.Teacher}
+            label="My Children"
+            isOpen={openMenu.includes("my-children")}
+            onClick={() => toggleMenu("my-children")}
+          >
+            <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
+          </ParentMenu>
+          )}
+
           {canSeeGroup(recruitmentMenus) && (
           <ParentMenu
             icon={Icons.Departments}
@@ -1480,7 +1503,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(lessonPlanMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -1505,6 +1528,19 @@ export default function Layout() {
               onClick={() => toggleMenu("lesson-planning")}
             >
               {visible(lessonPlanMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(gradebookMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Gradebook & Homework"
+              isOpen={openMenu.includes("gradebook")}
+              onClick={() => toggleMenu("gradebook")}
+            >
+              {visible(gradebookMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

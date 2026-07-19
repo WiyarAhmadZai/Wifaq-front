@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -58,6 +58,29 @@ export default function AgreementsForm() {
 
   const fetchAgreement = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/agreements/show/${id}`);
+    if (__cached) {
+      const d = __cached;
+      setForm({
+        partner_name: d.partner_name || "",
+        partner_type: d.partner_type || "institution",
+        representative_name: d.representative_name || "",
+        representative_position: d.representative_position || "",
+        contact_phone: d.contact_phone || "",
+        contact_email: d.contact_email || "",
+        partner_address: d.partner_address || "",
+        collaboration_area: d.collaboration_area || "education",
+        purpose: d.purpose || "",
+        scope: d.scope || "",
+        terms: d.terms || "",
+        benefits: d.benefits || "",
+        obligations: d.obligations || "",
+        start_date: d.start_date?.split("T")[0] || "",
+        end_date: d.end_date?.split("T")[0] || "",
+        notes: d.notes || "",
+      });
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/agreements/show/${id}`);
       const d = res.data;

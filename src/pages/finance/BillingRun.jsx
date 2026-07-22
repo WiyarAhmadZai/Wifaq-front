@@ -378,6 +378,7 @@ function Checkbox({ checked, onChange, label }) {
  */
 const EXPORT_COLUMNS = [
   { key: "student_name", label: "Student" },
+  { key: "father_name", label: "Father Name" },
   { key: "school_class_name", label: "Class" },
   { key: "status", label: "Status" },
   { key: "tuition", label: "Tuition" },
@@ -408,6 +409,7 @@ function PreviewPanel({
     );
     return {
       student_name: row.student_name,
+      father_name: row.father_name || "—",
       school_class_name: row.school_class_name || "—",
       status: (STATUS_META[row.status] || {}).label || row.status,
       tuition: buckets.TUITION,
@@ -481,6 +483,7 @@ function PreviewPanel({
             <tr>
               <th className="w-8 px-2 py-2"></th>
               <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Student</th>
+              <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Father Name</th>
               <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Class</th>
               <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Base</th>
               <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Discount</th>
@@ -516,7 +519,7 @@ function PreviewPanel({
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={11} className="text-center py-8 text-xs text-gray-400">No students match this filter.</td></tr>
+              <tr><td colSpan={12} className="text-center py-8 text-xs text-gray-400">No students match this filter.</td></tr>
             )}
           </tbody>
         </table>
@@ -666,6 +669,7 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
           )}
         </td>
         <td className="px-3 py-2 text-xs font-medium text-gray-800">{row.student_name}</td>
+        <td className="px-3 py-2 text-xs text-gray-600">{row.father_name || "—"}</td>
         <td className="px-3 py-2 text-xs text-gray-600">{row.school_class_name || "—"}</td>
 
         {hasBreakdown ? (
@@ -742,7 +746,7 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
       {isOpen && hasBreakdown && (
         <tr className="bg-gray-50/60">
           <td></td>
-          <td colSpan={10} className="px-3 py-2">
+          <td colSpan={11} className="px-3 py-2">
             <div className="space-y-1">
               {(row.lines || []).map((line) => {
                 const o = overrides[line.fee_item_id];

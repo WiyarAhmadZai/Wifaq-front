@@ -34,23 +34,22 @@ export default function FamilyContactButton({ family }) {
 
   if (phones.length === 0) {
     return (
-      <span className="inline-flex items-center px-2 py-1 text-[10px] text-gray-300" title="No family phone on record">
-        No contact
+      <span className="p-1.5 text-gray-200 cursor-not-allowed" title="No family phone on record">
+        <FiPhone className="w-3.5 h-3.5" />
       </span>
     );
   }
 
   return (
     <div className="relative inline-block" ref={ref}>
+      {/* Compact icon button so it lines up with the other row actions. */}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg"
-        title="Contact family"
+        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+        title="Contact family (WhatsApp / Call)"
       >
-        <FiPhone className="w-3 h-3" />
-        Contact
-        <FiChevronDown className="w-3 h-3" />
+        <FiPhone className="w-3.5 h-3.5" />
       </button>
 
       {open && (

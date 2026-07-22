@@ -185,10 +185,9 @@ export default function EnrolledStudents() {
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setEditStudentId(item.id); }}
                 title="Edit all student data"
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg"
+                className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
               >
-                <FiEdit2 className="w-3 h-3" />
-                Edit
+                <FiEdit2 className="w-3.5 h-3.5" />
               </button>
             )}
           </>

@@ -65,6 +65,32 @@ const fillTemplate = (template, invoice) => {
   );
 };
 
+/** A window of at most 5 page numbers centred on the current page. */
+function buildPageWindow(current, last) {
+  const start = Math.max(1, Math.min(current - 2, last - 4));
+  const end = Math.min(last, start + 4);
+  const pages = [];
+  for (let p = start; p <= end; p++) pages.push(p);
+  return pages;
+}
+
+function PageBtn({ children, onClick, disabled, active }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+        active
+          ? "bg-teal-600 border-teal-600 text-white"
+          : "bg-white border-gray-200 text-gray-600 hover:border-teal-300"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function FeeInvoices() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -74,13 +100,22 @@ export default function FeeInvoices() {
   const [filterMonth, setFilterMonth] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  // Server-side pagination — the API paginates (20/page by default), so without
+  // these the page only ever showed the first 20 of N invoices.
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(25);
+  const [meta, setMeta] = useState(null);
 
   // WhatsApp messaging — selection + modal state
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [waModalInvoices, setWaModalInvoices] = useState(null); // null = closed; array = open
 
-  // Fetch invoices when filters change (server-side filtering)
-  useEffect(() => { fetchInvoices(); }, [filterStatus, filterMonth]);
+  // Fetch invoices when filters or the page change (server-side filtering)
+  useEffect(() => { fetchInvoices(); }, [filterStatus, filterMonth, page, perPage]);
+
+  // Changing a filter or page size resets to page 1 so we can't land on an
+  // out-of-range page for the new, smaller result set.
+  useEffect(() => { setPage(1); }, [filterStatus, filterMonth, perPage]);
 
   // Sync URL ?status= with state
   useEffect(() => {
@@ -105,13 +140,28 @@ export default function FeeInvoices() {
         params.year = Number(y);
         params.month = Number(m);
       }
+      params.page = page;
+      params.per_page = perPage;
+
       const __cached = peekCache('/financial/fees/invoices', params);
       if (__cached) { setItems(__cached?.data?.data || __cached?.data || []); setLoading(false); }
       const response = await getFeeInvoices(params);
-      setItems(response.data?.data?.data || response.data?.data || []);
+      // The API returns a Laravel paginator under `data`, so the rows live at
+      // data.data and the page metadata sits alongside them.
+      const paginator = response.data?.data || {};
+      setItems(paginator.data || (Array.isArray(paginator) ? paginator : []));
+      setMeta(paginator.current_page ? {
+        current_page: paginator.current_page,
+        last_page: paginator.last_page,
+        per_page: paginator.per_page,
+        total: paginator.total,
+        from: paginator.from,
+        to: paginator.to,
+      } : null);
     } catch (error) {
       console.error("Failed to fetch fee invoices:", error);
       setItems([]);
+      setMeta(null);
     } finally {
       setLoading(false);
     }
@@ -454,6 +504,44 @@ export default function FeeInvoices() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination — the API returns 20–25 rows per page, so without this the
+            list silently showed only the first page of a large invoice run. */}
+        {meta && meta.total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 bg-gray-50">
+            <div className="flex items-center gap-3 text-xs text-gray-600">
+              <span>
+                Showing <b className="text-gray-800">{meta.from}–{meta.to}</b> of{" "}
+                <b className="text-gray-800">{meta.total}</b> invoices
+              </span>
+              <label className="flex items-center gap-1.5">
+                <span>Per page</span>
+                <select
+                  value={perPage}
+                  onChange={(e) => setPerPage(Number(e.target.value))}
+                  className="px-2 py-1 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  {[25, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+            </div>
+
+            {meta.last_page > 1 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <PageBtn disabled={meta.current_page === 1} onClick={() => setPage(1)}>« First</PageBtn>
+                <PageBtn disabled={meta.current_page === 1} onClick={() => setPage(meta.current_page - 1)}>‹ Prev</PageBtn>
+                {buildPageWindow(meta.current_page, meta.last_page).map((p) => (
+                  <PageBtn key={p} active={p === meta.current_page} onClick={() => setPage(p)}>{p}</PageBtn>
+                ))}
+                <PageBtn disabled={meta.current_page === meta.last_page} onClick={() => setPage(meta.current_page + 1)}>Next ›</PageBtn>
+                <PageBtn disabled={meta.current_page === meta.last_page} onClick={() => setPage(meta.last_page)}>Last »</PageBtn>
+                <span className="ml-2 text-[11px] text-gray-500">
+                  Page {meta.current_page} of {meta.last_page}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {waModalInvoices && (

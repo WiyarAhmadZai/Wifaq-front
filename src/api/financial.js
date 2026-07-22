@@ -151,6 +151,11 @@ export const getStudentStatement = (studentId, params = {}) => get(`${BASE}/fees
 // Reference data needed by the Billing Run screen
 export const getSchoolClasses = (params = {}) => get('/class-management/classes/list', { params });
 
+// Uniform is a one-off charge per registration year (never monthly).
+// `settle` marks it paid so billing stops adding it; `reset` re-enables one charge.
+export const settleStudentUniform = (studentId) => post(`${BASE}/fees/students/${studentId}/uniform/settle`);
+export const resetStudentUniform = (studentId) => post(`${BASE}/fees/students/${studentId}/uniform/reset`);
+
 // Dashboard / Summary (aggregated on server)
 export const getFinancialOverview = () => get(`${BASE}/dashboard`);
 

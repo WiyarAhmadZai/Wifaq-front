@@ -1,10 +1,14 @@
 import { useState, useEffect } from "react";
 import CrudPage from "../../components/CrudPage";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
+import StudentEditModal from "./StudentEditModal";
+import FamilyContactButton from "./FamilyContactButton";
 import Swal from "sweetalert2";
+import { FiEdit2 } from "react-icons/fi";
 import { generateUniformInvoice } from "../../api/financial";
 import { get, peekCache } from "../../api/axios";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../admin/context/AuthContext";
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -55,7 +59,10 @@ const PHASE_2_PARAMS = { registration_status: "phase_2" };
 
 export default function EnrolledStudents() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission("enrolled-students.update") || hasPermission("enrolled-students.manage");
   const [transferStudent, setTransferStudent] = useState(null);
+  const [editStudentId, setEditStudentId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [grades, setGrades] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -165,16 +172,40 @@ export default function EnrolledStudents() {
           { key: "status", label: "Status", render: statusBadge },
           transferColumn,
         ]}
-        editRoute="/student-management/students/edit"
         showRoute="/student-management/students/show"
         searchable={true}
         searchFields={["first_name", "last_name", "student_id"]}
+        rowActions={(item) => (
+          <>
+            {/* Contact the family — WhatsApp or Call */}
+            <FamilyContactButton family={item.family} />
+            {/* Edit EVERYTHING (phase 1 + phase 2 + family) in a modal */}
+            {canUpdate && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setEditStudentId(item.id); }}
+                title="Edit all student data"
+                className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+              >
+                <FiEdit2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </>
+        )}
       />
 
       {transferStudent && (
         <TransferStepsModal
           student={transferStudent}
           onClose={() => setTransferStudent(null)}
+          onSaved={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
+
+      {editStudentId && (
+        <StudentEditModal
+          studentId={editStudentId}
+          onClose={() => setEditStudentId(null)}
           onSaved={() => setRefreshKey((k) => k + 1)}
         />
       )}

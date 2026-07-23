@@ -342,7 +342,9 @@ export default function CrudPage({
                       </td>
                     ))}
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1 flex-wrap">
+                      {/* nowrap keeps every action on ONE row — the table body
+                          already scrolls horizontally when space is tight. */}
+                      <div className="flex items-center justify-end gap-1 flex-nowrap whitespace-nowrap">
                         {rowActions && rowActions(item, () => fetchItems(meta.current_page, searchQuery))}
                         {canView && showRoute && (
                           <button onClick={() => navigate(`${showRoute}/${item[idField]}`)}

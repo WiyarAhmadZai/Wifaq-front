@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { DateField } from "../../components/hr/HrUI";
+import ListExportActions from "../../components/ListExportActions";
 import {
   previewBillingRun,
   commitBillingRun,
   getSchoolClasses,
+  settleStudentUniform,
 } from "../../api/financial";
 
 /**
@@ -153,6 +155,36 @@ export default function BillingRun() {
     setEdits((prev) => ({ ...prev, [studentId]: { ...(prev[studentId] || {}), prorate } }));
   };
 
+  // Uniform is a ONE-OFF charge per registration year, not a monthly fee.
+  // Marking it paid stamps the student on the server, so the uniform amount is
+  // dropped from this month's invoice (and every following month) — until the
+  // student re-registers for a new academic year, when it is charged once more.
+  const markUniformPaid = async (studentId, studentName, amount) => {
+    const confirm = await Swal.fire({
+      title: "Mark uniform as paid?",
+      html: `Uniform for <b>${studentName}</b> (${fmtMoney(amount)}) will be recorded as settled for this registration year.<br/><br/>`
+        + `It will be <b>removed from this month's invoice</b> and will not be charged again until the next registration.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, uniform is paid",
+      confirmButtonColor: "#0d9488",
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+      await settleStudentUniform(studentId);
+      // Re-run the preview so the row totals reflect the removed uniform line.
+      await handlePreview();
+      Swal.fire({
+        toast: true, position: "top-end", icon: "success",
+        title: "Uniform marked paid — removed from this invoice",
+        timer: 2200, showConfirmButton: false,
+      });
+    } catch (err) {
+      Swal.fire("Failed", err.response?.data?.message || "Could not mark uniform as paid", "error");
+    }
+  };
+
   // --------------------------------------------- Filtered + edited row view
   const visibleRows = useMemo(() => {
     if (!preview?.rows) return [];
@@ -239,15 +271,28 @@ export default function BillingRun() {
                 <select
                   value={scopeClassId}
                   onChange={(e) => setScopeClassId(e.target.value)}
-                  className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-500"
+                  disabled={classes.length === 0}
+                  className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 disabled:bg-gray-50 disabled:text-gray-400"
                 >
-                  <option value="">— pick —</option>
+                  <option value="">
+                    {classes.length === 0 ? "— no classes found —" : "— pick —"}
+                  </option>
+                  {/* SchoolClass exposes `class_name` (not `name`) — using the
+                      wrong key rendered every option as "Class #id". */}
                   {classes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name || `Class #${c.id}`}</option>
+                    <option key={c.id} value={c.id}>
+                      {c.class_name || c.name || `Class #${c.id}`}
+                    </option>
                   ))}
                 </select>
               )}
             </div>
+            {scopeType === "class" && classes.length === 0 && (
+              <p className="mt-1 text-[10px] text-amber-700">
+                No classes exist yet — create them in Class Management, then assign students to a class.
+                Until then use “All students”.
+              </p>
+            )}
           </Field>
         </div>
 
@@ -285,6 +330,8 @@ export default function BillingRun() {
           setLineOverride={setLineOverride}
           setSkip={setSkip}
           setProrate={setProrate}
+          markUniformPaid={markUniformPaid}
+          periodLabel={`${periodYear}-${String(periodMonth).padStart(2, "0")}`}
           editedReadyCount={editedReadyCount}
           editedTotal={editedTotal}
           committing={committing}
@@ -324,12 +371,60 @@ function Checkbox({ checked, onChange, label }) {
   );
 }
 
+/**
+ * Columns used for the Excel / Print export. Mirrors the on-screen table so the
+ * exported file matches exactly what the cashier is looking at — including any
+ * inline overrides, prorate halving and uniform settlements already applied.
+ */
+const EXPORT_COLUMNS = [
+  { key: "student_name", label: "Student" },
+  { key: "father_name", label: "Father Name" },
+  { key: "school_class_name", label: "Class" },
+  { key: "status", label: "Status" },
+  { key: "tuition", label: "Tuition" },
+  { key: "discount", label: "Discount" },
+  { key: "transport", label: "Transport" },
+  { key: "uniform", label: "Uniform" },
+  { key: "other", label: "Other" },
+  { key: "total", label: "Total" },
+  { key: "skipped", label: "Skipped" },
+  { key: "issues", label: "Issues" },
+];
+
 function PreviewPanel({
   preview, filter, setFilter, rows, expanded, setExpanded,
-  edits, setLineOverride, setSkip, setProrate,
-  editedReadyCount, editedTotal, committing, onCommit,
+  edits, setLineOverride, setSkip, setProrate, markUniformPaid,
+  editedReadyCount, editedTotal, committing, onCommit, periodLabel,
 }) {
   const issuesCount = preview.blocked_count + preview.excluded_count + preview.already_invoiced_count;
+
+  // Export exactly the rows currently visible under the active filter tab
+  // (All / Ready / Issues), with the same amounts shown in the table.
+  const exportRows = useMemo(() => (rows || []).map((row) => {
+    const edit = edits[row.student_id] || {};
+    const { buckets, total } = bucketLineAmounts(
+      row.lines,
+      edit.line_overrides || {},
+      !!edit.prorate,
+    );
+    return {
+      student_name: row.student_name,
+      father_name: row.father_name || "—",
+      school_class_name: row.school_class_name || "—",
+      status: (STATUS_META[row.status] || {}).label || row.status,
+      tuition: buckets.TUITION,
+      discount: buckets.DISCOUNT,
+      transport: buckets.TRANSPORT,
+      uniform: buckets.UNIFORM,
+      other: buckets.OTHER,
+      total,
+      skipped: edit.skip ? "Yes" : "No",
+      issues: (row.issues || []).join("; "),
+    };
+  }), [rows, edits]);
+
+  const filterLabel = filter === "ready" ? "Ready" : filter === "issues" ? "Issues" : "All";
+  const exportTitle = `Billing Run ${periodLabel} — ${filterLabel} (${exportRows.length})`;
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -370,6 +465,14 @@ function PreviewPanel({
               {label}
             </button>
           ))}
+
+          {/* Export whatever the active tab is showing */}
+          <ListExportActions
+            getRows={() => exportRows}
+            columns={EXPORT_COLUMNS}
+            title={exportTitle}
+            className="ml-2 [&>button]:px-2.5 [&>button]:py-1 [&>button]:text-[10px] [&>button]:rounded-lg"
+          />
         </div>
       </div>
 
@@ -380,6 +483,7 @@ function PreviewPanel({
             <tr>
               <th className="w-8 px-2 py-2"></th>
               <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Student</th>
+              <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Father Name</th>
               <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Class</th>
               <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Base</th>
               <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Discount</th>
@@ -410,11 +514,12 @@ function PreviewPanel({
                   setLineOverride={(itemId, amt) => setLineOverride(row.student_id, itemId, amt)}
                   setSkip={(s) => setSkip(row.student_id, s)}
                   setProrate={(p) => setProrate(row.student_id, p)}
+                  onUniformPaid={(amt) => markUniformPaid(row.student_id, row.student_name, amt)}
                 />
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={11} className="text-center py-8 text-xs text-gray-400">No students match this filter.</td></tr>
+              <tr><td colSpan={12} className="text-center py-8 text-xs text-gray-400">No students match this filter.</td></tr>
             )}
           </tbody>
         </table>
@@ -516,7 +621,33 @@ function MoneyCell({ amount, present, signClass = "" }) {
   );
 }
 
-function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride, setSkip, setProrate }) {
+/**
+ * Uniform column. Uniform is a ONE-OFF charge per registration year, so when a
+ * row carries a uniform amount the cashier can settle it right here — the
+ * amount is then dropped from this month's invoice (and every later month)
+ * until the student re-registers for a new year.
+ */
+function UniformCell({ amount, present, canSettle, onPaid }) {
+  if (!present) return <td className="px-3 py-2 text-xs text-right text-gray-300">—</td>;
+  return (
+    <td className="px-3 py-2 text-xs text-right font-medium">
+      <div className="flex flex-col items-end gap-0.5">
+        <span>{fmtMoney(amount)}</span>
+        {canSettle && (
+          <button
+            onClick={onPaid}
+            title="Uniform is paid once per year — mark it paid to remove it from this invoice"
+            className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 font-semibold whitespace-nowrap"
+          >
+            Uniform paid ✓
+          </button>
+        )}
+      </div>
+    </td>
+  );
+}
+
+function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride, setSkip, setProrate, onUniformPaid }) {
   const navigate = useNavigate();
   const overrides = edit.line_overrides || {};
   const prorated = !!edit.prorate;
@@ -538,6 +669,7 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
           )}
         </td>
         <td className="px-3 py-2 text-xs font-medium text-gray-800">{row.student_name}</td>
+        <td className="px-3 py-2 text-xs text-gray-600">{row.father_name || "—"}</td>
         <td className="px-3 py-2 text-xs text-gray-600">{row.school_class_name || "—"}</td>
 
         {hasBreakdown ? (
@@ -545,7 +677,12 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
             <MoneyCell amount={buckets.TUITION}   present={present.TUITION} />
             <MoneyCell amount={buckets.DISCOUNT}  present={present.DISCOUNT} signClass="text-emerald-600" />
             <MoneyCell amount={buckets.TRANSPORT} present={present.TRANSPORT} />
-            <MoneyCell amount={buckets.UNIFORM}   present={present.UNIFORM} />
+            <UniformCell
+              amount={buckets.UNIFORM}
+              present={present.UNIFORM}
+              canSettle={ready && present.UNIFORM && buckets.UNIFORM > 0}
+              onPaid={() => onUniformPaid?.(buckets.UNIFORM)}
+            />
             <MoneyCell amount={buckets.OTHER}     present={present.OTHER} />
             <td className="px-3 py-2 text-xs font-bold text-gray-800 text-right">{fmtMoney(total)}</td>
           </>
@@ -609,7 +746,7 @@ function PreviewRow({ row, meta, isOpen, skipped, edit, toggle, setLineOverride,
       {isOpen && hasBreakdown && (
         <tr className="bg-gray-50/60">
           <td></td>
-          <td colSpan={10} className="px-3 py-2">
+          <td colSpan={11} className="px-3 py-2">
             <div className="space-y-1">
               {(row.lines || []).map((line) => {
                 const o = overrides[line.fee_item_id];

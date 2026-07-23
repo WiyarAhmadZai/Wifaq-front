@@ -9,6 +9,9 @@ const PERIODS = [
   { key: "weekly", label: "This week" },
   { key: "monthly", label: "This month" },
   { key: "yearly", label: "This year" },
+  { key: "last_week", label: "Last week" },
+  { key: "last_6_months", label: "Last 6 months" },
+  { key: "last_year", label: "Last year" },
 ];
 
 const Spinner = () => (
@@ -48,22 +51,46 @@ function Board({ title, subtitle, rows, accent }) {
 export default function CardRankings() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState("monthly");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [range, setRange] = useState(null); // applied { from, to } or null
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
-  const load = useCallback(async (p) => {
+  const load = useCallback(async (p, r) => {
     setLoading(true);
     const __cached = peekCache(`/student-cards/rankings?period=${p}`);
     if (__cached) { setData(__cached); setLoading(false); }
     try {
-      const res = await get(`/student-cards/rankings?period=${p}`);
+      const params = new URLSearchParams();
+      if (r && (r.from || r.to)) {
+        if (r.from) params.set("from", r.from);
+        if (r.to) params.set("to", r.to);
+      } else {
+        params.set("period", p);
+      }
+      const res = await get(`/student-cards/rankings?${params.toString()}`);
       setData(res.data);
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to load rankings", "error");
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(period); }, [period, load]);
+  useEffect(() => { load(period, range); }, [period, range, load]);
+
+  const applyRange = () => {
+    if (!from && !to) return;
+    if (from && to && from > to) {
+      Swal.fire("Invalid range", "The 'from' date must be before the 'to' date.", "warning");
+      return;
+    }
+    setRange({ from, to });
+  };
+
+  const clearRange = () => { setFrom(""); setTo(""); setRange(null); };
+
+  // Selecting a preset period clears any active custom range.
+  const selectPeriod = (key) => { setRange(null); setFrom(""); setTo(""); setPeriod(key); };
 
   return (
     <div className="min-h-screen bg-gray-50/60">
@@ -83,15 +110,48 @@ export default function CardRankings() {
       </div>
 
       <div className="px-4 py-5 space-y-4 max-w-4xl mx-auto">
-        {/* Period filter */}
-        <div className="flex items-center gap-2">
-          {PERIODS.map((p) => (
-            <button key={p.key} onClick={() => setPeriod(p.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${period === p.key ? "text-white" : "text-gray-600 bg-white border border-gray-200 hover:bg-gray-50"}`}
-              style={period === p.key ? { background: TEAL } : {}}>
-              {p.label}
+        {/* Period presets */}
+        <div className="flex flex-wrap items-center gap-2">
+          {PERIODS.map((p) => {
+            const active = !range && period === p.key;
+            return (
+              <button key={p.key} onClick={() => selectPeriod(p.key)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${active ? "text-white" : "text-gray-600 bg-white border border-gray-200 hover:bg-gray-50"}`}
+                style={active ? { background: TEAL } : {}}>
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom date range */}
+        <div className="flex flex-wrap items-end gap-2 bg-white border border-gray-100 rounded-2xl p-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">From</span>
+            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)}
+              className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-400" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">To</span>
+            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)}
+              className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-400" />
+          </label>
+          <button onClick={applyRange} disabled={!from && !to}
+            className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white disabled:opacity-40"
+            style={{ background: TEAL }}>
+            Apply
+          </button>
+          {range && (
+            <button onClick={clearRange}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
+              Clear
             </button>
-          ))}
+          )}
+          {range && (
+            <span className="text-[11px] text-gray-500 self-center">
+              Showing {range.from || "start"} → {range.to || "today"}
+            </span>
+          )}
         </div>
 
         {loading ? <Spinner /> : (

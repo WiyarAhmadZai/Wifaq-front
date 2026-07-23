@@ -1098,6 +1098,13 @@ export default function Layout() {
     { label: "Academic Terms", path: "/student-management/academic-terms", permission: "academic-terms.view" },
     { label: "Grades", path: "/student-management/grades", permission: "grades.view" },
   ];
+  // DOB — birthdays for students, teachers and staff
+  const dobMenus = [
+    { label: "Student DOB", path: "/dob/students", permission: "birthdays.student.view" },
+    { label: "Teacher DOB", path: "/dob/teachers", permission: "birthdays.teacher.view" },
+    { label: "Staff / Employee DOB", path: "/dob/staff", permission: "birthdays.staff.view" },
+  ];
+
   const transportationMenus = [
     { label: "Routes", path: "/transportation/routes", permission: "routes.view" },
     { label: "Vehicles", path: "/transportation/vehicles", permission: "vehicles.view" },
@@ -1589,6 +1596,20 @@ export default function Layout() {
               onClick={() => toggleMenu("students")}
             >
               {visible(studentsMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+
+          {canSeeGroup(dobMenus) && (
+            <ParentMenu
+              icon={Icons.Leave}
+              label="DOB"
+              isOpen={openMenu.includes("dob")}
+              onClick={() => toggleMenu("dob")}
+            >
+              {visible(dobMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

@@ -47,6 +47,11 @@ const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatSettings = lazy(() => import("./pages/system/ChatSettings"));
 
+// DOB module — student / teacher / staff birthdays
+const StudentBirthdays = lazy(() => import("./pages/birthdays/StudentBirthdays"));
+const TeacherBirthdays = lazy(() => import("./pages/birthdays/TeacherBirthdays"));
+const StaffBirthdays = lazy(() => import("./pages/birthdays/StaffBirthdays"));
+
 // HR — VATS / Welfare / Holidays (new modules)
 const VatsDashboard = lazy(() => import("./pages/hr/VatsDashboard"));
 const VatsObservations = lazy(() => import("./pages/hr/VatsObservations"));
@@ -691,6 +696,23 @@ function App() {
             <Route path="admin/chat-settings" element={
               <Protected role="super-admin">
                 <Suspense fallback={<PageLoader />}><ChatSettings /></Suspense>
+              </Protected>
+            } />
+
+            {/* DOB — birthdays for students, teachers and staff */}
+            <Route path="dob/students" element={
+              <Protected permission="birthdays.student.view">
+                <Suspense fallback={<PageLoader />}><StudentBirthdays /></Suspense>
+              </Protected>
+            } />
+            <Route path="dob/teachers" element={
+              <Protected permission="birthdays.teacher.view">
+                <Suspense fallback={<PageLoader />}><TeacherBirthdays /></Suspense>
+              </Protected>
+            } />
+            <Route path="dob/staff" element={
+              <Protected permission="birthdays.staff.view">
+                <Suspense fallback={<PageLoader />}><StaffBirthdays /></Suspense>
               </Protected>
             } />
           </Route>

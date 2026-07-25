@@ -9,7 +9,8 @@ const STEPS = [
   { num: 2, label: "Financials", desc: "Discounts, fees & support" },
 ];
 
-const DISCOUNT_OPTIONS = [0, 15, 20, 25, 30, 35, 40, 45, 50];
+// Regular-discount percentages: None (0) plus every whole percent up to 100.
+const DISCOUNT_OPTIONS = Array.from({ length: 101 }, (_, i) => i);
 
 const SPECIAL_STATUS_OPTIONS = [
   { value: "none", label: "None", color: "bg-gray-50 text-gray-700 border-gray-200" },
@@ -753,15 +754,16 @@ export default function StudentForm() {
                 {showRegularDiscount && (
                   <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase">Regular Discount</label>
-                    <div className="grid grid-cols-5 gap-2">
+                    <select
+                      name="discount_percent"
+                      value={form.discount_percent}
+                      onChange={(e) => set("discount_percent", Number(e.target.value))}
+                      className={inp("discount_percent")}
+                    >
                       {DISCOUNT_OPTIONS.map((pct) => (
-                        <button key={pct} type="button" onClick={() => set("discount_percent", pct)}
-                          className={`py-2.5 rounded-xl text-xs font-semibold border-2 transition-all
-                            ${Number(form.discount_percent) === pct ? "bg-teal-600 text-white border-teal-600 shadow-md" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}>
-                          {pct === 0 ? "None" : `${pct}%`}
-                        </button>
+                        <option key={pct} value={pct}>{pct === 0 ? "None" : `${pct}%`}</option>
                       ))}
-                    </div>
+                    </select>
                   </div>
                 )}
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
+import ReactSelect from "react-select";
 import { FiX, FiUser, FiBookOpen, FiTruck, FiUsers, FiDollarSign } from "react-icons/fi";
 import { get, put, post } from "../../api/axios";
 
@@ -63,7 +64,8 @@ const SPECIAL_STATUS = [
   { v: "none", l: "None" }, { v: "orphan", l: "Orphan" },
   { v: "employee_child", l: "Employee child" }, { v: "fourth_child", l: "Fourth child" },
 ];
-const DISCOUNTS = [0, 15, 20, 25, 30, 35, 40, 45, 50].map((v) => ({ v, l: `${v}%` }));
+// Searchable discount options, every whole percent from 0% to 100%.
+const DISCOUNT_OPTIONS = Array.from({ length: 101 }, (_, v) => ({ value: v, label: `${v}%` }));
 const INCOME_CAT = ["A", "B", "C", "D"].map((v) => ({ v, l: v }));
 const TRANSFER_STATUS = [
   { v: "pending", l: "Pending" }, { v: "in_progress", l: "In progress" }, { v: "completed", l: "Completed" },
@@ -320,7 +322,10 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
                         onChange={(v) => setS("grade_id", v ? Number(v) : null)}
                         hint="Base fee comes from the grade"
                       />
-                      <Select label="Discount %" value={student.discount_percent} options={DISCOUNTS} onChange={(v) => setS("discount_percent", v === "" ? null : Number(v))} />
+                      <DiscountSelect
+                        value={student.discount_percent}
+                        onChange={(v) => setS("discount_percent", v)}
+                      />
                       <Select label="Special status" value={student.special_status} options={SPECIAL_STATUS} onChange={(v) => setS("special_status", v)} />
                       <Select
                         label="Employee parent (staff)"
@@ -560,6 +565,38 @@ function DateField({ label, value, onChange }) {
     </label>
   );
 }
+/** Searchable discount picker (react-select), any whole percent 0–100. */
+function DiscountSelect({ value, onChange }) {
+  const selected = DISCOUNT_OPTIONS.find((o) => o.value === Number(value)) || null;
+  return (
+    <label className="block">
+      <span className={labelCls}>Discount %</span>
+      <ReactSelect
+        classNamePrefix="rs"
+        options={DISCOUNT_OPTIONS}
+        value={selected}
+        onChange={(opt) => onChange(opt ? opt.value : 0)}
+        isSearchable
+        placeholder="Type or pick 0–100%…"
+        menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+        styles={{
+          menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+          control: (base, state) => ({
+            ...base,
+            minHeight: "38px",
+            borderColor: state.isFocused ? "#2dd4bf" : "#d1d5db",
+            boxShadow: state.isFocused ? "0 0 0 2px rgba(45,212,191,0.4)" : "none",
+            "&:hover": { borderColor: "#2dd4bf" },
+            fontSize: "0.875rem",
+          }),
+          menu: (base) => ({ ...base, fontSize: "0.875rem" }),
+        }}
+      />
+      <span className="block text-[10px] text-gray-400 mt-0.5">Any whole percent, 0% to 100%</span>
+    </label>
+  );
+}
+
 function Select({ label, value, options, onChange, hint, disabled }) {
   return (
     <label className="block">

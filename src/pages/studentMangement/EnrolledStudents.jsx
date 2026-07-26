@@ -60,7 +60,11 @@ const PHASE_2_PARAMS = { registration_status: "phase_2" };
 export default function EnrolledStudents() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const canUpdate = hasPermission("enrolled-students.update") || hasPermission("enrolled-students.manage");
+  // The edit modal saves through the shared student/family write endpoints,
+  // which the backend gates on students.update (+ parents.update for family
+  // fields). `enrolled-students` is a view-only permission — .update/.manage
+  // were never seeded — so gate on the permission the API actually enforces.
+  const canUpdate = hasPermission("students.update") || hasPermission("students.manage");
   const [transferStudent, setTransferStudent] = useState(null);
   const [editStudentId, setEditStudentId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);

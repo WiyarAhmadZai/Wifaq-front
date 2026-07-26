@@ -87,20 +87,20 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   const [feePreview, setFeePreview] = useState(null);
   const [feeBusy, setFeeBusy] = useState(false);
 
-  // Load the full student record (+ family) and reference lists. Classes and
-  // employee parents come from the students form-data endpoint (gated by the
-  // student permission the caller already holds) — NOT the class-management
-  // endpoint, which needs a separate classes.view permission.
+  // Load the full student record (+ family) and reference lists. Classes,
+  // grades and employee parents all come from the students form-data endpoint
+  // (gated by the student permission the caller already holds) — NOT the
+  // class-management or grades endpoints, which need their own classes.view /
+  // grades.view permissions a student editor may not hold.
   useEffect(() => {
     let alive = true;
     setLoading(true);
     (async () => {
       try {
-        const [sRes, fRes, rRes, gRes] = await Promise.all([
+        const [sRes, fRes, rRes] = await Promise.all([
           get(`/student-management/students/show/${studentId}`),
           get("/student-management/students/form-data").catch(() => ({ data: {} })),
           get("/transportation/routes/active/list").catch(() => ({ data: [] })),
-          get("/grades/list").catch(() => ({ data: [] })),
         ]);
         if (!alive) return;
         const data = sRes.data?.data || sRes.data || {};
@@ -112,7 +112,7 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
         setStudent(data);
         setFamily(data.family || null);
         setFamilyId(data.family?.id || data.family_id || null);
-        setGrades((gRes.data?.data || gRes.data || []).map((g) => ({ value: g.id, label: g.name })));
+        setGrades((fRes.data?.grades || []).map((g) => ({ value: g.id, label: g.name })));
 
         // Build the class options and ALWAYS include the student's current class
         // (the form-data list hides full / other-term classes, so the student's

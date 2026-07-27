@@ -44,9 +44,17 @@ export default function Select2({
       cursor: disabled ? "not-allowed" : "pointer",
       "&:hover": { borderColor: error ? "#f87171" : state.isFocused ? "#155c57" : "#d1d5db" },
     }),
-    valueContainer: (base) => ({ ...base, padding: "0.125rem 0.5rem" }),
-    placeholder: (base) => ({ ...base, color: "#9ca3af", fontSize: sz.fontSize }),
-    singleValue: (base) => ({ ...base, fontSize: sz.fontSize, color: "#1f2937" }),
+    valueContainer: (base) => ({ ...base, padding: "0.125rem 0.5rem", flexWrap: isMulti ? "wrap" : "nowrap" }),
+    // Long labels/placeholders ellipsize instead of wrapping the control onto
+    // several lines, which would break the height of a row of filters.
+    placeholder: (base) => ({
+      ...base, color: "#9ca3af", fontSize: sz.fontSize,
+      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
+    }),
+    singleValue: (base) => ({
+      ...base, fontSize: sz.fontSize, color: "#1f2937",
+      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
+    }),
     multiValue: (base) => ({ ...base, backgroundColor: "#ecf2f1", borderRadius: "0.375rem" }),
     multiValueLabel: (base) => ({ ...base, color: "#0a3635", fontSize: "0.75rem", fontWeight: 600 }),
     multiValueRemove: (base) => ({

@@ -14,6 +14,19 @@ export default function Attendance() {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
+  // working_hours is stored as a DECIMAL number of hours (e.g. 0.17 = 10 min).
+  // Show it in human terms: minutes-only under an hour, "Xh Ym" otherwise.
+  const formatDuration = (hoursDecimal) => {
+    if (hoursDecimal === null || hoursDecimal === undefined || hoursDecimal === "") return "—";
+    const totalMin = Math.round(Number(hoursDecimal) * 60);
+    if (isNaN(totalMin) || totalMin <= 0) return "0 min";
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h === 0) return `${m} min`;
+    if (m === 0) return `${h} hr`;
+    return `${h}h ${m}m`;
+  };
+
   const extraButtons = (
     <>
       <button
@@ -64,11 +77,11 @@ export default function Attendance() {
       apiEndpoint={`/hr/attendances?date=${today}`}
       listColumns={[
         { key: "date", label: "Date", exportValue: (item) => item.date ? item.date.split('T')[0] : '' },
-        { key: "employee_id", label: "Employee", exportValue: (item) => item.employee?.full_name || item.employee_id || '' },
+        { key: "employee_id", label: "Employee", render: (_, item) => item.employee?.full_name || item.employee?.application?.full_name || `#${item.employee_id}`, exportValue: (item) => item.employee?.full_name || item.employee_id || '' },
         { key: "status", label: "Status" },
         { key: "arrived", label: "Arrived", render: (val) => formatTime12Hour(val), exportValue: (item) => formatTime12Hour(item.arrived) },
         { key: "check_out", label: "Check Out", render: (val) => formatTime12Hour(val), exportValue: (item) => formatTime12Hour(item.check_out) },
-        { key: "working_hours", label: "Working Hours", noExport: false },
+        { key: "working_hours", label: "Working Hours", render: (val) => formatDuration(val), exportValue: (item) => formatDuration(item.working_hours) },
       ]}
       createRoute="/hr/attendance/create"
       editRoute="/hr/attendance/edit"

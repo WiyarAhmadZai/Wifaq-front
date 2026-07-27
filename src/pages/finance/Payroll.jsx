@@ -218,15 +218,18 @@ export default function Payroll() {
 
   const totals = useMemo(() => {
     if (!preview) return null;
-    let g = 0, a = 0, d = 0, n = 0;
+    let g = 0, a = 0, dman = 0, dleave = 0, n = 0;
     preview.rows.forEach((r) => {
       if (r.status !== "ready" || edits[r.staff_id]?.skip) return;
       const man = (edits[r.staff_id]?.manual || []).reduce((s, m) => s + (Number(m.amount) || 0), 0);
+      // The automatic leave/absence deduction is computed by the backend and
+      // must be subtracted from net alongside manual deductions.
+      const leave = Number(r.leave_deduction) || 0;
       g += Number(r.gross_salary); a += Number(r.allowances_total);
-      d += man;
-      n += Number(r.gross_salary) + Number(r.allowances_total) - man;
+      dman += man; dleave += leave;
+      n += Number(r.gross_salary) + Number(r.allowances_total) - man - leave;
     });
-    return { g, a, d, n };
+    return { g, a, dman, dleave, d: dman + dleave, n };
   }, [preview, edits]);
 
   // ───────────────────────── Run detail view
@@ -372,6 +375,7 @@ export default function Payroll() {
                 <th className="text-left px-3 py-2">Dept</th>
                 <th className="text-right px-3 py-2">Gross</th>
                 <th className="text-right px-3 py-2">Allowances</th>
+                <th className="text-right px-3 py-2">Leave/Absence</th>
                 <th className="text-left px-3 py-2">Manual deduction</th>
                 <th className="text-right px-3 py-2">Net pay</th>
                 <th className="text-center px-3 py-2">Status / Skip</th>
@@ -379,13 +383,14 @@ export default function Payroll() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {preview.rows.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-xs text-gray-400 italic">No active staff for this period.</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400 italic">No active staff for this period.</td></tr>
               ) : preview.rows.map((r) => {
                 const st = ROW_STATE[r.status] || ROW_STATE.ready;
                 const e = edits[r.staff_id] || {};
                 const man = (e.manual?.[0]?.amount) || 0;
+                const leave = r.status === "ready" ? Number(r.leave_deduction || 0) : 0;
                 const net = r.status === "ready"
-                  ? Number(r.gross_salary) + Number(r.allowances_total) - Number(man)
+                  ? Number(r.gross_salary) + Number(r.allowances_total) - Number(man) - leave
                   : 0;
                 const skipped = !!e.skip;
                 return (
@@ -396,6 +401,10 @@ export default function Payroll() {
                     <td className="px-3 py-2 text-gray-500">{r.department || "—"}</td>
                     <td className="px-3 py-2 text-right font-mono">{r.status === "ready" ? fmt(r.gross_salary) : "—"}</td>
                     <td className="px-3 py-2 text-right font-mono text-gray-600">{r.status === "ready" ? fmt(r.allowances_total) : "—"}</td>
+                    <td className="px-3 py-2 text-right font-mono text-red-600"
+                        title={r.leave_breakdown?.reason || ""}>
+                      {r.status === "ready" && leave > 0 ? `−${fmt(leave)}` : "—"}
+                    </td>
                     <td className="px-3 py-2">
                       {r.status === "ready" && !skipped ? (
                         <div className="flex gap-1">
@@ -429,7 +438,8 @@ export default function Payroll() {
                   <td colSpan={2} className="px-3 py-2 text-right text-[10px] uppercase text-gray-500">Totals</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.g)}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.a)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-amber-700">{totals.d > 0 ? `−${fmt(totals.d)}` : "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono text-red-600">{totals.dleave > 0 ? `−${fmt(totals.dleave)}` : "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono text-amber-700">{totals.dman > 0 ? `−${fmt(totals.dman)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-teal-700">{fmt(totals.n)}</td>
                   <td></td>
                 </tr>

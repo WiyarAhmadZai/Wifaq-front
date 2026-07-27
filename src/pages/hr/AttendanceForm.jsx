@@ -4,6 +4,16 @@ import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
+
+const STATUS_OPTIONS = [
+  { value: "present", label: "Present" },
+  { value: "absent", label: "Absent" },
+  { value: "late", label: "Late" },
+  { value: "half_day", label: "Half Day" },
+  { value: "leave", label: "Leave" },
+];
+
 export default function AttendanceForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -13,27 +23,34 @@ export default function AttendanceForm() {
     date: "",
     employee_id: "",
     status: "present",
-    arrived: "",
-    check_out: "",
     notes: "",
     left_without_notice: false,
   });
 
   const [employees, setEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeesError, setEmployeesError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchEmployees();
     if (isEdit) {
+      fetchEmployees();
       fetchAttendance();
     } else {
       setFormData((prev) => ({
         ...prev,
-        date: new Date().toISOString().split("T")[0],
+        date: prev.date || new Date().toISOString().split("T")[0],
       }));
     }
   }, [id]);
+
+  // On create, only staff whose attendance has NOT been taken for the chosen
+  // date may be selected. The daily sheet marks those rows as "pending".
+  useEffect(() => {
+    if (isEdit || !formData.date) return;
+    fetchPendingEmployees(formData.date);
+  }, [formData.date, isEdit]);
 
   const fetchEmployees = async () => {
     const __cached = peekCache("/hr/staff/list?per_page=1000");
@@ -50,6 +67,45 @@ export default function AttendanceForm() {
     }
   };
 
+  const applyPendingRows = (rows) => {
+    const pending = (rows || [])
+      .filter((row) => row.status === "pending" && !row.attendance_id)
+      .map((row) => row.employee);
+    setEmployees(pending);
+    // The staff picked earlier may already have a record for the new date.
+    setFormData((prev) =>
+      prev.employee_id &&
+      !pending.some((emp) => String(emp.id) === String(prev.employee_id))
+        ? { ...prev, employee_id: "" }
+        : prev,
+    );
+  };
+
+  const fetchPendingEmployees = async (date) => {
+    setEmployeesLoading(true);
+    setEmployeesError(null);
+    const url = `/hr/attendances/daily-sheet?date=${date}`;
+    const __cached = peekCache(url);
+    if (__cached) {
+      applyPendingRows(__cached.rows);
+      setEmployeesLoading(false);
+    }
+    try {
+      const response = await get(url);
+      applyPendingRows(response.data?.rows);
+    } catch (error) {
+      console.error("Failed to load available staff", error);
+      setEmployees([]);
+      setEmployeesError(
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          "Failed to load the staff list for this date",
+      );
+    } finally {
+      setEmployeesLoading(false);
+    }
+  };
+
   const fetchAttendance = async () => {
     setLoading(true);
     const __cached = peekCache(`/hr/attendances/${id}`);
@@ -59,8 +115,6 @@ export default function AttendanceForm() {
         date: data.date || "",
         employee_id: data.employee_id || "",
         status: data.status || "present",
-        arrived: data.arrived || "",
-        check_out: data.check_out || "",
         notes: data.notes || "",
         left_without_notice: data.left_without_notice || false,
       });
@@ -73,8 +127,6 @@ export default function AttendanceForm() {
         date: data.date || "",
         employee_id: data.employee_id || "",
         status: data.status || "present",
-        arrived: data.arrived || "",
-        check_out: data.check_out || "",
         notes: data.notes || "",
         left_without_notice: data.left_without_notice || false,
       });
@@ -96,6 +148,12 @@ export default function AttendanceForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.employee_id) {
+      Swal.fire("Error", "Please select an employee", "error");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -118,6 +176,19 @@ export default function AttendanceForm() {
       setSaving(false);
     }
   };
+
+  const employeeOptions = employees.map((emp) => ({
+    value: emp.id,
+    label: `${emp.full_name} (${emp.employee_id || "No ID"})${emp.department ? " · " + emp.department : ""}`,
+  }));
+
+  const employeePlaceholder = employeesLoading
+    ? "Loading staff…"
+    : employeesError
+      ? "Staff list unavailable"
+      : !isEdit && employeeOptions.length === 0
+        ? "All staff already have attendance for this date"
+        : "Search by name, employee ID, or department…";
 
   if (loading) {
     return (
@@ -158,6 +229,34 @@ export default function AttendanceForm() {
         </div>
       </div>
 
+      <div className="mb-4 p-3 rounded-lg bg-teal-50 border border-teal-200 text-teal-800 text-xs flex items-start gap-2">
+        <svg
+          className="w-4 h-4 shrink-0 mt-0.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+        <span>
+          Time In and Time Out are recorded by the system from{" "}
+          <button
+            type="button"
+            onClick={() => navigate("/hr/attendance/quick")}
+            className="font-semibold underline hover:text-teal-900"
+          >
+            Quick Attendance
+          </button>
+          . This form only records the status for staff whose attendance has not
+          been taken yet.
+        </span>
+      </div>
+
       <form
         onSubmit={handleSubmit}
         className="bg-white rounded-xl shadow-sm border border-gray-200 p-5"
@@ -182,64 +281,40 @@ export default function AttendanceForm() {
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Employee *
             </label>
-            <select
-              name="employee_id"
+            <Select2
               value={formData.employee_id}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-            >
-              <option value="">Select Employee</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.full_name} ({emp.employee_id || "No ID"})
-                </option>
-              ))}
-            </select>
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, employee_id: value || "" }))
+              }
+              options={employeeOptions}
+              placeholder={employeePlaceholder}
+              disabled={isEdit || employeesLoading}
+              size="sm"
+              error={!!employeesError}
+            />
+            {employeesError ? (
+              <p className="text-[10px] text-red-500 mt-1">{employeesError}</p>
+            ) : isEdit ? null : (
+              <p className="text-[10px] text-gray-500 mt-1">
+                Only staff without attendance for this date are listed
+                {employeeOptions.length > 0 && ` (${employeeOptions.length})`}.
+              </p>
+            )}
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Status *
             </label>
-            <select
-              name="status"
+            <Select2
               value={formData.status}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-            >
-              <option value="present">Present</option>
-              <option value="absent">Absent</option>
-              <option value="late">Late</option>
-              <option value="half_day">Half Day</option>
-              <option value="leave">Leave</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Arrived (Time In)
-            </label>
-            <input
-              type="time"
-              name="arrived"
-              value={formData.arrived}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Check Out (Time Out)
-            </label>
-            <input
-              type="time"
-              name="check_out"
-              value={formData.check_out}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, status: value || "present" }))
+              }
+              options={STATUS_OPTIONS}
+              placeholder="Select status…"
+              isClearable={false}
+              size="sm"
             />
           </div>
 
@@ -281,7 +356,7 @@ export default function AttendanceForm() {
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || (!isEdit && !formData.employee_id)}
             className="px-4 py-2 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
           >
             {saving ? "Saving..." : isEdit ? "Update" : "Save"}

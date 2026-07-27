@@ -11,7 +11,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadMe = useCallback(async () => {
+  /**
+   * @param {{background?: boolean}} opts  A *background* refresh (focus,
+   *   visibility change, poll) must never tear down an established session.
+   */
+  const loadMe = useCallback(async ({ background = false } = {}) => {
     const token = localStorage.getItem("token");
     if (!token) {
       setUser(null);
@@ -23,9 +27,15 @@ export function AuthProvider({ children }) {
       setUser(res.data?.data || null);
       setError(null);
     } catch (e) {
-      // 401 is handled by axios interceptor (kicks to /login). Other errors stay null.
-      setUser(null);
       setError(e);
+      // Dropping `user` makes PathPermissionGate replace the whole <Outlet />
+      // with a spinner — the current page unmounts, taking any open modal and
+      // its unsaved edits with it, and remounts (refetching everything) when
+      // the next refresh succeeds. A timed-out /access/me on the single-
+      // threaded dev server must not do that. Only the FIRST load clears the
+      // user; a genuine 401 is handled by the axios interceptor, which sends
+      // the browser to /login.
+      if (!background) setUser(null);
     } finally {
       setLoading(false);
     }
@@ -40,9 +50,10 @@ export function AuthProvider({ children }) {
     // back in. Also re-fetch on demand via the `wen:auth-refresh` event so
     // the admin permissions modal can trigger an immediate refresh when the
     // current user just edited their own access.
-    const onVisible = () => { if (!document.hidden) loadMe(); };
-    const onFocus = () => loadMe();
-    const onCustom = () => loadMe();
+    const refresh = () => loadMe({ background: true });
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    const onFocus = () => refresh();
+    const onCustom = () => refresh();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onFocus);
     window.addEventListener("wen:auth-refresh", onCustom);
@@ -52,7 +63,7 @@ export function AuthProvider({ children }) {
     // the user edits their own access. A short interval here hammered the
     // single-threaded dev server (every hit reloads permissions from the DB)
     // and caused request timeouts.
-    const interval = setInterval(loadMe, 120 * 1000);
+    const interval = setInterval(refresh, 120 * 1000);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
@@ -90,7 +101,9 @@ export function AuthProvider({ children }) {
       hasRole: (role) => hasRole(user, role),
       hasPermission: (permission) => hasPermission(user, permission),
       can: (check) => can(user, check),
-      reload: loadMe,
+      // Explicit refreshes (e.g. the permissions modal) are background too: a
+      // failed re-check should surface an error, not sign the user out.
+      reload: () => loadMe({ background: true }),
       logout,
       setUser,
     }),

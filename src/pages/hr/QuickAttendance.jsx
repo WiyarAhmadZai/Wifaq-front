@@ -214,6 +214,21 @@ export default function QuickAttendance() {
   const quickLimitReached = dailySheet?.quick_limit_reached === true;
   const isRowLocked = (row) => !!(row.arrived && row.check_out);
 
+  // Recording window: today only, 6 AM–10 PM (regular 6 AM–4 PM + overtime to
+  // 10 PM). The backend enforces this too; here we mirror it so the buttons are
+  // disabled with a clear reason instead of failing on click.
+  const nowHour = new Date().getHours();
+  const withinWindow = selectedDate === today && nowHour >= 6 && nowHour < 22;
+  const windowMessage =
+    selectedDate !== today
+      ? "Attendance can only be recorded for today."
+      : nowHour < 6
+        ? "Attendance opens at 6:00 AM."
+        : nowHour >= 22
+          ? "Attendance is closed for today (recording ends at 10:00 PM)."
+          : null;
+  const actionsDisabled = quickLimitReached || !withinWindow;
+
   const formatTime12Hour = (time24) => {
     if (!time24) return "";
     const [hours, minutes] = time24.split(":");
@@ -281,6 +296,15 @@ export default function QuickAttendance() {
           </div>
         </div>
       </div>
+
+      {windowMessage && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center gap-2">
+          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>{windowMessage} Recording is open today from <b>6:00 AM to 10:00 PM</b> (regular 6 AM–4 PM, overtime until 10 PM).</span>
+        </div>
+      )}
 
       {quickLimitReached && (
         <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center gap-2">
@@ -393,9 +417,7 @@ export default function QuickAttendance() {
                         <div className="flex justify-center items-center gap-1 flex-wrap">
                           <button
                             onClick={() => handleMarkPresent(row)}
-                            disabled={
-                              actionLoading != null || quickLimitReached
-                            }
+                            disabled={actionLoading != null || actionsDisabled}
                             title="Mark Present (Time In by system)"
                             className={`p-1 rounded transition-colors ${
                               isPresentLike(row.status)
@@ -423,11 +445,7 @@ export default function QuickAttendance() {
                           </button>
                           <button
                             onClick={() => handleCheckOut(row)}
-                            disabled={
-                              actionLoading != null ||
-                              !canCheckOut(row) ||
-                              quickLimitReached
-                            }
+                            disabled={actionLoading != null || !canCheckOut(row) || actionsDisabled}
                             title="Time Out (recorded by system)"
                             className={`p-1 rounded transition-colors ${
                               canCheckOut(row)
@@ -455,9 +473,7 @@ export default function QuickAttendance() {
                           </button>
                           <button
                             onClick={() => handleMarkAbsent(row)}
-                            disabled={
-                              actionLoading != null || quickLimitReached
-                            }
+                            disabled={actionLoading != null || actionsDisabled}
                             title="Mark Absent"
                             className={`p-1 rounded transition-colors ${
                               row.status === "absent" || row.status === "leave"

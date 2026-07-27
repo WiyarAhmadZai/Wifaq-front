@@ -264,6 +264,10 @@ export default function StaffShow() {
                 </div>
               )}
             </Section>
+
+            {/* Attendance, Leave & Payroll — connects attendance stats, leave
+                requests and the contract-driven salary deduction. */}
+            <AttendancePayrollSection staffId={id} navigate={navigate} />
           </div>
 
           {/* Right Sidebar */}
@@ -405,6 +409,128 @@ export default function StaffShow() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+const money = (n, cur = "AFN") => `${Number(n || 0).toLocaleString()} ${cur}`;
+const LEAVE_TONE = {
+  approved: "bg-emerald-100 text-emerald-700",
+  pending: "bg-amber-100 text-amber-700",
+  rejected: "bg-red-100 text-red-700",
+};
+
+// Attendance statistics + leave requests + contract-driven salary deduction.
+// Ties the attendance, leave and payroll subsystems together on the profile.
+function AttendancePayrollSection({ staffId, navigate }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await get(`/hr/staff/${staffId}/attendance-summary`);
+        if (alive) setData(res.data?.data || null);
+      } catch {
+        if (alive) setData(null);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [staffId]);
+
+  return (
+    <Section title="Attendance, Leave & Payroll" icon="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+      {loading ? (
+        <div className="flex justify-center py-6"><div className="animate-spin h-6 w-6 border-4 border-teal-100 border-t-teal-600 rounded-full" /></div>
+      ) : !data ? (
+        <p className="text-sm text-gray-400 text-center py-4">No attendance/payroll data.</p>
+      ) : (
+        <div className="space-y-5">
+          {/* Attendance stats */}
+          <div>
+            <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-2">Attendance (all recorded days)</p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              <MiniStat label="Present" value={data.attendance.present} tone="text-emerald-600" />
+              <MiniStat label="Absent" value={data.attendance.absent} tone="text-red-600" />
+              <MiniStat label="Late" value={data.attendance.late} tone="text-amber-600" />
+              <MiniStat label="Leave" value={data.attendance.leave} tone="text-purple-600" />
+              <MiniStat label="Rate" value={`${data.attendance.rate}%`} tone="text-teal-700" />
+              <MiniStat label="This month" value={`${data.attendance.month_present}P / ${data.attendance.month_absent}A`} tone="text-gray-700" />
+            </div>
+          </div>
+
+          {/* Salary deduction (contract-connected) */}
+          <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-700">This month's salary deduction</span>
+              {data.contract
+                ? <span className="text-[11px] text-gray-500">Salary {money(data.contract.salary, data.contract.salary_currency)} · daily {money(data.payroll_deduction.daily_rate, data.contract.salary_currency)}</span>
+                : <span className="text-[11px] text-amber-600">No active contract</span>}
+            </div>
+            <div className="p-4">
+              {data.payroll_deduction.chargeable_days === 0 ? (
+                <p className="text-xs text-emerald-700">
+                  ✓ No deduction — {data.payroll_deduction.paid_leave_days}/{data.payroll_deduction.free_allowance} paid leaves used this month.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-1.5 mb-2">
+                    {data.payroll_deduction.lines.map((l, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">{l.label} <span className="text-gray-400">({l.days} day{l.days === 1 ? "" : "s"})</span></span>
+                        <span className="font-semibold text-red-600">− {money(l.amount, data.contract?.salary_currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-sm">
+                    <span className="font-bold text-gray-700">Total deduction</span>
+                    <span className="font-bold text-red-600">− {money(data.payroll_deduction.deduction, data.contract?.salary_currency)}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1.5">{data.payroll_deduction.reason}</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Leave requests */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider">
+                Leave requests · {data.leaves.approved} approved · {data.leaves.pending} pending
+              </p>
+              <button onClick={() => navigate("/hr/leave-request")} className="text-[11px] text-teal-600 hover:underline">View all</button>
+            </div>
+            {data.leaves.recent.length === 0 ? (
+              <p className="text-xs text-gray-400">No leave requests.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {data.leaves.recent.slice(0, 5).map((l) => (
+                  <button key={l.id} onClick={() => navigate(`/hr/leave-request/show/${l.id}`)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-100 hover:bg-gray-50 text-left">
+                    <span className="text-xs text-gray-700 capitalize">{l.leave_type} · {fmtDate(l.from_date)}{l.to_date && l.to_date !== l.from_date ? ` → ${fmtDate(l.to_date)}` : ""}</span>
+                    <span className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] text-gray-400">{l.total_days}d</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${LEAVE_TONE[l.status] || "bg-gray-100 text-gray-600"}`}>{l.status}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function MiniStat({ label, value, tone = "text-gray-800" }) {
+  return (
+    <div className="bg-gray-50 rounded-lg border border-gray-100 px-2 py-2 text-center">
+      <div className={`text-base font-bold ${tone}`}>{value}</div>
+      <div className="text-[9px] text-gray-400 uppercase tracking-wide mt-0.5">{label}</div>
     </div>
   );
 }

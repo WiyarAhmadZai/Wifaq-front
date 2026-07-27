@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import CrudPage from "../../components/CrudPage";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
 import StudentEditModal from "./StudentEditModal";
@@ -57,6 +57,16 @@ const lastCompletedTransferLabel = (item) => {
 
 const PHASE_2_PARAMS = { registration_status: "phase_2" };
 
+const FILTER_OPTIONS_URL = "/student-management/students/filter-options";
+
+/** Rows → [{ value, label }], tolerating both bare arrays and { data: [...] }. */
+const toOptions = (rows, label) => {
+  const list = Array.isArray(rows) ? rows : Array.isArray(rows?.data) ? rows.data : [];
+  return list
+    .map((row) => ({ value: row.id, label: label(row) || `#${row.id}` }))
+    .filter((o) => o.value != null);
+};
+
 export default function EnrolledStudents() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -68,24 +78,41 @@ export default function EnrolledStudents() {
   const [transferStudent, setTransferStudent] = useState(null);
   const [editStudentId, setEditStudentId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Stable identities: the edit modal keys its data load off these props, so a
+  // fresh arrow on every render would restart the load mid-edit.
+  const closeEditModal = useCallback(() => setEditStudentId(null), []);
+  const bumpRefreshKey = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const closeTransferModal = useCallback(() => setTransferStudent(null), []);
   const [grades, setGrades] = useState([]);
   const [classes, setClasses] = useState([]);
   const [terms, setTerms] = useState([]);
+  // Filter dropdown sources. One call to the students module: /grades,
+  // /class-management/classes and /academic-terms each require their own
+  // module permission (registration-manager has no `classes.view`), so those
+  // 403'd and left every dropdown showing nothing but "All".
   useEffect(() => {
-    const __g = peekCache("/grades/list");
-    if (__g) setGrades((__g?.data || __g || []).map((g) => ({ value: g.id, label: g.name })));
-    const __c = peekCache("/class-management/classes/list?per_page=1000");
-    if (__c) setClasses((__c?.data || __c || []).map((c) => ({ value: c.id, label: c.class_name })));
-    const __t = peekCache("/academic-terms/list");
-    if (__t) setTerms((__t?.data || __t || []).map((t) => ({ value: t.id, label: t.name })));
-    get("/grades/list").then((r) => setGrades((r.data?.data || r.data || []).map((g) => ({ value: g.id, label: g.name })))).catch(() => {});
-    get("/class-management/classes/list?per_page=1000").then((r) => setClasses((r.data?.data || r.data || []).map((c) => ({ value: c.id, label: c.class_name })))).catch(() => {});
-    get("/academic-terms/list").then((r) => setTerms((r.data?.data || r.data || []).map((t) => ({ value: t.id, label: t.name })))).catch(() => {});
+    const applyOptions = (payload) => {
+      if (!payload) return;
+      setGrades(toOptions(payload.grades, (g) => g.name));
+      setClasses(
+        toOptions(payload.classes, (c) =>
+          [c.class_name, c.grade_name && c.grade_name !== c.class_name ? `· ${c.grade_name}` : null]
+            .filter(Boolean)
+            .join(" "),
+        ),
+      );
+      setTerms(toOptions(payload.academic_terms, (t) => t.name));
+    };
+
+    applyOptions(peekCache(FILTER_OPTIONS_URL));
+    get(FILTER_OPTIONS_URL)
+      .then((r) => applyOptions(r.data))
+      .catch((e) => console.error("Failed to load student filter options", e));
   }, []);
   const enrolledFilters = [
-    { key: "grade_id", label: "Grade", options: grades },
-    { key: "class_id", label: "Class", options: classes },
-    { key: "academic_term_id", label: "Term", options: terms },
+    { key: "grade_id", label: "Grade", options: grades, emptyLabel: "No grades found" },
+    { key: "class_id", label: "Class", options: classes, emptyLabel: "No classes created yet" },
+    { key: "academic_term_id", label: "Term", options: terms, emptyLabel: "No terms found" },
     { key: "gender", label: "Gender", options: GENDER_OPTIONS },
     { key: "status", label: "Status", options: STUDENT_STATUS_OPTIONS },
   ];
@@ -201,16 +228,16 @@ export default function EnrolledStudents() {
       {transferStudent && (
         <TransferStepsModal
           student={transferStudent}
-          onClose={() => setTransferStudent(null)}
-          onSaved={() => setRefreshKey((k) => k + 1)}
+          onClose={closeTransferModal}
+          onSaved={bumpRefreshKey}
         />
       )}
 
       {editStudentId && (
         <StudentEditModal
           studentId={editStudentId}
-          onClose={() => setEditStudentId(null)}
-          onSaved={() => setRefreshKey((k) => k + 1)}
+          onClose={closeEditModal}
+          onSaved={bumpRefreshKey}
         />
       )}
     </>

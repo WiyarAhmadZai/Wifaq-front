@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del, peekCache } from '../../api/axios';
+import { get, del, post, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
@@ -135,6 +135,32 @@ export default function ContractsShow() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showRenewModal, setShowRenewModal] = useState(false);
+  const [approving, setApproving] = useState(false);
+
+  // Approve a drafted contract → activates it (status draft → active) and
+  // notifies the staff member. Only meaningful while status is "draft".
+  const handleApprove = async () => {
+    const confirm = await Swal.fire({
+      title: 'Approve & activate this contract?',
+      text: 'The contract becomes active and the staff member is notified.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#0d9488',
+      confirmButtonText: 'Yes, activate',
+    });
+    if (!confirm.isConfirmed) return;
+    setApproving(true);
+    try {
+      const res = await post(`/hr/contracts/approve/${id}`);
+      setData(res.data || null);
+      await fetchItem();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Contract activated', timer: 1800, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.message || 'Failed to approve contract', 'error');
+    } finally {
+      setApproving(false);
+    }
+  };
 
   useEffect(() => {
     fetchItem();
@@ -230,6 +256,14 @@ export default function ContractsShow() {
               </button>
             );
           })()}
+          {/* Draft → Approve & activate. Needs update permission. */}
+          {canUpdate && data.status === 'draft' && (
+            <button onClick={handleApprove} disabled={approving}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-xs font-medium disabled:opacity-50">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              {approving ? 'Activating…' : 'Approve & Activate'}
+            </button>
+          )}
           {canUpdate && (
             <button onClick={() => navigate(`/hr/contracts/edit/${id}`)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium">
               <Icons.Edit /> Edit

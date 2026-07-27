@@ -55,12 +55,22 @@ export default function MyProfile() {
     setSaving(true);
     try {
       const fd = new FormData();
+      // Method spoofing: PHP does NOT parse a multipart/form-data body on a real
+      // PUT request, so we POST with _method=PUT. Laravel routes it to the PUT
+      // handler and $request->all() is correctly populated. Without this the
+      // whole payload arrived empty and nothing saved.
+      fd.append('_method', 'PUT');
       if (userId) fd.append('user_id', userId);
       fd.append('type', profile.type || 'user');
       Object.entries(payload).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) fd.append(k, v);
+        if (v === undefined || v === null) return;
+        // Convert dot-notation keys ("staff_data.father_name") to PHP array
+        // bracket notation ("staff_data[father_name]") so Laravel nests them
+        // into $request->staff_data / $request->application_data.
+        const key = k.replace(/^([A-Za-z0-9_]+)\.(.+)$/, '$1[$2]');
+        fd.append(key, v);
       });
-      const res = await put('/profile', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await post('/profile', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setProfile(res.data.data);
       Swal.fire({ icon: 'success', title: 'Saved', timer: 1500, showConfirmButton: false });
       return true;
@@ -75,12 +85,13 @@ export default function MyProfile() {
   const uploadPhoto = async (file) => {
     if (!file) return;
     const fd = new FormData();
+    fd.append('_method', 'PUT'); // multipart must go via POST (see updateSection)
     if (userId) fd.append('user_id', userId);
     fd.append('type', profile.type || 'user');
     fd.append('profile_photo', file);
     setSaving(true);
     try {
-      const res = await put('/profile', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await post('/profile', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setProfile(res.data.data);
     } catch (e) {
       Swal.fire('Error', 'Photo upload failed', 'error');
@@ -324,8 +335,11 @@ export default function MyProfile() {
           onSave={async (form) => {
             const ok = await updateSection({
               name: form.name,
+              username: form.username,
               'staff_data.father_name': form.father_name,
               'staff_data.blood_type': form.blood_type,
+              'application_data.date_of_birth': form.date_of_birth,
+              'application_data.place_of_origin': form.place_of_origin,
             });
             if (ok) setShowPersonal(false);
           }}
@@ -342,6 +356,7 @@ export default function MyProfile() {
               email: form.email,
               phone: form.phone,
               whatsapp: form.whatsapp,
+              'application_data.current_address': form.current_address,
             });
             if (ok) setShowContact(false);
           }}
@@ -982,10 +997,14 @@ const btnSecondary = "flex-1 px-4 py-2 border border-gray-200 text-gray-700 text
 /* ─────────────────────── modals ─────────────────────── */
 
 function PersonalModal({ profile, onClose, onSave, saving }) {
+  const app = profile.staff?.application || {};
   const [form, setForm] = useState({
     name: profile.user?.name || '',
+    username: profile.user?.username || '',
     father_name: profile.staff?.father_name || '',
     blood_type: profile.staff?.blood_type || '',
+    date_of_birth: app.date_of_birth ? String(app.date_of_birth).slice(0, 10) : '',
+    place_of_origin: app.place_of_origin || '',
   });
   return (
     <ModalShell title="Edit Personal Information" onClose={onClose}>
@@ -995,8 +1014,20 @@ function PersonalModal({ profile, onClose, onSave, saving }) {
           <input className={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         </div>
         <div>
+          <label className={lbl}>Username</label>
+          <input className={inp} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+        </div>
+        <div>
           <label className={lbl}>Father's Name</label>
           <input className={inp} value={form.father_name} onChange={(e) => setForm({ ...form, father_name: e.target.value })} />
+        </div>
+        <div>
+          <label className={lbl}>Date of Birth</label>
+          <input type="date" className={inp} value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
+        </div>
+        <div>
+          <label className={lbl}>Place of Origin</label>
+          <input className={inp} value={form.place_of_origin} onChange={(e) => setForm({ ...form, place_of_origin: e.target.value })} />
         </div>
         <div>
           <label className={lbl}>Blood Type</label>
@@ -1017,10 +1048,12 @@ function PersonalModal({ profile, onClose, onSave, saving }) {
 }
 
 function ContactModal({ profile, onClose, onSave, saving }) {
+  const app = profile.staff?.application || {};
   const [form, setForm] = useState({
     email: profile.user?.email || '',
     phone: profile.user?.phone || '',
     whatsapp: profile.user?.whatsapp || '',
+    current_address: app.current_address || '',
   });
   return (
     <ModalShell title="Edit Contact Information" onClose={onClose}>
@@ -1036,6 +1069,10 @@ function ContactModal({ profile, onClose, onSave, saving }) {
         <div>
           <label className={lbl}>WhatsApp</label>
           <input className={inp} value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
+        </div>
+        <div>
+          <label className={lbl}>Current Address</label>
+          <textarea rows={2} className={inp} value={form.current_address} onChange={(e) => setForm({ ...form, current_address: e.target.value })} />
         </div>
         <div className="flex gap-2 pt-2">
           <button type="button" className={btnSecondary} onClick={onClose}>Cancel</button>

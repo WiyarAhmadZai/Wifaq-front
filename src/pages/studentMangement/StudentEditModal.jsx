@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
-import ReactSelect from "react-select";
-import { FiX, FiUser, FiBookOpen, FiTruck, FiUsers, FiDollarSign } from "react-icons/fi";
+import { FiX, FiUser, FiBookOpen, FiTruck, FiUsers, FiDollarSign, FiAlertTriangle } from "react-icons/fi";
 import { get, put, post } from "../../api/axios";
 
 /**
@@ -57,6 +56,9 @@ const BOOL_FIELDS = new Set([
   "transportation_required", "need_uniform", "uniform_required", "parental_consent",
 ]);
 
+// Sent as yyyy-mm-dd; the API returns them as ISO timestamps.
+const DATE_FIELDS = new Set(["date_of_birth", "enrollment_date"]);
+
 const GENDER = [{ v: "male", l: "Male" }, { v: "female", l: "Female" }];
 const ENROLLMENT_TYPE = [{ v: "new", l: "New" }, { v: "transfer", l: "Transfer" }];
 const STATUS = ["pending", "active", "graduated", "withdrawn", "transferred"].map((v) => ({ v, l: v[0].toUpperCase() + v.slice(1) }));
@@ -64,8 +66,6 @@ const SPECIAL_STATUS = [
   { v: "none", l: "None" }, { v: "orphan", l: "Orphan" },
   { v: "employee_child", l: "Employee child" }, { v: "fourth_child", l: "Fourth child" },
 ];
-// Searchable discount options, every whole percent from 0% to 100%.
-const DISCOUNT_OPTIONS = Array.from({ length: 101 }, (_, v) => ({ value: v, label: `${v}%` }));
 const INCOME_CAT = ["A", "B", "C", "D"].map((v) => ({ v, l: v }));
 const TRANSFER_STATUS = [
   { v: "pending", l: "Pending" }, { v: "in_progress", l: "In progress" }, { v: "completed", l: "Completed" },
@@ -73,6 +73,8 @@ const TRANSFER_STATUS = [
 
 export default function StudentEditModal({ studentId, onClose, onSaved }) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState("student");
   const [student, setStudent] = useState({});
@@ -87,20 +89,37 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   const [feePreview, setFeePreview] = useState(null);
   const [feeBusy, setFeeBusy] = useState(false);
 
+  // `onClose` / `onSaved` are inline arrows in the parent, so their identity
+  // changes on every parent render (the auth context alone re-renders every
+  // couple of minutes). Kept in refs so they can be called without ever
+  // appearing in a dependency array — having them there re-ran the loader
+  // mid-edit, which is what made the modal blank itself and disappear.
+  const onCloseRef = useRef(onClose);
+  const onSavedRef = useRef(onSaved);
+  // The records as they came from the server — the diff baseline for saving.
+  const initialStudent = useRef({});
+  const initialFamily = useRef({});
+  useEffect(() => { onCloseRef.current = onClose; onSavedRef.current = onSaved; });
+  const close = useCallback(() => onCloseRef.current?.(), []);
+
   // Load the full student record (+ family) and reference lists. Classes and
   // employee parents come from the students form-data endpoint (gated by the
   // student permission the caller already holds) — NOT the class-management
   // endpoint, which needs a separate classes.view permission.
+  //
+  // `cache: false` on the student read: after a save we must never paint the
+  // pre-save copy from the local API cache, so this one always hits the server.
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setLoadError(null);
     (async () => {
       try {
         const [sRes, fRes, rRes, gRes] = await Promise.all([
-          get(`/student-management/students/show/${studentId}`),
+          get(`/student-management/students/show/${studentId}`, { cache: false }),
           get("/student-management/students/form-data").catch(() => ({ data: {} })),
           get("/transportation/routes/active/list").catch(() => ({ data: [] })),
-          get("/grades/list").catch(() => ({ data: [] })),
+          get("/student-management/students/filter-options").catch(() => ({ data: {} })),
         ]);
         if (!alive) return;
         const data = sRes.data?.data || sRes.data || {};
@@ -112,12 +131,28 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
         setStudent(data);
         setFamily(data.family || null);
         setFamilyId(data.family?.id || data.family_id || null);
-        setGrades((gRes.data?.data || gRes.data || []).map((g) => ({ value: g.id, label: g.name })));
+        // Baseline for the "what changed?" diff done at save time.
+        initialStudent.current = data;
+        initialFamily.current = data.family || {};
+        setGrades(
+          (gRes.data?.grades || []).map((g) => ({
+            value: g.id,
+            label: g.name,
+            base_fee: Number(g.base_fee) || 0,
+          })),
+        );
 
-        // Build the class options and ALWAYS include the student's current class
-        // (the form-data list hides full / other-term classes, so the student's
-        // own class may be absent — seed it so the value always renders).
-        const listClasses = (fRes.data?.classes || []).map((c) => ({ value: c.id, label: c.class_name }));
+        // Build the class options from every class that exists (filter-options
+        // is not limited to the current term or to classes with free seats) and
+        // ALWAYS seed the student's own class, so the saved value renders even
+        // if that class is full or belongs to a past term.
+        const listClasses = [
+          ...(fRes.data?.classes || []),
+          ...(gRes.data?.classes || []),
+        ].reduce((acc, c) => {
+          if (!acc.some((x) => x.value === c.id)) acc.push({ value: c.id, label: c.class_name });
+          return acc;
+        }, []);
         const current = data.school_class;
         if (current?.id && !listClasses.some((c) => c.value === current.id)) {
           listClasses.unshift({ value: current.id, label: current.class_name });
@@ -126,14 +161,16 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
         setEmployeeParents((fRes.data?.employee_parents || []).map((s) => ({ value: s.id, label: s.name })));
         setRoutes((rRes.data?.data || rRes.data || []).map((r) => ({ value: r.id, label: r.name || r.route_name || `Route #${r.id}` })));
       } catch (e) {
-        Swal.fire("Error", e.response?.data?.message || "Failed to load student data", "error");
-        onClose();
+        if (!alive) return;
+        // Keep the modal open and offer a retry — silently closing on a hiccup
+        // looked to the user like the page had reloaded itself.
+        setLoadError(e.response?.data?.message || e.message || "Failed to load student data");
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, [studentId, onClose]);
+  }, [studentId, reloadKey]);
 
   // Vehicles depend on the chosen route.
   useEffect(() => {
@@ -181,18 +218,120 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   ]);
   const setF = (key, value) => setFamily((prev) => ({ ...(prev || {}), [key]: value }));
 
+  /* ── Fee ↔ discount two-way binding ─────────────────────────────────────
+   * The admin can drive the monthly fee from either end: type a discount
+   * percentage, or type the exact amount the family actually pays and let the
+   * percentage be derived from it. The base fee comes from the grade, so the
+   * amount field is only meaningful once a grade is set.
+   */
+  // The base fee is the GRADE's fee — never the amount already stored on the
+  // student (that one is what the family pays, i.e. the discounted figure).
+  // Order: the grade the user just picked → the grade behind their class →
+  // whatever the server's preview resolved. No grade ⇒ no base fee.
+  const selectedGrade =
+    grades.find((g) => String(g.value) === String(student.grade_id)) ||
+    grades.find((g) => String(g.value) === String(student.school_class?.grade_id)) ||
+    null;
+  const feeBase =
+    Number(selectedGrade?.base_fee ?? feePreview?.base_fee ?? 0) || 0;
+  const gradeLabel =
+    selectedGrade?.label ||
+    student.grade?.name ||
+    student.school_class?.grade?.name ||
+    "";
+  // Orphan / employee-child / 4th-child are policy discounts computed by the
+  // server; a manual percentage or amount is ignored while one is in force.
+  const policyOverride =
+    ["orphan", "employee_child"].includes(student.special_status) ||
+    Number(student.child_order_in_family) >= 4;
+
+  // Three views of the same number — amount paid, discount in AFN, discount %.
+  // Editing any one updates the other two; only the percentage is persisted.
+  const [payDraft, setPayDraft] = useState("");
+  const [discDraft, setDiscDraft] = useState("");
+  const payFocused = useRef(false);
+  const discFocused = useRef(false);
+
+  // Keep both amount fields showing the server's figures whenever the user
+  // isn't actively typing in them. Before the preview arrives they fall back to
+  // what the student already pays, so the fields open with the agreed fee.
+  useEffect(() => {
+    const finalFee = feePreview?.final_fee ?? student.final_fee;
+    const discAmount = feePreview?.discount_amount ?? student.discount_amount;
+    if (!payFocused.current) setPayDraft(finalFee == null ? "" : String(round2(finalFee)));
+    if (!discFocused.current) setDiscDraft(discAmount == null ? "" : String(round2(discAmount)));
+  }, [
+    feePreview?.final_fee, feePreview?.discount_amount,
+    student.final_fee, student.discount_amount,
+  ]);
+
+  /** Push a discount (in AFN) into the percentage + whichever field isn't focused. */
+  const applyDiscountAmount = (discount) => {
+    const clamped = Math.min(Math.max(discount, 0), feeBase);
+    setS("discount_percent", round2((clamped / feeBase) * 100));
+    if (!discFocused.current) setDiscDraft(String(round2(clamped)));
+    if (!payFocused.current) setPayDraft(String(round2(feeBase - clamped)));
+  };
+
+  const handlePayChange = (raw) => {
+    setPayDraft(raw);
+    if (!feeBase || policyOverride || raw === "") return;
+    const paid = Number(raw);
+    if (Number.isNaN(paid)) return;
+    applyDiscountAmount(feeBase - Math.min(Math.max(paid, 0), feeBase));
+  };
+
+  const handleDiscountAmountChange = (raw) => {
+    setDiscDraft(raw);
+    if (!feeBase || policyOverride || raw === "") return;
+    const discount = Number(raw);
+    if (Number.isNaN(discount)) return;
+    applyDiscountAmount(discount);
+  };
+
+  const handlePercentChange = (raw) => {
+    if (!feeBase || policyOverride) return;
+    const pct = raw === "" ? 0 : Math.min(Math.max(Number(raw) || 0, 0), 100);
+    setS("discount_percent", round2(pct));
+    // Whole afghani, matching the server, so the three fields never disagree.
+    const discount = Math.round((feeBase * pct) / 100);
+    if (!discFocused.current) setDiscDraft(String(discount));
+    if (!payFocused.current) setPayDraft(String(round2(feeBase - discount)));
+  };
+
+  /** On blur, snap a field back to the server's authoritative figure. */
+  const resyncFeeFields = () => {
+    const finalFee = feePreview?.final_fee ?? student.final_fee;
+    const discAmount = feePreview?.discount_amount ?? student.discount_amount;
+    if (!payFocused.current) setPayDraft(finalFee == null ? "" : String(round2(finalFee)));
+    if (!discFocused.current) setDiscDraft(discAmount == null ? "" : String(round2(discAmount)));
+  };
+
   const title = useMemo(
     () => `${student.first_name || ""} ${student.last_name || ""}`.trim() || "Student",
     [student.first_name, student.last_name],
   );
 
-  const buildPayload = (source, fields) => {
+  /**
+   * Only the fields the user actually changed go to the server. This is an
+   * edit form, not a create one: re-posting every field made the save fail on
+   * pre-existing bad data the user never touched (a family whose stored email
+   * is "Check. active?" would 422 on an unrelated address change).
+   */
+  const buildPayload = (source, fields, initial) => {
+    const norm = (k, v) => {
+      if (BOOL_FIELDS.has(k)) return Boolean(v);
+      if (v === "" || v === undefined) return null;
+      // Dates arrive as ISO timestamps but are edited as yyyy-mm-dd.
+      if (DATE_FIELDS.has(k) && v) return String(v).slice(0, 10);
+      return v;
+    };
     const out = {};
     for (const k of fields) {
-      let v = source?.[k];
-      if (BOOL_FIELDS.has(k)) { out[k] = Boolean(v); continue; }
-      if (v === "" || v === undefined) v = null;
-      out[k] = v;
+      const value = norm(k, source?.[k]);
+      const before = norm(k, initial?.[k]);
+      if (String(value) === String(before)) continue;
+      out[k] = value;
     }
     return out;
   };
@@ -200,13 +339,32 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   const save = async () => {
     setSaving(true);
     try {
-      await put(`/student-management/students/update/${studentId}`, buildPayload(student, STUDENT_FIELDS));
-      if (familyId && family) {
-        await put(`/student-management/families/update/${familyId}`, buildPayload(family, FAMILY_FIELDS));
+      const studentChanges = buildPayload(student, STUDENT_FIELDS, initialStudent.current);
+      const familyChanges = familyId && family
+        ? buildPayload(family, FAMILY_FIELDS, initialFamily.current)
+        : {};
+
+      const res = await put(`/student-management/students/update/${studentId}`, studentChanges);
+      if (Object.keys(familyChanges).length > 0) {
+        await put(`/student-management/families/update/${familyId}`, familyChanges);
+      }
+      // Adopt the saved record straight from the response (server-recalculated
+      // fees included) so the values on screen are the ones now in the
+      // database — and so are the ones shown the next time this opens.
+      const saved = res.data?.data;
+      if (saved) {
+        setStudent((prev) => ({ ...prev, ...saved }));
+        initialStudent.current = { ...initialStudent.current, ...saved };
+        if (saved.family) {
+          setFamily(saved.family);
+          initialFamily.current = saved.family;
+        } else if (family) {
+          initialFamily.current = { ...initialFamily.current, ...family };
+        }
       }
       Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Student updated", timer: 1800, showConfirmButton: false });
-      onSaved?.();
-      onClose();
+      onSavedRef.current?.();
+      close();
     } catch (e) {
       const errors = e.response?.data?.errors;
       const first = errors ? Object.values(errors)[0]?.[0] : null;
@@ -217,7 +375,7 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-3 sm:p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-3 sm:p-6" onClick={close}>
       <div
         className="w-full max-w-5xl h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -267,6 +425,20 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
               <div className="animate-spin rounded-full h-8 w-8 border-4 border-teal-100 border-t-teal-600" />
               <span className="text-xs text-gray-400">Loading student…</span>
             </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
+                <FiAlertTriangle className="w-6 h-6 text-red-500" />
+              </div>
+              <p className="text-sm font-semibold text-gray-700">Couldn’t load this student</p>
+              <p className="text-xs text-gray-500 max-w-md">{loadError}</p>
+              <button
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="mt-1 px-4 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg"
+              >
+                Try again
+              </button>
+            </div>
           ) : (
             <>
               {tab === "student" && (
@@ -315,16 +487,15 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
                 <>
                   <Card title="Fee basis">
                     <Grid>
-                      <Select
-                        label="Grade"
-                        value={student.grade_id}
-                        options={grades.map((g) => ({ v: g.value, l: g.label }))}
-                        onChange={(v) => setS("grade_id", v ? Number(v) : null)}
-                        hint="Base fee comes from the grade"
-                      />
-                      <DiscountSelect
-                        value={student.discount_percent}
-                        onChange={(v) => setS("discount_percent", v)}
+                      {/* Grade is edited once, under Student → Placement. Shown
+                          here read-only because it sets the base fee. */}
+                      <ReadOnly
+                        label="Grade (base fee)"
+                        value={
+                          gradeLabel
+                            ? `${gradeLabel} — ${money(feeBase)}`
+                            : "Not set — choose one in the Student tab"
+                        }
                       />
                       <Select label="Special status" value={student.special_status} options={SPECIAL_STATUS} onChange={(v) => setS("special_status", v)} />
                       <Select
@@ -334,15 +505,110 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
                         onChange={(v) => setS("employee_parent_staff_id", v ? Number(v) : null)}
                         hint="Only for 'Employee child'"
                       />
+                      <NumberField
+                        label="Child order in family"
+                        value={student.child_order_in_family}
+                        onChange={(v) => setS("child_order_in_family", v)}
+                      />
                     </Grid>
+                  </Card>
+
+                  <Card
+                    title="Agreed monthly fee"
+                    subtitle="Type what the family actually pays — the discount is worked out from it (or set the % directly)"
+                  >
+                    {!feeBase ? (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        Set a <b>Grade</b> in the <b>Student</b> tab first. Without a grade the base fee is 0, so there is nothing to discount.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <label className="block">
+                            <span className={labelCls}>Fee to pay (AFN)</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max={feeBase}
+                              value={payDraft}
+                              disabled={policyOverride}
+                              onFocus={() => { payFocused.current = true; }}
+                              onBlur={() => { payFocused.current = false; resyncFeeFields(); }}
+                              onChange={(e) => handlePayChange(e.target.value)}
+                              className={`${inputCls} font-semibold`}
+                            />
+                            <span className="block text-[10px] text-gray-400 mt-0.5">
+                              What the family pays, 0 to {money(feeBase)}.
+                            </span>
+                          </label>
+
+                          <label className="block">
+                            <span className={labelCls}>Discount amount (AFN)</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max={feeBase}
+                              value={discDraft}
+                              disabled={policyOverride}
+                              onFocus={() => { discFocused.current = true; }}
+                              onBlur={() => { discFocused.current = false; resyncFeeFields(); }}
+                              onChange={(e) => handleDiscountAmountChange(e.target.value)}
+                              className={`${inputCls} font-semibold`}
+                            />
+                            <span className="block text-[10px] text-gray-400 mt-0.5">
+                              Discount in money, taken off {money(feeBase)}.
+                            </span>
+                          </label>
+
+                          <label className="block">
+                            <span className={labelCls}>Discount %</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={student.discount_percent ?? ""}
+                              disabled={policyOverride}
+                              onChange={(e) => handlePercentChange(e.target.value)}
+                              className={inputCls}
+                            />
+                            <span className="block text-[10px] text-gray-400 mt-0.5">
+                              0% to 100%. Decimals are fine.
+                            </span>
+                          </label>
+                        </div>
+
+                        <p className="text-[11px] text-gray-500 mt-2">
+                          Edit any one of the three — the other two follow. {money(feeBase)} base
+                          − {money(Number(discDraft) || 0)} discount = {money(Number(payDraft) || 0)} payable.
+                        </p>
+
+                        {policyOverride && (
+                          <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mt-3">
+                            A policy discount is in force
+                            {Number(student.child_order_in_family) >= 4
+                              ? " (4th child — free)"
+                              : student.special_status === "orphan"
+                                ? " (orphan — 75%)"
+                                : " (employee child)"}
+                            , so the fee is set by the rule, not by hand. Clear the special status to enter an amount yourself.
+                          </p>
+                        )}
+                      </>
+                    )}
                   </Card>
 
                   <Card title="Monthly fee" subtitle="Calculated on the server — saved when you press Save changes">
                     <FeeSummary
                       preview={feePreview}
                       busy={feeBusy}
+                      base={feeBase}
+                      gradeLabel={gradeLabel}
                       current={{
                         base_fee: student.base_fee,
+                        discount_percent: student.discount_percent,
                         discount_amount: student.discount_amount,
                         final_fee: student.final_fee,
                       }}
@@ -418,7 +684,7 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
                       <Text label="Father name" value={family.father_name} onChange={(v) => setF("father_name", v)} required />
                       <Text label="Father name (EN)" value={family.father_name_en} onChange={(v) => setF("father_name_en", v)} />
                       <Text label="Grandfather name" value={family.grandfather_name} onChange={(v) => setF("grandfather_name", v)} />
-                      <Text label="Mother name" value={family.mother_name} onChange={(v) => setF("mother_name", v)} required />
+                      <Text label="Mother name" value={family.mother_name} onChange={(v) => setF("mother_name", v)} />
                       <Text label="Father phone" value={family.father_phone} onChange={(v) => setF("father_phone", v)} />
                       <Text label="Mother phone" value={family.mother_phone} onChange={(v) => setF("mother_phone", v)} />
                       <Text label="Email" value={family.email} onChange={(v) => setF("email", v)} />
@@ -494,35 +760,61 @@ const Card = ({ title, subtitle, children }) => (
 );
 
 /** Live monthly-fee breakdown, server-calculated. */
-const money = (n) => `${Number(n || 0).toLocaleString()} AFN`;
-function FeeSummary({ preview, busy, current, hasBasis }) {
-  if (!hasBasis) {
-    return (
-      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-        Pick a <b>Grade</b> above to calculate the monthly fee. Without a grade (or class) the base fee stays 0.
-      </p>
-    );
-  }
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const money = (n) =>
+  `${round2(n).toLocaleString(undefined, { maximumFractionDigits: 2 })} AFN`;
+/** 12.5 → "12.5%", 12 → "12%" — no trailing zeros on whole percentages. */
+const percent = (n) => `${round2(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
 
-  const shown = preview || current;
-  const changed = preview && Number(preview.final_fee) !== Number(current?.final_fee || 0);
+/**
+ * `base` is the GRADE's monthly fee and is authoritative: everything else is
+ * derived from it. The discount is simply base − what the family pays, and the
+ * percentage is that difference over the base.
+ */
+function FeeSummary({ preview, busy, base = 0, gradeLabel, current, hasBasis }) {
+  const baseFee = Number(base) || Number(preview?.base_fee) || 0;
+  const pct = round2(preview?.discount_percent ?? current?.discount_percent ?? 0);
+  // Same whole-afghani rounding the server applies, so the figures shown
+  // before the preview lands match the ones that get saved.
+  const discountAmount = preview
+    ? round2(preview.discount_amount)
+    : Math.round((baseFee * pct) / 100);
+  const finalFee = preview ? round2(preview.final_fee) : round2(baseFee - discountAmount);
 
   return (
     <div>
+      {!hasBasis && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          No grade (or class) is set for this student, so there is no base fee to work from.
+          {Number(current?.final_fee) > 0 && (
+            <> Previously saved on the record: <b>{money(current.final_fee)}</b>.</>
+          )}
+        </p>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <FeeStat label="Base fee" value={money(shown?.base_fee)} />
-        <FeeStat label="Discount" value={`− ${money(shown?.discount_amount)}`} tone="text-emerald-600" />
-        <FeeStat label="Final monthly fee" value={money(shown?.final_fee)} strong />
+        <FeeStat
+          label={gradeLabel ? `Base fee (${gradeLabel})` : "Base fee (grade)"}
+          value={money(baseFee)}
+        />
+        <FeeStat
+          label={`Discount (${percent(pct)})`}
+          value={`− ${money(discountAmount)}`}
+          tone="text-emerald-600"
+        />
+        <FeeStat label="Final monthly fee" value={money(finalFee)} strong />
       </div>
       <p className="text-[11px] mt-3 flex items-center gap-1.5">
         {busy ? (
           <span className="text-gray-400">Recalculating…</span>
-        ) : changed ? (
+        ) : preview && Number(preview.final_fee) !== Number(current?.final_fee || 0) ? (
           <span className="text-teal-700 font-medium">
-            New fee — was {money(current?.final_fee)}. Press “Save changes” to apply.
+            {money(baseFee)} − {money(discountAmount)} ({percent(pct)} discount) = {money(finalFee)} payable.
+            Was {money(current?.final_fee)}. Press “Save changes” to apply.
           </span>
         ) : (
-          <span className="text-gray-400">Current saved fee.</span>
+          <span className="text-gray-400">
+            {money(baseFee)} base − {money(discountAmount)} discount ({percent(pct)}) = {money(finalFee)} payable.
+          </span>
         )}
       </p>
     </div>
@@ -565,38 +857,6 @@ function DateField({ label, value, onChange }) {
     </label>
   );
 }
-/** Searchable discount picker (react-select), any whole percent 0–100. */
-function DiscountSelect({ value, onChange }) {
-  const selected = DISCOUNT_OPTIONS.find((o) => o.value === Number(value)) || null;
-  return (
-    <label className="block">
-      <span className={labelCls}>Discount %</span>
-      <ReactSelect
-        classNamePrefix="rs"
-        options={DISCOUNT_OPTIONS}
-        value={selected}
-        onChange={(opt) => onChange(opt ? opt.value : 0)}
-        isSearchable
-        placeholder="Type or pick 0–100%…"
-        menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-        styles={{
-          menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-          control: (base, state) => ({
-            ...base,
-            minHeight: "38px",
-            borderColor: state.isFocused ? "#2dd4bf" : "#d1d5db",
-            boxShadow: state.isFocused ? "0 0 0 2px rgba(45,212,191,0.4)" : "none",
-            "&:hover": { borderColor: "#2dd4bf" },
-            fontSize: "0.875rem",
-          }),
-          menu: (base) => ({ ...base, fontSize: "0.875rem" }),
-        }}
-      />
-      <span className="block text-[10px] text-gray-400 mt-0.5">Any whole percent, 0% to 100%</span>
-    </label>
-  );
-}
-
 function Select({ label, value, options, onChange, hint, disabled }) {
   return (
     <label className="block">

@@ -115,18 +115,11 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
     setLoadError(null);
     (async () => {
       try {
-<<<<<<< HEAD
-        const [sRes, fRes, rRes] = await Promise.all([
-          get(`/student-management/students/show/${studentId}`),
-          get("/student-management/students/form-data").catch(() => ({ data: {} })),
-          get("/transportation/routes/active/list").catch(() => ({ data: [] })),
-=======
         const [sRes, fRes, rRes, gRes] = await Promise.all([
           get(`/student-management/students/show/${studentId}`, { cache: false }),
           get("/student-management/students/form-data").catch(() => ({ data: {} })),
           get("/transportation/routes/active/list").catch(() => ({ data: [] })),
           get("/student-management/students/filter-options").catch(() => ({ data: {} })),
->>>>>>> 5816a549ce030c040cd8c89b29a7a5c4bff99027
         ]);
         if (!alive) return;
         const data = sRes.data?.data || sRes.data || {};
@@ -138,9 +131,6 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
         setStudent(data);
         setFamily(data.family || null);
         setFamilyId(data.family?.id || data.family_id || null);
-<<<<<<< HEAD
-        setGrades((fRes.data?.grades || []).map((g) => ({ value: g.id, label: g.name })));
-=======
         // Baseline for the "what changed?" diff done at save time.
         initialStudent.current = data;
         initialFamily.current = data.family || {};
@@ -151,7 +141,6 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
             base_fee: Number(g.base_fee) || 0,
           })),
         );
->>>>>>> 5816a549ce030c040cd8c89b29a7a5c4bff99027
 
         // Build the class options from every class that exists (filter-options
         // is not limited to the current term or to classes with free seats) and

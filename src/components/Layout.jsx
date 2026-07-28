@@ -1327,6 +1327,17 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
+          {/* Bugs & Errors — everyone can report + track their own (bugs.view
+              is granted to all roles). */}
+          {hasPermission("bugs.view") && (
+            <SidebarItem
+              icon={Icons.Support}
+              label="Bugs & Errors"
+              to="/bugs"
+              active={isActive("/bugs")}
+              onClick={closeSidebar}
+            />
+          )}
           {(canSeeGroup(branchesMenus) || canSeeGroup(departmentsMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
           {canSeeGroup(branchesMenus) && (
             <ParentMenu

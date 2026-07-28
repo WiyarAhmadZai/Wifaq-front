@@ -19,6 +19,9 @@ const RULES = [
   // Branches
   { prefix: "/branches", permission: "branches.view" },
 
+  // Bugs & Errors — reporting available to every user (bugs.view granted to all roles)
+  { prefix: "/bugs", permission: "bugs.view" },
+
   // DOB — birthdays for students / teachers / staff
   { prefix: "/dob/students", permission: "birthdays.student.view" },
   { prefix: "/dob/teachers", permission: "birthdays.teacher.view" },

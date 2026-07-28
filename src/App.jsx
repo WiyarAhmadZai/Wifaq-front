@@ -46,6 +46,7 @@ const MyProfile = lazy(() => import("./pages/MyProfile"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatSettings = lazy(() => import("./pages/system/ChatSettings"));
+const Bugs = lazy(() => import("./pages/system/Bugs"));
 
 // DOB module — student / teacher / staff birthdays
 const StudentBirthdays = lazy(() => import("./pages/birthdays/StudentBirthdays"));
@@ -713,6 +714,13 @@ function App() {
             <Route path="dob/staff" element={
               <Protected permission="birthdays.staff.view">
                 <Suspense fallback={<PageLoader />}><StaffBirthdays /></Suspense>
+              </Protected>
+            } />
+
+            {/* Bugs & Errors — every user can report + track their own */}
+            <Route path="bugs" element={
+              <Protected permission="bugs.view">
+                <Suspense fallback={<PageLoader />}><Bugs /></Suspense>
               </Protected>
             } />
           </Route>

@@ -56,7 +56,7 @@ function advanceFor(row, edit) {
 }
 
 export default function Payroll() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isSuperAdmin } = useAuth();
   // Four distinct privileged actions on this screen:
   //   • commit         — accrues salaries + posts JEs        → payroll.create
   //   • pay (all/each) — disburses cash from a bank account   → payroll.create
@@ -73,6 +73,17 @@ export default function Payroll() {
   const canDelete  = hasPermission("payroll.delete") || canManage;
   const canAdvance = hasPermission("payroll.advance") || canManage;
   const canPrint   = hasPermission("payroll.print")   || canManage;
+
+  // Deleting a run that has been paid out is NOT covered by payroll.delete.
+  // Money has left the bank, so undoing it takes a super-admin — the server
+  // enforces the same rule, this just stops the button being offered.
+  //   paid unknown (list rows carry no payslips) → treat as unpaid; the server
+  //   still refuses and says why.
+  const canDeleteRun = (run, paidCount) => {
+    if (!canDelete) return false;
+    const paid = paidCount ?? (run?.payslips || []).filter((s) => s.status === "paid").length;
+    return paid === 0 || isSuperAdmin;
+  };
   const [view, setView] = useState("builder");      // builder | run
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -447,16 +458,25 @@ export default function Payroll() {
                 Notes
               </button>
             )}
-            {canDelete && (
-              <button onClick={() => removeRun(activeRun, { fromDetail: true })}
-                disabled={busyRunId === activeRun.id || paidCount > 0}
-                title={paidCount > 0 ? "Some payslips are already paid — reverse those payments first" : "Delete this run"}
+            {/* Once anything in the run is paid the button is GONE, not
+                greyed — deleting paid payroll is a super-admin decision. */}
+            {canDeleteRun(activeRun, paidCount) && (
+              <button onClick={() => removeRun(activeRun, { fromDetail: true, paid: paidCount })}
+                disabled={busyRunId === activeRun.id}
+                title={paidCount > 0 ? "Super-admin: reverses the payments and puts the cash back" : "Delete this run"}
                 className="px-3 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
-                {busyRunId === activeRun.id ? "Deleting…" : "Delete run"}
+                {busyRunId === activeRun.id ? "Deleting…" : paidCount > 0 ? "Delete run (paid)" : "Delete run"}
               </button>
             )}
           </div>
         </div>
+
+        {paidCount > 0 && !isSuperAdmin && (
+          <p className="mb-4 text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            {paidCount} payslip(s) in this run have been paid, so it can no longer be deleted.
+            Only a super-admin can remove a payroll run once money has gone out.
+          </p>
+        )}
 
         {activeRun.notes && (
           <p className="mb-4 text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
@@ -840,9 +860,9 @@ export default function Payroll() {
                         Edit
                       </button>
                     )}
-                    {canDelete && (
+                    {canDeleteRun(r, r.paid_payslips_count) && (
                       <button
-                        onClick={(ev) => { ev.stopPropagation(); removeRun(r); }}
+                        onClick={(ev) => { ev.stopPropagation(); removeRun(r, { paid: r.paid_payslips_count }); }}
                         disabled={busyRunId === r.id}
                         title="Delete this payroll run"
                         className="px-2 py-1 text-[10px] font-semibold text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-40">

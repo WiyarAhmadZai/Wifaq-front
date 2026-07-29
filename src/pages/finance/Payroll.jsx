@@ -96,6 +96,8 @@ export default function Payroll() {
   const [runs, setRuns] = useState([]);
   const [activeRun, setActiveRun] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  // Why the account list is empty, when it is. Null = loaded fine.
+  const [accountsError, setAccountsError] = useState(null);
 
   // Payment dialog state. We drive the account-picker and the receipt with
   // plain React state instead of SweetAlert popups so we can ship a richer
@@ -115,11 +117,30 @@ export default function Payroll() {
 
   useEffect(() => {
     fetchRuns();
-    // Salaries are only ever paid from the Payroll Bank (chart 1112). The
-    // backend enforces the same in PayrollService::paySlip().
-    getAccounts({ per_page: 100, chart_codes: "1112" })
-      .then((r) => setAccounts(r.data?.data?.data || r.data?.data || []))
-      .catch(() => setAccounts([]));
+    // Every account that holds money — cash boxes included, not just a
+    // dedicated "Payroll Bank". Asking for chart code 1112 by name meant any
+    // install without that exact code showed an empty picker and the
+    // misleading "add a cash/bank account first". `cash_bank=1` lets the
+    // backend answer from the chart's own cash/bank flags instead.
+    getAccounts({ per_page: 100, cash_bank: 1 })
+      .then((r) => {
+        const rows = r.data?.data?.data || r.data?.data || [];
+        // Offer the dedicated payroll account first when one exists; it is a
+        // preference now, not a requirement.
+        setAccounts([...rows].sort((a, b) =>
+          (b.chart_account?.code === "1112") - (a.chart_account?.code === "1112")));
+        setAccountsError(null);
+      })
+      .catch((e) => {
+        setAccounts([]);
+        // Keep the real reason. Swallowing it turned a 403 (no accounts.view)
+        // and a genuinely empty list into the same unhelpful message.
+        setAccountsError(
+          e.response?.status === 403
+            ? "You don't have permission to read cash/bank accounts (needs accounts.view). Ask an admin to grant it."
+            : e.response?.data?.message || "Could not load cash/bank accounts."
+        );
+      });
   }, []);
 
   const fetchRuns = async () => {
@@ -367,10 +388,19 @@ export default function Payroll() {
     }
   };
 
+  // Say WHY there is nothing to pay from. "Add a cash/bank account first" is
+  // wrong — and infuriating — when the school is looking at a full cash box
+  // and the real problem is a permission or a chart mapping.
+  const noAccountsReason = () => {
+    if (accountsError) return accountsError;
+    return "No cash or bank accounts are visible for your branch. Check Finance → Accounts: an account must exist "
+      + "and its chart account must be marked as a cash or bank account.";
+  };
+
   // Open the redesigned account-picker for a single payslip.
   const paySlipNow = (slip) => {
     if (accounts.length === 0) {
-      Swal.fire("No accounts", "Add a cash/bank account first.", "warning");
+      Swal.fire("Can't open the account picker", noAccountsReason(), "warning");
       return;
     }
     setPicker({ kind: "one", slip });
@@ -381,7 +411,7 @@ export default function Payroll() {
     const pending = (activeRun.payslips || []).filter((s) => s.status === "pending");
     if (pending.length === 0) return;
     if (accounts.length === 0) {
-      Swal.fire("No accounts", "Add a cash/bank account first.", "warning");
+      Swal.fire("Can't open the account picker", noAccountsReason(), "warning");
       return;
     }
     setPicker({ kind: "all", payslips: pending });

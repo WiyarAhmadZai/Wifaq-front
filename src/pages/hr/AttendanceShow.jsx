@@ -79,7 +79,10 @@ export default function AttendanceShow() {
       s.total += 1;
       if (s[r.status] !== undefined) s[r.status] += 1;
       s.hours += Number(r.working_hours || 0);
-      if (fmtDate(r.date).startsWith(ym)) {
+      // Compare on the raw Y-m-d the API sends, not on the DD/MM/YYYY display
+      // string — "29/07/2026" never starts with "2026-07", so this counter was
+      // stuck at zero.
+      if (String(r.date).startsWith(ym)) {
         s.monthTotal += 1;
         if (["present", "late", "half_day"].includes(r.status)) s.monthPresent += 1;
       }

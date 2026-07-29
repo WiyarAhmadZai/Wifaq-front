@@ -312,16 +312,29 @@ export default function Payroll() {
   // Payslips are not removable on their own — they belong to their run and are
   // only cleared when that whole run is deleted (which reverses each accrual
   // and hands any recovered advance back to the staff ledger).
-  const removeRun = async (run, { fromDetail = false } = {}) => {
-    const paid = (run.payslips || []).filter((s) => s.status === "paid").length;
-    const c = await Swal.fire({
-      title: `Delete ${MONTHS[run.period_month - 1]} ${run.period_year} payroll?`,
-      html: paid > 0
-        ? `<p style="font-size:13px">${paid} payslip(s) here are already <b>paid</b>. Paid payslips cannot be deleted — reverse those payments first.</p>`
-        : `<p style="font-size:13px">Every payslip in this run is removed and its accrual reversed. Any advances recovered by the run go back onto the staff ledgers. The period becomes free to run again.</p>`,
-      icon: "warning", showCancelButton: true,
-      confirmButtonText: "Delete run", confirmButtonColor: "#dc2626",
-    });
+  const removeRun = async (run, { fromDetail = false, paid: paidArg } = {}) => {
+    const paid = paidArg ?? (run.payslips || []).filter((s) => s.status === "paid").length;
+    // A paid run only reaches here as super-admin. Spell out what reversing a
+    // disbursement means and make them type the period — this puts money back
+    // into a bank account and un-pays staff who have already been handed cash.
+    const c = paid > 0
+      ? await Swal.fire({
+          title: `Delete PAID payroll — ${MONTHS[run.period_month - 1]} ${run.period_year}?`,
+          html: `<p style="font-size:13px">${paid} payslip(s) here have already been <b>paid out</b>. Deleting reverses those payments, puts the cash back on the account it left, and returns any recovered advance to the staff ledgers.</p>
+                 <p style="font-size:12px;color:#b91c1c;margin-top:8px">Do this only if the money never actually left. Type <b>${MONTHS[run.period_month - 1]} ${run.period_year}</b> to confirm.</p>`,
+          icon: "warning", input: "text", showCancelButton: true,
+          confirmButtonText: "Reverse and delete", confirmButtonColor: "#dc2626",
+          inputValidator: (v) =>
+            v?.trim().toLowerCase() === `${MONTHS[run.period_month - 1]} ${run.period_year}`.toLowerCase()
+              ? undefined
+              : "Type the period exactly to confirm.",
+        })
+      : await Swal.fire({
+          title: `Delete ${MONTHS[run.period_month - 1]} ${run.period_year} payroll?`,
+          html: `<p style="font-size:13px">Every payslip in this run is removed and its accrual reversed. Any advances recovered by the run go back onto the staff ledgers. The period becomes free to run again.</p>`,
+          icon: "warning", showCancelButton: true,
+          confirmButtonText: "Delete run", confirmButtonColor: "#dc2626",
+        });
     if (!c.isConfirmed) return;
     setBusyRunId(run.id);
     try {

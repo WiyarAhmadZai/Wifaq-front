@@ -1193,6 +1193,8 @@ function AccountPickerModal({ picker, accounts, paying, run, onConfirm, onClose 
   const slips = isBulk ? picker.payslips : [picker.slip];
   const total = slips.reduce((s, p) => s + Number(p.net_pay || 0), 0);
   const [selected, setSelected] = useState(null);
+  // At least one account that can actually cover the payment.
+  const anyFunded = accounts.some((a) => Number(a.current_balance) >= total);
 
   return (
     <div
@@ -1228,10 +1230,16 @@ function AccountPickerModal({ picker, accounts, paying, run, onConfirm, onClose 
                   key={a.id}
                   type="button"
                   onClick={() => setSelected(a.id)}
+                  // Not selectable when it can't cover the payment. The server
+                  // refuses it too; blocking here saves the round-trip.
+                  disabled={insufficient}
+                  title={insufficient ? "This account does not hold enough to cover the payment" : undefined}
                   className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-3 ${
-                    sel
-                      ? "bg-teal-50 border-teal-500 ring-2 ring-teal-200"
-                      : "bg-white border-gray-200 hover:border-teal-300"
+                    insufficient
+                      ? "bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed"
+                      : sel
+                        ? "bg-teal-50 border-teal-500 ring-2 ring-teal-200"
+                        : "bg-white border-gray-200 hover:border-teal-300"
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -1246,17 +1254,32 @@ function AccountPickerModal({ picker, accounts, paying, run, onConfirm, onClose 
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className={`text-xs font-mono font-semibold ${insufficient ? "text-amber-700" : "text-gray-700"}`}>
+                    <p className={`text-xs font-mono font-semibold ${insufficient ? "text-red-600" : "text-gray-700"}`}>
                       {fmt(a.current_balance)} AFN
                     </p>
                     {insufficient && (
-                      <p className="text-[9px] text-amber-700 mt-0.5">⚠ short of total</p>
+                      <p className="text-[9px] text-red-600 mt-0.5 font-semibold">
+                        {Number(a.current_balance) <= 0
+                          ? "empty"
+                          : `${fmt(total - Number(a.current_balance))} short`}
+                      </p>
                     )}
                   </div>
                 </button>
               );
             })}
           </div>
+
+          {/* Nothing in any payroll account can cover this — say so plainly
+              rather than leaving an all-greyed list with no explanation. */}
+          {!anyFunded && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+              <p className="text-[11px] text-red-700 leading-relaxed">
+                No payroll account holds the {fmt(total)} AFN this payment needs, so it cannot be
+                made. Deposit or transfer money in under <strong>Finance → Accounts</strong> first.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

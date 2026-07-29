@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { createParty } from "../../api/financial";
+import { useNavigate, useParams } from "react-router-dom";
+import { createParty, getParty, updateParty } from "../../api/financial";
 import { get } from "../../api/axios";
 import Swal from "sweetalert2";
 
 /**
- * Add a Party. A Party is just a money-tracking link to either a Staff or
- * Vendor record — identity (name / phone / email) lives on that source row
+ * Add / edit a Party. A Party is just a money-tracking link to either a Staff
+ * or Vendor record — identity (name / phone / email) lives on that source row
  * and is shown via accessors, not duplicated here.
  *
  *   Staff parties  → for advance / expense / repayment flows
@@ -14,6 +14,10 @@ import Swal from "sweetalert2";
  *
  * The form picks the source record and (optionally) sets an opening balance
  * and a note. That's it.
+ *
+ * In edit mode the source picker locks as soon as the party has ledger
+ * movement — re-pointing it then would move an entire advance history onto a
+ * different person. The backend refuses that too; this just says so up front.
  */
 
 const PARTY_TYPES = [
@@ -33,37 +37,59 @@ const PARTY_TYPES = [
   },
 ];
 
-// Only operations-side staff can hold money on the school's books — teachers
-// and other academic staff are paid through payroll, not the parties ledger.
-const ALLOWED_STAFF_DEPARTMENTS = [
-  "Human Resources",
-  "Finance",
-  "Administration",
-  "Operation",
-];
-
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
 
 export default function PartyForm() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = Boolean(id);
+
   const [loading, setLoading] = useState(false);
+  const [loadingParty, setLoadingParty] = useState(isEdit);
   const [partyType, setPartyType] = useState("staff");
   const [linkId, setLinkId] = useState("");          // staff_id or vendor_id depending on partyType
   const [openingBalance, setOpeningBalance] = useState("0");
   const [notes, setNotes] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [search, setSearch] = useState("");
+  // Set once the loaded party already has ledger entries — the link is frozen.
+  const [linkLocked, setLinkLocked] = useState(false);
 
   // Source lists keyed by partyType (staff vs vendor).
   const [staffList, setStaffList] = useState([]);
   const [vendorList, setVendorList] = useState([]);
 
   useEffect(() => {
+    if (!isEdit) return;
+    setLoadingParty(true);
+    getParty(id)
+      .then((r) => {
+        const p = r.data?.data;
+        if (!p) throw new Error("not found");
+        setPartyType(p.party_type);
+        setLinkId(p.party_type === "staff" ? p.staff_id ?? "" : p.vendor_id ?? "");
+        setOpeningBalance(String(p.opening_balance ?? 0));
+        setNotes(p.notes || "");
+        setIsActive(p.is_active !== false);
+        setLinkLocked((p.ledger_entries || []).length > 0);
+      })
+      .catch((err) => {
+        Swal.fire("Not found", err.response?.data?.message || "Could not load this party.", "error");
+        navigate("/finance/parties");
+      })
+      .finally(() => setLoadingParty(false));
+  }, [id, isEdit, navigate]);
+
+  useEffect(() => {
     // per_page=1000 because the list endpoint paginates at 15 by default and
     // we need every eligible staff row available for client-side filtering.
+    // Every registered staff member is selectable — the list used to be
+    // filtered down to four hard-coded department names, which silently hid
+    // anyone in another department (or with none recorded at all).
     get("/hr/staff/list", { params: { per_page: 1000 } })
       .then((r) => {
         const rows = r.data?.data?.data || r.data?.data || [];
-        setStaffList(rows.filter((s) => ALLOWED_STAFF_DEPARTMENTS.includes(s.department)));
+        setStaffList(Array.isArray(rows) ? rows : []);
       })
       .catch(() => setStaffList([]));
     // The vendors list endpoint may not exist on every install — try the most
@@ -82,11 +108,12 @@ export default function PartyForm() {
     [partyType]
   );
 
-  // Build the searchable option list for the active type.
-  const options = useMemo(() => {
+  // Build the option list for the active type. Kept unfiltered so the edit
+  // form can still resolve the currently-linked record even when the search
+  // box would have hidden it.
+  const allOptions = useMemo(() => {
     const src = partyType === "staff" ? staffList : vendorList;
-    const q = search.trim().toLowerCase();
-    const list = (src || []).map((row) => {
+    return (src || []).map((row) => {
       if (partyType === "staff") {
         const name = `${row.first_name || ""} ${row.last_name || ""}`.trim() || row.full_name || `Staff #${row.id}`;
         return {
@@ -104,17 +131,23 @@ export default function PartyForm() {
         subtitle: row.category || row.work_type || row.contact || null,
       };
     });
-    if (!q) return list.slice(0, 100);
-    return list
-      .filter((o) =>
-        o.name.toLowerCase().includes(q) ||
-        (o.uniqueId || "").toLowerCase().includes(q) ||
-        (o.subtitle || "").toLowerCase().includes(q)
-      )
-      .slice(0, 100);
-  }, [partyType, staffList, vendorList, search]);
+  }, [partyType, staffList, vendorList]);
+
+  const matchedOptions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return allOptions;
+    return allOptions.filter((o) =>
+      o.name.toLowerCase().includes(q) ||
+      (o.uniqueId || "").toLowerCase().includes(q) ||
+      (o.subtitle || "").toLowerCase().includes(q)
+    );
+  }, [allOptions, search]);
+
+  // Render cap, with the count shown below so nothing is dropped silently.
+  const options = useMemo(() => matchedOptions.slice(0, 200), [matchedOptions]);
 
   const handleTypeChange = (value) => {
+    if (linkLocked) return;
     setPartyType(value);
     setLinkId("");
     setSearch("");
@@ -128,18 +161,25 @@ export default function PartyForm() {
     }
     setLoading(true);
     try {
-      await createParty({
+      const payload = {
         party_type: partyType,
         staff_id:  partyType === "staff"  ? linkId : null,
         vendor_id: partyType === "vendor" ? linkId : null,
         opening_balance: Number(openingBalance) || 0,
         notes: notes || null,
-      });
-      Swal.fire("Created", "Party is ready for advances / payments.", "success");
+      };
+      if (isEdit) {
+        await updateParty(id, { ...payload, is_active: isActive });
+        Swal.fire("Saved", "Party updated.", "success");
+      } else {
+        await createParty(payload);
+        Swal.fire("Created", "Party is ready for advances / payments.", "success");
+      }
       navigate("/finance/parties");
     } catch (err) {
       const status = err.response?.status;
-      const msg = err.response?.data?.message || "Could not create party.";
+      const msg = err.response?.data?.message
+        || (isEdit ? "Could not update party." : "Could not create party.");
       if (status === 409) {
         Swal.fire("Already exists", msg, "info");
       } else {
@@ -151,7 +191,11 @@ export default function PartyForm() {
   };
 
   const openingNumber = Number(openingBalance) || 0;
-  const selectedOption = options.find((o) => String(o.id) === String(linkId));
+  const selectedOption = allOptions.find((o) => String(o.id) === String(linkId));
+
+  if (loadingParty) {
+    return <p className="px-4 py-10 text-center text-xs text-gray-400">Loading party…</p>;
+  }
 
   return (
     <div className="px-4 py-4 mx-auto">
@@ -165,12 +209,19 @@ export default function PartyForm() {
           </svg>
         </button>
         <div>
-          <h2 className="text-base font-bold text-gray-800">Add Party</h2>
+          <h2 className="text-base font-bold text-gray-800">{isEdit ? "Edit Party" : "Add Party"}</h2>
           <p className="text-[11px] text-gray-500">
             A money-tracking link to a Staff or Vendor record. Identity is pulled from the source — no duplicate data here.
           </p>
         </div>
       </div>
+
+      {linkLocked && (
+        <p className="mb-3 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+          This party already has ledger movement, so the linked record is frozen — re-pointing it would move the whole
+          advance history onto someone else. Opening balance, notes, and the active flag stay editable.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
         {/* Type pills */}
@@ -181,12 +232,13 @@ export default function PartyForm() {
               <button
                 key={t.value}
                 type="button"
+                disabled={linkLocked}
                 onClick={() => handleTypeChange(t.value)}
                 className={`text-left border rounded-lg p-3 transition-colors ${
                   partyType === t.value
                     ? "bg-teal-600 border-teal-600 text-white"
                     : "bg-white border-gray-200 text-gray-700 hover:border-teal-300"
-                }`}
+                } ${linkLocked ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <p className={`text-sm font-bold ${partyType === t.value ? "text-white" : "text-gray-800"}`}>
                   {t.label}
@@ -206,59 +258,78 @@ export default function PartyForm() {
             <span className="text-gray-400 normal-case font-normal ml-1">— search by name or unique id</span>
           </label>
 
-          <div className="relative mb-2">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0z" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${typeMeta.sourceLabel.toLowerCase()}…`}
-              className="w-full pl-8 pr-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500"
-            />
-          </div>
-
-          <div className="max-h-60 overflow-auto border border-gray-100 rounded-lg divide-y divide-gray-50 bg-white">
-            {options.length === 0 ? (
-              <div className="text-center py-6 text-xs text-gray-400 italic">
-                {search ? "No matches." : `No ${typeMeta.sourceLabel.toLowerCase()} records loaded yet.`}
+          {linkLocked ? (
+            <div className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-gray-800 truncate">
+                {selectedOption?.name || `${typeMeta.sourceLabel} #${linkId}`}
+              </p>
+              <span className="text-[10px] font-mono flex-shrink-0 px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">
+                {selectedOption?.uniqueId || "—"}
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="relative mb-2">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={`Search ${typeMeta.sourceLabel.toLowerCase()}…`}
+                  className="w-full pl-8 pr-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500"
+                />
               </div>
-            ) : (
-              options.map((o) => {
-                const selected = String(linkId) === String(o.id);
-                return (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => setLinkId(o.id)}
-                    className={`w-full text-left px-3 py-2 flex items-center justify-between gap-3 transition-colors ${
-                      selected ? "bg-teal-50" : "hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className={`text-xs font-semibold truncate ${selected ? "text-teal-800" : "text-gray-800"}`}>
-                        {o.name}
-                      </p>
-                      {o.subtitle && (
-                        <p className="text-[10px] text-gray-500 truncate">{o.subtitle}</p>
-                      )}
-                    </div>
-                    <span className={`text-[10px] font-mono flex-shrink-0 px-1.5 py-0.5 rounded ${
-                      selected ? "bg-teal-100 text-teal-800" : "bg-gray-100 text-gray-600"
-                    }`}>
-                      {o.uniqueId}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
 
-          {selectedOption && (
-            <p className="text-[10px] text-teal-700 mt-1.5">
-              ✓ Linking to <strong>{selectedOption.name}</strong> ({selectedOption.uniqueId}).
-            </p>
+              <p className="text-[10px] text-gray-400 mb-1.5">
+                {options.length === matchedOptions.length
+                  ? `${matchedOptions.length} ${typeMeta.sourceLabel.toLowerCase()}${matchedOptions.length === 1 ? "" : "s"}${search ? " matching" : " registered"}`
+                  : `Showing ${options.length} of ${matchedOptions.length} — narrow it down with the search`}
+              </p>
+
+              <div className="max-h-60 overflow-auto border border-gray-100 rounded-lg divide-y divide-gray-50 bg-white">
+                {options.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-gray-400 italic">
+                    {search ? "No matches." : `No ${typeMeta.sourceLabel.toLowerCase()} records loaded yet.`}
+                  </div>
+                ) : (
+                  options.map((o) => {
+                    const selected = String(linkId) === String(o.id);
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => setLinkId(o.id)}
+                        className={`w-full text-left px-3 py-2 flex items-center justify-between gap-3 transition-colors ${
+                          selected ? "bg-teal-50" : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className={`text-xs font-semibold truncate ${selected ? "text-teal-800" : "text-gray-800"}`}>
+                            {o.name}
+                          </p>
+                          {o.subtitle && (
+                            <p className="text-[10px] text-gray-500 truncate">{o.subtitle}</p>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-mono flex-shrink-0 px-1.5 py-0.5 rounded ${
+                          selected ? "bg-teal-100 text-teal-800" : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {o.uniqueId}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {selectedOption && (
+                <p className="text-[10px] text-teal-700 mt-1.5">
+                  ✓ Linking to <strong>{selectedOption.name}</strong> ({selectedOption.uniqueId}).
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -280,9 +351,28 @@ export default function PartyForm() {
             ) : (
               <span className="text-emerald-700"><strong>Settled</strong> — zero starting balance</span>
             )}
-            {" · Leave at 0 for new parties."}
+            {isEdit
+              ? " · Correcting this shifts the party's current balance by the same amount."
+              : " · Leave at 0 for new parties."}
           </p>
         </div>
+
+        {/* Active flag — edit only. Archiving is the alternative to deleting a
+            party that already has money history. */}
+        {isEdit && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="w-3.5 h-3.5 accent-teal-600"
+            />
+            <span className="text-xs text-gray-700">
+              Active
+              <span className="text-gray-400 ml-1">— uncheck to archive a settled party instead of deleting it</span>
+            </span>
+          </label>
+        )}
 
         {/* Notes */}
         <div>
@@ -302,7 +392,9 @@ export default function PartyForm() {
             disabled={loading || !linkId}
             className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-semibold disabled:opacity-50"
           >
-            {loading ? "Creating…" : "Create party"}
+            {loading
+              ? (isEdit ? "Saving…" : "Creating…")
+              : (isEdit ? "Save changes" : "Create party")}
           </button>
           <button
             type="button"

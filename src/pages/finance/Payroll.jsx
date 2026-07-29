@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   listPayrollRuns, getPayrollRun, previewPayroll,
   commitPayroll, payPayrollRun, payPayslip,
+  updatePayrollRun, deletePayrollRun, updatePayslip, deletePayslip,
 } from "../../api/payroll";
 import { getAccounts } from "../../api/financial";
 import { peekCache } from "../../api/axios";
@@ -22,13 +23,18 @@ const ROW_STATE = {
 
 export default function Payroll() {
   const { hasPermission } = useAuth();
-  // Two distinct privileged actions on this screen:
-  //   • commit         — accrues salaries + posts JEs
-  //   • pay (all/each) — disburses cash from a bank account
-  // Both gated by payroll.create (or .manage as override). Preview is just a
-  // read query so it stays open to anyone with payroll.view (route gate).
-  const canCommit = hasPermission("payroll.create") || hasPermission("payroll.manage");
-  const canPay    = hasPermission("payroll.create") || hasPermission("payroll.manage");
+  // Four distinct privileged actions on this screen:
+  //   • commit         — accrues salaries + posts JEs        → payroll.create
+  //   • pay (all/each) — disburses cash from a bank account   → payroll.create
+  //   • edit           — corrects a still-pending payslip     → payroll.update
+  //   • delete         — removes an unpaid payslip or run     → payroll.delete
+  // `.manage` is the catch-all that satisfies all four. Preview is just a read
+  // query so it stays open to anyone with payroll.view (route gate).
+  const canManage = hasPermission("payroll.manage");
+  const canCommit = hasPermission("payroll.create") || canManage;
+  const canPay    = hasPermission("payroll.create") || canManage;
+  const canEdit   = hasPermission("payroll.update") || canManage;
+  const canDelete = hasPermission("payroll.delete") || canManage;
   const [view, setView] = useState("builder");      // builder | run
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -218,18 +224,21 @@ export default function Payroll() {
 
   const totals = useMemo(() => {
     if (!preview) return null;
-    let g = 0, a = 0, dman = 0, dleave = 0, n = 0;
+    let g = 0, a = 0, dman = 0, dleave = 0, dadv = 0, n = 0;
     preview.rows.forEach((r) => {
       if (r.status !== "ready" || edits[r.staff_id]?.skip) return;
       const man = (edits[r.staff_id]?.manual || []).reduce((s, m) => s + (Number(m.amount) || 0), 0);
       // The automatic leave/absence deduction is computed by the backend and
       // must be subtracted from net alongside manual deductions.
       const leave = Number(r.leave_deduction) || 0;
+      // Outstanding advance recovered from this month's pay (backend-capped so
+      // it can never exceed what is payable).
+      const adv = Number(r.advance_deduction) || 0;
       g += Number(r.gross_salary); a += Number(r.allowances_total);
-      dman += man; dleave += leave;
-      n += Number(r.gross_salary) + Number(r.allowances_total) - man - leave;
+      dman += man; dleave += leave; dadv += adv;
+      n += Number(r.gross_salary) + Number(r.allowances_total) - man - leave - adv;
     });
-    return { g, a, dman, dleave, d: dman + dleave, n };
+    return { g, a, dman, dleave, dadv, d: dman + dleave + dadv, n };
   }, [preview, edits]);
 
   // ───────────────────────── Run detail view
@@ -264,6 +273,7 @@ export default function Payroll() {
                 <th className="text-left px-3 py-2">Staff</th>
                 <th className="text-right px-3 py-2">Gross</th>
                 <th className="text-right px-3 py-2">Allowances</th>
+                <th className="text-right px-3 py-2">Advance</th>
                 <th className="text-right px-3 py-2">Manual ded.</th>
                 <th className="text-right px-3 py-2">Net pay</th>
                 <th className="text-center px-3 py-2">Status</th>
@@ -285,6 +295,12 @@ export default function Payroll() {
                   </td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(s.gross_salary)}</td>
                   <td className="px-3 py-2 text-right font-mono text-gray-600">{fmt(s.allowances_total)}</td>
+                  {/* Advance recovered from this salary — cleared off the
+                      staff member's party ledger when the run was committed. */}
+                  <td className="px-3 py-2 text-right font-mono text-amber-700"
+                      title={Number(s.advance_offset) > 0 ? "Advance recovered from this salary" : "No advance recovered"}>
+                    {Number(s.advance_offset) > 0 ? `−${fmt(s.advance_offset)}` : "—"}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono text-amber-700">{s.manual_deductions_total > 0 ? `−${fmt(s.manual_deductions_total)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-teal-700">{fmt(s.net_pay)}</td>
                   <td className="px-3 py-2 text-center">
@@ -376,6 +392,7 @@ export default function Payroll() {
                 <th className="text-right px-3 py-2">Gross</th>
                 <th className="text-right px-3 py-2">Allowances</th>
                 <th className="text-right px-3 py-2">Leave/Absence</th>
+                <th className="text-right px-3 py-2">Advance</th>
                 <th className="text-left px-3 py-2">Manual deduction</th>
                 <th className="text-right px-3 py-2">Net pay</th>
                 <th className="text-center px-3 py-2">Status / Skip</th>
@@ -383,14 +400,16 @@ export default function Payroll() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {preview.rows.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-xs text-gray-400 italic">No active staff for this period.</td></tr>
+                <tr><td colSpan={9} className="text-center py-8 text-xs text-gray-400 italic">No active staff for this period.</td></tr>
               ) : preview.rows.map((r) => {
                 const st = ROW_STATE[r.status] || ROW_STATE.ready;
                 const e = edits[r.staff_id] || {};
                 const man = (e.manual?.[0]?.amount) || 0;
                 const leave = r.status === "ready" ? Number(r.leave_deduction || 0) : 0;
+                const adv = r.status === "ready" ? Number(r.advance_deduction || 0) : 0;
+                const advLeft = Number(r.advance_remaining || 0);
                 const net = r.status === "ready"
-                  ? Number(r.gross_salary) + Number(r.allowances_total) - Number(man) - leave
+                  ? Number(r.gross_salary) + Number(r.allowances_total) - Number(man) - leave - adv
                   : 0;
                 const skipped = !!e.skip;
                 return (
@@ -404,6 +423,21 @@ export default function Payroll() {
                     <td className="px-3 py-2 text-right font-mono text-red-600"
                         title={r.leave_breakdown?.reason || ""}>
                       {r.status === "ready" && leave > 0 ? `−${fmt(leave)}` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-amber-700"
+                        title={adv > 0
+                          ? `Advance outstanding ${fmt(r.advance_outstanding)} — recovering ${fmt(adv)} this month${advLeft > 0 ? `, ${fmt(advLeft)} carried over` : ""}`
+                          : "No outstanding advance"}>
+                      {r.status === "ready" && adv > 0 ? (
+                        <>
+                          −{fmt(adv)}
+                          {advLeft > 0 && (
+                            <span className="block text-[9px] text-gray-400 font-sans">
+                              {fmt(advLeft)} left
+                            </span>
+                          )}
+                        </>
+                      ) : "—"}
                     </td>
                     <td className="px-3 py-2">
                       {r.status === "ready" && !skipped ? (
@@ -439,6 +473,7 @@ export default function Payroll() {
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.g)}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.a)}</td>
                   <td className="px-3 py-2 text-right font-mono text-red-600">{totals.dleave > 0 ? `−${fmt(totals.dleave)}` : "—"}</td>
+                  <td className="px-3 py-2 text-right font-mono text-amber-700">{totals.dadv > 0 ? `−${fmt(totals.dadv)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono text-amber-700">{totals.dman > 0 ? `−${fmt(totals.dman)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-teal-700">{fmt(totals.n)}</td>
                   <td></td>

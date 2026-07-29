@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import {
   listPayrollRuns, getPayrollRun, previewPayroll,
   commitPayroll, payPayrollRun, payPayslip,
-  updatePayrollRun, deletePayrollRun, updatePayslip, deletePayslip,
+  updatePayrollRun, deletePayrollRun, updatePayslip,
+  getPayslip, setPayslipAdvance,
 } from "../../api/payroll";
 import { getAccounts } from "../../api/financial";
 import { peekCache } from "../../api/axios";
@@ -21,6 +22,29 @@ const ROW_STATE = {
   already_run: { label: "Already run",  cls: "bg-gray-100 text-gray-500 border-gray-200" },
 };
 
+/**
+ * Advance recovered from one preview row.
+ *
+ * The school lends staff money (an advance) and takes it back out of later
+ * salaries. How much comes off in any given month is a decision, not a formula:
+ * an advance far bigger than one salary is settled over many months, and the
+ * split between cash-in-hand and repayment can differ every time.
+ *
+ *   no override typed  → the automatic maximum (advance_max), i.e. recover as
+ *                        much as this month's pay can bear
+ *   a number typed     → that much, clamped to [0, advance_max]
+ *
+ * 0 means the staff member takes the whole salary home this month and the
+ * advance is untouched; advance_max means they take nothing home and the
+ * advance drops by a full salary. The server clamps identically.
+ */
+function advanceFor(row, edit) {
+  const max = Number(row.advance_max ?? row.advance_deduction ?? 0);
+  const v = edit?.advance;
+  if (v === undefined || v === null || v === "") return max;
+  return Math.min(Math.max(0, Number(v) || 0), max);
+}
+
 export default function Payroll() {
   const { hasPermission } = useAuth();
   // Four distinct privileged actions on this screen:
@@ -28,13 +52,17 @@ export default function Payroll() {
   //   • pay (all/each) — disburses cash from a bank account   → payroll.create
   //   • edit           — corrects a still-pending payslip     → payroll.update
   //   • delete         — removes an unpaid payslip or run     → payroll.delete
-  // `.manage` is the catch-all that satisfies all four. Preview is just a read
-  // query so it stays open to anyone with payroll.view (route gate).
-  const canManage = hasPermission("payroll.manage");
-  const canCommit = hasPermission("payroll.create") || canManage;
-  const canPay    = hasPermission("payroll.create") || canManage;
-  const canEdit   = hasPermission("payroll.update") || canManage;
-  const canDelete = hasPermission("payroll.delete") || canManage;
+  //   • advance        — splits pay between cash and advance  → payroll.advance
+  //   • print          — opens the A5 payslip document        → payroll.print
+  // `.manage` is the catch-all that satisfies all of them. Preview is just a
+  // read query so it stays open to anyone with payroll.view (route gate).
+  const canManage  = hasPermission("payroll.manage");
+  const canCommit  = hasPermission("payroll.create") || canManage;
+  const canPay     = hasPermission("payroll.create") || canManage;
+  const canEdit    = hasPermission("payroll.update") || canManage;
+  const canDelete  = hasPermission("payroll.delete") || canManage;
+  const canAdvance = hasPermission("payroll.advance") || canManage;
+  const canPrint   = hasPermission("payroll.print")   || canManage;
   const [view, setView] = useState("builder");      // builder | run
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -107,6 +135,13 @@ export default function Payroll() {
   const toggleSkip = (staffId) =>
     setEdits((p) => ({ ...p, [staffId]: { ...p[staffId], skip: !p[staffId]?.skip } }));
 
+  // How much of the outstanding advance this month claws back. `undefined`
+  // means "leave it to the backend", which recovers as much as the month can
+  // bear — the sensible default. A number (including 0) is an explicit
+  // instruction and is clamped to advance_max on both sides.
+  const setAdvance = (staffId, value) =>
+    setEdits((p) => ({ ...p, [staffId]: { ...p[staffId], advance: value } }));
+
   // Submit the commit, optionally with a budget override reason. Used both
   // by the initial Commit click (no reason) and by the modal's Confirm
   // (with reason). On 409 + budget_breach we open the modal instead of
@@ -115,7 +150,15 @@ export default function Payroll() {
     try {
       const per_staff = {};
       Object.entries(edits).forEach(([sid, e]) => {
-        per_staff[sid] = { skip: !!e.skip, manual_deductions: (e.manual || []).filter((m) => m.amount > 0) };
+        per_staff[sid] = {
+          skip: !!e.skip,
+          manual_deductions: (e.manual || []).filter((m) => m.amount > 0),
+          // Only send an override when the user actually typed one — omitting
+          // the key keeps the default "recover as much as possible".
+          ...(e.advance === undefined || e.advance === null || e.advance === ""
+            ? {}
+            : { advance_recovery: Math.max(0, Number(e.advance) || 0) }),
+        };
       });
       const payload = {
         period_year: year, period_month: month, per_staff,
@@ -164,6 +207,129 @@ export default function Payroll() {
       setView("run");
     } catch {
       Swal.fire("Error", "Could not load that run.", "error");
+    }
+  };
+
+  // ── Correction / removal ───────────────────────────────────────────────
+  // A committed run is only an accrual until it is paid, so a wrong figure can
+  // still be corrected and a wrong run removed. Anything already paid is
+  // refused server-side — cash that has left the bank needs a payment
+  // reversal, not an edit.
+
+  const [editingSlip, setEditingSlip] = useState(null);   // payslip being corrected
+  const [savingSlip, setSavingSlip] = useState(false);
+  const [busyRunId, setBusyRunId] = useState(null);       // run mid-delete
+  const [advanceSlip, setAdvanceSlip] = useState(null);   // payslip whose advance split is being set
+  const [savingAdvance, setSavingAdvance] = useState(false);
+  const [payslipDoc, setPayslipDoc] = useState(null);     // { payslip, advance } for the A5 document
+  const [loadingDoc, setLoadingDoc] = useState(false);
+
+  const refreshActiveRun = async (id) => {
+    const r = await getPayrollRun(id);
+    setActiveRun(r.data?.data || null);
+  };
+
+  const saveSlipEdit = async (payload) => {
+    setSavingSlip(true);
+    try {
+      await updatePayslip(editingSlip.id, payload);
+      await refreshActiveRun(activeRun.id);
+      await fetchRuns();
+      setEditingSlip(null);
+      Swal.fire("Saved", "Payslip updated and its journal entry re-stated.", "success");
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not update the payslip.", "error");
+    } finally {
+      setSavingSlip(false);
+    }
+  };
+
+  // Open the advance-settlement dialog. It needs the live advance position
+  // (what was outstanding before this payslip touched it), which only the
+  // payslip endpoint knows — so fetch rather than guess from the row.
+  const openAdvance = async (slip) => {
+    setLoadingDoc(true);
+    try {
+      const r = await getPayslip(slip.id);
+      setAdvanceSlip({ slip: r.data?.data?.payslip || slip, advance: r.data?.data?.advance || null });
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not load this payslip.", "error");
+    } finally {
+      setLoadingDoc(false);
+    }
+  };
+
+  const saveAdvance = async (amount) => {
+    setSavingAdvance(true);
+    try {
+      await setPayslipAdvance(advanceSlip.slip.id, { advance_recovery: amount });
+      await refreshActiveRun(activeRun.id);
+      await fetchRuns();
+      setAdvanceSlip(null);
+      Swal.fire("Saved", "Advance recovery updated — net pay and the journal entry were re-stated.", "success");
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not update the advance recovery.", "error");
+    } finally {
+      setSavingAdvance(false);
+    }
+  };
+
+  // A5 payslip document — the staff member's copy of what they were paid and
+  // what is still owed on their advance.
+  const openPayslipDoc = async (slip) => {
+    setLoadingDoc(true);
+    try {
+      const r = await getPayslip(slip.id);
+      setPayslipDoc(r.data?.data || null);
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not load this payslip.", "error");
+    } finally {
+      setLoadingDoc(false);
+    }
+  };
+
+  // Payslips are not removable on their own — they belong to their run and are
+  // only cleared when that whole run is deleted (which reverses each accrual
+  // and hands any recovered advance back to the staff ledger).
+  const removeRun = async (run, { fromDetail = false } = {}) => {
+    const paid = (run.payslips || []).filter((s) => s.status === "paid").length;
+    const c = await Swal.fire({
+      title: `Delete ${MONTHS[run.period_month - 1]} ${run.period_year} payroll?`,
+      html: paid > 0
+        ? `<p style="font-size:13px">${paid} payslip(s) here are already <b>paid</b>. Paid payslips cannot be deleted — reverse those payments first.</p>`
+        : `<p style="font-size:13px">Every payslip in this run is removed and its accrual reversed. Any advances recovered by the run go back onto the staff ledgers. The period becomes free to run again.</p>`,
+      icon: "warning", showCancelButton: true,
+      confirmButtonText: "Delete run", confirmButtonColor: "#dc2626",
+    });
+    if (!c.isConfirmed) return;
+    setBusyRunId(run.id);
+    try {
+      await deletePayrollRun(run.id);
+      await fetchRuns();
+      if (fromDetail) { setActiveRun(null); setView("builder"); }
+      Swal.fire("Deleted", "Payroll run deleted.", "success");
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not delete the run.", "error");
+    } finally {
+      setBusyRunId(null);
+    }
+  };
+
+  const editRunNotes = async (run) => {
+    const { value, isConfirmed } = await Swal.fire({
+      title: "Run notes",
+      input: "textarea",
+      inputValue: run.notes || "",
+      inputAttributes: { maxlength: 1000 },
+      showCancelButton: true, confirmButtonText: "Save", confirmButtonColor: "#0d9488",
+    });
+    if (!isConfirmed) return;
+    try {
+      await updatePayrollRun(run.id, { notes: value || null });
+      await refreshActiveRun(run.id);
+      await fetchRuns();
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not save the notes.", "error");
     }
   };
 
@@ -231,9 +397,9 @@ export default function Payroll() {
       // The automatic leave/absence deduction is computed by the backend and
       // must be subtracted from net alongside manual deductions.
       const leave = Number(r.leave_deduction) || 0;
-      // Outstanding advance recovered from this month's pay (backend-capped so
-      // it can never exceed what is payable).
-      const adv = Number(r.advance_deduction) || 0;
+      // Outstanding advance recovered from this month's pay — the admin's
+      // override when they set one, otherwise the automatic maximum.
+      const adv = advanceFor(r, edits[r.staff_id]);
       g += Number(r.gross_salary); a += Number(r.allowances_total);
       dman += man; dleave += leave; dadv += adv;
       n += Number(r.gross_salary) + Number(r.allowances_total) - man - leave - adv;
@@ -245,6 +411,8 @@ export default function Payroll() {
   if (view === "run" && activeRun) {
     const slips = activeRun.payslips || [];
     const pendingCount = slips.filter((s) => s.status === "pending").length;
+    // A run with any paid payslip can't be deleted — the cash is already gone.
+    const paidCount = slips.filter((s) => s.status === "paid").length;
     return (
       <div className="px-4 py-4 max-w-5xl mx-auto">
         <button onClick={() => { setView("builder"); setActiveRun(null); }}
@@ -263,11 +431,41 @@ export default function Payroll() {
                 Pay all ({pendingCount})
               </button>
             )}
+            {canEdit && (
+              <button onClick={() => editRunNotes(activeRun)}
+                className="px-3 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-xs font-semibold">
+                Notes
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={() => removeRun(activeRun, { fromDetail: true })}
+                disabled={busyRunId === activeRun.id || paidCount > 0}
+                title={paidCount > 0 ? "Some payslips are already paid — reverse those payments first" : "Delete this run"}
+                className="px-3 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
+                {busyRunId === activeRun.id ? "Deleting…" : "Delete run"}
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full text-[11px]">
+        {activeRun.notes && (
+          <p className="mb-4 text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            {activeRun.notes}
+          </p>
+        )}
+
+        {canEdit && slips.some((s) => s.status === "pending") && (
+          <p className="mb-2 text-[11px] text-gray-500">
+            Figures are corrected per payslip — use <strong className="text-indigo-600">Edit</strong> on a
+            pending row below. Paid rows are locked.
+          </p>
+        )}
+
+        {/* overflow-x-auto, not overflow-hidden: with Pay / Edit / Remove in
+            the action column this table is wider than the card on a narrow
+            window, and clipping it would cut the buttons off. */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <table className="w-full min-w-[760px] text-[11px]">
             <thead className="bg-gray-50 text-gray-500 uppercase text-[9px]">
               <tr>
                 <th className="text-left px-3 py-2">Staff</th>
@@ -308,12 +506,47 @@ export default function Payroll() {
                       s.status === "paid" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
                     }`}>{s.status}</span>
                   </td>
-                  <td className="px-3 py-2 text-center">
-                    {s.status === "pending"
-                      ? (canPay
-                          ? <button onClick={() => paySlipNow(s)} className="px-2 py-1 text-[10px] font-semibold text-white bg-teal-600 rounded hover:bg-teal-700">Pay</button>
-                          : <span className="text-[10px] text-gray-400">pending</span>)
-                      : <span className="text-[10px] text-gray-400">{s.paid_from_account?.account_name || "paid"}</span>}
+                  <td className="px-3 py-2">
+                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                      {s.status === "pending" ? (
+                        <>
+                          {canPay && (
+                            <button onClick={() => paySlipNow(s)}
+                              className="px-2 py-1 text-[10px] font-semibold text-white bg-teal-600 rounded hover:bg-teal-700">Pay</button>
+                          )}
+                          {/* Splits this month's pay between cash-in-hand and
+                              advance repayment. Its own permission because it
+                              changes what somebody still owes the school. */}
+                          {canAdvance && (
+                            <button onClick={() => openAdvance(s)} disabled={loadingDoc}
+                              title="Set how much of the outstanding advance comes off this salary"
+                              className="px-2 py-1 text-[10px] font-semibold text-amber-700 border border-amber-200 rounded hover:bg-amber-50 disabled:opacity-40">Advance</button>
+                          )}
+                          {canEdit && (
+                            <button onClick={() => setEditingSlip(s)}
+                              className="px-2 py-1 text-[10px] font-semibold text-indigo-600 border border-indigo-200 rounded hover:bg-indigo-50">Edit</button>
+                          )}
+                          {/* No per-payslip Remove. A payslip is part of its
+                              run, not a standalone record — it goes only when
+                              the whole payroll run is deleted. */}
+                        </>
+                      ) : (
+                        // Paid: locked for money changes. Editing or deleting
+                        // disbursed pay would leave the bank and the books
+                        // disagreeing — but the document is still printable.
+                        <span className="text-[10px] text-gray-400">
+                          {s.paid_from_account?.account_name || "paid"}
+                        </span>
+                      )}
+                      {canPrint && (
+                        <button onClick={() => openPayslipDoc(s)} disabled={loadingDoc}
+                          title="Open the A5 payslip document"
+                          className="px-2 py-1 text-[10px] font-semibold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-40">Payslip</button>
+                      )}
+                      {!canPay && !canEdit && !canDelete && !canAdvance && !canPrint && s.status === "pending" && (
+                        <span className="text-[10px] text-gray-400">pending</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -339,6 +572,33 @@ export default function Payroll() {
             onClose={() => setReceipt(null)}
           />
         )}
+
+        {editingSlip && (
+          <PayslipEditModal
+            slip={editingSlip}
+            saving={savingSlip}
+            onSave={saveSlipEdit}
+            onClose={() => !savingSlip && setEditingSlip(null)}
+          />
+        )}
+
+        {advanceSlip && (
+          <AdvanceSettlementModal
+            slip={advanceSlip.slip}
+            advance={advanceSlip.advance}
+            saving={savingAdvance}
+            onSave={saveAdvance}
+            onClose={() => !savingAdvance && setAdvanceSlip(null)}
+          />
+        )}
+
+        {payslipDoc && (
+          <PayslipDocumentModal
+            doc={payslipDoc}
+            run={activeRun}
+            onClose={() => setPayslipDoc(null)}
+          />
+        )}
       </div>
     );
   }
@@ -348,7 +608,12 @@ export default function Payroll() {
     <div className="px-4 py-4 max-w-6xl mx-auto">
       <div className="mb-4">
         <h2 className="text-base font-bold text-gray-800">Payroll</h2>
-        <p className="text-xs text-gray-500">Generate monthly salaries for all active staff. Salary comes from each staff member's active contract; outstanding advances net off automatically.</p>
+        <p className="text-xs text-gray-500">
+          Generate monthly salaries for all active staff. Salary comes from each staff member's active contract.
+          An outstanding advance nets off this month's pay — by default as much as the salary can cover, but the
+          <strong className="text-amber-700"> Advance</strong> box on each row lets you recover less and hand over the
+          difference in cash. Whatever isn't recovered stays on the staff member's ledger for next month.
+        </p>
       </div>
 
       {/* Builder */}
@@ -406,8 +671,10 @@ export default function Payroll() {
                 const e = edits[r.staff_id] || {};
                 const man = (e.manual?.[0]?.amount) || 0;
                 const leave = r.status === "ready" ? Number(r.leave_deduction || 0) : 0;
-                const adv = r.status === "ready" ? Number(r.advance_deduction || 0) : 0;
-                const advLeft = Number(r.advance_remaining || 0);
+                const advMax = Number(r.advance_max ?? r.advance_deduction ?? 0);
+                const adv = r.status === "ready" ? advanceFor(r, e) : 0;
+                const advOutstanding = Number(r.advance_outstanding || 0);
+                const advLeft = Math.max(0, advOutstanding - adv);
                 const net = r.status === "ready"
                   ? Number(r.gross_salary) + Number(r.allowances_total) - Number(man) - leave - adv
                   : 0;
@@ -423,21 +690,52 @@ export default function Payroll() {
                     <td className="px-3 py-2 text-right font-mono text-red-600"
                         title={r.leave_breakdown?.reason || ""}>
                       {r.status === "ready" && leave > 0 ? `−${fmt(leave)}` : "—"}
+                      {/* Annual allowance is the reason most months show nothing:
+                          approved leave inside it is fully paid. */}
+                      {r.status === "ready" && r.leave_breakdown?.annual_leave_days > 0 && (
+                        <span className="block text-[9px] text-gray-400 font-sans">
+                          {r.leave_breakdown.paid_leave_days > 0
+                            ? `${r.leave_breakdown.paid_leave_days}d paid leave`
+                            : `${r.leave_breakdown.entitlement_remaining}/${r.leave_breakdown.annual_leave_days}d left`}
+                        </span>
+                      )}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-amber-700"
-                        title={adv > 0
-                          ? `Advance outstanding ${fmt(r.advance_outstanding)} — recovering ${fmt(adv)} this month${advLeft > 0 ? `, ${fmt(advLeft)} carried over` : ""}`
+                    {/* Advance recovery is a decision, not a formula — the box
+                        is editable so the admin can pay part of the salary in
+                        cash and roll the rest of the debt forward. Blank = the
+                        automatic maximum. */}
+                    <td className="px-3 py-2 text-right"
+                        title={advOutstanding > 0
+                          ? `Advance outstanding ${fmt(advOutstanding)} — recovering ${fmt(adv)} this month${advLeft > 0 ? `, ${fmt(advLeft)} carried to next month` : ""}`
                           : "No outstanding advance"}>
-                      {r.status === "ready" && adv > 0 ? (
-                        <>
-                          −{fmt(adv)}
-                          {advLeft > 0 && (
-                            <span className="block text-[9px] text-gray-400 font-sans">
-                              {fmt(advLeft)} left
-                            </span>
-                          )}
-                        </>
-                      ) : "—"}
+                      {r.status === "ready" && advMax > 0 && !skipped ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex items-center gap-1">
+                            <span className="text-amber-700 font-mono">−</span>
+                            <input
+                              type="number" min="0" max={advMax} step="0.01"
+                              value={e.advance ?? advMax}
+                              onChange={(ev) => setAdvance(r.staff_id, ev.target.value)}
+                              className="w-20 px-1.5 py-1 text-[10px] text-right font-mono border border-amber-200 bg-amber-50/40 rounded focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1 text-[9px]">
+                            <button type="button" onClick={() => setAdvance(r.staff_id, advMax)}
+                              className={`px-1 rounded ${adv === advMax ? "bg-amber-100 text-amber-800 font-semibold" : "text-gray-400 hover:text-amber-700"}`}>
+                              all
+                            </button>
+                            <button type="button" onClick={() => setAdvance(r.staff_id, Math.round(advMax / 2 * 100) / 100)}
+                              className="px-1 rounded text-gray-400 hover:text-amber-700">half</button>
+                            <button type="button" onClick={() => setAdvance(r.staff_id, 0)}
+                              className={`px-1 rounded ${adv === 0 ? "bg-teal-100 text-teal-800 font-semibold" : "text-gray-400 hover:text-teal-700"}`}>
+                              none
+                            </button>
+                          </div>
+                          <span className="text-[9px] text-gray-400">
+                            {advLeft > 0 ? `${fmt(advLeft)} left after` : "clears the advance"}
+                          </span>
+                        </div>
+                      ) : <span className="font-mono text-gray-300">—</span>}
                     </td>
                     <td className="px-3 py-2">
                       {r.status === "ready" && !skipped ? (
@@ -508,7 +806,32 @@ export default function Payroll() {
                 <td className="px-3 py-2 text-right">{r.payslips_created}</td>
                 <td className="px-3 py-2 text-right font-mono font-semibold">{fmt(r.total_net)} AFN</td>
                 <td className="px-3 py-2 text-gray-500">{r.committed_at?.slice(0,10)}</td>
-                <td className="px-3 py-2 text-center"><span className="text-[10px] text-teal-600">Open →</span></td>
+                {/* Edit + Delete sit on the row itself, the same way the party
+                    ledger exposes them — a run's figures are edited per payslip,
+                    so Edit opens the run and puts you on those rows. */}
+                <td className="px-3 py-2">
+                  <div className="flex items-center justify-end gap-1.5">
+                    {canEdit && (
+                      // stopPropagation on each: the whole row opens the run.
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); openRun(r.id); }}
+                        title="Edit this run's payslips"
+                        className="px-2 py-1 text-[10px] font-semibold text-indigo-600 border border-indigo-200 rounded hover:bg-indigo-50">
+                        Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); removeRun(r); }}
+                        disabled={busyRunId === r.id}
+                        title="Delete this payroll run"
+                        className="px-2 py-1 text-[10px] font-semibold text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-40">
+                        {busyRunId === r.id ? "…" : "Delete"}
+                      </button>
+                    )}
+                    <span className="text-[10px] text-teal-600">Open →</span>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -523,6 +846,311 @@ export default function Payroll() {
         onClose={() => setBudgetBreach(null)}
         onConfirm={handleBudgetOverride}
       />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────── Payslip edit modal
+// Corrects a still-pending payslip. Gross and allowances are shown because a
+// contract can be recorded wrong; the deduction rows are the usual reason to
+// come here. Automatic leave/absence lines are listed read-only — they come
+// from attendance, so they are preserved untouched by the save.
+//
+// Net is recomputed live with the same arithmetic the server uses:
+//   net = gross + allowances − deductions − advance already recovered
+function PayslipEditModal({ slip, saving, onSave, onClose }) {
+  const autoLines = (slip.manual_deductions || []).filter((d) => d.auto);
+  const [gross, setGross] = useState(String(slip.gross_salary ?? ""));
+  const [allowances, setAllowances] = useState(String(slip.allowances_total ?? ""));
+  const [rows, setRows] = useState(() => {
+    const manual = (slip.manual_deductions || []).filter((d) => !d.auto);
+    return manual.length ? manual.map((d) => ({ label: d.label, amount: String(d.amount) }))
+                         : [{ label: "", amount: "" }];
+  });
+  const [notes, setNotes] = useState(slip.notes || "");
+
+  const name = slip.staff?.full_name || slip.staff?.employee_id || `Staff #${slip.staff_id}`;
+  const advance = Number(slip.advance_offset) || 0;
+  const autoTotal = autoLines.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const manualTotal = rows.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const earnings = (Number(gross) || 0) + (Number(allowances) || 0);
+  const net = earnings - autoTotal - manualTotal - advance;
+
+  const setRow = (i, patch) => setRows((a) => a.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const addRow = () => setRows((a) => [...a, { label: "", amount: "" }]);
+  const dropRow = (i) => setRows((a) => (a.length === 1 ? [{ label: "", amount: "" }] : a.filter((_, idx) => idx !== i)));
+
+  const submit = (ev) => {
+    ev.preventDefault();
+    onSave({
+      gross_salary: Number(gross) || 0,
+      allowances_total: Number(allowances) || 0,
+      manual_deductions: rows
+        .filter((r) => (Number(r.amount) || 0) > 0)
+        .map((r) => ({ label: r.label.trim() || "Deduction", amount: Number(r.amount) })),
+      notes: notes.trim() || null,
+    });
+  };
+
+  const inputCls = "w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500";
+
+  // Portalled to <body> rather than left inside the run-detail tree. A
+  // `position: fixed` overlay is only viewport-relative while no ancestor
+  // establishes a containing block (a transform / filter / backdrop-filter on
+  // any wrapper silently re-anchors it), and this page nests the modal several
+  // layers deep. PayrollReceiptModal below portals for the same reason.
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(ev) => { if (ev.target === ev.currentTarget) onClose(); }}>
+      <form onSubmit={submit} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 bg-indigo-50/50">
+          <h3 className="text-sm font-bold text-indigo-800">Edit payslip #{slip.id}</h3>
+          <p className="text-[11px] text-gray-500 mt-0.5">
+            {name} · the accrual journal entry is re-stated with your changes.
+          </p>
+        </div>
+
+        <div className="px-5 py-4 space-y-4 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Gross salary</label>
+              <input type="number" min="0" step="0.01" value={gross} onChange={(e) => setGross(e.target.value)}
+                className={`${inputCls} text-right font-mono`} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Allowances</label>
+              <input type="number" min="0" step="0.01" value={allowances} onChange={(e) => setAllowances(e.target.value)}
+                className={`${inputCls} text-right font-mono`} />
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 -mt-2">
+            Changing these affects this payslip only — the staff contract is left as it is.
+          </p>
+
+          {autoLines.length > 0 && (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <p className="px-3 py-1.5 bg-gray-50 text-[10px] font-semibold text-gray-500 uppercase">
+                Automatic deductions · from attendance, not editable
+              </p>
+              {autoLines.map((d, i) => (
+                <div key={i} className="flex justify-between px-3 py-1.5 text-[11px] text-gray-600 border-t border-gray-50">
+                  <span>{d.label}</span>
+                  <span className="font-mono text-red-600">−{fmt(d.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-semibold text-gray-500 uppercase">Manual deductions</label>
+              <button type="button" onClick={addRow}
+                className="px-2 py-0.5 text-[10px] font-semibold text-teal-600 border border-gray-200 rounded hover:bg-teal-50">
+                + Add
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {rows.map((r, i) => (
+                <div key={i} className="flex gap-1.5">
+                  <input placeholder="Reason" value={r.label} onChange={(e) => setRow(i, { label: e.target.value })}
+                    maxLength={120} className={`${inputCls} flex-1`} />
+                  <input type="number" min="0" step="0.01" placeholder="0" value={r.amount}
+                    onChange={(e) => setRow(i, { amount: e.target.value })}
+                    className={`${inputCls} w-24 text-right font-mono`} />
+                  <button type="button" onClick={() => dropRow(i)}
+                    className="w-7 flex-shrink-0 text-gray-300 hover:text-red-600 text-sm">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Note (optional)</label>
+            <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500}
+              placeholder="Why this payslip was corrected" className={inputCls} />
+          </div>
+
+          {/* Live recomputation — matches the server's arithmetic exactly. */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-[11px] space-y-1">
+            <Row label="Earnings" v={earnings} />
+            {autoTotal > 0 && <Row label="Automatic deductions" v={-autoTotal} />}
+            {manualTotal > 0 && <Row label="Manual deductions" v={-manualTotal} />}
+            {advance > 0 && <Row label="Advance recovered (fixed)" v={-advance} />}
+            <div className="flex justify-between pt-1.5 border-t border-gray-200 font-bold text-teal-700">
+              <span>Net pay</span>
+              <span className="font-mono">{fmt(net)} AFN</span>
+            </div>
+            {net < 0 && (
+              <p className="text-[10px] text-red-600 pt-1">
+                Deductions exceed this payslip — net can't go below zero.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
+          <button type="button" onClick={onClose} disabled={saving}
+            className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving || net < 0}
+            className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body
+  );
+}
+
+// ──────────────────────────────────────────────── Advance settlement modal
+// Splits one month's pay between cash-in-hand and advance repayment.
+//
+// The rule the school runs on: an advance bigger than a single salary is
+// settled over as many months as it takes, and each month somebody decides how
+// much comes off. Both sliders of that decision are the same number seen from
+// opposite ends, so the modal edits either and keeps them in sync:
+//
+//     take-home  +  recovered  =  payable   (earnings − deductions)
+//
+// Recover 0 and the staff member is paid in full this month with the debt
+// untouched; recover the cap and they take nothing home while the debt drops by
+// a whole salary. The server clamps to exactly the same [0, cap] window.
+function AdvanceSettlementModal({ slip, advance, saving, onSave, onClose }) {
+  const name = slip.staff?.full_name || slip.staff?.employee_id || `Staff #${slip.staff_id}`;
+  const earnings = Number(slip.gross_salary || 0) + Number(slip.allowances_total || 0);
+  const deductions = Number(slip.manual_deductions_total || 0);
+  const payable = Math.max(0, round2(earnings - deductions));
+  const current = Number(slip.advance_offset || 0);
+  // What was outstanding BEFORE this payslip recovered anything.
+  const outstanding = Number(advance?.before ?? current);
+  const cap = round2(Math.min(outstanding, payable));
+
+  const [recover, setRecover] = useState(String(current));
+  const value = Math.min(Math.max(0, Number(recover) || 0), cap);
+  const takeHome = round2(payable - value);
+  const leftAfter = round2(outstanding - value);
+  const overCap = (Number(recover) || 0) > cap;
+
+  const inputCls = "w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500";
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(ev) => { if (ev.target === ev.currentTarget) onClose(); }}>
+      <form
+        onSubmit={(ev) => { ev.preventDefault(); onSave(value); }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 bg-amber-50/60">
+          <h3 className="text-sm font-bold text-amber-900">Advance settlement</h3>
+          <p className="text-[11px] text-gray-500 mt-0.5">
+            {name} · payslip #{slip.id} · decide how much of the advance comes off this month.
+          </p>
+        </div>
+
+        <div className="px-5 py-4 space-y-4 overflow-y-auto">
+          {/* Position before anything is decided */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-wider text-amber-700">Advance outstanding</p>
+              <p className="text-base font-bold font-mono text-amber-900">{fmt(outstanding)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-[9px] uppercase tracking-wider text-gray-500">Payable this month</p>
+              <p className="text-base font-bold font-mono text-gray-800">{fmt(payable)}</p>
+            </div>
+          </div>
+
+          {cap === 0 ? (
+            <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+              {outstanding <= 0
+                ? "This staff member has no outstanding advance — there is nothing to recover."
+                : "There is nothing payable this month, so no advance can be recovered from it."}
+            </p>
+          ) : (
+            <>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">
+                  Recover from this salary
+                  <span className="text-gray-400 normal-case font-normal ml-1">— max {fmt(cap)}</span>
+                </label>
+                <input type="number" min="0" max={cap} step="0.01" value={recover}
+                  onChange={(ev) => setRecover(ev.target.value)}
+                  className={`${inputCls} text-right font-mono`} />
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <Preset label={`Recover all (${fmt(cap)})`} onClick={() => setRecover(String(cap))} active={value === cap} tone="amber" />
+                  <Preset label="Half" onClick={() => setRecover(String(round2(cap / 2)))} />
+                  <Preset label="Pay salary in full" onClick={() => setRecover("0")} active={value === 0} tone="teal" />
+                </div>
+                {overCap && (
+                  <p className="text-[10px] text-amber-700 mt-1">
+                    Capped at {fmt(cap)} — you can't recover more than is owed, or more than this month pays.
+                  </p>
+                )}
+              </div>
+
+              {/* The same decision, stated as cash the staff member walks away with. */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-[11px] space-y-1">
+                <Row label="Payable this month" v={payable} />
+                <Row label="Recovered against advance" v={-value} />
+                <div className="flex justify-between pt-1.5 border-t border-gray-200 font-bold text-teal-700">
+                  <span>Staff takes home</span>
+                  <span className="font-mono">{fmt(takeHome)} AFN</span>
+                </div>
+                <div className="flex justify-between pt-1.5 border-t border-gray-200 text-amber-800">
+                  <span>Advance still owed after this</span>
+                  <span className="font-mono font-semibold">{fmt(leftAfter)} AFN</span>
+                </div>
+                {leftAfter > 0 && (
+                  <p className="text-[10px] text-gray-500 pt-1">
+                    Carries to next month's payroll, where the same choice is offered again.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
+          <button type="button" onClick={onClose} disabled={saving}
+            className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving || cap === 0}
+            className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? "Saving…" : `Recover ${fmt(value)} · pay ${fmt(takeHome)}`}
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body
+  );
+}
+
+function Preset({ label, onClick, active, tone }) {
+  const activeCls = tone === "teal" ? "bg-teal-100 text-teal-800 border-teal-300"
+                  : tone === "amber" ? "bg-amber-100 text-amber-800 border-amber-300"
+                  : "bg-gray-200 text-gray-800 border-gray-300";
+  return (
+    <button type="button" onClick={onClick}
+      className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${
+        active ? activeCls : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+      }`}>
+      {label}
+    </button>
+  );
+}
+
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+function Row({ label, v }) {
+  const neg = Number(v) < 0;
+  return (
+    <div className="flex justify-between text-gray-600">
+      <span>{label}</span>
+      <span className={`font-mono ${neg ? "text-amber-700" : ""}`}>
+        {neg ? "−" : ""}{fmt(Math.abs(Number(v) || 0))}
+      </span>
     </div>
   );
 }
@@ -788,6 +1416,9 @@ function SinglePayslipBody({ slip }) {
         <Line label="Gross salary"        value={slip.gross_salary} />
         <Line label="Allowances"          value={slip.allowances_total} />
         <Line label="Manual deductions"   value={-Number(slip.manual_deductions_total || 0)} muted={!Number(slip.manual_deductions_total)} />
+        {/* Advance recovery is why net can be far below gross — leaving it off
+            the receipt made the handed-over amount look wrong. */}
+        <Line label="Advance recovery"    value={-Number(slip.advance_offset || 0)} muted={!Number(slip.advance_offset)} />
         <div className="border-t border-gray-300 mt-2 pt-2 flex items-center justify-between font-bold">
           <span>Net pay</span>
           <span>{fmt(slip.net_pay)} AFN</span>
@@ -825,6 +1456,198 @@ function BulkPayslipsBody({ payslips }) {
         </tbody>
       </table>
     </>
+  );
+}
+
+// ───────────────────────────────────────────────── A5 payslip document
+// The staff member's copy: what they earned, everything taken off it, what they
+// were handed, and where their advance now stands. Laid out as a payslip rather
+// than a receipt — earnings and deductions in two columns, then net pay, then
+// the advance position (opening / recovered / closing) so the month-to-month
+// settlement is auditable from the paper alone.
+//
+// Print CSS mirrors PayrollReceiptModal: #root is hidden, the portalled host is
+// taken out of fixed positioning, and the page is set to A5 portrait.
+function PayslipDocumentModal({ doc, run, onClose }) {
+  const slip = doc.payslip;
+  const adv = doc.advance || { before: 0, recovered: 0, after: 0 };
+  const staff = slip.staff || {};
+  const period = run
+    ? `${MONTHS[run.period_month - 1]} ${run.period_year}`
+    : `${MONTHS[(slip.period_month || 1) - 1]} ${slip.period_year || ""}`;
+
+  const allowanceLines = Array.isArray(slip.allowances) ? slip.allowances : [];
+  const deductionLines = Array.isArray(slip.manual_deductions) ? slip.manual_deductions : [];
+  const earnings = Number(slip.gross_salary || 0) + Number(slip.allowances_total || 0);
+  const deductions = Number(slip.manual_deductions_total || 0) + Number(slip.advance_offset || 0);
+  const branchName = slip.payroll_run?.branch?.name || staff.branch?.name || "";
+
+  return createPortal(
+    <div
+      className="payroll-print-host fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 print:bg-white print:p-0 print:static print:block"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <style>{`
+        @media print {
+          @page { size: A5 portrait; margin: 8mm; }
+          body { background: white !important; }
+          body > #root { display: none !important; }
+          .payroll-print-host {
+            position: static !important;
+            padding: 0 !important;
+            background: white !important;
+            backdrop-filter: none !important;
+          }
+          .payroll-print-host > div {
+            max-height: none !important;
+            max-width: none !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+          }
+          #payslip-doc { padding: 0 !important; overflow: visible !important; }
+          .print\\:hidden { display: none !important; }
+        }
+      `}</style>
+
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50 print:hidden">
+          <h3 className="text-sm font-bold text-gray-800">Payslip · {period}</h3>
+          <div className="flex items-center gap-2">
+            <button onClick={() => window.print()}
+              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print A5
+            </button>
+            <button onClick={onClose}
+              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50">
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div id="payslip-doc" className="p-6 overflow-y-auto bg-white text-gray-800"
+          style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+          <div className="text-center border-b-2 border-gray-300 border-double pb-3 mb-3">
+            <h2 className="text-base font-bold tracking-wide">WIFAQ SCHOOL</h2>
+            <p className="text-[10px] text-gray-500">SALARY PAYSLIP</p>
+            {branchName && <p className="text-[9px] text-gray-400">{branchName}</p>}
+          </div>
+
+          {/* Identity + period */}
+          <div className="grid grid-cols-2 gap-y-1 text-[11px] mb-3">
+            <span className="text-gray-500">Payslip #</span>
+            <span className="text-right font-semibold">PS-{slip.id}</span>
+            <span className="text-gray-500">Employee</span>
+            <span className="text-right font-semibold">{staff.full_name || staff.employee_id || `Staff #${slip.staff_id}`}</span>
+            {staff.employee_id && (<>
+              <span className="text-gray-500">Employee ID</span>
+              <span className="text-right">{staff.employee_id}</span>
+            </>)}
+            {staff.department && (<>
+              <span className="text-gray-500">Department</span>
+              <span className="text-right">{staff.department}</span>
+            </>)}
+            <span className="text-gray-500">Pay period</span>
+            <span className="text-right font-semibold">{period}</span>
+            <span className="text-gray-500">Status</span>
+            <span className="text-right capitalize">
+              {slip.status}{slip.paid_at ? ` · ${String(slip.paid_at).slice(0, 10)}` : ""}
+            </span>
+            {slip.paid_from_account?.account_name && (<>
+              <span className="text-gray-500">Paid from</span>
+              <span className="text-right">{slip.paid_from_account.account_name}</span>
+            </>)}
+          </div>
+
+          {/* Earnings */}
+          <p className="text-[9px] uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1 mb-1.5">Earnings</p>
+          <div className="text-[11px] space-y-1 mb-3">
+            <Line label="Basic salary" value={slip.gross_salary} />
+            {allowanceLines.length > 0
+              ? allowanceLines.map((a, i) => <Line key={i} label={a.label || "Allowance"} value={a.amount} />)
+              : Number(slip.allowances_total) > 0 && <Line label="Allowances" value={slip.allowances_total} />}
+            <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold">
+              <span>Total earnings</span><span>{fmt(earnings)}</span>
+            </div>
+          </div>
+
+          {/* Deductions — including the advance recovery, which is the whole
+              point of the document for anyone repaying one. */}
+          <p className="text-[9px] uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1 mb-1.5">Deductions</p>
+          <div className="text-[11px] space-y-1 mb-3">
+            {deductionLines.length === 0 && Number(slip.advance_offset) <= 0 && (
+              <p className="text-gray-400 italic">None</p>
+            )}
+            {deductionLines.map((d, i) => (
+              <Line key={i} label={d.label || "Deduction"} value={-Number(d.amount || 0)} />
+            ))}
+            {Number(slip.advance_offset) > 0 && (
+              <Line label="Advance recovery" value={-Number(slip.advance_offset)} />
+            )}
+            {deductions > 0 && (
+              <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold">
+                <span>Total deductions</span>
+                <span className="text-amber-700">−{fmt(deductions)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Net */}
+          <div className="border-t-2 border-b-2 border-gray-300 border-double py-2 flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider">Net pay</span>
+            <span className="text-lg font-bold">{fmt(slip.net_pay)} AFN</span>
+          </div>
+          {Number(slip.net_pay) === 0 && Number(slip.advance_offset) > 0 && (
+            <p className="text-[10px] text-amber-800 mb-3">
+              Nothing was disbursed this month — the whole salary went to clearing the advance below.
+            </p>
+          )}
+
+          {/* Advance ledger position — opening / recovered / closing */}
+          {(adv.before > 0 || adv.recovered > 0) && (
+            <>
+              <p className="text-[9px] uppercase tracking-wider text-gray-400 border-b border-gray-200 pb-1 mb-1.5">
+                Advance account
+              </p>
+              <div className="text-[11px] space-y-1 mb-3">
+                <Line label="Owed before this salary" value={adv.before} />
+                <Line label="Recovered this month" value={-Number(adv.recovered || 0)} />
+                <div className="flex justify-between border-t border-gray-200 pt-1 font-bold">
+                  <span>Still owed</span>
+                  <span className={Number(adv.after) > 0 ? "text-amber-700" : "text-emerald-700"}>
+                    {fmt(adv.after)} AFN
+                  </span>
+                </div>
+                <p className="text-[9px] text-gray-400">
+                  {Number(adv.after) > 0
+                    ? "Carried forward — recovered from future salaries."
+                    : "Advance fully settled."}
+                </p>
+              </div>
+            </>
+          )}
+
+          {slip.notes && (
+            <p className="text-[10px] text-gray-500 border-t border-gray-200 pt-2 mb-3">{slip.notes}</p>
+          )}
+
+          <div className="mt-6 grid grid-cols-2 gap-6 text-[10px] text-gray-500">
+            <div><div className="border-t border-gray-400 pt-1">Prepared by</div></div>
+            <div><div className="border-t border-gray-400 pt-1 text-right">Employee signature</div></div>
+          </div>
+
+          <p className="text-[9px] text-gray-400 text-center mt-5">
+            System-generated payslip. Check the figures above before signing.
+          </p>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 

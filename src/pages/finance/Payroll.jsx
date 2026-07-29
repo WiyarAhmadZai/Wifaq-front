@@ -11,10 +11,27 @@ import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 import BudgetWarningModal from "../../components/finance/BudgetWarningModal";
+import ListExportActions from "../../components/ListExportActions";
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const now = new Date();
+
+// Columns for the preview's Excel / print output. Deliberately includes the
+// blocking reason, which is the whole point of exporting the blocked list.
+const PREVIEW_EXPORT_COLUMNS = [
+  { key: "employee_id", label: "Employee ID" },
+  { key: "staff_name", label: "Staff" },
+  { key: "department", label: "Department" },
+  { key: "branch_name", label: "Branch" },
+  { key: "status", label: "Status", exportValue: (r) => (ROW_STATE[r.status] || {}).label || r.status },
+  { key: "gross_salary", label: "Gross", exportValue: (r) => (r.status === "ready" ? Number(r.gross_salary) : "") },
+  { key: "allowances_total", label: "Allowances", exportValue: (r) => (r.status === "ready" ? Number(r.allowances_total) : "") },
+  { key: "leave_deduction", label: "Leave/Absence", exportValue: (r) => Number(r.leave_deduction || 0) || "" },
+  { key: "advance_deduction", label: "Advance", exportValue: (r) => Number(r.advance_deduction || 0) || "" },
+  { key: "net_pay", label: "Net pay", exportValue: (r) => (r.status === "ready" ? Number(r.net_pay) : "") },
+  { key: "issues", label: "Reason", exportValue: (r) => (r.issues || []).join("; ") },
+];
 
 const ROW_STATE = {
   ready:       { label: "Ready",        cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -89,6 +106,11 @@ export default function Payroll() {
   const [month, setMonth] = useState(now.getMonth() + 1);
 
   const [preview, setPreview] = useState(null);
+  // Preview filters — "blocked" is the one people reach for: it lists exactly
+  // who is missing an active contract so the list can be printed or exported
+  // and handed to HR.
+  const [rowFilter, setRowFilter] = useState("all");   // all | ready | blocked | already_run
+  const [rowSearch, setRowSearch] = useState("");
   const [edits, setEdits] = useState({});            // staffId → { skip, manual:[{label,amount}] }
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -452,6 +474,22 @@ export default function Payroll() {
     }
   };
 
+  // Rows the preview table shows — the filter chips and the search box narrow
+  // it, and Print / Excel output exactly this set.
+  const visibleRows = useMemo(() => {
+    const rows = preview?.rows || [];
+    const q = rowSearch.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (rowFilter !== "all" && r.status !== rowFilter) return false;
+      if (!q) return true;
+      return (
+        String(r.staff_name || "").toLowerCase().includes(q) ||
+        String(r.employee_id || "").toLowerCase().includes(q) ||
+        String(r.department || "").toLowerCase().includes(q)
+      );
+    });
+  }, [preview, rowFilter, rowSearch]);
+
   const totals = useMemo(() => {
     if (!preview) return null;
     let g = 0, a = 0, dman = 0, dleave = 0, dadv = 0, n = 0;
@@ -726,6 +764,54 @@ export default function Payroll() {
         </div>
       </div>
 
+      {/* Who is in and who is out. Payroll pays on an ACTIVE contract only, so
+          a run covering fewer people than there are contracts is normal — but
+          it looks like data loss unless the screen says how many were held back
+          and why. */}
+      {preview && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-[11px]">
+          {/* The counters double as filters — click "blocked" to list exactly
+              who is missing a contract, then print or export that list. */}
+          {[
+            { key: "all", label: `${preview.rows?.length ?? 0} active staff considered`,
+              cls: "bg-white text-gray-600 border-gray-200", on: "bg-gray-800 text-white border-gray-800" },
+            { key: "ready", label: `${preview.totals?.ready ?? 0} ready to pay`,
+              cls: "bg-emerald-50 text-emerald-700 border-emerald-200", on: "bg-emerald-600 text-white border-emerald-600" },
+            { key: "blocked", label: `${preview.totals?.blocked ?? 0} blocked (no active contract)`,
+              cls: "bg-red-50 text-red-700 border-red-200", on: "bg-red-600 text-white border-red-600",
+              hide: (preview.totals?.blocked ?? 0) === 0 },
+            { key: "already_run", label: `${preview.totals?.already_run ?? 0} already on a run`,
+              cls: "bg-gray-100 text-gray-600 border-gray-200", on: "bg-gray-600 text-white border-gray-600",
+              hide: (preview.totals?.already_run ?? 0) === 0 },
+          ].filter((c) => !c.hide).map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setRowFilter(c.key)}
+              className={`px-2.5 py-1 rounded-lg border font-semibold transition-colors ${rowFilter === c.key ? c.on : c.cls}`}
+            >
+              {c.label}
+            </button>
+          ))}
+
+          <div className="relative ml-auto">
+            <input
+              value={rowSearch}
+              onChange={(ev) => setRowSearch(ev.target.value)}
+              placeholder="Search staff or ID…"
+              className="pl-2.5 pr-2 py-1 w-44 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          {/* Prints / exports exactly what the filter is showing. */}
+          <ListExportActions
+            getRows={() => visibleRows}
+            columns={PREVIEW_EXPORT_COLUMNS}
+            title={`Payroll ${MONTHS[month - 1]} ${year} — ${rowFilter === "all" ? "all staff" : rowFilter.replace("_", " ")}`}
+          />
+        </div>
+      )}
+
       {preview && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
           <table className="w-full text-[11px]">
@@ -743,9 +829,13 @@ export default function Payroll() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {preview.rows.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-8 text-xs text-gray-400 italic">No active staff for this period.</td></tr>
-              ) : preview.rows.map((r) => {
+              {visibleRows.length === 0 ? (
+                <tr><td colSpan={9} className="text-center py-8 text-xs text-gray-400 italic">
+                  {preview.rows.length === 0
+                    ? "No active staff for this period."
+                    : "No staff match this filter."}
+                </td></tr>
+              ) : visibleRows.map((r) => {
                 const st = ROW_STATE[r.status] || ROW_STATE.ready;
                 const e = edits[r.staff_id] || {};
                 const man = (e.manual?.[0]?.amount) || 0;
@@ -850,7 +940,11 @@ export default function Payroll() {
             {totals && (
               <tfoot>
                 <tr className="bg-gray-50 font-semibold border-t border-gray-200">
-                  <td colSpan={2} className="px-3 py-2 text-right text-[10px] uppercase text-gray-500">Totals</td>
+                  {/* Always the whole run, never the filtered view — this is
+                      what Commit will actually post. */}
+                  <td colSpan={2} className="px-3 py-2 text-right text-[10px] uppercase text-gray-500">
+                    Totals{rowFilter !== "all" || rowSearch ? " (all ready staff)" : ""}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.g)}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(totals.a)}</td>
                   <td className="px-3 py-2 text-right font-mono text-red-600">{totals.dleave > 0 ? `−${fmt(totals.dleave)}` : "—"}</td>

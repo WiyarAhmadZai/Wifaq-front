@@ -11,6 +11,8 @@ export default function AttendanceReport() {
   const [employees, setEmployees] = useState([]);
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
+  // The per-day records are a drill-down now, not the main view.
+  const [showDaily, setShowDaily] = useState(false);
   const [filters, setFilters] = useState({
     from_date: "",
     to_date: "",
@@ -77,29 +79,36 @@ export default function AttendanceReport() {
   };
 
   const exportToCSV = () => {
-    if (!reportData || !reportData.attendances.length) {
+    // Exports whichever view is on screen: the per-staff summary by default,
+    // the day-by-day records when that drill-down is open.
+    const daily = showDaily;
+    if (!reportData || (daily ? !reportData.attendances.length : !(reportData.rows || []).length)) {
       Swal.fire("Error", "No data to export", "error");
       return;
     }
 
-    const headers = [
-      "Date",
-      "Employee",
-      "Status",
-      "Arrived",
-      "Check Out",
-      "Working Hours",
-      "Notes",
-    ];
-    const rows = reportData.attendances.map((item) => [
-      item.date,
-      item.employee?.full_name || "-",
-      item.status,
-      item.arrived || "-",
-      item.check_out || "-",
-      item.working_hours || "-",
-      item.notes || "-",
-    ]);
+    const headers = daily
+      ? ["Date", "Employee", "Status", "Arrived", "Check Out", "Working Hours", "Notes"]
+      : ["Employee ID", "Employee", "Department", "Present", "Absent", "Late",
+         "Half day", "Leave", "Not recorded", "Working days", "Hours", "Rate %"];
+
+    const rows = daily
+      ? reportData.attendances.map((item) => [
+          item.date,
+          item.employee?.full_name || "-",
+          item.status,
+          item.arrived || "-",
+          item.check_out || "-",
+          item.working_hours || "-",
+          item.notes || "-",
+        ])
+      : reportData.rows.map((r) => [
+          r.employee.employee_id || "-",
+          r.employee.full_name,
+          r.employee.department || "-",
+          r.present, r.absent, r.late, r.half_day, r.leave,
+          r.not_recorded, r.expected_days, r.working_hours, r.rate,
+        ]);
 
     const csvContent = [
       headers.join(","),
@@ -297,70 +306,132 @@ export default function AttendanceReport() {
         </div>
       )}
 
-      {/* Report Table */}
+      {/* Per-staff report — ONE row per person, counting their days. */}
       {reportData && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800">
-              Detailed Report
-            </h3>
+          <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">Staff summary</h3>
+              <p className="text-xs text-gray-500">
+                One row per staff member for {formatDate(filters.from_date)} – {formatDate(filters.to_date)}
+                {reportData.summary?.holidays > 0 && (
+                  <> · {reportData.summary.holidays} closed day(s) excluded</>
+                )}
+                {reportData.summary?.expected_days != null && (
+                  <> · {reportData.summary.expected_days} working day(s) in range</>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDaily((v) => !v)}
+              className="px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg"
+            >
+              {showDaily ? "Hide day-by-day records" : "Show day-by-day records"}
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Employee
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Arrived
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Check Out
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                    Working Hours
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">#</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Employee</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Department</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-emerald-700 uppercase">Present</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-red-700 uppercase">Absent</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-amber-700 uppercase">Late</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-blue-700 uppercase">Half day</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-purple-700 uppercase">Leave</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Not recorded</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Hours</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(reportData.rows || []).length === 0 ? (
+                  <tr>
+                    <td colSpan="11" className="px-4 py-8 text-center text-gray-500">
+                      No staff found for the selected period
+                    </td>
+                  </tr>
+                ) : (
+                  reportData.rows.map((row, i) => (
+                    <tr key={row.employee.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-xs text-gray-400">{i + 1}</td>
+                      <td className="px-4 py-3 text-sm text-gray-800 font-medium">
+                        {row.employee.full_name}
+                        <span className="block text-[10px] text-gray-400 font-mono">{row.employee.employee_id}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{row.employee.department || "—"}</td>
+                      <td className="px-4 py-3 text-center text-sm font-bold text-emerald-700">{row.present || "—"}</td>
+                      <td className="px-4 py-3 text-center text-sm font-bold text-red-700">{row.absent || "—"}</td>
+                      <td className="px-4 py-3 text-center text-sm text-amber-700">{row.late || "—"}</td>
+                      <td className="px-4 py-3 text-center text-sm text-blue-700">{row.half_day || "—"}</td>
+                      <td className="px-4 py-3 text-center text-sm text-purple-700">{row.leave || "—"}</td>
+                      <td className="px-4 py-3 text-center text-xs text-gray-400"
+                          title="Working days in range with no attendance record and no approved leave">
+                        {row.not_recorded || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-700 font-mono">
+                        {row.working_hours ? `${row.working_hours}h` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                          row.rate >= 80 ? "bg-emerald-100 text-emerald-700"
+                          : row.rate >= 50 ? "bg-amber-100 text-amber-700"
+                          : "bg-red-100 text-red-700"
+                        }`}>
+                          {row.rate}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Optional day-by-day drill-down — the old view, kept behind a toggle. */}
+      {reportData && showDaily && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mt-6">
+          <div className="px-4 py-3 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800">Day-by-day records</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Employee</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Arrived</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Check Out</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Working Hours</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {reportData.attendances.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan="6"
-                      className="px-4 py-8 text-center text-gray-500"
-                    >
+                    <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
                       No attendance records found for the selected period
                     </td>
                   </tr>
                 ) : (
                   reportData.attendances.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatDate(item.date)}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{formatDate(item.date)}</td>
                       <td className="px-4 py-3 text-sm text-gray-800 font-medium">
                         {item.employee?.full_name || "-"}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <span
-                          className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(item.status)}`}
-                        >
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(item.status)}`}>
                           {item.status?.replace("_", " ")}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {item.arrived || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {item.check_out || "-"}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{item.arrived || "-"}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{item.check_out || "-"}</td>
                       <td className="px-4 py-3 text-sm text-gray-800 font-medium">
                         {item.working_hours ? `${item.working_hours}h` : "-"}
                       </td>

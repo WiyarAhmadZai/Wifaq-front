@@ -611,6 +611,7 @@ function App() {
             <Route path="finance/journal-entries/show/:id" element={<Suspense fallback={<PageLoader />}><JournalEntryShow /></Suspense>} />
             <Route path="finance/parties" element={<Suspense fallback={<PageLoader />}><Parties /></Suspense>} />
             <Route path="finance/parties/create" element={<Suspense fallback={<PageLoader />}><PartyForm /></Suspense>} />
+            <Route path="finance/parties/edit/:id" element={<Suspense fallback={<PageLoader />}><PartyForm /></Suspense>} />
             <Route path="finance/parties/:id/ledger" element={<Suspense fallback={<PageLoader />}><PartyLedger /></Suspense>} />
             <Route path="finance/inbox" element={<Suspense fallback={<PageLoader />}><FinanceInbox /></Suspense>} />
 

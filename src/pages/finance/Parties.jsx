@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getParties, createParty } from "../../api/financial";
+import { getParties, deleteParty } from "../../api/financial";
 import { peekCache } from "../../api/axios";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 import Swal from "sweetalert2";
 
 const typeColors = {
@@ -11,6 +12,10 @@ const typeColors = {
 
 export default function Parties() {
   const navigate = useNavigate();
+  // Any authenticated staff can open this page to see their OWN party (the
+  // backend row-scopes the list), so the write actions have to be gated here
+  // rather than assumed from page access.
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions("parties");
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -43,6 +48,29 @@ export default function Parties() {
     fetchParties();
   };
 
+  const handleDelete = async (party) => {
+    const r = await Swal.fire({
+      title: "Delete party?",
+      html: `<span class="text-sm">${party.full_name || party.party_code} (${party.unique_id || party.party_code})</span>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      confirmButtonText: "Delete",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      await deleteParty(party.id);
+      setItems((prev) => prev.filter((i) => i.id !== party.id));
+      Swal.fire({
+        toast: true, position: "top-end", icon: "success",
+        title: "Party deleted", timer: 1500, showConfirmButton: false,
+      });
+    } catch (error) {
+      // 422 = the party still has ledger entries / payments / invoices.
+      Swal.fire("Cannot delete", error.response?.data?.message || "Failed to delete party.", "error");
+    }
+  };
+
   const filtered = filter === "all" ? items : items.filter((i) => i.party_type === filter);
 
   const stats = {
@@ -60,13 +88,15 @@ export default function Parties() {
           <h2 className="text-base font-bold text-gray-800">Parties</h2>
           <p className="text-xs text-gray-500">Staff (advances) and Vendors (payables)</p>
         </div>
-        <button onClick={() => navigate("/finance/parties/create")}
-          className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Party
-        </button>
+        {canCreate && (
+          <button onClick={() => navigate("/finance/parties/create")}
+            className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-medium flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Party
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -150,13 +180,37 @@ export default function Parties() {
                 })()}
               </div>
 
-              <p className="text-[10px] text-gray-400">Open card for full ledger history.</p>
+              {/* Action row — buttons stop propagation so they don't trigger
+                  the card's navigate-to-ledger click handler. */}
+              <div className="flex gap-2 pt-2 border-t border-gray-100">
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate(`/finance/parties/${party.id}/ledger`); }}
+                  className="flex-1 py-1 text-[10px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100">
+                  Ledger
+                </button>
+                {canUpdate && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(`/finance/parties/edit/${party.id}`); }}
+                    className="flex-1 py-1 text-[10px] font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100">
+                    Edit
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(party); }}
+                    className="flex-1 py-1 text-[10px] font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {filtered.length === 0 && (
+      {loading && <p className="text-center text-xs text-gray-400 py-4">Loading…</p>}
+
+      {!loading && filtered.length === 0 && (
         <div className="text-center py-12 text-xs text-gray-400">
           No parties found. Add a party to start tracking.
         </div>

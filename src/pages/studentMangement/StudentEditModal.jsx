@@ -375,11 +375,11 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-3 sm:p-6" onClick={close}>
-      <div
-        className="w-full max-w-5xl h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
+    // No backdrop-click-to-close. This is a long, multi-section edit form —
+    // a stray click on the dimmed area used to discard everything typed so
+    // far. Closing is deliberate only: the X in the header or Cancel below.
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-3 sm:p-6">
+      <div className="w-full max-w-5xl h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header — teal band, matches the rest of the app */}
         <div className="flex items-start justify-between gap-4 px-6 py-4 bg-[#0D5C63] flex-shrink-0">
           <div className="min-w-0">

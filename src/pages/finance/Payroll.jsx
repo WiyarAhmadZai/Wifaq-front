@@ -30,18 +30,28 @@ const ROW_STATE = {
  * an advance far bigger than one salary is settled over many months, and the
  * split between cash-in-hand and repayment can differ every time.
  *
- *   no override typed  → the automatic maximum (advance_max), i.e. recover as
- *                        much as this month's pay can bear
+ *   no override typed  → advance_default, half the month's pay. NOT the whole
+ *                        of it: someone whose advance dwarfs their salary would
+ *                        otherwise take home nothing for months on end.
  *   a number typed     → that much, clamped to [0, advance_max]
  *
  * 0 means the staff member takes the whole salary home this month and the
  * advance is untouched; advance_max means they take nothing home and the
  * advance drops by a full salary. The server clamps identically.
  */
+function advanceMaxOf(row) {
+  return Number(row.advance_max ?? row.advance_deduction ?? 0);
+}
+
+function advanceDefaultOf(row) {
+  const d = row.advance_default;
+  return d === undefined || d === null ? advanceMaxOf(row) : Number(d);
+}
+
 function advanceFor(row, edit) {
-  const max = Number(row.advance_max ?? row.advance_deduction ?? 0);
+  const max = advanceMaxOf(row);
   const v = edit?.advance;
-  if (v === undefined || v === null || v === "") return max;
+  if (v === undefined || v === null || v === "") return Math.min(advanceDefaultOf(row), max);
   return Math.min(Math.max(0, Number(v) || 0), max);
 }
 
@@ -493,11 +503,17 @@ export default function Payroll() {
                   </td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(s.gross_salary)}</td>
                   <td className="px-3 py-2 text-right font-mono text-gray-600">{fmt(s.allowances_total)}</td>
-                  {/* Advance recovered from this salary — cleared off the
-                      staff member's party ledger when the run was committed. */}
+                  {/* Two different numbers, and the admin needs both: what came
+                      off THIS salary, and what the staff member still owes on
+                      the advance they were handed in the Parties screen. */}
                   <td className="px-3 py-2 text-right font-mono text-amber-700"
-                      title={Number(s.advance_offset) > 0 ? "Advance recovered from this salary" : "No advance recovered"}>
+                      title={`Recovered from this salary: ${fmt(s.advance_offset)} · still owed after it: ${fmt(s.party?.balance ?? 0)}`}>
                     {Number(s.advance_offset) > 0 ? `−${fmt(s.advance_offset)}` : "—"}
+                    {Number(s.party?.balance) > 0 && (
+                      <span className="block text-[9px] text-gray-400 font-normal">
+                        {fmt(s.party.balance)} still owed
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right font-mono text-amber-700">{s.manual_deductions_total > 0 ? `−${fmt(s.manual_deductions_total)}` : "—"}</td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-teal-700">{fmt(s.net_pay)}</td>
@@ -671,7 +687,7 @@ export default function Payroll() {
                 const e = edits[r.staff_id] || {};
                 const man = (e.manual?.[0]?.amount) || 0;
                 const leave = r.status === "ready" ? Number(r.leave_deduction || 0) : 0;
-                const advMax = Number(r.advance_max ?? r.advance_deduction ?? 0);
+                const advMax = advanceMaxOf(r);
                 const adv = r.status === "ready" ? advanceFor(r, e) : 0;
                 const advOutstanding = Number(r.advance_outstanding || 0);
                 const advLeft = Math.max(0, advOutstanding - adv);
@@ -714,7 +730,7 @@ export default function Payroll() {
                             <span className="text-amber-700 font-mono">−</span>
                             <input
                               type="number" min="0" max={advMax} step="0.01"
-                              value={e.advance ?? advMax}
+                              value={e.advance ?? adv}
                               onChange={(ev) => setAdvance(r.staff_id, ev.target.value)}
                               className="w-20 px-1.5 py-1 text-[10px] text-right font-mono border border-amber-200 bg-amber-50/40 rounded focus:outline-none focus:border-amber-500"
                             />
@@ -731,8 +747,12 @@ export default function Payroll() {
                               none
                             </button>
                           </div>
-                          <span className="text-[9px] text-gray-400">
-                            {advLeft > 0 ? `${fmt(advLeft)} left after` : "clears the advance"}
+                          {/* Take-home first: it is the number the staff member
+                              actually feels, and the one that must never hit 0
+                              by accident. */}
+                          <span className={`text-[9px] ${net <= 0 ? "text-red-600 font-semibold" : "text-gray-400"}`}>
+                            {net <= 0 ? "takes home nothing" : `takes home ${fmt(net)}`}
+                            {advLeft > 0 ? ` · ${fmt(advLeft)} left` : " · clears it"}
                           </span>
                         </div>
                       ) : <span className="font-mono text-gray-300">—</span>}
@@ -1420,15 +1440,61 @@ function SinglePayslipBody({ slip }) {
             the receipt made the handed-over amount look wrong. */}
         <Line label="Advance recovery"    value={-Number(slip.advance_offset || 0)} muted={!Number(slip.advance_offset)} />
         <div className="border-t border-gray-300 mt-2 pt-2 flex items-center justify-between font-bold">
-          <span>Net pay</span>
+          <span>Cash paid</span>
           <span>{fmt(slip.net_pay)} AFN</span>
         </div>
       </div>
+
+      {/* Advance statement. The staff member signs for the cash, so the receipt
+          has to answer the question they will actually ask: how much of my
+          advance is left now? Printed only when there is an advance at all. */}
+      <AdvanceStatement slip={slip} />
     </>
   );
 }
 
+/**
+ * Opening / repaid / closing on the staff member's advance, as at this payslip.
+ *
+ * `party.balance` is read AFTER the run recovered against it, so the opening
+ * figure is reconstructed by adding this payslip's recovery back on.
+ */
+function AdvanceStatement({ slip }) {
+  const repaid = Number(slip.advance_offset || 0);
+  const after = Number(slip.party?.balance ?? 0);
+  const before = after + repaid;
+  if (before <= 0) return null;
+
+  return (
+    <div className="mt-4 border border-gray-300 rounded p-3 text-[11px]">
+      <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-2 font-bold">
+        Advance account
+      </p>
+      <div className="space-y-1">
+        <Line label="Advance before this salary" value={before} />
+        <Line label="Repaid from this salary"    value={-repaid} muted={!repaid} />
+        <div className="border-t border-gray-300 mt-1.5 pt-1.5 flex items-center justify-between font-bold">
+          <span>Advance still owed</span>
+          <span>{fmt(after)} AFN</span>
+        </div>
+      </div>
+      {after > 0 && (
+        <p className="text-[9px] text-gray-500 mt-2">
+          Carried forward — it comes off future salaries until it is cleared.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function BulkPayslipsBody({ payslips }) {
+  // Anyone carrying an advance needs their own two columns on the bill —
+  // otherwise "Cash" alone looks like the wrong salary was paid.
+  const anyAdvance = payslips.some(
+    (p) => Number(p.advance_offset) > 0 || Number(p.party?.balance) > 0
+  );
+  const totalRepaid = payslips.reduce((s, p) => s + Number(p.advance_offset || 0), 0);
+
   return (
     <>
       <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Payees ({payslips.length})</p>
@@ -1436,7 +1502,9 @@ function BulkPayslipsBody({ payslips }) {
         <thead>
           <tr className="text-left text-[9px] uppercase tracking-wider text-gray-500 border-b border-gray-100">
             <th className="py-1.5">Staff</th>
-            <th className="py-1.5 text-right">Net</th>
+            {anyAdvance && <th className="py-1.5 text-right">To advance</th>}
+            {anyAdvance && <th className="py-1.5 text-right">Still owed</th>}
+            <th className="py-1.5 text-right">Cash</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -1450,10 +1518,29 @@ function BulkPayslipsBody({ payslips }) {
                   <span className="block text-[9px] text-gray-500">{p.staff.employee_id}</span>
                 )}
               </td>
+              {anyAdvance && (
+                <td className="py-1.5 text-right">
+                  {Number(p.advance_offset) > 0 ? `−${fmt(p.advance_offset)}` : "—"}
+                </td>
+              )}
+              {anyAdvance && (
+                <td className="py-1.5 text-right text-gray-500">
+                  {Number(p.party?.balance) > 0 ? fmt(p.party.balance) : "—"}
+                </td>
+              )}
               <td className="py-1.5 text-right font-semibold">{fmt(p.net_pay)}</td>
             </tr>
           ))}
         </tbody>
+        {anyAdvance && totalRepaid > 0 && (
+          <tfoot>
+            <tr className="border-t border-gray-200 font-semibold">
+              <td className="py-1.5">Recovered against advances</td>
+              <td className="py-1.5 text-right">−{fmt(totalRepaid)}</td>
+              <td colSpan={2}></td>
+            </tr>
+          </tfoot>
+        )}
       </table>
     </>
   );

@@ -31,28 +31,41 @@ const EXPORT_COLUMNS = [
   { key: 'paid_from', label: 'Paid from', exportValue: (r) => r.paid_from || '' },
 ];
 
+const now = new Date();
+
 export default function SalarySnapshot() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all | paid | pending
+  // Opens on the current month — the salaries you are working on right now.
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1); // '' = whole year
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchItems(); }, [year, month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchItems = async () => {
     setLoading(true);
     setError(null);
+    const params = new URLSearchParams();
+    if (year) params.set('year', year);
+    if (month) params.set('month', month);
+    const url = `/hr/salary-snapshot${params.toString() ? `?${params}` : ''}`;
+
     const apply = (payload) => {
       if (!payload) return;
       setItems(Array.isArray(payload.data) ? payload.data : []);
       setSummary(payload.summary || null);
+      // The period list is unfiltered, so it keeps offering the other months.
+      if (Array.isArray(payload.periods)) setPeriods(payload.periods);
     };
     try {
-      apply(peekCache('/hr/salary-snapshot'));
-      const res = await get('/hr/salary-snapshot');
+      apply(peekCache(url));
+      const res = await get(url);
       apply(res.data);
     } catch (e) {
       console.error('Failed to load salary overview', e);
@@ -62,6 +75,22 @@ export default function SalarySnapshot() {
       setLoading(false);
     }
   };
+
+  // Years offered: every year that has payslips, plus the current one.
+  const years = useMemo(() => {
+    const set = new Set(periods.map((p) => p.year));
+    set.add(now.getFullYear());
+    return [...set].sort((a, b) => b - a);
+  }, [periods]);
+
+  // Months that actually hold payslips in the chosen year, so the picker
+  // cannot lead somewhere empty.
+  const monthsWithData = useMemo(
+    () => new Set(periods.filter((p) => p.year === Number(year)).map((p) => p.month)),
+    [periods, year],
+  );
+
+  const periodLabelText = month ? `${MONTHS[month - 1]} ${year}` : `all of ${year}`;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -84,7 +113,9 @@ export default function SalarySnapshot() {
           <div>
             <h1 className="text-sm font-bold text-white">Salary Overview</h1>
             <p className="text-xs text-teal-100 mt-0.5">
-              {summary ? `${summary.payslip_count} payslip(s) across ${summary.staff_count} staff` : 'Salaries produced by payroll'}
+              {summary
+                ? `${periodLabelText} · ${summary.payslip_count} payslip(s) across ${summary.staff_count} staff`
+                : 'Salaries produced by payroll'}
             </p>
           </div>
           <button
@@ -115,8 +146,39 @@ export default function SalarySnapshot() {
           ))}
         </div>
 
-        {/* Search + status filter + export */}
+        {/* Period + search + status filter + export */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value ? Number(e.target.value) : '')}
+              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+            >
+              <option value="">Whole year</option>
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}{monthsWithData.has(i + 1) ? '' : ' —'}
+                </option>
+              ))}
+            </select>
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+            >
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+            {(month !== now.getMonth() + 1 || year !== now.getFullYear()) && (
+              <button
+                type="button"
+                onClick={() => { setMonth(now.getMonth() + 1); setYear(now.getFullYear()); }}
+                className="px-3 py-2.5 text-xs font-semibold text-teal-700 hover:bg-teal-50 rounded-xl"
+              >
+                This month
+              </button>
+            )}
+          </div>
+
           <div className="relative flex-1 min-w-[220px]">
             <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -225,9 +287,25 @@ export default function SalarySnapshot() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p className="text-sm text-gray-400 font-medium">
-                  {items.length === 0 ? 'No salaries have been run yet' : 'No payslips match this filter'}
+                  {items.length === 0
+                    ? `No salaries were run for ${periodLabelText}`
+                    : 'No payslips match this filter'}
                 </p>
-                {items.length === 0 && (
+                {items.length === 0 && periods.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <span className="text-[11px] text-gray-400">Periods with payslips:</span>
+                    {periods.slice(0, 6).map((p) => (
+                      <button
+                        key={`${p.year}-${p.month}`}
+                        onClick={() => { setYear(p.year); setMonth(p.month); }}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg"
+                      >
+                        {MONTHS[p.month - 1]} {p.year} ({p.payslips})
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {items.length === 0 && periods.length === 0 && (
                   <button onClick={() => navigate('/finance/payroll')} className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">
                     Run payroll to produce salaries
                   </button>

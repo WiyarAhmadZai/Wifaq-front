@@ -26,6 +26,8 @@ export const getAccountMovements    = (id, params = {}) => get(`${BASE}/accounts
 export const getParties = (params = {}) => get(`${BASE}/parties`, { params });
 export const getParty = (id) => get(`${BASE}/parties/${id}`);
 export const createParty = (data) => post(`${BASE}/parties`, data);
+export const updateParty = (id, data) => put(`${BASE}/parties/${id}`, data);
+export const deleteParty = (id) => del(`${BASE}/parties/${id}`);
 export const getPartyLedger = (id, params = {}) => get(`${BASE}/parties/${id}/ledger`, { params });
 export const getPartyBalance = (id) => get(`${BASE}/parties/${id}/balance`);
 // The four canonical party-money actions — staff advances flow.
@@ -33,6 +35,10 @@ export const givePartyAdvance       = (id, data) => post(`${BASE}/parties/${id}/
 export const recordPartyExpense     = (id, data) => post(`${BASE}/parties/${id}/expense`, data);
 export const recordPartyRepayment   = (id, data) => post(`${BASE}/parties/${id}/repayment`, data);
 export const recordPartyReimbursement = (id, data) => post(`${BASE}/parties/${id}/reimbursement`, data);
+// Corrections — amend or remove a movement recorded by mistake. Gated on
+// party-ledger.correct / party-ledger.delete (or parties.manage) server-side.
+export const updatePartyLedgerEntry = (id, entryId, data) => put(`${BASE}/parties/${id}/ledger/${entryId}`, data);
+export const deletePartyLedgerEntry = (id, entryId) => del(`${BASE}/parties/${id}/ledger/${entryId}`);
 
 // Journal Entries
 export const getJournalEntries = (params = {}) => get(`${BASE}/journal-entries`, { params });

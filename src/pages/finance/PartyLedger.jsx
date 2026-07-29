@@ -8,9 +8,12 @@ import {
   recordPartyExpense,
   recordPartyRepayment,
   recordPartyReimbursement,
+  updatePartyLedgerEntry,
+  deletePartyLedgerEntry,
 } from "../../api/financial";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
+import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
 import { useAuth } from "../../admin/context/AuthContext";
@@ -50,6 +53,9 @@ const ACTIONS = {
     tone: "blue",
     requiresAccount: true,
     requiresExpenseAccount: false,
+    // Real cash leaves the chosen account, so it can't exceed what that
+    // account holds. Same rule enforced server-side in PartyLedgerService.
+    cashOut: true,
     mutationFn: givePartyAdvance,
   },
   expense: {
@@ -77,6 +83,7 @@ const ACTIONS = {
     tone: "amber",
     requiresAccount: true,
     requiresExpenseAccount: false,
+    cashOut: true,
     mutationFn: recordPartyReimbursement,
   },
 };
@@ -88,10 +95,19 @@ export default function PartyLedger() {
   // Posting any party movement (advance/expense/repayment/reimburse) needs
   // either parties.create or the catch-all parties.manage.
   const canPost = hasPermission("parties.create") || hasPermission("parties.manage");
+  // Correcting money already on the books is a separate, narrower right than
+  // recording it — see the party-ledger.* permissions. `parties.manage` is the
+  // module's full-power grant and still implies both.
+  const canCorrect = hasPermission("party-ledger.correct") || hasPermission("parties.manage");
+  const canDeleteEntry = hasPermission("party-ledger.delete") || hasPermission("parties.manage");
+  const canFixEntries = canCorrect || canDeleteEntry;
+  const [editEntry, setEditEntry] = useState(null);   // ledger row being amended
+  const [savingEntry, setSavingEntry] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [cashAccounts, setCashAccounts] = useState([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [expenseAccounts, setExpenseAccounts] = useState([]);
   const [activeAction, setActiveAction] = useState(null);   // one of ACTIONS values or null
   const [toast, setToast] = useState(null);                  // { kind, message }
@@ -112,14 +128,24 @@ export default function PartyLedger() {
     }
   }, [id]);
 
+  // Party movements (advance / repayment / reimburse) flow through operating
+  // cash only — never payroll or fees-collection accounts. Same gate enforced
+  // server-side in PartyLedgerService.
+  // Reloaded after every posting because a payout changes what's left to spend.
+  const loadAccounts = useCallback(
+    () =>
+      getAccounts({ per_page: 100, chart_codes: "1101,1102,1111" })
+        .then((r) => {
+          setCashAccounts(r.data?.data?.data || r.data?.data || []);
+          setAccountsLoaded(true);
+        })
+        .catch(() => setCashAccounts([])),
+    []
+  );
+
   useEffect(() => {
     load();
-    // Party movements (advance / repayment / reimburse) flow through
-    // operating cash only — never payroll or fees-collection accounts.
-    // Same gate enforced server-side in PartyLedgerService.
-    getAccounts({ per_page: 100, chart_codes: "1101,1102,1111" })
-      .then((r) => setCashAccounts(r.data?.data?.data || r.data?.data || []))
-      .catch(() => setCashAccounts([]));
+    loadAccounts();
     getChartOfAccounts({ per_page: 500 })
       .then((r) => {
         const all = r.data?.data?.data || r.data?.data || [];
@@ -130,7 +156,7 @@ export default function PartyLedger() {
         );
       })
       .catch(() => setExpenseAccounts([]));
-  }, [load]);
+  }, [load, loadAccounts]);
 
   // Auto-dismiss toast after 2.5s.
   useEffect(() => {
@@ -139,10 +165,63 @@ export default function PartyLedger() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Entries created by a payroll run are owned by that run — the payroll
+  // screen is where they get undone, so no correction buttons here.
+  const isPayrollEntry = (e) =>
+    e.journal_entry?.reference_type === "payroll" ||
+    /payroll|salary/i.test(e.description || "");
+
+  const saveEntryEdit = async () => {
+    if (!editEntry) return;
+    const amount = Number(editEntry.amount);
+    if (!(amount > 0)) {
+      setToast({ kind: "error", message: "Amount must be greater than zero." });
+      return;
+    }
+    setSavingEntry(true);
+    try {
+      await updatePartyLedgerEntry(id, editEntry.id, {
+        amount,
+        date: editEntry.transaction_date,
+        note: editEntry.description,
+        ...(editEntry.account_id ? { account_id: editEntry.account_id } : {}),
+      });
+      setEditEntry(null);
+      setToast({ kind: "success", message: "Entry corrected." });
+      await Promise.all([load(), loadAccounts()]);
+    } catch (e) {
+      setToast({ kind: "error", message: e.response?.data?.message || "Could not update the entry." });
+    } finally {
+      setSavingEntry(false);
+    }
+  };
+
+  const removeEntry = async (entry) => {
+    const confirm = await Swal.fire({
+      title: "Delete this entry?",
+      html:
+        `<p style="font-size:13px">${entry.entry_type} of <b>${fmtMoney(entry.amount)}</b> ` +
+        `dated ${fmtDateLong(entry.transaction_date)} will be removed, together with its journal entry. ` +
+        `The party balance and the cash account are recalculated.</p>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      confirmButtonColor: "#dc2626",
+    });
+    if (!confirm.isConfirmed) return;
+    try {
+      await deletePartyLedgerEntry(id, entry.id);
+      setToast({ kind: "success", message: "Entry deleted." });
+      await Promise.all([load(), loadAccounts()]);
+    } catch (e) {
+      Swal.fire("Could not delete", e.response?.data?.message || "The entry was not removed.", "error");
+    }
+  };
+
   const handleActionSuccess = async (label) => {
     setActiveAction(null);
     setToast({ kind: "success", message: `${label} recorded.` });
-    await load();
+    await Promise.all([load(), loadAccounts()]);
   };
 
   const handleActionError = (label, err) => {
@@ -172,6 +251,16 @@ export default function PartyLedger() {
     : balance < 0
       ? { label: "school owes party", className: "text-amber-700" }
       : { label: "settled",           className: "text-emerald-700" };
+
+  // Cash actually sitting in the operating accounts this page can draw from.
+  // Advances and reimbursements are payouts — with nothing in the accounts
+  // there is nothing to hand out, so those buttons stay closed until someone
+  // deposits or transfers money in under Finance → Accounts.
+  const availableCash = useMemo(
+    () => cashAccounts.reduce((s, a) => s + Math.max(Number(a.current_balance) || 0, 0), 0),
+    [cashAccounts]
+  );
+  const noCash = accountsLoaded && availableCash <= 0;
 
   // ──────────── render guards
   if (loading) {
@@ -254,7 +343,9 @@ export default function PartyLedger() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           <ActionButton
             label="Give Advance"   subtitle="Deposit money"        tone="blue"
-            onClick={() => setActiveAction(ACTIONS.advance)} disabled={!!activeAction}
+            onClick={() => setActiveAction(ACTIONS.advance)}
+            disabled={!!activeAction || noCash}
+            disabledHint={noCash ? "No cash in any account — deposit first" : null}
           />
           <ActionButton
             label="Record Expense" subtitle="Party spent the money" tone="red"
@@ -269,9 +360,29 @@ export default function PartyLedger() {
           <ActionButton
             label="Reimburse" subtitle="School pays party" tone="amber"
             onClick={() => setActiveAction(ACTIONS.reimbursement)}
-            disabled={!!activeAction || balance >= 0}
-            disabledHint={balance >= 0 ? "Only when school owes" : null}
+            disabled={!!activeAction || balance >= 0 || noCash}
+            disabledHint={
+              balance >= 0 ? "Only when school owes"
+                : noCash ? "No cash in any account — deposit first"
+                  : null
+            }
           />
+        </div>
+      )}
+
+      {/* No money anywhere to pay out from — say so once, with the way out. */}
+      {canPost && noCash && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <span className="text-amber-600 text-sm leading-none mt-0.5">⚠</span>
+          <p className="text-xs text-amber-800">
+            The operating cash accounts are empty, so no advance or reimbursement can be paid out.
+            {" "}
+            <button type="button" onClick={() => navigate("/finance/accounts")}
+              className="font-semibold underline hover:text-amber-900">
+              Add money to an account
+            </button>
+            {" "}first (deposit or transfer), then come back.
+          </p>
         </div>
       )}
 
@@ -299,6 +410,7 @@ export default function PartyLedger() {
                 <th className="px-3 py-2.5 text-right">Debit</th>
                 <th className="px-3 py-2.5 text-right">Credit</th>
                 <th className="px-3 py-2.5 text-right">Balance</th>
+                {canFixEntries && <th className="px-3 py-2.5 text-center">Fix</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -310,11 +422,12 @@ export default function PartyLedger() {
                 <td className="px-3 py-2 text-[11px] text-gray-500 italic" colSpan={3}>Opening balance</td>
                 <td className="px-3 py-2"></td>
                 <td className="px-3 py-2 text-right text-xs font-mono font-semibold">{fmtMoney(summary?.opening_balance)}</td>
+                {canFixEntries && <td></td>}
               </tr>
 
               {ledger.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10">
+                  <td colSpan={canFixEntries ? 8 : 7} className="text-center py-10">
                     <p className="text-sm text-gray-700 font-medium">No transactions yet</p>
                     {canPost && (
                       <p className="text-xs text-gray-400 mt-1">Click <strong>Give Advance</strong> above to deposit money to this party.</p>
@@ -368,6 +481,51 @@ export default function PartyLedger() {
                         {runningBalances[i] >= 0 ? "" : "−"}
                         {fmtMoney(Math.abs(runningBalances[i] ?? 0))}
                       </td>
+                      {canFixEntries && (
+                        <td className="px-3 py-2">
+                          {isPayrollEntry(e) ? (
+                            <span className="block text-center text-[10px] text-gray-300" title="Created by a payroll run — correct it from payroll">
+                              —
+                            </span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              {canCorrect && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditEntry({
+                                    id: e.id,
+                                    entry_type: e.entry_type,
+                                    amount: e.amount,
+                                    transaction_date: String(e.transaction_date || "").slice(0, 10),
+                                    description: e.description || "",
+                                    account_id: e.account_id || "",
+                                  })}
+                                  title="Correct this entry"
+                                  className="p-1 rounded text-teal-600 hover:bg-teal-100 transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              )}
+                              {canDeleteEntry && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeEntry(e)}
+                                  title="Delete this entry"
+                                  className="p-1 rounded text-red-500 hover:bg-red-100 transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })
@@ -382,6 +540,7 @@ export default function PartyLedger() {
                   <td className={`px-3 py-2 text-right text-xs font-bold ${balanceTone.className}`}>
                     {balance >= 0 ? "" : "−"}{fmtMoney(Math.abs(balance))}
                   </td>
+                  {canFixEntries && <td></td>}
                 </tr>
               </tfoot>
             )}
@@ -402,6 +561,83 @@ export default function PartyLedger() {
           onError={(err) => handleActionError(activeAction.title, err)}
           partyId={id}
         />
+      )}
+
+      {/* Correction modal — amend an entry recorded by mistake. */}
+      {editEntry && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+             onClick={() => !savingEntry && setEditEntry(null)}>
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+               onClick={(ev) => ev.stopPropagation()}>
+            <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+              <h3 className="text-sm font-bold text-gray-800">
+                Correct {ENTRY_META[editEntry.entry_type]?.label || "entry"}
+              </h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                The journal entry and the cash account balance are updated to match.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <label className="block">
+                <span className="block text-[11px] font-semibold text-gray-600 mb-1">Amount *</span>
+                <input
+                  type="number" step="0.01" min="0.01"
+                  value={editEntry.amount}
+                  onChange={(ev) => setEditEntry((p) => ({ ...p, amount: ev.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="block text-[11px] font-semibold text-gray-600 mb-1">Date</span>
+                <DateField
+                  value={editEntry.transaction_date}
+                  onChange={(ev) => setEditEntry((p) => ({ ...p, transaction_date: ev.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400"
+                />
+              </label>
+
+              {editEntry.account_id !== "" && cashAccounts.length > 0 && (
+                <label className="block">
+                  <span className="block text-[11px] font-semibold text-gray-600 mb-1">Cash account</span>
+                  <select
+                    value={editEntry.account_id}
+                    onChange={(ev) => setEditEntry((p) => ({ ...p, account_id: ev.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  >
+                    {cashAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.account_name} — {fmtMoney(a.current_balance)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <label className="block">
+                <span className="block text-[11px] font-semibold text-gray-600 mb-1">Description</span>
+                <textarea
+                  rows={2}
+                  value={editEntry.description}
+                  onChange={(ev) => setEditEntry((p) => ({ ...p, description: ev.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400"
+                />
+              </label>
+            </div>
+
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button type="button" disabled={savingEntry} onClick={() => setEditEntry(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+                Cancel
+              </button>
+              <button type="button" disabled={savingEntry} onClick={saveEntryEdit}
+                className="px-5 py-2 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg disabled:opacity-50">
+                {savingEntry ? "Saving…" : "Save correction"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -429,6 +665,7 @@ function PartyActionModal({
   onClose, onSuccess, onError, partyId,
 }) {
   const t = TONE[action.tone] || TONE.blue;
+  const navigate = useNavigate();
 
   const [amount, setAmount]               = useState("");
   const [accountId, setAccountId]         = useState("");
@@ -471,6 +708,16 @@ function PartyActionModal({
   const overAdvance =
     action.type === "expense" && amountNum > 0 && balance > 0 && amountNum > balance;
 
+  // ── Cash-out funding check (advance / reimbursement).
+  // Money physically leaves the chosen account, so the account must already
+  // hold it. Unlike the warnings above this one BLOCKS the posting — the
+  // server refuses it too, we just say it before the round-trip.
+  const isCashOut = !!action.cashOut;
+  const selectedAccount = cashAccounts.find((a) => String(a.id) === String(accountId)) || null;
+  const accountBalance = Number(selectedAccount?.current_balance) || 0;
+  const insufficient = isCashOut && !!selectedAccount && amountNum > accountBalance;
+  const shortfall = insufficient ? amountNum - accountBalance : 0;
+
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -489,6 +736,13 @@ function PartyActionModal({
     }
     if (action.requiresAccount && !accountId) {
       setError("Pick a cash / bank account.");
+      return;
+    }
+    if (insufficient) {
+      setError(
+        `"${selectedAccount.account_name}" only holds ${fmtMoney(accountBalance)} AFN — ` +
+        `${fmtMoney(shortfall)} AFN short. Add money to the account first, then pay out.`
+      );
       return;
     }
 
@@ -618,19 +872,51 @@ function PartyActionModal({
                   <div className="max-h-44 overflow-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
                     {cashAccounts.map((a) => {
                       const sel = String(accountId) === String(a.id);
+                      const bal = Number(a.current_balance) || 0;
+                      // Empty accounts can't fund a payout at any amount, so
+                      // they're not selectable for advance / reimbursement.
+                      const empty = isCashOut && bal <= 0;
+                      // Has money, but not enough for what's typed.
+                      const short = isCashOut && !empty && amountNum > 0 && amountNum > bal;
                       return (
                         <button key={a.id} type="button" onClick={() => setAccountId(a.id)}
+                          disabled={empty}
+                          title={empty ? "This account is empty — add money to it first" : undefined}
                           className={`w-full text-left px-3 py-2.5 flex items-center justify-between transition-colors ${
-                            sel ? "bg-teal-50 ring-1 ring-inset ring-teal-200" : "hover:bg-gray-50"
+                            empty ? "opacity-50 cursor-not-allowed"
+                              : sel ? "bg-teal-50 ring-1 ring-inset ring-teal-200"
+                                : "hover:bg-gray-50"
                           }`}>
                           <div>
                             <p className={`text-sm font-semibold ${sel ? "text-teal-800" : "text-gray-800"}`}>{a.account_name}</p>
-                            <p className="text-[11px] text-gray-400 capitalize">{a.account_type}</p>
+                            <p className="text-[11px] text-gray-400 capitalize">
+                              {a.account_type}
+                              {empty ? " · empty" : short ? " · not enough" : ""}
+                            </p>
                           </div>
-                          <p className="text-[11px] text-gray-500 font-mono">{fmtMoney(a.current_balance)} AFN</p>
+                          <p className={`text-[11px] font-mono ${empty || short ? "text-red-600 font-semibold" : "text-gray-500"}`}>
+                            {fmtMoney(bal)} AFN
+                          </p>
                         </button>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Hard block: the payout is bigger than the account holds. */}
+                {insufficient && (
+                  <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+                    <p className="text-[11px] text-red-700 leading-relaxed">
+                      <strong>{selectedAccount.account_name}</strong> holds{" "}
+                      <span className="font-mono font-semibold">{fmtMoney(accountBalance)} AFN</span> —{" "}
+                      <span className="font-mono font-semibold">{fmtMoney(shortfall)} AFN</span> short of this{" "}
+                      {action.type === "advance" ? "advance" : "reimbursement"}.
+                      {" "}Add money to the account first.
+                    </p>
+                    <button type="button" onClick={() => navigate("/finance/accounts")}
+                      className="mt-2 px-2.5 py-1 bg-white border border-red-200 rounded-lg text-[11px] font-semibold text-red-700 hover:bg-red-100 transition">
+                      Go to Accounts →
+                    </button>
                   </div>
                 )}
               </div>
@@ -766,9 +1052,10 @@ function PartyActionModal({
               className="px-4 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-sm font-medium transition">
               Cancel
             </button>
-            <button type="submit" disabled={submitting}
-              className={`px-5 py-2.5 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition ${t.btn}`}>
-              {submitting ? "Saving…" : `Confirm ${action.title}`}
+            <button type="submit" disabled={submitting || insufficient}
+              title={insufficient ? "Not enough money in the selected account" : undefined}
+              className={`px-5 py-2.5 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition ${t.btn}`}>
+              {submitting ? "Saving…" : insufficient ? "Not enough funds" : `Confirm ${action.title}`}
             </button>
           </div>
         </form>

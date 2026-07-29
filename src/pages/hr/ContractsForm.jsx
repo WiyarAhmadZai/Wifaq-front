@@ -66,7 +66,14 @@ export default function ContractsForm() {
 
   const fetchStaffList = async () => {
     try {
-      const response = await get("/hr/contracts/staff-list");
+      // On create the endpoint hides anyone who already holds a live contract,
+      // so a second one can't be issued by accident. On edit we ask for the
+      // unfiltered roster (`all=1`) — this contract's own staff member is by
+      // definition already contracted, and would otherwise vanish from their
+      // own form.
+      const response = await get("/hr/contracts/staff-list", {
+        params: isEdit ? { all: 1 } : {},
+      });
       const data = response.data?.data || [];
       setStaffList(Array.isArray(data) ? data : []);
       setFilteredStaff(Array.isArray(data) ? data : []);

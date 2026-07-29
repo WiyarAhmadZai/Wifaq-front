@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
-import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+import { fmtDateTime } from "../../utils/formErrors";
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const Icons = {
@@ -101,8 +101,16 @@ export default function Contracts() {
   const [selectedContract, setSelectedContract] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState({ status: "" });
   const [saving, setSaving] = useState(false);
+  // The endpoint has always paginated at 15; nothing here sent a page or read
+  // the paginator's meta, so the screen showed the first 15 rows and no way to
+  // reach the rest.
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(25);
+  const [meta, setMeta] = useState({ total: 0, last_page: 1, from: 0, to: 0 });
 
-  useEffect(() => { fetchItems(); }, [filters]);
+  // Any filter change invalidates the current page number.
+  useEffect(() => { setPage(1); }, [filters]);
+  useEffect(() => { fetchItems(); }, [filters, page, perPage]);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -111,17 +119,27 @@ export default function Contracts() {
       if (filters.status) queryParams.append("status", filters.status);
       if (filters.contract_type) queryParams.append("contract_type", filters.contract_type);
       if (filters.search) queryParams.append("search", filters.search);
-      const queryString = queryParams.toString();
-      const apiUrl = queryString ? `/hr/contracts/list?${queryString}` : "/hr/contracts/list";
+      queryParams.append("per_page", perPage);
+      queryParams.append("page", page);
+      const apiUrl = `/hr/contracts/list?${queryParams.toString()}`;
+      const applyPage = (payload) => {
+        setItems(payload?.data || []);
+        setMeta({
+          total: payload?.total ?? 0,
+          last_page: payload?.last_page ?? 1,
+          from: payload?.from ?? 0,
+          to: payload?.to ?? 0,
+        });
+      };
       const __cached = peekCache(apiUrl);
       if (__cached) {
-        setItems(__cached?.data || []);
+        applyPage(__cached);
         setLoading(false);
       }
       const response = await get(apiUrl);
-      setItems(response.data?.data || []);
-    } catch (error) {
-      Swal.fire("Error", "Failed to load contracts", "error");
+      applyPage(response.data);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Failed to load contracts", "error");
     } finally {
       setLoading(false);
     }
@@ -166,8 +184,16 @@ export default function Contracts() {
     <div className="px-4 py-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-base font-bold text-gray-800">Contracts</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage staff contracts</p>
+          <h2 className="text-base font-bold text-gray-800">
+            Contracts
+            <span className="ml-2 px-2 py-0.5 align-middle bg-teal-50 text-teal-700 border border-teal-200 rounded-full text-[11px] font-bold">
+              {meta.total} registered
+            </span>
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Manage staff contracts
+            {meta.total > 0 && ` · showing ${meta.from}–${meta.to}`}
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { setFilters({ status: "", contract_type: "", search: "" }); }}
@@ -320,6 +346,39 @@ export default function Contracts() {
                   Create your first contract
                 </button>
               )}
+            </div>
+          )}
+
+          {meta.last_page > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <p className="text-[11px] text-gray-500">
+                Showing <strong>{meta.from}</strong>–<strong>{meta.to}</strong> of <strong>{meta.total}</strong> contracts
+              </p>
+              <div className="flex items-center gap-1.5">
+                <select value={perPage} onChange={(e) => { setPerPage(+e.target.value); setPage(1); }}
+                  className="px-2 py-1 text-[11px] border border-gray-200 rounded-lg bg-white outline-none focus:border-teal-500">
+                  {[15, 25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+                </select>
+                <button onClick={() => setPage(1)} disabled={page === 1}
+                  className="px-2 py-1 text-[11px] font-medium border border-gray-200 rounded-lg bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                  First
+                </button>
+                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                  className="px-2 py-1 text-[11px] font-medium border border-gray-200 rounded-lg bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                  Prev
+                </button>
+                <span className="px-2 text-[11px] text-gray-600">
+                  Page <strong>{page}</strong> of <strong>{meta.last_page}</strong>
+                </span>
+                <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page >= meta.last_page}
+                  className="px-2 py-1 text-[11px] font-medium border border-gray-200 rounded-lg bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                  Next
+                </button>
+                <button onClick={() => setPage(meta.last_page)} disabled={page >= meta.last_page}
+                  className="px-2 py-1 text-[11px] font-medium border border-gray-200 rounded-lg bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                  Last
+                </button>
+              </div>
             </div>
           )}
         </div>

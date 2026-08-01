@@ -19,17 +19,25 @@ const now = new Date();
 
 // Columns for the preview's Excel / print output. Deliberately includes the
 // blocking reason, which is the whole point of exporting the blocked list.
+//
+// These read the EFFECTIVE figures (see `exportRows`), not the server's
+// untouched preview row. Reading `r.advance_deduction` / `r.net_pay` directly
+// meant the printout showed the server's default recovery while the screen
+// showed the admin's choice — set the advance to "all" and the print still said
+// half. What is signed has to match what was decided.
 const PREVIEW_EXPORT_COLUMNS = [
   { key: "employee_id", label: "Employee ID" },
   { key: "staff_name", label: "Staff" },
   { key: "department", label: "Department" },
   { key: "branch_name", label: "Branch" },
-  { key: "status", label: "Status", exportValue: (r) => (ROW_STATE[r.status] || {}).label || r.status },
+  { key: "status", label: "Status", exportValue: (r) => (r.skipped ? "Skipped" : (ROW_STATE[r.status] || {}).label || r.status) },
   { key: "gross_salary", label: "Gross", exportValue: (r) => (r.status === "ready" ? Number(r.gross_salary) : "") },
   { key: "allowances_total", label: "Allowances", exportValue: (r) => (r.status === "ready" ? Number(r.allowances_total) : "") },
   { key: "leave_deduction", label: "Leave/Absence", exportValue: (r) => Number(r.leave_deduction || 0) || "" },
   { key: "advance_deduction", label: "Advance", exportValue: (r) => Number(r.advance_deduction || 0) || "" },
+  { key: "manual_deduction", label: "Manual deduction", exportValue: (r) => Number(r.manual_deduction || 0) || "" },
   { key: "net_pay", label: "Net pay", exportValue: (r) => (r.status === "ready" ? Number(r.net_pay) : "") },
+  { key: "advance_remaining", label: "Advance left", exportValue: (r) => Number(r.advance_remaining || 0) || "" },
   { key: "issues", label: "Reason", exportValue: (r) => (r.issues || []).join("; ") },
 ];
 
@@ -490,6 +498,28 @@ export default function Payroll() {
     });
   }, [preview, rowFilter, rowSearch]);
 
+  // The same rows with the admin's edits folded in — this is what Print and
+  // Excel output. Computed with exactly the arithmetic the table renders, so
+  // the paper and the screen can never disagree.
+  const exportRows = useMemo(() => visibleRows.map((r) => {
+    if (r.status !== "ready") {
+      return { ...r, advance_deduction: 0, manual_deduction: 0, net_pay: 0, advance_remaining: 0, skipped: false };
+    }
+    const e = edits[r.staff_id] || {};
+    const manual = (e.manual || []).reduce((s, m) => s + (Number(m.amount) || 0), 0);
+    const leave = Number(r.leave_deduction || 0);
+    const advance = advanceFor(r, e);
+    const outstanding = Number(r.advance_outstanding || 0);
+    return {
+      ...r,
+      skipped: !!e.skip,
+      advance_deduction: advance,
+      manual_deduction: manual,
+      advance_remaining: Math.max(0, outstanding - advance),
+      net_pay: Number(r.gross_salary) + Number(r.allowances_total) - manual - leave - advance,
+    };
+  }), [visibleRows, edits]);
+
   const totals = useMemo(() => {
     if (!preview) return null;
     let g = 0, a = 0, dman = 0, dleave = 0, dadv = 0, n = 0;
@@ -805,7 +835,7 @@ export default function Payroll() {
 
           {/* Prints / exports exactly what the filter is showing. */}
           <ListExportActions
-            getRows={() => visibleRows}
+            getRows={() => exportRows}
             columns={PREVIEW_EXPORT_COLUMNS}
             title={`Payroll ${MONTHS[month - 1]} ${year} — ${rowFilter === "all" ? "all staff" : rowFilter.replace("_", " ")}`}
           />
@@ -1204,11 +1234,19 @@ function AdvanceSettlementModal({ slip, advance, saving, onSave, onClose }) {
   const outstanding = Number(advance?.before ?? current);
   const cap = round2(Math.min(outstanding, payable));
 
-  const [recover, setRecover] = useState(String(current));
+  // Opens on RECOVER ALL. An advance is money already handed over, so clearing
+  // it as fast as the salary allows is the default; paying cash while the debt
+  // stands is the deliberate choice. Opening on whatever happened to be saved
+  // meant the box showed a part-payment from a previous decision and quietly
+  // repeated it.
+  const [recover, setRecover] = useState(() => String(round2(Math.min(outstanding, payable))));
   const value = Math.min(Math.max(0, Number(recover) || 0), cap);
   const takeHome = round2(payable - value);
   const leftAfter = round2(outstanding - value);
   const overCap = (Number(recover) || 0) > cap;
+  // Flags that the saved figure differs from what is in the box, so nobody
+  // closes the dialog assuming the new number already applies.
+  const unsaved = round2(value) !== round2(current);
 
   const inputCls = "w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500";
 
@@ -1264,6 +1302,15 @@ function AdvanceSettlementModal({ slip, advance, saving, onSave, onClose }) {
                     Capped at {fmt(cap)} — you can't recover more than is owed, or more than this month pays.
                   </p>
                 )}
+                {/* The printed payslip reads the SAVED figure. Choosing a preset
+                    and closing without saving is why a print could still show
+                    the old amount. */}
+                {unsaved && (
+                  <p className="text-[10px] text-red-600 mt-1.5 font-semibold">
+                    Not saved yet — currently recorded as {fmt(current)}. Press Save below or the
+                    payslip and its printout keep the old figure.
+                  </p>
+                )}
               </div>
 
               {/* The same decision, stated as cash the staff member walks away with. */}
@@ -1294,8 +1341,10 @@ function AdvanceSettlementModal({ slip, advance, saving, onSave, onClose }) {
             Cancel
           </button>
           <button type="submit" disabled={saving || cap === 0}
-            className="px-5 py-2 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed">
-            {saving ? "Saving…" : `Recover ${fmt(value)} · pay ${fmt(takeHome)}`}
+            className={`px-5 py-2 text-xs font-semibold text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+              unsaved ? "bg-red-600 hover:bg-red-700" : "bg-teal-600 hover:bg-teal-700"
+            }`}>
+            {saving ? "Saving…" : `Save · recover ${fmt(value)} · pay ${fmt(takeHome)}`}
           </button>
         </div>
       </form>

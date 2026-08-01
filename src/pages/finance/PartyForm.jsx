@@ -172,8 +172,14 @@ export default function PartyForm() {
         await updateParty(id, { ...payload, is_active: isActive });
         Swal.fire("Saved", "Party updated.", "success");
       } else {
-        await createParty(payload);
-        Swal.fire("Created", "Party is ready for advances / payments.", "success");
+        const res = await createParty(payload);
+        // A party that had been deleted comes back restored rather than
+        // recreated, so say which of the two actually happened.
+        Swal.fire(
+          "Created",
+          res.data?.message || "Party is ready for advances / payments.",
+          "success"
+        );
       }
       navigate("/finance/parties");
     } catch (err) {
@@ -181,7 +187,21 @@ export default function PartyForm() {
       const msg = err.response?.data?.message
         || (isEdit ? "Could not update party." : "Could not create party.");
       if (status === 409) {
-        Swal.fire("Already exists", msg, "info");
+        // The server names the party it found. Offer to open it — telling
+        // someone a record exists without a way to reach it is a dead end.
+        const existingId = err.response?.data?.party_id ?? err.response?.data?.data?.id;
+        const r = await Swal.fire({
+          title: "Already exists",
+          text: msg,
+          icon: "info",
+          showCancelButton: !!existingId,
+          confirmButtonText: existingId ? "Open that party" : "OK",
+          confirmButtonColor: "#0d9488",
+          cancelButtonText: "Stay here",
+        });
+        if (existingId && r.isConfirmed) {
+          navigate(`/finance/parties/${existingId}/ledger`);
+        }
       } else {
         Swal.fire("Failed", msg, "error");
       }

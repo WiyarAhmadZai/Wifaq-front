@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useParams,
+  useLocation,
 } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./admin/context/AuthContext";
@@ -318,6 +319,12 @@ function RedirectToCashier() {
   return <Navigate to={`/finance/cashier${studentId ? `?student_id=${studentId}` : ""}`} replace />;
 }
 
+// Old careers URLs → /careers/jobs, keeping any ?job= preselect intact.
+function CareersRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/careers/jobs${search}`} replace />;
+}
+
 function App() {
   return (
     <Router>
@@ -329,8 +336,10 @@ function App() {
             <Route path="/403" element={<Suspense fallback={<PageLoader />}><Forbidden /></Suspense>} />
 
             {/* Public careers page — shareable link, no login required */}
-            <Route path="/careers/apply" element={<Suspense fallback={<PageLoader />}><PublicApplicationForm /></Suspense>} />
-            <Route path="/apply" element={<Navigate to="/careers/apply" replace />} />
+            <Route path="/careers/jobs" element={<Suspense fallback={<PageLoader />}><PublicApplicationForm /></Suspense>} />
+            <Route path="/careers/job" element={<CareersRedirect />} />
+            <Route path="/careers/apply" element={<CareersRedirect />} />
+            <Route path="/apply" element={<CareersRedirect />} />
 
             {/* Public weekly questionnaire — shareable link, no login required */}
             <Route path="/questionnaire" element={<Suspense fallback={<PageLoader />}><PublicQuestionnaire /></Suspense>} />

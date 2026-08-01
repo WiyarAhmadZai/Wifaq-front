@@ -20,33 +20,75 @@ export default function Parties() {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  // Server-side paging. The list used to render only whatever the first
+  // response happened to contain, so anyone past the first page simply was not
+  // on the screen — a party could save fine and still never appear.
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(24);
+  const [meta, setMeta] = useState({ total: 0, last_page: 1, from: 0, to: 0 });
+  // Totals come from the server, over every matching row rather than the page
+  // in front of you — otherwise they would change as you page through.
+  const [stats, setStats] = useState({ total: 0, staff: 0, vendor: 0, owed_to: 0, owed_by: 0 });
+
+  // Debounced so typing doesn't fire a request per keystroke. Filter and page
+  // are dependencies too: the search box used to call fetchParties() directly
+  // from onChange, which read the PREVIOUS search value off a stale closure and
+  // left results one keystroke behind.
+  const [debounced, setDebounced] = useState("");
+  // Bumped after a delete so the page, totals and count are re-read rather
+  // than patched locally — with paging, dropping a row locally leaves the
+  // "showing 1–24 of 60" line lying.
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Any change to what is being asked for goes back to page 1 — staying on
+  // page 5 of a fresh search shows an empty list.
+  useEffect(() => { setPage(1); }, [debounced, filter, perPage]);
 
   useEffect(() => {
-    fetchParties();
-  }, []);
+    let cancelled = false;
 
-  const fetchParties = async () => {
-    setLoading(true);
-    try {
-      const params = {};
+    const run = async () => {
+      setLoading(true);
+      const params = { page, per_page: perPage };
       if (filter !== "all") params.party_type = filter;
-      if (search) params.search = search;
-      const __cached = peekCache('/financial/parties', params);
-      if (__cached) { setItems(__cached?.data?.data || __cached?.data || []); setLoading(false); }
-      const response = await getParties(params);
-      setItems(response.data?.data?.data || response.data?.data || []);
-    } catch (error) {
-      console.error('Failed to fetch parties:', error);
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (debounced) params.search = debounced;
 
-  const handleSearch = (e) => {
-    setSearch(e.target.value);
-    fetchParties();
-  };
+      const apply = (payload) => {
+        if (cancelled || !payload) return;
+        const p = payload.data ?? {};
+        setItems(p.data ?? []);
+        setMeta({
+          total: p.total ?? 0,
+          last_page: p.last_page ?? 1,
+          from: p.from ?? 0,
+          to: p.to ?? 0,
+        });
+        if (payload.stats) setStats(payload.stats);
+      };
+
+      try {
+        apply(peekCache('/financial/parties', params));
+        const response = await getParties(params);
+        apply(response.data);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch parties:', error);
+          setItems([]);
+          setMeta({ total: 0, last_page: 1, from: 0, to: 0 });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
+    // Guards against an out-of-order response overwriting a newer one.
+    return () => { cancelled = true; };
+  }, [page, perPage, filter, debounced, refreshKey]);
 
   const handleDelete = async (party) => {
     const r = await Swal.fire({
@@ -60,7 +102,7 @@ export default function Parties() {
     if (!r.isConfirmed) return;
     try {
       await deleteParty(party.id);
-      setItems((prev) => prev.filter((i) => i.id !== party.id));
+      setRefreshKey((k) => k + 1);
       Swal.fire({
         toast: true, position: "top-end", icon: "success",
         title: "Party deleted", timer: 1500, showConfirmButton: false,
@@ -71,15 +113,9 @@ export default function Parties() {
     }
   };
 
-  const filtered = filter === "all" ? items : items.filter((i) => i.party_type === filter);
-
-  const stats = {
-    total:   items.length,
-    staff:   items.filter((i) => i.party_type === "staff").length,
-    vendor:  items.filter((i) => i.party_type === "vendor").length,
-    owedTo: items.filter((i) => Number(i.balance) > 0).reduce((s, i) => s + Number(i.balance), 0),
-    owedBy: items.filter((i) => Number(i.balance) < 0).reduce((s, i) => s + Math.abs(Number(i.balance)), 0),
-  };
+  // The server already applied party_type, search and paging — re-filtering
+  // here would hide rows it deliberately returned.
+  const filtered = items;
 
   return (
     <div className="px-4 py-4">
@@ -108,15 +144,15 @@ export default function Parties() {
         </div>
         <div className="bg-white rounded-xl p-3 border border-gray-200">
           <p className="text-[10px] uppercase tracking-wider text-gray-500">Owed to school</p>
-          <p className="text-xl font-bold text-red-600">{stats.owedTo.toLocaleString()} <span className="text-[10px] font-normal text-gray-500">AFN</span></p>
+          <p className="text-xl font-bold text-red-600">{Number(stats.owed_to).toLocaleString()} <span className="text-[10px] font-normal text-gray-500">AFN</span></p>
         </div>
         <div className="bg-white rounded-xl p-3 border border-gray-200">
           <p className="text-[10px] uppercase tracking-wider text-gray-500">Owed by school</p>
-          <p className="text-xl font-bold text-amber-600">{stats.owedBy.toLocaleString()} <span className="text-[10px] font-normal text-gray-500">AFN</span></p>
+          <p className="text-xl font-bold text-amber-600">{Number(stats.owed_by).toLocaleString()} <span className="text-[10px] font-normal text-gray-500">AFN</span></p>
         </div>
         <div className="bg-white rounded-xl p-3 border border-gray-200">
           <p className="text-[10px] uppercase tracking-wider text-gray-500">Net</p>
-          <p className="text-xl font-bold text-gray-800">{(stats.owedTo - stats.owedBy).toLocaleString()} <span className="text-[10px] font-normal text-gray-500">AFN</span></p>
+          <p className="text-xl font-bold text-gray-800">{(Number(stats.owed_to) - Number(stats.owed_by)).toLocaleString()} <span className="text-[10px] font-normal text-gray-500">AFN</span></p>
         </div>
       </div>
 
@@ -130,8 +166,16 @@ export default function Parties() {
             </button>
           ))}
         </div>
-        <input type="text" value={search} onChange={handleSearch} placeholder="Search by name, unique id, or party code…"
+        {/* Searches the whole table server-side, not just the page on screen. */}
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search all parties — name, employee ID, department, party code, vendor…"
           className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
+        {search && (
+          <button onClick={() => setSearch("")}
+            className="px-2.5 py-1.5 text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200">
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Cards */}
@@ -212,7 +256,45 @@ export default function Parties() {
 
       {!loading && filtered.length === 0 && (
         <div className="text-center py-12 text-xs text-gray-400">
-          No parties found. Add a party to start tracking.
+          {debounced
+            ? <>No party matches “{debounced}”. The search covers every party, not just this page.</>
+            : "No parties found. Add a party to start tracking."}
+        </div>
+      )}
+
+      {/* Pagination. Always shows the range and total so it is obvious when
+          there are more parties than the ones on screen. */}
+      {!loading && meta.total > 0 && (
+        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 pt-3">
+          <p className="text-[11px] text-gray-500">
+            Showing <span className="font-semibold text-gray-700">{meta.from}–{meta.to}</span> of{" "}
+            <span className="font-semibold text-gray-700">{meta.total}</span>
+            {debounced ? " matching" : ""} part{meta.total === 1 ? "y" : "ies"}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-[11px] text-gray-500">
+              Per page
+              <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))}
+                className="px-2 py-1 text-[11px] border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500">
+                {[12, 24, 48, 96].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(1)} disabled={page <= 1}
+                className="px-2 py-1 text-[11px] border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">«</button>
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
+                className="px-2.5 py-1 text-[11px] border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Prev</button>
+              <span className="px-2 text-[11px] text-gray-600">
+                Page <span className="font-semibold">{page}</span> of {meta.last_page}
+              </span>
+              <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page >= meta.last_page}
+                className="px-2.5 py-1 text-[11px] border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next</button>
+              <button onClick={() => setPage(meta.last_page)} disabled={page >= meta.last_page}
+                className="px-2 py-1 text-[11px] border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">»</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

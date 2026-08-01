@@ -55,13 +55,26 @@ function stableStringify(obj) {
  * Build a deterministic cache key from an axios request config.
  * Only GET is cacheable; callers should check `isCacheable` first.
  */
+/**
+ * Which API this cache entry came from.
+ *
+ * Part of the key on purpose. Without it, entries are stored under the bare
+ * path, so pointing VITE_API_BASE_URL at a different backend (production →
+ * local, or between environments) makes the app paint the PREVIOUS server's
+ * rows from localStorage — the same names and balances, from the wrong
+ * database, with nothing on screen to say so.
+ */
+const API_ORIGIN = (import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8000/api')
+  .replace(/\/+$/, '');
+
 export function keyFromConfig(config) {
   const method = (config.method || 'get').toLowerCase();
   // config.url may already contain a query string (CrudPage builds URLs that
   // way); config.params is axios' structured params. Fold both in.
   const url = config.url || '';
   const params = config.params ? stableStringify(config.params) : '';
-  return `${method} ${url}${params ? ' ?' + params : ''}`;
+  const origin = (config.baseURL || API_ORIGIN).replace(/\/+$/, '');
+  return `${method} ${origin}${url}${params ? ' ?' + params : ''}`;
 }
 
 export function isCacheable(config) {

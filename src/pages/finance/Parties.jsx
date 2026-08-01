@@ -212,7 +212,13 @@ export default function Parties() {
                 {(() => {
                   const bal = Number(party.balance || 0);
                   const tone = bal > 0 ? "text-red-700" : bal < 0 ? "text-amber-700" : "text-emerald-700";
-                  const label = bal > 0 ? "owes school" : bal < 0 ? "school owes party" : "settled";
+                  // A positive balance on a STAFF party is money handed over as
+                  // an advance and not yet worked off. "owes school" was
+                  // technically right but read as a debt they had run up —
+                  // naming the advance is what the number actually means.
+                  const label = bal > 0
+                    ? (party.party_type === "staff" ? "advance outstanding" : "owes school")
+                    : bal < 0 ? "school owes party" : "settled";
                   return (
                     <>
                       <p className={`text-lg font-bold ${tone}`}>

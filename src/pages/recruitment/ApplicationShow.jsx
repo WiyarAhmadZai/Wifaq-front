@@ -336,7 +336,11 @@ export default function ApplicationShow() {
 
     setIsUpdating(true);
     try {
-      await put(`/recruitment/applications/${id}`, { ...data, status: newStatus});
+      // Send ONLY the status. Posting the whole record made update() see a
+      // work_experiences array and delete/recreate every row on each stage
+      // move, churning ids and leaving soft-deleted orphans. Every rule in
+      // UpdateApplicationRequest is `sometimes`, so a lone status validates.
+      await put(`/recruitment/applications/${id}`, { status: newStatus });
       setData((prev) => ({ ...prev, status: newStatus }));
       Swal.fire({
         title: "Updated!",

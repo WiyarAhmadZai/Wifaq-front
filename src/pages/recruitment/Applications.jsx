@@ -174,26 +174,28 @@ export default function Applications() {
     }
   }, []);
 
-  const fetchCounts = async () => {
+  /* Dropdown choices AND the pipeline tile counts, both computed server-side.
+   *
+   * The tiles used to be tallied in the browser from a `per_page=9999` fetch.
+   * Once the API started clamping per_page to 100 that silently stopped
+   * counting past the hundredth application — the tiles would have under-
+   * reported with no visible error. status_counts is a GROUP BY over the whole
+   * table, so it stays correct at any volume and costs one request instead of
+   * a full-table download. */
+  const fetchFilterOptions = useCallback(async () => {
     try {
-      const __cachedCounts = peekCache("/recruitment/applications?per_page=9999");
-      if (__cachedCounts) {
-        const __all = __cachedCounts?.data || [];
-        const __counts = {};
-        pipelineStages.forEach((s) => { __counts[s.key] = 0; });
-        __all.forEach((item) => { if (__counts[item.status] !== undefined) __counts[item.status]++; });
-        setStageCounts(__counts);
-      }
-      const response = await get("/recruitment/applications?per_page=9999");
-      const all = response.data?.data || [];
+      const r = await get("/recruitment/applications/filter-options");
+      const data = r.data?.data || null;
+      setOptions(data);
+
       const counts = {};
-      pipelineStages.forEach((s) => { counts[s.key] = 0; });
-      all.forEach((item) => { if (counts[item.status] !== undefined) counts[item.status]++; });
+      pipelineStages.forEach((s) => { counts[s.key] = Number(data?.status_counts?.[s.key] ?? 0); });
       setStageCounts(counts);
     } catch {
+      setOptions(null);
       setStageCounts({});
     }
-  };
+  }, []);
 
   // Fetch whenever the URL (page/filter/search/categories) changes — also
   // covers the initial load and a refresh on any pagination page.
@@ -206,14 +208,7 @@ export default function Applications() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramString, fetchItems]);
 
-  // Dropdown choices, derived server-side from the data actually present.
-  useEffect(() => {
-    get("/recruitment/applications/filter-options")
-      .then((r) => setOptions(r.data?.data || null))
-      .catch(() => setOptions(null));
-  }, []);
-
-  useEffect(() => { fetchCounts(); }, []);
+  useEffect(() => { fetchFilterOptions(); }, [fetchFilterOptions]);
 
   // Export/print: fetch ALL matching applications (endpoint supports per_page).
   const fetchAllApplications = async () => {
@@ -250,7 +245,7 @@ export default function Applications() {
     if (result.isConfirmed) {
       try { await del(`/recruitment/applications/${id}`); } catch { /* */ }
       fetchItems(page, activeFilter, urlSearch);
-      fetchCounts();
+      fetchFilterOptions();
       Swal.fire("Deleted!", "Application has been deleted.", "success");
     }
   };

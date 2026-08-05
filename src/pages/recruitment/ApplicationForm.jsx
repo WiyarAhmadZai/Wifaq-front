@@ -22,10 +22,11 @@ const ICONS = {
 const SECTIONS = [
   { key: "personal",   label: "Personal Info",     desc: "Basic personal information",               icon: ICONS.person },
   { key: "role",       label: "Job Selection",     desc: "Select job posting",                       icon: ICONS.briefcase },
-  { key: "motivation", label: "Motivation",        desc: "Self-introduction & motivation",           icon: ICONS.star },
+  // All three narrative questions — introduction, motivation and distinct
+  // skills — live in this one section so they are answered together.
+  { key: "motivation", label: "Motivation & Self-Introduction", desc: "Why this role and what you bring", icon: ICONS.star },
   { key: "education",  label: "Education",         desc: "Educational background",                   icon: ICONS.cap },
   { key: "work",       label: "Experience",        desc: "Work history",                             icon: ICONS.briefcase },
-  { key: "talents",    label: "Talents & Skills",  desc: "Your standout talents and abilities",      icon: ICONS.sparkles },
   { key: "documents",  label: "Documents",         desc: "Upload required documents",                icon: ICONS.doc },
   { key: "social",     label: "Social & Comments", desc: "Social profiles & extra notes (optional)", icon: ICONS.people },
 ];
@@ -378,10 +379,9 @@ export default function ApplicationForm() {
       const stepMap = {
         [stepOf('role')]: ['job_posting_id'],
         [stepOf('personal')]: ['full_name','contact_number','email','date_of_birth','current_address','place_of_origin'],
-        [stepOf('motivation')]: ['introduction','motivation'],
+        [stepOf('motivation')]: ['introduction','motivation','unique_skill'],
         [stepOf('education')]: ['education_level','field_of_study','institution_name','total_experience_years'],
         [stepOf('work')]: ['work_experiences'],
-        [stepOf('talents')]: ['unique_skill'],
         [stepOf('social')]: ['facebook','instagram','twitter_x','youtube','notes'],
       };
       if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
@@ -461,7 +461,7 @@ export default function ApplicationForm() {
                   <option value="">Select Job Posting</option>
                   {jobPostings.map((jp) => (
                     <option key={jp.id} value={jp.id} className="truncate max-w-md">
-                      {jp.title} - {jp.location}
+                      {jp.code ? `${jp.code} · ` : ""}{jp.title} - {jp.location}
                     </option>
                   ))}
                 </select>
@@ -595,11 +595,6 @@ export default function ApplicationForm() {
               <textarea name="motivation" value={formData.motivation} onChange={handleChange} rows={6} placeholder="Why do you want this position? Describe your motivation and what makes you a good fit..." className={errors.motivation ? inpError : inp} />
               {errors.motivation && <p className="text-red-500 text-xs mt-1">{errors.motivation}</p>}
             </div>
-          </StepCard>
-        )}
-
-        {cur.key === "talents" && (
-          <StepCard step={cur}>
             <div>
               <Label>Unique Skills</Label>
               <div className="space-y-2">

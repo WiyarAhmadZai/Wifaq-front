@@ -746,33 +746,23 @@ function NotificationBell() {
 
   return (
     <div className="relative" ref={ref}>
+      {/* The bell itself never changes — same colour, no tilt, no glow,
+          whether there is one unread notification or none. Only the count
+          badge appears or disappears. An icon that animates and switches
+          colour is movement in the corner of the eye on every page, and the
+          number is the whole message. */}
       <button
         onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
-        className={`relative p-2 text-gray-600 hover:text-gray-800 transition-colors ${unreadCount > 0 ? "wen-bell-pulse" : ""}`}
+        className="relative p-2 text-gray-600 hover:text-gray-800 transition-colors"
         aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
       >
         <Icons.Bell />
         {unreadCount > 0 && (
-          <>
-            {/* "Bulb on" effect: a soft glowing halo behind the bell, pulsing
-                in sync with the bell tilt so the icon reads as alive / alert. */}
-            <span className="absolute inset-0 rounded-full bg-red-500/50 blur-md animate-ping pointer-events-none" />
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white animate-pulse">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          </>
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
         )}
       </button>
-
-      {/* Local keyframes — Tailwind doesn't ship a "bell-ring" by default. */}
-      <style>{`
-        @keyframes wen-bell-ring {
-          0%, 50%, 100% { transform: rotate(0deg); }
-          10%, 30% { transform: rotate(-12deg); }
-          20%, 40% { transform: rotate(12deg); }
-        }
-        .wen-bell-pulse > svg { animation: wen-bell-ring 1.6s ease-in-out infinite; transform-origin: 50% 4px; }
-      `}</style>
 
       {/* "Enable desktop notifications" banner — shows once while the user
           hasn't decided yet. Clicking the button triggers the real

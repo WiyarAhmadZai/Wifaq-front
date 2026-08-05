@@ -13,6 +13,12 @@ const APP_EXPORT_COLS = [
   { key: "source", label: "Source" },
   { key: "status", label: "Status" },
   { key: "created_at", label: "Applied", exportValue: (it) => (it.created_at ? String(it.created_at).slice(0, 10) : "") },
+  // Screening aggregates — additive, existing columns untouched.
+  { key: "reviews_count", label: "Reviewers", exportValue: (it) => it.reviews_count ?? 0 },
+  { key: "average_rating", label: "Avg Rating", exportValue: (it) => (it.average_rating != null ? Number(it.average_rating).toFixed(1) : "") },
+  { key: "recommended_count", label: "Recommend", exportValue: (it) => it.recommended_count ?? 0 },
+  { key: "not_recommended_count", label: "Not Recommend", exportValue: (it) => it.not_recommended_count ?? 0 },
+  { key: "hr_flagged_count", label: "HR Flag", exportValue: (it) => (it.hr_flagged_count > 0 ? "Needs HR Review" : "") },
 ];
 
 const pipelineStages = [
@@ -56,6 +62,34 @@ function Select({ value, onChange, options, allLabel, emptyHint }) {
     </select>
   );
 }
+
+/* Compact screening summary for a list row. Every value comes from aggregates
+ * the list endpoint already computes (reviews_count, recommended_count,
+ * not_recommended_count, hr_flagged_count, average_rating) — the row never
+ * fetches anything of its own, so adding this column costs no extra request. */
+const screeningSummary = (item) => {
+  const total = item.reviews_count || 0;
+  if (!total) return <span className="text-[10px] text-gray-400">Not screened</span>;
+
+  const avg = item.average_rating != null ? Number(item.average_rating).toFixed(1) : null;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 whitespace-nowrap">
+        <span className="text-[11px] font-bold text-amber-500">⭐ {avg ?? "—"}</span>
+        <span className="text-[10px] font-semibold text-emerald-600">👍 {item.recommended_count || 0}</span>
+        <span className="text-[10px] font-semibold text-red-500">👎 {item.not_recommended_count || 0}</span>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] text-gray-400">{total} reviewer{total === 1 ? "" : "s"}</span>
+        {item.hr_flagged_count > 0 && (
+          <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[9px] font-bold whitespace-nowrap">
+            ⚠ Needs HR Review
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const statusBadge = (val) => {
   const stage = pipelineStages.find((s) => s.key === val);
@@ -407,13 +441,14 @@ export default function Applications() {
       ) : (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+            <table className="w-full min-w-[860px]">
               <thead className="bg-teal-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Applicant</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Job Posting</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Contact</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Source</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Screening</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Applied</th>
                   <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
@@ -433,6 +468,7 @@ export default function Applications() {
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_posting?.title || "-"}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.contact_number}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.source?.replace(/_/g, " ")}</td>
+                    <td className="px-3 py-2.5">{screeningSummary(item)}</td>
                     <td className="px-3 py-2.5 text-xs">{statusBadge(item.status)}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? fmtDate(item.created_at) : "-"}</td>
                     <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>

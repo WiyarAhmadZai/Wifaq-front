@@ -442,11 +442,15 @@ export default function PublicApplicationForm() {
       };
       const response = await post("/public/recruitment/applications", dataToSend);
       const applicationId = response.data?.data?.id;
+      // Issued by the server for this application only — the public upload
+      // endpoint rejects documents without it.
+      const uploadToken = response.data?.upload_token;
       const docEntries = Object.entries(documents).filter(([, file]) => file !== null);
       if (docEntries.length > 0 && applicationId) {
         for (const [docType, file] of docEntries) {
           const fd = new FormData();
           fd.append("document_type", docType); fd.append("file", file); fd.append("application_id", applicationId);
+          if (uploadToken) fd.append("upload_token", uploadToken);
           try { await post("/public/recruitment/application-documents", fd, { headers: { "Content-Type": "multipart/form-data" } }); }
           catch (e) { console.error(`Failed to upload ${docType}`, e); }
         }

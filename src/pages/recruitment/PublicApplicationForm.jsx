@@ -76,6 +76,8 @@ const L = {
     e_edu: "Education level is required", e_field: "Field of study is required", e_institution: "Institution name is required",
     e_required: "{x} is required", file_too_large: "File too large", max_size: "Maximum file size is 10MB.",
     submit_failed: "Submission failed", went_wrong: "Something went wrong. Please try again.",
+    talents_d: "Your standout talents and abilities",
+    additional_comments: "Additional Comments", ph_comments: "Anything else you'd like us to know…",
   },
   ps: {
     now_hiring: "اوس استخدام", hero_title: "د وفاق ښوونځي کورنۍ سره یوځای شئ",
@@ -137,6 +139,8 @@ const L = {
     e_edu: "د زده‌کړې کچه اړینه ده", e_field: "د زده‌کړې څانګه اړینه ده", e_institution: "د مؤسسې نوم اړین دی",
     e_required: "{x} اړین دی", file_too_large: "فایل ډېر لوی دی", max_size: "تر ۱۰ MB پورې فایل.",
     submit_failed: "لېږل ناکام شول", went_wrong: "یوه ستونزه رامنځته شوه. بیا هڅه وکړئ.",
+    talents_d: "ستاسو ځانګړي وړتیاوې او مهارتونه",
+    additional_comments: "اضافي نظرونه", ph_comments: "بل څه چې غواړئ موږ پرې وپوهېږو…",
   },
   fa: {
     now_hiring: "در حال استخدام", hero_title: "به خانواده مکتب وفاق بپیوندید",
@@ -198,6 +202,8 @@ const L = {
     e_edu: "سطح تحصیلات الزامی است", e_field: "رشته تحصیلی الزامی است", e_institution: "نام موسسه الزامی است",
     e_required: "{x} الزامی است", file_too_large: "فایل بیش از حد بزرگ است", max_size: "حداکثر اندازه فایل ۱۰ مگابایت.",
     submit_failed: "ارسال ناموفق بود", went_wrong: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید.",
+    talents_d: "توانایی‌ها و مهارت‌های ویژه شما",
+    additional_comments: "نظرات اضافی", ph_comments: "هر چیز دیگری که می‌خواهید بدانیم…",
   },
 };
 
@@ -211,6 +217,28 @@ const STEP_ICONS = [
   "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
   "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
 ];
+
+const SKILLS_ICON = "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z";
+
+/* The wizard's section order lives here and nowhere else. Each entry carries a
+ * stable `key` that validation, the ?job= deep link and the 422 error mapping
+ * look up by name, so reordering this array reorders the form — no other edit
+ * needed. Labels reuse the existing step* translation keys, which travel with
+ * their section rather than with its position number. */
+const SECTIONS = [
+  { key: "personal",   icon: STEP_ICONS[2], labelKey: "step3",         descKey: "step3d" },
+  { key: "role",       icon: STEP_ICONS[0], labelKey: "step1",         descKey: "step1d" },
+  { key: "job",        icon: STEP_ICONS[1], labelKey: "step2",         descKey: "step2d" },
+  { key: "motivation", icon: STEP_ICONS[4], labelKey: "step5",         descKey: "step5d" },
+  { key: "education",  icon: STEP_ICONS[5], labelKey: "step6",         descKey: "step6d" },
+  { key: "work",       icon: STEP_ICONS[6], labelKey: "step7",         descKey: "step7d" },
+  { key: "talents",    icon: SKILLS_ICON,   labelKey: "unique_skills", descKey: "talents_d" },
+  { key: "documents",  icon: STEP_ICONS[7], labelKey: "step8",         descKey: "step8d" },
+  { key: "social",     icon: STEP_ICONS[3], labelKey: "step4",         descKey: "step4d" },
+];
+
+/* 1-based step number for a section key. */
+const stepOf = (key) => SECTIONS.findIndex((s) => s.key === key) + 1;
 
 const EDU_OPTS = [
   { value: "", key: "select_edu" },
@@ -276,13 +304,13 @@ export default function PublicApplicationForm() {
     job_posting_id: "", full_name: "", contact_number: "", email: "", date_of_birth: "",
     current_address: "", place_of_origin: "", introduction: "", facebook: "", instagram: "",
     twitter_x: "", youtube: "", motivation: "", education_level: "", field_of_study: "",
-    institution_name: "", total_experience_years: 0, unique_skill: [""],
+    institution_name: "", total_experience_years: 0, unique_skill: [""], notes: "",
   });
   const [workExperiences, setWorkExperiences] = useState([{ company_name: "", job_title: "", duration: "", responsibilities: "" }]);
   const [metRequirements, setMetRequirements] = useState([]);
   const [documents, setDocuments] = useState({ work_samples: null, identity_document: null, educational_document: null, cv_resume: null });
 
-  const STEPS = STEP_ICONS.map((icon, i) => ({ num: i + 1, icon, label: t(`step${i + 1}`), desc: t(`step${i + 1}d`) }));
+  const STEPS = SECTIONS.map((s, i) => ({ num: i + 1, key: s.key, icon: s.icon, label: t(s.labelKey), desc: t(s.descKey) }));
   const cur = STEPS.find((s) => s.num === step) || STEPS[0];
   const selectedJob = jobPostings.find((jp) => jp.id === parseInt(formData.job_posting_id)) || null;
 
@@ -291,7 +319,7 @@ export default function PublicApplicationForm() {
     const params = new URLSearchParams(window.location.search);
     const preselected = params.get("job");
     // A shared ?job= link lands straight on that posting's detail view.
-    if (preselected) { setFormData((prev) => ({ ...prev, job_posting_id: preselected })); setStep(2); }
+    if (preselected) { setFormData((prev) => ({ ...prev, job_posting_id: preselected })); setStep(stepOf("job")); }
   }, []);
 
   const fetchJobPostings = async () => {
@@ -335,34 +363,40 @@ export default function PublicApplicationForm() {
     }
   };
 
+  /* Same rules as before — only the section they are keyed to changed, so each
+   * rule still fires on the screen that actually holds its field. */
   const validateStep = () => {
     const e = {};
-    if ((step === 1 || step === 2) && !formData.job_posting_id) e.job_posting_id = t("e_job");
-    if (step === 3) {
+    const k = cur.key;
+    if ((k === "role" || k === "job") && !formData.job_posting_id) e.job_posting_id = t("e_job");
+    if (k === "personal") {
       if (!formData.full_name) e.full_name = t("e_name");
       if (!formData.contact_number) e.contact_number = t("e_phone");
       if (!formData.email) e.email = t("e_email");
       if (!formData.date_of_birth) e.date_of_birth = t("e_dob");
       if (!formData.current_address) e.current_address = t("e_address");
       if (!formData.place_of_origin) e.place_of_origin = t("e_origin");
-      if (!formData.introduction) e.introduction = t("e_intro");
     }
-    if (step === 5 && !formData.motivation) e.motivation = t("e_motivation");
-    if (step === 6) {
+    if (k === "motivation") {
+      if (!formData.introduction) e.introduction = t("e_intro");
+      if (!formData.motivation) e.motivation = t("e_motivation");
+    }
+    if (k === "education") {
       if (!formData.education_level) e.education_level = t("e_edu");
       if (!formData.field_of_study) e.field_of_study = t("e_field");
       if (!formData.institution_name) e.institution_name = t("e_institution");
     }
-    if (step === 8) DOC_TYPES.forEach((d) => { if (d.required && !documents[d.key]) e[d.key] = t("e_required", { x: t(d.labelKey) }); });
+    if (k === "documents") DOC_TYPES.forEach((d) => { if (d.required && !documents[d.key]) e[d.key] = t("e_required", { x: t(d.labelKey) }); });
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const canNext = () => {
-    if (step === 1 || step === 2) return !!formData.job_posting_id;
-    if (step === 3) return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin && formData.introduction;
-    if (step === 5) return !!formData.motivation;
-    if (step === 6) return formData.education_level && formData.field_of_study && formData.institution_name;
+    const k = cur.key;
+    if (k === "role" || k === "job") return !!formData.job_posting_id;
+    if (k === "personal") return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin;
+    if (k === "motivation") return !!formData.introduction && !!formData.motivation;
+    if (k === "education") return formData.education_level && formData.field_of_study && formData.institution_name;
     return true;
   };
   const handleNext = () => { if (validateStep()) { setStep((s) => Math.min(s + 1, STEPS.length)); window.scrollTo({ top: 0, behavior: "smooth" }); } };
@@ -394,9 +428,21 @@ export default function PublicApplicationForm() {
       const status = error.response?.status;
       if (status === 422 && error.response?.data?.errors) {
         const errs = error.response.data.errors; setErrors(errs);
-        const stepMap = { 1: ["job_posting_id"], 3: ["full_name", "contact_number", "email", "date_of_birth", "current_address", "place_of_origin", "introduction"], 4: ["facebook", "instagram", "twitter_x", "youtube"], 5: ["motivation"], 6: ["education_level", "field_of_study", "institution_name"], 7: ["total_experience_years"] };
-        const firstField = Object.keys(errs)[0];
-        for (const [s, fields] of Object.entries(stepMap)) { if (fields.includes(firstField)) { setStep(Number(s)); break; } }
+        // Field → section key, so a 422 lands the applicant on the section that
+        // actually holds the offending input regardless of the display order.
+        const fieldSection = {
+          job_posting_id: "role",
+          full_name: "personal", contact_number: "personal", email: "personal",
+          date_of_birth: "personal", current_address: "personal", place_of_origin: "personal",
+          introduction: "motivation", motivation: "motivation",
+          education_level: "education", field_of_study: "education",
+          institution_name: "education", total_experience_years: "education",
+          work_experiences: "work", unique_skill: "talents",
+          facebook: "social", instagram: "social", twitter_x: "social", youtube: "social", notes: "social",
+        };
+        const firstField = Object.keys(errs)[0] || "";
+        const section = fieldSection[firstField.split(".")[0]];
+        if (section) setStep(stepOf(section));
       } else { Swal.fire(t("submit_failed"), error.response?.data?.message || t("went_wrong"), "error"); }
     } finally { setSaving(false); }
   };
@@ -482,28 +528,30 @@ export default function PublicApplicationForm() {
           <p className="text-center text-[11px] text-gray-500 mt-3 sm:hidden">{t("step_of", { x: step, y: STEPS.length })} <span className="font-semibold text-teal-700">{cur.label}</span></p>
         </div>
 
+        {/* Only one section renders at a time, so the on-screen order is the
+          * order of SECTIONS above — not the order these blocks appear in. */}
         <form onSubmit={(e) => { e.preventDefault(); step === STEPS.length ? handleSubmit() : handleNext(); }}>
-          {step === 1 && (
+          {cur.key === "role" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <JobPicker t={t} jobPostings={jobPostings} selectedId={formData.job_posting_id}
                 onSelect={(id) => {
                   setFormData((p) => ({ ...p, job_posting_id: id }));
                   if (errors.job_posting_id) setErrors((p) => ({ ...p, job_posting_id: null }));
                   // Clicking a card opens its full detail view straight away.
-                  setStep(2);
+                  setStep(stepOf("job"));
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 error={errors.job_posting_id} />
             </StepCard>
           )}
 
-          {step === 2 && (
+          {cur.key === "job" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
-              <JobDetails t={t} dir={dir} job={selectedJob} onChangeJob={() => { setStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+              <JobDetails t={t} dir={dir} job={selectedJob} onChangeJob={() => { setStep(stepOf("role")); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
             </StepCard>
           )}
 
-          {step === 3 && (
+          {cur.key === "personal" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2"><Label required>{t("full_name")}</Label><input type="text" name="full_name" value={formData.full_name} onChange={handleChange} placeholder={t("ph_name")} className={errors.full_name ? inpError : inp} />{errors.full_name && <p className="text-red-500 text-xs mt-1">{errors.full_name}</p>}</div>
@@ -512,12 +560,11 @@ export default function PublicApplicationForm() {
                 <div><Label required>{t("dob")}</Label><DateField name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={errors.date_of_birth ? inpError : inp} />{errors.date_of_birth && <p className="text-red-500 text-xs mt-1">{errors.date_of_birth}</p>}</div>
                 <div className="sm:col-span-2"><Label required>{t("current_address")}</Label><input type="text" name="current_address" value={formData.current_address} onChange={handleChange} placeholder={t("ph_address")} className={errors.current_address ? inpError : inp} />{errors.current_address && <p className="text-red-500 text-xs mt-1">{errors.current_address}</p>}</div>
                 <div className="sm:col-span-2"><Label required>{t("place_of_origin")}</Label><input type="text" name="place_of_origin" value={formData.place_of_origin} onChange={handleChange} placeholder={t("ph_origin")} className={errors.place_of_origin ? inpError : inp} />{errors.place_of_origin && <p className="text-red-500 text-xs mt-1">{errors.place_of_origin}</p>}</div>
-                <div className="sm:col-span-2"><Label required>{t("introduction")}</Label><textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={4} placeholder={t("ph_intro")} className={errors.introduction ? inpError : inp} />{errors.introduction && <p className="text-red-500 text-xs mt-1">{errors.introduction}</p>}</div>
               </div>
             </StepCard>
           )}
 
-          {step === 4 && (
+          {cur.key === "social" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <p className="text-xs text-gray-500 -mt-2">{t("social_note")}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -525,13 +572,20 @@ export default function PublicApplicationForm() {
                 <div><Label>Instagram</Label><input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
                 <div><Label>Twitter / X</Label><input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
                 <div><Label>YouTube</Label><input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder={t("ph_channel")} dir="ltr" className={inp} /></div>
+                <div className="sm:col-span-2"><Label>{t("additional_comments")}</Label><textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} placeholder={t("ph_comments")} className={inp} /></div>
               </div>
             </StepCard>
           )}
 
-          {step === 5 && (
+          {cur.key === "motivation" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
+              <div><Label required>{t("introduction")}</Label><textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={4} placeholder={t("ph_intro")} className={errors.introduction ? inpError : inp} />{errors.introduction && <p className="text-red-500 text-xs mt-1">{errors.introduction}</p>}</div>
               <div><Label required>{t("why_role")}</Label><textarea name="motivation" value={formData.motivation} onChange={handleChange} rows={6} placeholder={t("ph_motivation")} className={errors.motivation ? inpError : inp} />{errors.motivation && <p className="text-red-500 text-xs mt-1">{errors.motivation}</p>}</div>
+            </StepCard>
+          )}
+
+          {cur.key === "talents" && (
+            <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <div>
                 <Label>{t("unique_skills")}</Label>
                 <div className="space-y-2">
@@ -547,7 +601,7 @@ export default function PublicApplicationForm() {
             </StepCard>
           )}
 
-          {step === 6 && (
+          {cur.key === "education" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label required>{t("education_level")}</Label><select name="education_level" value={formData.education_level} onChange={handleChange} className={errors.education_level ? inpError : inp}>{EDU_OPTS.map((o) => <option key={o.value} value={o.value}>{t(o.key)}</option>)}</select>{errors.education_level && <p className="text-red-500 text-xs mt-1">{errors.education_level}</p>}</div>
@@ -558,7 +612,7 @@ export default function PublicApplicationForm() {
             </StepCard>
           )}
 
-          {step === 7 && (
+          {cur.key === "work" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <div className="space-y-4">
                 {workExperiences.map((exp, index) => (
@@ -608,7 +662,7 @@ export default function PublicApplicationForm() {
             </StepCard>
           )}
 
-          {step === 8 && (
+          {cur.key === "documents" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <div className="space-y-3">
                 {DOC_TYPES.map((doc) => (
@@ -654,7 +708,7 @@ export default function PublicApplicationForm() {
               <div className="hidden sm:flex gap-1">{STEPS.map((s) => <div key={s.num} className={`h-1.5 rounded-full transition-all ${s.num === step ? "w-6 bg-teal-600" : s.num < step ? "w-3 bg-teal-300" : "w-3 bg-gray-200"}`} />)}</div>
               {step < STEPS.length ? (
                 <button type="button" disabled={!canNext()} onClick={handleNext} className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-teal-600 to-cyan-600 rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
-                  {step === 2 ? t("jd_apply") : t("continue")}
+                  {cur.key === "job" ? t("jd_apply") : t("continue")}
                   <svg className={`w-4 h-4 ${dir === "rtl" ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                 </button>
               ) : (

@@ -13,6 +13,7 @@ const ICONS = {
   cap: "M12 14l9-5-9-5-9 5 9 5z",
   doc: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   sparkles: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z",
+  comment: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
 };
 
 /* The wizard's section order lives here and nowhere else. Each entry carries a
@@ -44,11 +45,14 @@ const EDUCATION_LEVELS = [
   { value: "other", label: "Other" },
 ];
 
+/* Required documents first, optional last — same order as the public careers
+ * form. The `key` values are the API's document_type values and must not
+ * change; only the display order and labels differ. */
 const DOCUMENT_TYPES = [
-  { key: "work_samples", label: "Work Samples", required: false },
-  { key: "identity_document", label: "ID Card or Passport", required: true },
-  { key: "educational_document", label: "Educational Documents", required: true },
   { key: "cv_resume", label: "CV / Resume", required: true },
+  { key: "educational_document", label: "Educational Documents", required: true },
+  { key: "identity_document", label: "ID / Tazkira / Passport", required: true },
+  { key: "work_samples", label: "Work Samples", required: false },
 ];
 
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
@@ -535,27 +539,44 @@ export default function ApplicationForm() {
           </StepCard>
         )}
 
+        {/* One optional closing section holding two labelled groups: the
+          * social profiles and the free-text comments. Every field here is
+          * optional, which the note below states once for both. */}
         {cur.key === "social" && (
           <StepCard step={cur}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Facebook</Label>
-                <input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder="Profile URL" className={inp} />
+            <p className="text-xs text-gray-500 -mt-2">Every field in this section is optional.</p>
+
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ICONS.people} /></svg>
+                <p className="text-xs font-bold text-gray-800">Social Media (Optional)</p>
               </div>
-              <div>
-                <Label>Instagram</Label>
-                <input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder="@username" className={inp} />
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Facebook</Label>
+                  <input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder="Profile URL" className={inp} />
+                </div>
+                <div>
+                  <Label>Instagram</Label>
+                  <input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder="@username" className={inp} />
+                </div>
+                <div>
+                  <Label>Twitter/X</Label>
+                  <input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder="@username" className={inp} />
+                </div>
+                <div>
+                  <Label>YouTube</Label>
+                  <input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder="Channel URL" className={inp} />
+                </div>
               </div>
-              <div>
-                <Label>Twitter/X</Label>
-                <input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder="@username" className={inp} />
+            </div>
+
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ICONS.comment} /></svg>
+                <p className="text-xs font-bold text-gray-800">Additional Comments (Optional)</p>
               </div>
-              <div>
-                <Label>YouTube</Label>
-                <input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder="Channel URL" className={inp} />
-              </div>
-              <div className="sm:col-span-2">
-                <Label>Additional Comments</Label>
+              <div className="p-4">
                 <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} placeholder="Anything else worth recording about this candidate..." className={inp} />
               </div>
             </div>

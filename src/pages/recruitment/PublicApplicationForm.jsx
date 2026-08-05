@@ -64,7 +64,7 @@ const L = {
     rights: "© {y} Wifaq School. All rights reserved.", confidential: "Your information is handled in confidence and used only for recruitment.",
     select_edu: "Select Education Level", edu_g12: "Grade 12 / Baccalaureate", edu_dip: "Diploma / Post-baccalaureate",
     edu_ba: "Bachelor's Degree", edu_ma: "Master's Degree", edu_phd: "Doctorate", edu_other: "Other",
-    doc_cv: "CV / Resume", doc_edu: "Educational Documents", doc_id: "ID Card or Passport", doc_work: "Work Samples",
+    doc_cv: "CV / Resume", doc_edu: "Educational Documents", doc_id: "ID / Tazkira / Passport", doc_work: "Work Samples",
     ph_name: "e.g. Ahmad Rahimi", ph_phone: "e.g. +93 770 123 456", ph_email: "e.g. ahmad@example.com",
     ph_address: "Full address", ph_origin: "City / Province", ph_intro: "Tell us a little about yourself…",
     ph_profile: "Profile URL", ph_username: "@username", ph_channel: "Channel URL",
@@ -219,6 +219,7 @@ const STEP_ICONS = [
 ];
 
 const SKILLS_ICON = "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z";
+const COMMENT_ICON = "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z";
 
 /* The wizard's section order lives here and nowhere else. Each entry carries a
  * stable `key` that validation, the ?job= deep link and the 422 error mapping
@@ -564,15 +565,34 @@ export default function PublicApplicationForm() {
             </StepCard>
           )}
 
+          {/* One optional closing section holding two labelled groups: the
+            * social profiles and the free-text comments. Every field here is
+            * optional, which the note below states once for both. */}
           {cur.key === "social" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <p className="text-xs text-gray-500 -mt-2">{t("social_note")}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><Label>Facebook</Label><input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder={t("ph_profile")} dir="ltr" className={inp} /></div>
-                <div><Label>Instagram</Label><input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
-                <div><Label>Twitter / X</Label><input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
-                <div><Label>YouTube</Label><input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder={t("ph_channel")} dir="ltr" className={inp} /></div>
-                <div className="sm:col-span-2"><Label>{t("additional_comments")}</Label><textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} placeholder={t("ph_comments")} className={inp} /></div>
+
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={STEP_ICONS[3]} /></svg>
+                  <p className="text-xs font-bold text-gray-800">{t("step4")}</p>
+                </div>
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><Label>Facebook</Label><input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder={t("ph_profile")} dir="ltr" className={inp} /></div>
+                  <div><Label>Instagram</Label><input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
+                  <div><Label>Twitter / X</Label><input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
+                  <div><Label>YouTube</Label><input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder={t("ph_channel")} dir="ltr" className={inp} /></div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={COMMENT_ICON} /></svg>
+                  <p className="text-xs font-bold text-gray-800">{t("additional_comments")}</p>
+                </div>
+                <div className="p-4">
+                  <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} placeholder={t("ph_comments")} className={inp} />
+                </div>
               </div>
             </StepCard>
           )}

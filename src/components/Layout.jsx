@@ -1238,15 +1238,21 @@ export default function Layout() {
    * ever handled `/hr`. Landing anywhere else left the sidebar collapsed with
    * no indication of where you were.
    *
-   * Only ever ADDS. A group the user deliberately collapsed stays collapsed
-   * until they navigate somewhere inside it again.
+   * Opens that group and CLOSES the rest, matching what clicking a group header
+   * does. Appending instead left the previous group hanging open whenever you
+   * arrived somewhere by link or global search rather than by clicking through
+   * the sidebar, so two groups could be expanded at once.
+   *
+   * It runs only when the current page changes, so a group the user
+   * deliberately collapsed stays collapsed until they navigate back into it.
    */
   useEffect(() => {
     if (!currentMenu) return;
-    setOpenMenu((prev) => (prev.includes(currentMenu.group) ? prev : [...prev, currentMenu.group]));
-    if (currentMenu.sub) {
-      setOpenSubMenu((prev) => (prev.includes(currentMenu.sub) ? prev : [...prev, currentMenu.sub]));
-    }
+    setOpenMenu((prev) => (prev.length === 1 && prev[0] === currentMenu.group ? prev : [currentMenu.group]));
+    setOpenSubMenu((prev) => {
+      const next = currentMenu.sub ? [currentMenu.sub] : [];
+      return prev.length === next.length && prev.every((k, i) => k === next[i]) ? prev : next;
+    });
   }, [currentMenu]);
 
   const toggleMenu = (menu) => {
@@ -1257,6 +1263,17 @@ export default function Layout() {
       // If opening a new menu, close all others and open only this one
       setOpenMenu([menu]);
     }
+    /* Sub-menus belong to the group that was showing, so they are dropped
+     * alongside it — otherwise a group reopened later would still carry the
+     * expansions from last time. The group holding the current page keeps its
+     * sub-menu open so the sidebar still shows where you are. */
+    setOpenSubMenu(currentMenu?.group === menu && currentMenu?.sub ? [currentMenu.sub] : []);
+  };
+
+  /* One sub-menu at a time, mirroring the single-open behaviour of the top
+   * level groups. Clicking the open one closes it. */
+  const toggleSubMenu = (key) => {
+    setOpenSubMenu((prev) => (prev.includes(key) ? [] : [key]));
   };
 
   const isActive = (path) => location.pathname === path;
@@ -1632,7 +1649,7 @@ export default function Layout() {
               item.children ? (
                 <div key={item.key}>
                   <button
-                    onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
+                    onClick={() => toggleSubMenu(item.key)}
                     className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
                       openSubMenu.includes(item.key)
                         ? "bg-teal-700 text-white"
@@ -1918,7 +1935,7 @@ export default function Layout() {
                   item.children ? (
                     <div key={item.key}>
                       <button
-                        onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
+                        onClick={() => toggleSubMenu(item.key)}
                         className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
                           openSubMenu.includes(item.key)
                             ? "bg-teal-700 text-white"

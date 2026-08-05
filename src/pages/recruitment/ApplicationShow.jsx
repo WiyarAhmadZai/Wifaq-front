@@ -4,6 +4,7 @@ import { get, put, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+import { useAuth } from "../../admin/context/AuthContext";
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
@@ -42,10 +43,36 @@ const SCREENING_CHECKLIST = [
   { id: "experience_relevant", label: "Work experience is relevant to role" },
 ];
 
+/* 1–5 star control. Read-only when `onChange` is omitted, which is how other
+ * reviewers' ratings are rendered in the feedback list. */
+const StarRating = ({ value = 0, onChange, size = "w-7 h-7" }) => (
+  <div className="flex items-center gap-1">
+    {[1, 2, 3, 4, 5].map((n) => (
+      <button
+        key={n}
+        type="button"
+        disabled={!onChange}
+        onClick={() => onChange?.(n)}
+        title={onChange ? `${n} star${n > 1 ? "s" : ""}` : undefined}
+        aria-label={`${n} star${n > 1 ? "s" : ""}`}
+        className={onChange ? "transition-transform hover:scale-110 cursor-pointer" : "cursor-default"}
+      >
+        <svg className={`${size} ${n <= value ? "text-amber-400" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      </button>
+    ))}
+  </div>
+);
+
+const EMPTY_REVIEW = { rating: 0, recommendation: "", comment: "", flagged_to_hr: false };
+
 export default function ApplicationShow() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { canUpdate, canDelete } = useResourcePermissions("applications");
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions("applications");
+  // Reviewer identity comes from the session — never typed in.
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checklist, setChecklist] = useState({});
@@ -96,6 +123,12 @@ export default function ApplicationShow() {
   const [showPoolModal, setShowPoolModal] = useState(false);
   const [selectedPoolId, setSelectedPoolId] = useState("");
   const [poolNotes, setPoolNotes] = useState("");
+
+  // Reviewer screening feedback state
+  const [reviews, setReviews] = useState([]);
+  const [reviewsMeta, setReviewsMeta] = useState(null);
+  const [reviewForm, setReviewForm] = useState(EMPTY_REVIEW);
+  const [isSavingReview, setIsSavingReview] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -170,6 +203,86 @@ export default function ApplicationShow() {
       const res = await get(`/recruitment/applications/${id}/pools`);
       setCandidatePools(res.data?.data || []);
     } catch {}
+  };
+
+  /* Reviews are re-fetched when the signed-in user resolves, so "my review"
+   * can be identified and pre-loaded into the form. */
+  useEffect(() => {
+    if (id) fetchReviews();
+  }, [id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchReviews = async () => {
+    try {
+      const res = await get(`/recruitment/applications/${id}/reviews`);
+      const list = res.data?.data || [];
+      setReviews(list);
+      setReviewsMeta(res.data?.meta || null);
+
+      // Pre-load this reviewer's own feedback so saving edits it rather than
+      // looking like a blank slate — the API upserts on (application, reviewer).
+      const mine = list.find((r) => r.reviewer_id === user?.id);
+      setReviewForm(mine
+        ? {
+            rating: mine.rating || 0,
+            recommendation: mine.recommendation || "",
+            comment: mine.comment || "",
+            flagged_to_hr: !!mine.flagged_to_hr,
+          }
+        : EMPTY_REVIEW);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+    }
+  };
+
+  const handleSaveReview = async () => {
+    if (!reviewForm.rating) {
+      Swal.fire("Rating required", "Please select a rating from 1 to 5 stars.", "error");
+      return;
+    }
+    if (!reviewForm.recommendation) {
+      Swal.fire("Recommendation required", "Please choose Recommend or Not Recommend.", "error");
+      return;
+    }
+
+    setIsSavingReview(true);
+    try {
+      const res = await post(`/recruitment/applications/${id}/reviews`, reviewForm);
+      if (res.data?.success) {
+        await fetchReviews();
+        Swal.fire({
+          title: "Saved!",
+          text: res.data.message || "Your review has been saved",
+          icon: "success",
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to save your review", "error");
+    } finally {
+      setIsSavingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId) => {
+    const result = await Swal.fire({
+      title: "Delete your review?",
+      text: "Your rating, recommendation and comment will be removed.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Delete",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      await del(`/recruitment/applications/${id}/reviews/${reviewId}`);
+      await fetchReviews();
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to delete review", "error");
+    }
   };
 
   const fetchAvailablePools = async () => {
@@ -1951,6 +2064,207 @@ export default function ApplicationShow() {
                 <p className="text-sm text-gray-500">Application is in {data.status?.replace(/_/g, " ")} stage</p>
               </div>
             )}
+
+            {/* ── REVIEWER SCREENING FEEDBACK ──────────────────────────────
+              * Independent per-reviewer feedback. Shown at every stage, so a
+              * second opinion can be recorded whenever it is formed. */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Reviewer Screening Feedback</h2>
+                    <p className="text-xs text-gray-500">Each reviewer records their own independent assessment</p>
+                  </div>
+                </div>
+                {reviewsMeta?.total > 0 && (
+                  <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-semibold flex-shrink-0">
+                    {reviewsMeta.total} review{reviewsMeta.total === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+
+              {/* Aggregate across all reviewers */}
+              {reviewsMeta?.total > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-4 bg-gray-50/60 border-b border-gray-100">
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Average</p>
+                    <p className="text-lg font-bold text-amber-500">{reviewsMeta.average_rating || 0} <span className="text-xs text-gray-400">/ 5</span></p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Recommend</p>
+                    <p className="text-lg font-bold text-emerald-600">{reviewsMeta.recommended || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Not Recommend</p>
+                    <p className="text-lg font-bold text-red-500">{reviewsMeta.not_recommended || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Flagged to HR</p>
+                    <p className="text-lg font-bold text-orange-500">{reviewsMeta.flagged_to_hr || 0}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* This reviewer's own feedback */}
+              {(canCreate || canUpdate) && (
+                <div className="p-6 space-y-5 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-[10px] flex-shrink-0">
+                      {(user?.name || "?").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Reviewing as <span className="font-semibold text-gray-800">{user?.name || "current user"}</span>
+                      {reviewsMeta?.my_review_id ? " — editing your existing review" : ""}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Rating <span className="text-red-400">*</span></p>
+                    <div className="flex items-center gap-3">
+                      <StarRating value={reviewForm.rating} onChange={(n) => setReviewForm((p) => ({ ...p, rating: n }))} />
+                      <span className="text-xs text-gray-400">{reviewForm.rating ? `${reviewForm.rating} / 5` : "Not rated yet"}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Recommendation <span className="text-red-400">*</span></p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setReviewForm((p) => ({ ...p, recommendation: "up" }))}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                          reviewForm.recommendation === "up"
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-700 ring-2 ring-emerald-100"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300"
+                        }`}
+                      >
+                        <span className="text-base">👍</span> Recommend
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReviewForm((p) => ({ ...p, recommendation: "down" }))}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                          reviewForm.recommendation === "down"
+                            ? "bg-red-50 border-red-300 text-red-700 ring-2 ring-red-100"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-red-300"
+                        }`}
+                      >
+                        <span className="text-base">👎</span> Not Recommend
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Comment</p>
+                    <textarea
+                      value={reviewForm.comment}
+                      onChange={(e) => setReviewForm((p) => ({ ...p, comment: e.target.value }))}
+                      rows={4}
+                      maxLength={5000}
+                      placeholder="Your assessment of this candidate — strengths, concerns, anything the panel should know…"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all bg-white border-gray-200 hover:border-orange-300">
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={reviewForm.flagged_to_hr}
+                      onChange={(e) => setReviewForm((p) => ({ ...p, flagged_to_hr: e.target.checked }))}
+                    />
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${reviewForm.flagged_to_hr ? "bg-orange-500 border-orange-500" : "border-gray-300"}`}>
+                      {reviewForm.flagged_to_hr && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className={`text-sm ${reviewForm.flagged_to_hr ? "text-orange-700 font-medium" : "text-gray-700"}`}>
+                      Flag this applicant for HR attention
+                    </span>
+                  </label>
+
+                  <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSaveReview}
+                      disabled={isSavingReview}
+                      className="flex-1 py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {isSavingReview ? "Saving..." : reviewsMeta?.my_review_id ? "Update My Review" : "Submit My Review"}
+                    </button>
+                    {reviewsMeta?.my_review_id && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReview(reviewsMeta.my_review_id)}
+                        className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Every reviewer's feedback, newest first */}
+              <div className="p-6">
+                {reviews.length > 0 ? (
+                  <div className="space-y-3">
+                    {reviews.map((rev) => {
+                      const isMine = rev.reviewer_id === user?.id;
+                      const reviewerName = rev.reviewer?.name || "Unknown reviewer";
+                      return (
+                        <div key={rev.id} className={`p-4 rounded-xl border ${isMine ? "bg-teal-50/40 border-teal-200" : "bg-gray-50 border-gray-200"}`}>
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 font-bold text-[10px] flex-shrink-0">
+                                {reviewerName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">
+                                  {reviewerName}
+                                  {isMine && <span className="ml-2 px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded text-[9px] font-bold uppercase">You</span>}
+                                </p>
+                                <p className="text-[10px] text-gray-400">{formatDateTime(rev.created_at)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <StarRating value={rev.rating || 0} size="w-4 h-4" />
+                              {rev.recommendation === "up" && (
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-semibold">👍 Recommend</span>
+                              )}
+                              {rev.recommendation === "down" && (
+                                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] font-semibold">👎 Not Recommend</span>
+                              )}
+                              {rev.flagged_to_hr && (
+                                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-semibold">⚑ Flagged to HR</span>
+                              )}
+                            </div>
+                          </div>
+                          {rev.comment && (
+                            <p className="text-sm text-gray-700 leading-relaxed mt-3 whitespace-pre-line">{rev.comment}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-500">No reviewer feedback yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Be the first to record an assessment for this applicant.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Sidebar */}

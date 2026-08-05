@@ -27,6 +27,36 @@ const pipelineStages = [
   { key: "withdrawn", label: "Withdrawn", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
 ];
 
+const inputCls =
+  "w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500";
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * "" is the unset value throughout — it maps to no query parameter at all,
+ * which is what keeps a cleared filter out of the URL.
+ */
+function Select({ value, onChange, options, allLabel, emptyHint }) {
+  if (options.length === 0 && emptyHint) {
+    return <p className="text-[11px] text-gray-400 italic py-1.5">{emptyHint}</p>;
+  }
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+      <option value="">{allLabel}</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
 const statusBadge = (val) => {
   const stage = pipelineStages.find((s) => s.key === val);
   return (
@@ -50,6 +80,21 @@ export default function Applications() {
   const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [stageCounts, setStageCounts] = useState({});
+  const [options, setOptions] = useState(null);   // filter dropdown choices
+  const [showFilters, setShowFilters] = useState(false);
+
+  /**
+   * Every filter lives in the URL, like page/status/search already did — so a
+   * filtered shortlist can be bookmarked, refreshed, or pasted to a colleague
+   * and still be the same list.
+   */
+  const FILTER_KEYS = [
+    "job_posting_id", "gender", "native_language", "education_level",
+    "field_of_study", "source", "min_experience", "max_experience",
+    "min_age", "max_age", "met_requirements", "applied_within_days", "sort",
+  ];
+  const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""]));
+  const activeFilterCount = FILTER_KEYS.filter((k) => k !== "sort" && filters[k]).length;
 
   // Merge changes into the URL; drop default values to keep the URL clean.
   const setParams = (patch) => {
@@ -64,13 +109,16 @@ export default function Applications() {
     });
   };
 
-  const fetchItems = useCallback(async (p = 1, status = "all", search = "") => {
+  const fetchItems = useCallback(async (p = 1, status = "all", search = "", extra = {}) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       params.append("page", p);
       if (status !== "all") params.append("status", status);
       if (search) params.append("search", search);
+      // Every category filter goes to the server — filtering the current page
+      // client-side would hide matches sitting on page 2.
+      Object.entries(extra).forEach(([k, v]) => { if (v) params.append(k, v); });
 
       const __url = `/recruitment/applications?${params.toString()}`;
       const __cached = peekCache(__url);
@@ -113,11 +161,23 @@ export default function Applications() {
     }
   };
 
-  // Fetch whenever the URL (page/filter/search) changes — also covers the
-  // initial load and a page refresh on any pagination page.
+  // Fetch whenever the URL (page/filter/search/categories) changes — also
+  // covers the initial load and a refresh on any pagination page.
+  // `searchParams.toString()` is the dependency so ANY filter change refires
+  // it without listing thirteen keys here and forgetting one later.
+  const paramString = searchParams.toString();
   useEffect(() => {
-    fetchItems(page, activeFilter, urlSearch);
-  }, [page, activeFilter, urlSearch, fetchItems]);
+    const extra = Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""]));
+    fetchItems(page, activeFilter, urlSearch, extra);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramString, fetchItems]);
+
+  // Dropdown choices, derived server-side from the data actually present.
+  useEffect(() => {
+    get("/recruitment/applications/filter-options")
+      .then((r) => setOptions(r.data?.data || null))
+      .catch(() => setOptions(null));
+  }, []);
 
   useEffect(() => { fetchCounts(); }, []);
 
@@ -179,6 +239,16 @@ export default function Applications() {
             <input type="text" value={searchQuery} onChange={handleSearch} placeholder="Search candidates..."
               className="w-full sm:w-64 pl-10 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
+          <button onClick={() => setShowFilters((v) => !v)}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              activeFilterCount > 0
+                ? "bg-teal-50 border-teal-300 text-teal-700"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+          </button>
           <ListExportActions getRows={fetchAllApplications} columns={APP_EXPORT_COLS} title="Applications" />
           <button onClick={() => navigate("/recruitment/applications/create")}
             className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs">
@@ -207,6 +277,118 @@ export default function Applications() {
           );
         })}
       </div>
+
+      {/* Category filters. Server-side, and mirrored into the URL so a
+          shortlist can be bookmarked or sent to a colleague as a link. */}
+      {showFilters && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Field label="Job posting">
+              <Select value={filters.job_posting_id} onChange={(v) => setParams({ job_posting_id: v, page: 1 })}
+                options={(options?.job_postings || []).map((j) => ({ value: j.id, label: j.title }))} allLabel="Any posting" />
+            </Field>
+
+            <Field label="Gender">
+              <Select value={filters.gender} onChange={(v) => setParams({ gender: v, page: 1 })}
+                options={(options?.genders?.length ? options.genders : ["male", "female"])
+                  .map((g) => ({ value: g, label: g.charAt(0).toUpperCase() + g.slice(1) }))}
+                allLabel="Any gender" />
+            </Field>
+
+            <Field label="Native language">
+              <Select value={filters.native_language} onChange={(v) => setParams({ native_language: v, page: 1 })}
+                options={(options?.native_languages || []).map((l) => ({ value: l, label: l }))}
+                allLabel="Any language"
+                emptyHint="No languages recorded yet" />
+            </Field>
+
+            <Field label="Education degree">
+              <Select value={filters.education_level} onChange={(v) => setParams({ education_level: v, page: 1 })}
+                options={(options?.education_levels || []).map((e) => ({ value: e.value, label: e.label }))}
+                allLabel="Any degree" />
+            </Field>
+
+            <Field label="Experience (years)">
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="0" step="0.5" value={filters.min_experience} placeholder="min"
+                  onChange={(e) => setParams({ min_experience: e.target.value, page: 1 })}
+                  className={inputCls} />
+                <span className="text-gray-400 text-xs">–</span>
+                <input type="number" min="0" step="0.5" value={filters.max_experience} placeholder="max"
+                  onChange={(e) => setParams({ max_experience: e.target.value, page: 1 })}
+                  className={inputCls} />
+              </div>
+              {options?.experience_range && (
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  applicants range {options.experience_range.min}–{options.experience_range.max} yrs
+                </p>
+              )}
+            </Field>
+
+            <Field label="Age">
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="16" max="80" value={filters.min_age} placeholder="min"
+                  onChange={(e) => setParams({ min_age: e.target.value, page: 1 })} className={inputCls} />
+                <span className="text-gray-400 text-xs">–</span>
+                <input type="number" min="16" max="80" value={filters.max_age} placeholder="max"
+                  onChange={(e) => setParams({ max_age: e.target.value, page: 1 })} className={inputCls} />
+              </div>
+            </Field>
+
+            <Field label="Field of study">
+              <input type="text" value={filters.field_of_study} placeholder="e.g. mathematics"
+                onChange={(e) => setParams({ field_of_study: e.target.value, page: 1 })}
+                className={inputCls} />
+            </Field>
+
+            <Field label="Source">
+              <Select value={filters.source} onChange={(v) => setParams({ source: v, page: 1 })}
+                options={(options?.sources || []).map((s) => ({ value: s, label: s.replace(/_/g, " ") }))}
+                allLabel="Any source" />
+            </Field>
+
+            <Field label="Met requirements">
+              <Select value={filters.met_requirements} onChange={(v) => setParams({ met_requirements: v, page: 1 })}
+                options={[{ value: "true", label: "Met" }, { value: "false", label: "Not met" }]} allLabel="Either" />
+            </Field>
+
+            <Field label="Applied within">
+              <Select value={filters.applied_within_days} onChange={(v) => setParams({ applied_within_days: v, page: 1 })}
+                options={[
+                  { value: "7", label: "Last 7 days" },
+                  { value: "30", label: "Last 30 days" },
+                  { value: "90", label: "Last 3 months" },
+                ]} allLabel="Any time" />
+            </Field>
+
+            <Field label="Sort by">
+              <Select value={filters.sort} onChange={(v) => setParams({ sort: v, page: 1 })}
+                options={[
+                  { value: "newest", label: "Newest first" },
+                  { value: "oldest", label: "Oldest first" },
+                  { value: "experience", label: "Most experienced" },
+                  { value: "experience_asc", label: "Least experienced" },
+                  { value: "name", label: "Name (A–Z)" },
+                  { value: "youngest", label: "Youngest" },
+                  { value: "oldest_age", label: "Oldest" },
+                ]} allLabel="Newest first" />
+            </Field>
+          </div>
+
+          {activeFilterCount > 0 && (
+            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+              <p className="text-[11px] text-gray-500">
+                <strong>{meta.total}</strong> applicant(s) match {activeFilterCount} filter(s)
+              </p>
+              <button
+                onClick={() => setParams(Object.fromEntries(FILTER_KEYS.map((k) => [k, ""])))}
+                className="text-[11px] font-semibold text-teal-600 hover:text-teal-700">
+                Clear all filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Active Filter */}
       {activeFilter !== "all" && (

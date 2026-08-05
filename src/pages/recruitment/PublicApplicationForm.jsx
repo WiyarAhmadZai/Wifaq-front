@@ -235,7 +235,9 @@ const SECTIONS = [
   { key: "job",        icon: STEP_ICONS[1], labelKey: "step2",         descKey: "step2d" },
   // All three narrative questions — introduction, motivation and distinct
   // skills — live in this one section so the applicant writes them together.
-  { key: "motivation", icon: STEP_ICONS[4], labelKey: "motivation_title", descKey: "step5d" },
+  // shortKey keeps the progress bar readable: the card header can afford the
+  // full title, an eighth of the bar's width cannot.
+  { key: "motivation", icon: STEP_ICONS[4], labelKey: "motivation_title", descKey: "step5d", shortKey: "step5" },
   { key: "education",  icon: STEP_ICONS[5], labelKey: "step6",         descKey: "step6d" },
   { key: "work",       icon: STEP_ICONS[6], labelKey: "step7",         descKey: "step7d" },
   { key: "documents",  icon: STEP_ICONS[7], labelKey: "step8",         descKey: "step8d" },
@@ -307,6 +309,7 @@ export default function PublicApplicationForm() {
 
   const [formData, setFormData] = useState({
     job_posting_id: "", full_name: "", contact_number: "", email: "", date_of_birth: "",
+    gender: "", native_language: "",
     current_address: "", place_of_origin: "", introduction: "", facebook: "", instagram: "",
     twitter_x: "", youtube: "", motivation: "", education_level: "", field_of_study: "",
     institution_name: "", total_experience_years: 0, unique_skill: [""], notes: "",
@@ -315,7 +318,7 @@ export default function PublicApplicationForm() {
   const [metRequirements, setMetRequirements] = useState([]);
   const [documents, setDocuments] = useState({ work_samples: null, identity_document: null, educational_document: null, cv_resume: null });
 
-  const STEPS = SECTIONS.map((s, i) => ({ num: i + 1, key: s.key, icon: s.icon, label: t(s.labelKey), desc: t(s.descKey) }));
+  const STEPS = SECTIONS.map((s, i) => ({ num: i + 1, key: s.key, icon: s.icon, label: t(s.labelKey), short: t(s.shortKey || s.labelKey), desc: t(s.descKey) }));
   const cur = STEPS.find((s) => s.num === step) || STEPS[0];
   const selectedJob = jobPostings.find((jp) => jp.id === parseInt(formData.job_posting_id)) || null;
 
@@ -419,6 +422,9 @@ export default function PublicApplicationForm() {
     return true;
   };
   const handleNext = () => { if (validateStep()) { setStep((s) => Math.min(s + 1, STEPS.length)); window.scrollTo({ top: 0, behavior: "smooth" }); } };
+  /* Jump back from the progress bar. Backwards only — a later step has not been
+   * validated yet, so skipping ahead would bypass the required fields. */
+  const goToStep = (n) => { if (n < step) { setStep(n); window.scrollTo({ top: 0, behavior: "smooth" }); } };
 
   const handleSubmit = async () => {
     if (!validateStep()) return;
@@ -529,20 +535,61 @@ export default function PublicApplicationForm() {
           <p className="text-gray-600 mt-2 text-sm max-w-xl mx-auto">{t("hero_desc")}</p>
         </div>
 
-        {/* Progress bar */}
-        <div className="mb-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="flex items-center justify-between">
-            {STEPS.map((s, idx) => (
-              <div key={s.num} className="flex items-center flex-1">
-                <div className="flex flex-col items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${s.num === step ? "bg-gradient-to-br from-teal-600 to-cyan-600 text-white ring-4 ring-teal-100 shadow-md" : s.num < step ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-400"}`}>
-                    {s.num < step ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : s.num}
-                  </div>
-                  <span className={`text-[9px] font-medium mt-1 hidden sm:block ${s.num === step ? "text-teal-700" : s.num < step ? "text-teal-500" : "text-gray-400"}`}>{s.label}</span>
-                </div>
-                {idx < STEPS.length - 1 && <div className={`h-0.5 flex-1 mx-2 rounded-full ${s.num < step ? "bg-teal-300" : "bg-gray-200"}`} />}
-              </div>
-            ))}
+        {/* Progress bar — equal-width grid columns rather than flex items, so a
+          * long label can never widen its own column, squeeze its neighbours'
+          * connectors or drag its circle out of line with the rest. */}
+        <div className="mb-6 bg-white rounded-2xl border border-gray-100 shadow-sm px-3 py-4 sm:px-5">
+          <div className="relative">
+            {/* One continuous track behind the circles, inset by half a column
+              * each side so it spans exactly first centre → last centre. */}
+            <div
+              className="absolute h-0.5 bg-gray-200 rounded-full overflow-hidden"
+              style={{ top: "calc(1rem - 1px)", insetInlineStart: `${50 / STEPS.length}%`, insetInlineEnd: `${50 / STEPS.length}%` }}
+            >
+              <div
+                className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${((step - 1) / (STEPS.length - 1)) * 100}%` }}
+              />
+            </div>
+
+            <ol className="relative grid" style={{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }}>
+              {STEPS.map((s) => {
+                const done = s.num < step;
+                const current = s.num === step;
+                return (
+                  <li key={s.num} className="flex flex-col items-center min-w-0">
+                    {/* Completed steps are re-editable; upcoming ones are not
+                      * reachable here because they have not been validated. */}
+                    <button
+                      type="button"
+                      disabled={!done}
+                      onClick={() => goToStep(s.num)}
+                      aria-current={current ? "step" : undefined}
+                      aria-label={s.label}
+                      title={done ? s.label : undefined}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                        current
+                          ? "bg-gradient-to-br from-teal-600 to-cyan-600 text-white ring-4 ring-teal-100 shadow-md"
+                          : done
+                            ? "bg-teal-100 text-teal-700 hover:bg-teal-200 hover:scale-105 cursor-pointer"
+                            : "bg-gray-100 text-gray-400 cursor-default"
+                      }`}
+                    >
+                      {done ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : s.num}
+                    </button>
+                    {/* min-h reserves two lines so every label block is the same
+                      * height whether it wraps or not. */}
+                    <span
+                      className={`hidden sm:block mt-2 px-0.5 text-[10px] leading-[1.2] text-center break-words hyphens-auto min-h-[1.75rem] transition-colors ${
+                        current ? "text-teal-700 font-semibold" : done ? "text-teal-600 font-medium" : "text-gray-400 font-medium"
+                      }`}
+                    >
+                      {s.short}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
           <p className="text-center text-[11px] text-gray-500 mt-3 sm:hidden">{t("step_of", { x: step, y: STEPS.length })} <span className="font-semibold text-teal-700">{cur.label}</span></p>
         </div>
@@ -577,6 +624,19 @@ export default function PublicApplicationForm() {
                 <div><Label required>{t("contact_number")}</Label><input type="text" name="contact_number" value={formData.contact_number} onChange={handleChange} placeholder={t("ph_phone")} dir="ltr" className={errors.contact_number ? inpError : inp} />{errors.contact_number && <p className="text-red-500 text-xs mt-1">{errors.contact_number}</p>}</div>
                 <div><Label required>{t("email")}</Label><input type="email" name="email" value={formData.email} onChange={handleChange} placeholder={t("ph_email")} dir="ltr" className={errors.email ? inpError : inp} />{errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}</div>
                 <div><Label required>{t("dob")}</Label><DateField name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={errors.date_of_birth ? inpError : inp} />{errors.date_of_birth && <p className="text-red-500 text-xs mt-1">{errors.date_of_birth}</p>}</div>
+                {/* Optional, so no existing applicant is blocked and nobody is
+                    forced to disclose. Recruitment filters on both. */}
+                <div><Label>{t("gender")}</Label>
+                  <select name="gender" value={formData.gender} onChange={handleChange} className={inp}>
+                    <option value="">—</option>
+                    <option value="male">{t("male")}</option>
+                    <option value="female">{t("female")}</option>
+                  </select>
+                </div>
+                <div><Label>{t("native_language")}</Label>
+                  <input type="text" name="native_language" value={formData.native_language} onChange={handleChange}
+                    placeholder={t("ph_language")} className={inp} />
+                </div>
                 <div className="sm:col-span-2"><Label required>{t("current_address")}</Label><input type="text" name="current_address" value={formData.current_address} onChange={handleChange} placeholder={t("ph_address")} className={errors.current_address ? inpError : inp} />{errors.current_address && <p className="text-red-500 text-xs mt-1">{errors.current_address}</p>}</div>
                 <div className="sm:col-span-2"><Label required>{t("place_of_origin")}</Label><input type="text" name="place_of_origin" value={formData.place_of_origin} onChange={handleChange} placeholder={t("ph_origin")} className={errors.place_of_origin ? inpError : inp} />{errors.place_of_origin && <p className="text-red-500 text-xs mt-1">{errors.place_of_origin}</p>}</div>
               </div>

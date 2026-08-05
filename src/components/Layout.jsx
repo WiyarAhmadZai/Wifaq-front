@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
@@ -342,6 +342,144 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
 );
 
 // ── Notification Bell ─────────────────────────────────────────────────────────
+/**
+ * Header search — jumps to any page the user is allowed to open.
+ *
+ * The index comes from the sidebar's own menu arrays, already filtered by the
+ * same permission check, so a result can never lead somewhere that 403s.
+ *
+ * Matching is a simple substring over the page name, its menu trail and its
+ * URL, with whole-word-prefix matches ranked first — "pay" should offer
+ * "Payroll" before "Fee Payments". Good enough for ~100 pages and instant,
+ * with no backend call on every keystroke.
+ */
+function GlobalSearch({ index }) {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const boxRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Ctrl/Cmd+K focuses the box — the shortcut people try first.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        setOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    const onClick = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+
+    return index
+      .map((item) => {
+        const label = item.label.toLowerCase();
+        const trail = item.trail.join(" ").toLowerCase();
+        const hay = `${label} ${item.section.toLowerCase()} ${trail} ${item.path.toLowerCase()}`;
+        if (!hay.includes(q)) return null;
+
+        // Rank: exact name, then name starts with, then a word in the name
+        // starts with, then anything else.
+        let score = 4;
+        if (label === q) score = 0;
+        else if (label.startsWith(q)) score = 1;
+        else if (label.split(/\s+/).some((w) => w.startsWith(q))) score = 2;
+        else if (label.includes(q)) score = 3;
+        return { ...item, score };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.score - b.score || a.label.localeCompare(b.label))
+      .slice(0, 8);
+  }, [query, index]);
+
+  const go = (item) => {
+    if (!item) return;
+    navigate(item.path);
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.blur();
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); return; }
+    if (!results.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => (i + 1) % results.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i - 1 + results.length) % results.length); }
+    else if (e.key === "Enter") { e.preventDefault(); go(results[active]); }
+  };
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <Icons.Search />
+      </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        // Reset the highlight here rather than in an effect on `query`: the
+        // list is rebuilt by this keystroke, so row 0 is the right selection
+        // and doing it in an effect would render one frame pointing at a stale
+        // row.
+        onChange={(e) => { setQuery(e.target.value); setActive(0); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={onKeyDown}
+        placeholder="Search pages…  (Ctrl+K)"
+        className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
+      />
+
+      {open && query.trim() && (
+        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
+          {results.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-gray-400">
+              No page matches “{query.trim()}”.
+            </p>
+          ) : (
+            <ul className="max-h-80 overflow-y-auto py-1">
+              {results.map((r, i) => (
+                <li key={r.path}>
+                  <button
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => go(r)}
+                    className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 ${
+                      i === active ? "bg-teal-50" : "hover:bg-gray-50"}`}
+                  >
+                    <span className="min-w-0">
+                      <span className={`block text-xs font-semibold truncate ${
+                        i === active ? "text-teal-800" : "text-gray-800"}`}>
+                        {r.label}
+                      </span>
+                      <span className="block text-[10px] text-gray-400 truncate">
+                        {[r.section, ...r.trail].join(" › ")}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-gray-300 flex-shrink-0">↵</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NotificationBell() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -1232,6 +1370,56 @@ export default function Layout() {
     ]},
   ];
 
+  /**
+   * Flat, permission-filtered index of every page the sidebar can reach —
+   * what the header search actually searches.
+   *
+   * Built from the same menu arrays the sidebar renders, and filtered through
+   * the same `itemAllowed`, so a page nobody may open can never surface as a
+   * result. Keeping a second hand-written list of routes here would drift the
+   * first time a menu changed and start offering pages that 403.
+   */
+  const searchIndex = useMemo(() => {
+    const groups = [
+      ["HR", hrSubMenus],
+      ["Students", studentsMenus],
+      ["Academic", academic],
+      ["Birthdays", dobMenus],
+      ["Transportation", transportationMenus],
+      ["Drive", driveMenus],
+      ["Questionnaires", questionnaireMenus],
+      ["Recruitment", recruitmentMenus],
+      ["Purchase", purchaseMenus],
+      ["Administration", adminMenus],
+      ["Branches", branchesMenus],
+      ["Departments", departmentsMenus],
+      ["Planning", planningMenus],
+      ["Teachers", teacherMenus],
+      ["Education", educationMenus],
+      ["Lesson Plans", lessonPlanMenus],
+      ["Gradebook", gradebookMenus],
+      ["Class Management", classMgmtMenus],
+      ["Finance", financeMenus],
+    ];
+
+    const out = [];
+    const walk = (section, items, trail) => {
+      visible(items).forEach((item) => {
+        if (item.children?.length) {
+          walk(section, item.children, [...trail, item.label]);
+        } else if (item.path) {
+          out.push({ section, label: item.label, path: item.path, trail });
+        }
+      });
+    };
+    groups.forEach(([section, items]) => walk(section, items || [], []));
+
+    // De-duplicate: a few pages appear under more than one menu.
+    const seen = new Set();
+    return out.filter((r) => (seen.has(r.path) ? false : seen.add(r.path)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isSuperAdmin]);
+
   const closeSidebar = () => setSidebarOpen(false);
 
   const handleLogout = () => {
@@ -1797,16 +1985,7 @@ export default function Layout() {
               <Icons.Menu />
             </button>
             <div className="flex-1 max-w-lg hidden sm:block">
-              <div className="relative">
-                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
-                  <Icons.Search />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
-                />
-              </div>
+              <GlobalSearch index={searchIndex} />
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden sm:flex items-center gap-1">

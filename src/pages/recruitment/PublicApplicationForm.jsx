@@ -218,6 +218,10 @@ const STEP_ICONS = [
   "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
 ];
 
+/* Spec caps the form at three job entries. Existing records are never
+ * truncated — this only stops the "add" button past the third row. */
+const MAX_EXPERIENCES = 3;
+
 const COMMENT_ICON = "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z";
 
 /* The wizard's section order lives here and nowhere else. Each entry carries a
@@ -364,6 +368,14 @@ export default function PublicApplicationForm() {
     }
   };
 
+  /* Entry 1 counts as filled when it carries the same three fields the API
+   * marks required_with on work_experiences. Responsibilities stays optional,
+   * matching StoreApplicationRequest. */
+  const firstExperienceComplete = () => {
+    const first = workExperiences[0];
+    return !!(first?.company_name?.trim() && first?.job_title?.trim() && first?.duration?.trim());
+  };
+
   /* Same rules as before — only the section they are keyed to changed, so each
    * rule still fires on the screen that actually holds its field. */
   const validateStep = () => {
@@ -387,6 +399,11 @@ export default function PublicApplicationForm() {
       if (!formData.field_of_study) e.field_of_study = t("e_field");
       if (!formData.institution_name) e.institution_name = t("e_institution");
     }
+    // A first job entry is expected only from applicants who state some
+    // experience — 0 years means there is nothing to describe.
+    if (k === "work" && Number(formData.total_experience_years) > 0 && !firstExperienceComplete()) {
+      e.work_experiences = t("e_required", { x: t("experience_n", { n: 1 }) });
+    }
     if (k === "documents") DOC_TYPES.forEach((d) => { if (d.required && !documents[d.key]) e[d.key] = t("e_required", { x: t(d.labelKey) }); });
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -398,6 +415,7 @@ export default function PublicApplicationForm() {
     if (k === "personal") return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin;
     if (k === "motivation") return !!formData.introduction && !!formData.motivation;
     if (k === "education") return formData.education_level && formData.field_of_study && formData.institution_name;
+    if (k === "work") return Number(formData.total_experience_years) > 0 ? firstExperienceComplete() : true;
     return true;
   };
   const handleNext = () => { if (validateStep()) { setStep((s) => Math.min(s + 1, STEPS.length)); window.scrollTo({ top: 0, behavior: "smooth" }); } };
@@ -437,7 +455,7 @@ export default function PublicApplicationForm() {
           date_of_birth: "personal", current_address: "personal", place_of_origin: "personal",
           introduction: "motivation", motivation: "motivation",
           education_level: "education", field_of_study: "education",
-          institution_name: "education", total_experience_years: "education",
+          institution_name: "education", total_experience_years: "work",
           work_experiences: "work", unique_skill: "motivation",
           facebook: "social", instagram: "social", twitter_x: "social", youtube: "social", notes: "social",
         };
@@ -622,13 +640,15 @@ export default function PublicApplicationForm() {
                 <div><Label required>{t("education_level")}</Label><select name="education_level" value={formData.education_level} onChange={handleChange} className={errors.education_level ? inpError : inp}>{EDU_OPTS.map((o) => <option key={o.value} value={o.value}>{t(o.key)}</option>)}</select>{errors.education_level && <p className="text-red-500 text-xs mt-1">{errors.education_level}</p>}</div>
                 <div><Label required>{t("field_of_study")}</Label><input type="text" name="field_of_study" value={formData.field_of_study} onChange={handleChange} placeholder={t("ph_field")} className={errors.field_of_study ? inpError : inp} />{errors.field_of_study && <p className="text-red-500 text-xs mt-1">{errors.field_of_study}</p>}</div>
                 <div><Label required>{t("institution")}</Label><input type="text" name="institution_name" value={formData.institution_name} onChange={handleChange} placeholder={t("ph_institution")} className={errors.institution_name ? inpError : inp} />{errors.institution_name && <p className="text-red-500 text-xs mt-1">{errors.institution_name}</p>}</div>
-                <div><Label>{t("total_exp")}</Label><input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} dir="ltr" className={inp} /></div>
               </div>
             </StepCard>
           )}
 
           {cur.key === "work" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
+              {/* Total years leads the section: it decides whether a first job
+                * entry is expected at all (0 years = no entry required). */}
+              <div><Label required>{t("total_exp")}</Label><input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} dir="ltr" className={`${inp} sm:max-w-xs`} /></div>
               <div className="space-y-4">
                 {workExperiences.map((exp, index) => (
                   <div key={index} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
@@ -644,7 +664,10 @@ export default function PublicApplicationForm() {
                     <textarea value={exp.responsibilities} onChange={(e) => handleWorkExperienceChange(index, "responsibilities", e.target.value)} placeholder={t("responsibilities")} rows={2} className={inp} />
                   </div>
                 ))}
-                <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">{t("add_experience")}</button>
+                {errors.work_experiences && <p className="text-red-500 text-xs">{errors.work_experiences}</p>}
+                {workExperiences.length < MAX_EXPERIENCES && (
+                  <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">{t("add_experience")}</button>
+                )}
 
                 {(() => {
                   const selected = selectedJob;

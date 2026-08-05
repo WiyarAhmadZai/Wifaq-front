@@ -49,6 +49,11 @@ const EDUCATION_LEVELS = [
 /* Required documents first, optional last — same order as the public careers
  * form. The `key` values are the API's document_type values and must not
  * change; only the display order and labels differ. */
+/* Spec caps the form at three job entries. Existing records are never
+ * truncated — this only stops the "add" button past the third row, so a
+ * legacy application holding more than three still loads and saves intact. */
+const MAX_EXPERIENCES = 3;
+
 const DOCUMENT_TYPES = [
   { key: "cv_resume", label: "CV / Resume", required: true },
   { key: "educational_document", label: "Educational Documents", required: true },
@@ -380,8 +385,8 @@ export default function ApplicationForm() {
         [stepOf('role')]: ['job_posting_id'],
         [stepOf('personal')]: ['full_name','contact_number','email','date_of_birth','current_address','place_of_origin'],
         [stepOf('motivation')]: ['introduction','motivation','unique_skill'],
-        [stepOf('education')]: ['education_level','field_of_study','institution_name','total_experience_years'],
-        [stepOf('work')]: ['work_experiences'],
+        [stepOf('education')]: ['education_level','field_of_study','institution_name'],
+        [stepOf('work')]: ['total_experience_years','work_experiences'],
         [stepOf('social')]: ['facebook','instagram','twitter_x','youtube','notes'],
       };
       if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
@@ -635,16 +640,16 @@ export default function ApplicationForm() {
                 <input type="text" name="institution_name" value={formData.institution_name} onChange={handleChange} placeholder="University/School name" className={errors.institution_name ? inpError : inp} />
                 {errors.institution_name && <p className="text-red-500 text-xs mt-1">{errors.institution_name}</p>}
               </div>
-              <div>
-                <Label>Total Experience (Years)</Label>
-                <input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} className={inp} />
-              </div>
             </div>
           </StepCard>
         )}
 
         {cur.key === "work" && (
           <StepCard step={cur}>
+            <div>
+              <Label required>Total Experience (Years)</Label>
+              <input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} className={`${inp} sm:max-w-xs`} />
+            </div>
             <div className="space-y-4">
               {workExperiences.map((exp, index) => (
                 <div key={index} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
@@ -662,9 +667,11 @@ export default function ApplicationForm() {
                   <textarea value={exp.responsibilities} onChange={(e) => handleWorkExperienceChange(index, "responsibilities", e.target.value)} placeholder="Responsibilities" rows={2} className={inp} />
                 </div>
               ))}
-              <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">
-                + Add Work Experience
-              </button>
+              {workExperiences.length < MAX_EXPERIENCES && (
+                <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">
+                  + Add Work Experience
+                </button>
+              )}
 
               {/* Job Requirements Checklist */}
               {(() => {

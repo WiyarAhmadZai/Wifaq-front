@@ -1161,100 +1161,6 @@ export default function Layout() {
   // True if the current user can see at least one child of a top-level group.
   const canSeeGroup = (items) => visible(items).length > 0;
 
-  /**
-   * Every sidebar group, tying its toggle key to its items.
-   *
-   * One table serves three things that used to be written out separately: the
-   * header search index, the "which menu am I in" auto-open below, and the
-   * group labels shown in search results. Keeping them apart is how the search
-   * ends up offering a page the sidebar no longer has.
-   *
-   * `key` must match the string passed to toggleMenu() where the group renders.
-   */
-  const MENU_GROUPS = [
-    { key: "hr", label: "HR", items: hrSubMenus },
-    { key: "students", label: "Students", items: studentsMenus },
-    { key: "academic", label: "Academic", items: academic },
-    { key: "dob", label: "Birthdays", items: dobMenus },
-    { key: "transportation", label: "Transportation", items: transportationMenus },
-    { key: "drive", label: "Drive", items: driveMenus },
-    { key: "questionnaires", label: "Questionnaires", items: questionnaireMenus },
-    { key: "recruitment", label: "Recruitment", items: recruitmentMenus },
-    { key: "purchase", label: "Purchase", items: purchaseMenus },
-    { key: "admin", label: "Administration", items: adminMenus },
-    { key: "branches", label: "Branches", items: branchesMenus },
-    { key: "departments", label: "Departments", items: departmentsMenus },
-    { key: "planning", label: "Planning", items: planningMenus },
-    { key: "teacher-management", label: "Teachers", items: teacherMenus },
-    { key: "education", label: "Education", items: educationMenus },
-    { key: "lesson-planning", label: "Lesson Plans", items: lessonPlanMenus },
-    { key: "gradebook", label: "Gradebook", items: gradebookMenus },
-    { key: "class-management", label: "Class Management", items: classMgmtMenus },
-    { key: "finance", label: "Finance", items: financeMenus },
-    // Parent portal. Its items are written inline where the menu renders
-    // (gated on the parent role rather than a permission), so they are listed
-    // here purely so a parent landing on one of these pages — usually from an
-    // absence notification — finds the menu already open.
-    { key: "my-children", label: "My Children", items: [
-      { label: "Homework & Grades", path: "/my-children" },
-      { label: "Attendance", path: "/student-management/attendance/my-children" },
-    ]},
-  ];
-
-  /**
-   * Which group (and sub-group) holds the page currently open.
-   *
-   * Longest matching path wins: `/student-management/attendance/report` and
-   * `/student-management/attendance` are both prefixes of the former, and
-   * taking the first hit would highlight the wrong entry.
-   */
-  const currentMenu = useMemo(() => {
-    const here = location.pathname;
-    const hit = (path) => path && (here === path || here.startsWith(path + "/"));
-
-    let best = null;
-    MENU_GROUPS.forEach((group) => {
-      (group.items || []).forEach((item) => {
-        if (item.children?.length) {
-          item.children.forEach((child) => {
-            if (hit(child.path) && (!best || child.path.length > best.length)) {
-              best = { group: group.key, sub: item.key, length: child.path.length };
-            }
-          });
-        } else if (hit(item.path) && (!best || item.path.length > best.length)) {
-          best = { group: group.key, sub: null, length: item.path.length };
-        }
-      });
-    });
-    return best;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, user?.id, isSuperAdmin]);
-
-  /**
-   * Open the menu the current page lives in.
-   *
-   * Was a `useState(fn, [deps])` — useState with an initialiser, not useEffect,
-   * so the dependency array was ignored entirely: it ran once at mount and only
-   * ever handled `/hr`. Landing anywhere else left the sidebar collapsed with
-   * no indication of where you were.
-   *
-   * Opens that group and CLOSES the rest, matching what clicking a group header
-   * does. Appending instead left the previous group hanging open whenever you
-   * arrived somewhere by link or global search rather than by clicking through
-   * the sidebar, so two groups could be expanded at once.
-   *
-   * It runs only when the current page changes, so a group the user
-   * deliberately collapsed stays collapsed until they navigate back into it.
-   */
-  useEffect(() => {
-    if (!currentMenu) return;
-    setOpenMenu((prev) => (prev.length === 1 && prev[0] === currentMenu.group ? prev : [currentMenu.group]));
-    setOpenSubMenu((prev) => {
-      const next = currentMenu.sub ? [currentMenu.sub] : [];
-      return prev.length === next.length && prev.every((k, i) => k === next[i]) ? prev : next;
-    });
-  }, [currentMenu]);
-
   const toggleMenu = (menu) => {
     if (openMenu.includes(menu)) {
       // If clicking on already open menu, close it
@@ -1320,11 +1226,6 @@ export default function Layout() {
     { label: "Student Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
     { label: "Enrolled Students", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
     { label: "Foundation Requests", path: "/student-management/foundation-requests", permission: "foundation-requests.view" },
-    // Student register — the student-side mirror of staff attendance. The
-    // report sits behind the stricter grant, so a class teacher sees only
-    // "Attendance" while the office sees both entries.
-    { label: "Attendance", path: "/student-management/attendance", permission: "student-attendance.view" },
-    { label: "Attendance Report", path: "/student-management/attendance/report", permission: "student-attendance.report" },
   ];
 
   const academic = [
@@ -1474,6 +1375,98 @@ export default function Layout() {
       { label: "Customers & Vendors", path: "/finance/parties", permission: "parties.view" },
     ]},
   ];
+
+  /**
+   * Every sidebar group, tying its toggle key to its items.
+   *
+   * One table serves three things that used to be written out separately: the
+   * header search index, the "which menu am I in" auto-open below, and the
+   * group labels shown in search results. Keeping them apart is how the search
+   * ends up offering a page the sidebar no longer has.
+   *
+   * `key` must match the string passed to toggleMenu() where the group renders.
+   */
+  const MENU_GROUPS = [
+    { key: "hr", label: "HR", items: hrSubMenus },
+    { key: "students", label: "Students", items: studentsMenus },
+    { key: "academic", label: "Academic", items: academic },
+    { key: "dob", label: "Birthdays", items: dobMenus },
+    { key: "transportation", label: "Transportation", items: transportationMenus },
+    { key: "drive", label: "Drive", items: driveMenus },
+    { key: "questionnaires", label: "Questionnaires", items: questionnaireMenus },
+    { key: "recruitment", label: "Recruitment", items: recruitmentMenus },
+    { key: "purchase", label: "Purchase", items: purchaseMenus },
+    { key: "admin", label: "Administration", items: adminMenus },
+    { key: "branches", label: "Branches", items: branchesMenus },
+    { key: "departments", label: "Departments", items: departmentsMenus },
+    { key: "planning", label: "Planning", items: planningMenus },
+    { key: "teacher-management", label: "Teachers", items: teacherMenus },
+    { key: "education", label: "Education", items: educationMenus },
+    { key: "lesson-planning", label: "Lesson Plans", items: lessonPlanMenus },
+    { key: "gradebook", label: "Gradebook", items: gradebookMenus },
+    { key: "class-management", label: "Class Management", items: classMgmtMenus },
+    { key: "finance", label: "Finance", items: financeMenus },
+    // Parent portal. Its item is written inline where the menu renders (gated
+    // on the parent role rather than a permission), so it is listed here purely
+    // so a parent landing on the page finds the menu already open.
+    { key: "my-children", label: "My Children", items: [
+      { label: "Homework & Grades", path: "/my-children" },
+    ]},
+  ];
+
+  /**
+   * Which group (and sub-group) holds the page currently open.
+   *
+   * Longest matching path wins: `/student-management/attendance/report` and
+   * `/student-management/attendance` are both prefixes of the former, and
+   * taking the first hit would highlight the wrong entry.
+   */
+  const currentMenu = useMemo(() => {
+    const here = location.pathname;
+    const hit = (path) => path && (here === path || here.startsWith(path + "/"));
+
+    let best = null;
+    MENU_GROUPS.forEach((group) => {
+      (group.items || []).forEach((item) => {
+        if (item.children?.length) {
+          item.children.forEach((child) => {
+            if (hit(child.path) && (!best || child.path.length > best.length)) {
+              best = { group: group.key, sub: item.key, length: child.path.length };
+            }
+          });
+        } else if (hit(item.path) && (!best || item.path.length > best.length)) {
+          best = { group: group.key, sub: null, length: item.path.length };
+        }
+      });
+    });
+    return best;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, user?.id, isSuperAdmin]);
+
+  /**
+   * Open the menu the current page lives in.
+   *
+   * Was a `useState(fn, [deps])` — useState with an initialiser, not useEffect,
+   * so the dependency array was ignored entirely: it ran once at mount and only
+   * ever handled `/hr`. Landing anywhere else left the sidebar collapsed with
+   * no indication of where you were.
+   *
+   * Opens that group and CLOSES the rest, matching what clicking a group header
+   * does. Appending instead left the previous group hanging open whenever you
+   * arrived somewhere by link or global search rather than by clicking through
+   * the sidebar, so two groups could be expanded at once.
+   *
+   * It runs only when the current page changes, so a group the user
+   * deliberately collapsed stays collapsed until they navigate back into it.
+   */
+  useEffect(() => {
+    if (!currentMenu) return;
+    setOpenMenu((prev) => (prev.length === 1 && prev[0] === currentMenu.group ? prev : [currentMenu.group]));
+    setOpenSubMenu((prev) => {
+      const next = currentMenu.sub ? [currentMenu.sub] : [];
+      return prev.length === next.length && prev.every((k, i) => k === next[i]) ? prev : next;
+    });
+  }, [currentMenu]);
 
   /**
    * Flat, permission-filtered index of every page the sidebar can reach —

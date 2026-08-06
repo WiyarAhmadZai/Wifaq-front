@@ -1226,6 +1226,11 @@ export default function Layout() {
     { label: "Student Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
     { label: "Enrolled Students", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
     { label: "Foundation Requests", path: "/student-management/foundation-requests", permission: "foundation-requests.view" },
+    // Student register — the student-side mirror of staff attendance. The
+    // report sits behind the stricter grant, so a class teacher sees only
+    // "Attendance" while the office sees both entries.
+    { label: "Attendance", path: "/student-management/attendance", permission: "student-attendance.view" },
+    { label: "Attendance Report", path: "/student-management/attendance/report", permission: "student-attendance.report" },
   ];
 
   const academic = [
@@ -1411,6 +1416,7 @@ export default function Layout() {
     // so a parent landing on the page finds the menu already open.
     { key: "my-children", label: "My Children", items: [
       { label: "Homework & Grades", path: "/my-children" },
+      { label: "Attendance", path: "/student-management/attendance/my-children" },
     ]},
   ];
 
@@ -1746,6 +1752,8 @@ export default function Layout() {
             onClick={() => toggleMenu("my-children")}
           >
             <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
+            <SubMenuItem label="Attendance" to="/student-management/attendance/my-children"
+              active={isActive("/student-management/attendance/my-children")} onClick={closeSidebar} />
           </ParentMenu>
           )}
 

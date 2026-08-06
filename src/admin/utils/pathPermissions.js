@@ -106,6 +106,9 @@ const RULES = [
   { prefix: "/hr/holidays", permission: "holidays.view" },
 
   // Student management
+  // Report first: longest prefix wins, and it needs the stricter grant.
+  { prefix: "/student-management/attendance/report", permission: "student-attendance.report" },
+  { prefix: "/student-management/attendance", permission: "student-attendance.view" },
   { prefix: "/student-management/enrolled-students", permission: "enrolled-students.view" },
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   { prefix: "/student-management/student-enrollments", permission: "student-enrollments.view" },
@@ -200,6 +203,12 @@ const PUBLIC_PATHS = new Set([
   // page; it just shows their own children. The sidebar link is gated by the
   // parent role so only parents see it.
   "/my-children",
+  // Parent portal — a parent's own children's attendance, and the target of
+  // the absence notification. The backend route is
+  // withoutMiddleware('path.permission') and resolves the caller's family, so
+  // any authenticated user may open the page and simply sees their own
+  // children. The sidebar link is gated to the parent role.
+  "/student-management/attendance/my-children",
 ]);
 
 /**

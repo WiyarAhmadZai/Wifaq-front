@@ -189,6 +189,9 @@ const VehicleForm = lazy(() => import("./pages/studentMangement/VehicleForm"));
 const Students = lazy(() => import("./pages/studentMangement/Students"));
 const EnrolledStudents = lazy(() => import("./pages/studentMangement/EnrolledStudents"));
 const FoundationRequests = lazy(() => import("./pages/studentMangement/FoundationRequests"));
+const StudentAttendance = lazy(() => import("./pages/students/StudentAttendance"));
+const StudentAttendanceReport = lazy(() => import("./pages/students/StudentAttendanceReport"));
+const MyChildrenAttendance = lazy(() => import("./pages/students/MyChildrenAttendance"));
 const FoundationRequestShow = lazy(() => import("./pages/studentMangement/FoundationRequestShow"));
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
 const StudentShow = lazy(() => import("./pages/studentMangement/StudentShow"));
@@ -547,6 +550,14 @@ function App() {
             <Route path="student-management/students/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentShow /></Suspense>} />
             <Route path="student-management/students/profile/:id" element={<Suspense fallback={<PageLoader />}><StudentProfile /></Suspense>} />
+            {/* Student register. `/report` and `/my-children` must be declared
+                BEFORE the bare attendance route or the prefix match would
+                swallow them. */}
+            <Route path="student-management/attendance/report" element={<Suspense fallback={<PageLoader />}><StudentAttendanceReport /></Suspense>} />
+            {/* Parent portal — no permission; the server scopes it to the
+                family that owns the login. */}
+            <Route path="student-management/attendance/my-children" element={<Suspense fallback={<PageLoader />}><MyChildrenAttendance /></Suspense>} />
+            <Route path="student-management/attendance" element={<Suspense fallback={<PageLoader />}><StudentAttendance /></Suspense>} />
             <Route path="student-management/foundation-requests" element={<Suspense fallback={<PageLoader />}><FoundationRequests /></Suspense>} />
             <Route path="student-management/foundation-requests/show/:id" element={<Suspense fallback={<PageLoader />}><FoundationRequestShow /></Suspense>} />
             <Route path="student-management/student-enrollments" element={<Suspense fallback={<PageLoader />}><StudentEnrollments /></Suspense>} />

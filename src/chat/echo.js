@@ -28,6 +28,17 @@ const REVERB = {
   scheme: import.meta.env.VITE_REVERB_SCHEME || 'http',
 };
 
+/* A loopback Reverb host baked into a build only works when the page itself
+ * is served locally — on a real domain it points at the visitor's own
+ * machine, so the socket can never open and pusher-js retries forever,
+ * flooding the console. Detect that and skip the connection entirely; the
+ * app stays fully usable, just without live chat updates. Set
+ * VITE_REVERB_HOST/PORT/SCHEME to the public Reverb endpoint to enable it. */
+const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '::1', '[::1]', '0.0.0.0'];
+const isLoopback = (h) => LOOPBACK_HOSTS.includes(String(h || '').toLowerCase());
+const REVERB_UNREACHABLE = isLoopback(REVERB.host) && !isLoopback(window.location.hostname);
+let warnedUnreachable = false;
+
 let echoInstance = null;
 
 export function getEcho() {
@@ -35,6 +46,14 @@ export function getEcho() {
 
   const token = localStorage.getItem('token');
   if (!token) return null; // not authenticated yet
+
+  if (REVERB_UNREACHABLE) {
+    if (!warnedUnreachable) {
+      warnedUnreachable = true;
+      console.info(`[chat] Live chat off: VITE_REVERB_HOST is "${REVERB.host}", which is not reachable from ${window.location.hostname}. Point it at the public Reverb endpoint to enable real-time updates.`);
+    }
+    return null;
+  }
 
   echoInstance = new Echo({
     broadcaster: 'reverb',

@@ -96,6 +96,34 @@ export function getEcho() {
 // The current Reverb socket id, sent as `X-Socket-Id` on mutating chat requests
 // so the server's `broadcast()->toOthers()` excludes THIS tab (no echoing our
 // own message back to us — prevents duplicate bubbles on the sender side).
+/**
+ * Is the live socket actually carrying events right now?
+ *
+ * False when the configured Reverb host is unreachable (the loopback case
+ * above), when the server is down, or before the handshake completes. The
+ * chat falls back to polling while this is false, so a message still arrives
+ * without a page refresh — just a few seconds later instead of instantly.
+ */
+export function isRealtimeLive() {
+  if (REVERB_UNREACHABLE) return false;
+  try {
+    return echoInstance?.connector?.pusher?.connection?.state === 'connected';
+  } catch {
+    return false;
+  }
+}
+
+/** Why realtime is off, for the UI to explain rather than fail silently. */
+export function realtimeStatus() {
+  if (REVERB_UNREACHABLE) {
+    return { live: false, reason: 'unconfigured', host: REVERB.host };
+  }
+  const state = (() => {
+    try { return echoInstance?.connector?.pusher?.connection?.state || 'initialized'; }
+    catch { return 'unknown'; }
+  })();
+  return { live: state === 'connected', reason: state, host: REVERB.host };
+}
 export function getSocketId() {
   try {
     return echoInstance?.socketId() || null;

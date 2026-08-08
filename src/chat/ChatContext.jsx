@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { useAuth } from '../admin/context/AuthContext';
 import { chatApi } from './chatApi';
-import { getEcho, disconnectEcho } from './echo';
+import { getEcho, disconnectEcho, isRealtimeLive } from './echo';
 import { API_BASE_URL } from '../api/axios';
 
 const ChatContext = createContext(null);
@@ -337,6 +337,85 @@ export function ChatProvider({ children }) {
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, is_muted: muted } : c)));
   }, []);
 
+  /**
+   * Polling fallback — the guarantee behind the WebSocket.
+   *
+   * Reverb is the fast path, but it is not always there: the deployed build
+   * may carry a Reverb host the visitor's browser cannot reach, the daemon
+   * may be down, or a proxy may block the upgrade. In every one of those
+   * cases the socket fails quietly and messages appear only on refresh —
+   * which is exactly the bug this exists to remove.
+   *
+   * So: while the socket is NOT live, poll. Conversations every 5s keeps the
+   * sidebar and unread badge moving; the open thread every 3s so a reply
+   * lands quickly. Both stop the moment the socket connects, and while the
+   * tab is hidden, so a backgrounded tab costs nothing.
+   */
+  useEffect(() => {
+    if (!isAuthenticated || !myId) return;
+
+    let stopped = false;
+
+    const tick = async () => {
+      // Re-checked every tick: if Reverb comes up mid-session the polling
+      // goes quiet on its own, and if it drops we resume without a reload.
+      if (stopped || isRealtimeLive() || document.hidden) return;
+
+      try {
+        const res = await chatApi.listConversations();
+        if (stopped) return;
+        setConversations(res.data?.data || []);
+        if (typeof res.data?.unread_total === 'number') setUnreadTotal(res.data.unread_total);
+      } catch { /* offline or 401 — the next tick retries */ }
+
+      const id = activeIdRef.current;
+      if (!id || !openRef.current) return;
+
+      try {
+        const res = await chatApi.getMessages(id, { limit: 30 });
+        if (stopped || activeIdRef.current !== id) return;
+        const fresh = (res.data?.data || []).slice().reverse();
+
+        setMessages((prev) => {
+          // Merge rather than replace: replacing would drop an optimistic
+          // bubble the user just sent and make the thread flicker on every
+          // tick. Only genuinely new ids are appended.
+          const seen = new Set(prev.map((m) => m.id));
+          const added = fresh.filter((m) => !seen.has(m.id));
+          if (added.length === 0) {
+            // No new messages, but receipts may have moved (delivered/seen).
+            const byId = new Map(fresh.map((m) => [m.id, m]));
+            let changed = false;
+            const merged = prev.map((m) => {
+              const s = byId.get(m.id);
+              if (s && (s.seen_at !== m.seen_at || s.delivered_at !== m.delivered_at)) {
+                changed = true;
+                return { ...m, seen_at: s.seen_at, delivered_at: s.delivered_at };
+              }
+              return m;
+            });
+            return changed ? merged : prev;
+          }
+          return [...prev, ...added];
+        });
+
+        // We are looking at the thread, so anything new is read.
+        chatApi.markRead(id).catch(() => {});
+      } catch { /* ignore */ }
+    };
+
+    const conversationsTimer = setInterval(tick, 5000);
+    // Catch up immediately when the tab comes back rather than waiting a tick.
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    tick();
+
+    return () => {
+      stopped = true;
+      clearInterval(conversationsTimer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [isAuthenticated, myId]);
   // Tear the socket down on logout / when auth is lost.
   useEffect(() => {
     if (!isAuthenticated) {

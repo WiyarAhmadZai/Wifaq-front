@@ -6,6 +6,7 @@ import PathPermissionGate from "../admin/guards/PathPermissionGate";
 import ErrorBoundary from "./ErrorBoundary";
 import MessagesButton from "../chat/components/MessagesButton";
 import ChatDrawer from "../chat/components/ChatDrawer";
+import { isRealtimeLive } from "../chat/echo";
 
 const PageFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -666,9 +667,24 @@ function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll once a minute (was 15s — too chatty). Tab-focus + in-app events
-    // already refresh instantly, so a slower poll loses nothing.
-    const interval = setInterval(fetchNotifications, 60000);
+    /* Poll rate depends on whether the live socket is carrying events.
+     *
+     * With Reverb connected, a minute is plenty — the socket delivers
+     * instantly and the poll is only a safety net. With it down (an
+     * unreachable host baked into the build, a stopped daemon, a proxy that
+     * blocks the upgrade) the poll IS the delivery mechanism, and a minute
+     * means a notification can sit unseen for a minute. Re-evaluated on each
+     * tick, so the rate follows the connection without a reload. */
+    let interval;
+    let currentRate = null;
+    const schedule = () => {
+      const rate = isRealtimeLive() ? 60000 : 10000;
+      if (rate === currentRate) return;
+      currentRate = rate;
+      clearInterval(interval);
+      interval = setInterval(() => { fetchNotifications(); schedule(); }, rate);
+    };
+    schedule();
 
     // Listen for in-app events (e.g. after approve/reject in this same tab)
     // and refresh immediately — no waiting for the next poll cycle.

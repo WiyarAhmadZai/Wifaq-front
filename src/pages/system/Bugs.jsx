@@ -136,15 +136,19 @@ export default function Bugs() {
           {/* Counts what the filters actually match — meta.total already
             * accounts for scope, status and search — so the chip follows the
             * selected tab instead of always reporting unresolved reports.
-            * With no status tab chosen it falls back to the unresolved total,
-            * which is the number worth surfacing when nothing is filtered. */}
+            * With no status tab chosen it falls back to the unresolved total
+            * (open + in progress). It is labelled "unresolved", not "open":
+            * "open" is one of the three status tabs, so calling an in-progress
+            * report "open" contradicted the Open filter, which showed none.
+            * That total is still the number worth surfacing when nothing
+            * is filtered — an in-progress report is not finished. */}
           {status ? (
             <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${STATUS_TONE[status]}`}>
               {meta?.total ?? 0} {statusLabel(status).toLowerCase()}
             </span>
           ) : openCount > 0 && (
             <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold">
-              {openCount} open
+              {openCount} unresolved
             </span>
           )}
         </div>

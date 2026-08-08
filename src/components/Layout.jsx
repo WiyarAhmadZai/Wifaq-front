@@ -482,6 +482,14 @@ function GlobalSearch({ index }) {
 
 function NotificationBell() {
   const navigate = useNavigate();
+  const { hasRole } = useAuth();
+  // Delivery preferences are an admin/super-admin tool, and they only ever
+  // affect the signed-in user's own bell.
+  const canManagePrefs = hasRole("super-admin") || hasRole("admin");
+  const [showPrefs, setShowPrefs] = useState(false);
+  const [prefs, setPrefs] = useState([]);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -720,6 +728,42 @@ function NotificationBell() {
     const nowIso = new Date().toISOString();
     setNotifications((p) => p.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: nowIso } : n)));
     setUnreadCount((p) => Math.max(0, p - 1));
+  };
+
+  /* Load the mutable catalogue on demand — only when the panel is opened, so
+   * the ~48-row payload never costs anything for users who never look. */
+  const loadPrefs = async () => {
+    setPrefsLoading(true);
+    try {
+      const res = await get("/notifications/preferences");
+      setPrefs(res.data?.data || []);
+    } catch {
+      setPrefs([]);
+    } finally {
+      setPrefsLoading(false);
+    }
+  };
+
+  const togglePref = (type) => {
+    setPrefs((prev) => prev.map((p) => (p.type === type ? { ...p, muted: !p.muted } : p)));
+  };
+
+  const savePrefs = async () => {
+    setPrefsSaving(true);
+    try {
+      const muted = prefs.filter((p) => p.muted).map((p) => p.type);
+      await put("/notifications/preferences", { muted });
+      Swal.fire({
+        icon: "success",
+        title: muted.length ? `${muted.length} type${muted.length === 1 ? "" : "s"} muted` : "All notifications enabled",
+        timer: 1600, showConfirmButton: false, toast: true, position: "top-end",
+      });
+      setShowPrefs(false);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not save your preferences", "error");
+    } finally {
+      setPrefsSaving(false);
+    }
   };
 
   const markAllRead = async () => {
@@ -1005,17 +1049,92 @@ function NotificationBell() {
               <h3 className="text-sm font-bold text-gray-800">Notifications</h3>
               {unreadCount > 0 && <p className="text-[10px] text-gray-500">{unreadCount} unread</p>}
             </div>
-            {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-[10px] text-teal-600 hover:text-teal-700 font-semibold">
-                Mark all read
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="text-[10px] text-teal-600 hover:text-teal-700 font-semibold">
+                  Mark all read
+                </button>
+              )}
+              {canManagePrefs && (
+                <button
+                  onClick={() => { const next = !showPrefs; setShowPrefs(next); if (next && prefs.length === 0) loadPrefs(); }}
+                  title={showPrefs ? "Back to notifications" : "Choose which notifications you receive"}
+                  className={`p-1 rounded-lg transition-colors ${showPrefs ? "bg-teal-100 text-teal-700" : "text-gray-400 hover:text-teal-600 hover:bg-teal-50"}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* List — show every notification (read + unread). Clicking marks
               the row as read but keeps it visible; the dot + bold styling
               flip off so the user still sees their history at a glance. */}
-          <div className="max-h-80 overflow-y-auto">
+          {/* Delivery preferences — admin/super-admin only, and scoped entirely to
+              the signed-in user. Muting here never affects anybody else's bell. */}
+          {showPrefs && (
+            <div className="max-h-80 overflow-y-auto">
+              <div className="px-4 py-2.5 bg-teal-50/60 border-b border-teal-100">
+                <p className="text-[11px] text-teal-800 font-semibold">Choose what reaches your bell</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Applies to your account only. Muted types stop arriving from now on; existing notifications stay.</p>
+              </div>
+
+              {prefsLoading ? (
+                <div className="px-4 py-8 text-center text-xs text-gray-400">Loading types…</div>
+              ) : prefs.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-gray-400">No notification types found</div>
+              ) : (
+                <>
+                  <div className="px-4 py-2 flex items-center gap-3 border-b border-gray-100">
+                    <button onClick={() => setPrefs((p) => p.map((x) => ({ ...x, muted: false })))}
+                      className="text-[10px] font-semibold text-teal-600 hover:text-teal-700">Enable all</button>
+                    <span className="text-gray-200">|</span>
+                    <button onClick={() => setPrefs((p) => p.map((x) => ({ ...x, muted: true })))}
+                      className="text-[10px] font-semibold text-gray-500 hover:text-gray-700">Mute all</button>
+                    <span className="ml-auto text-[10px] text-gray-400">{prefs.filter((x) => x.muted).length} muted</span>
+                  </div>
+
+                  {/* Noisiest first — the ones worth muting are the ones flooding you. */}
+                  {[...prefs].sort((a, b) => (b.received - a.received) || a.label.localeCompare(b.label)).map((pref) => (
+                    <button key={pref.type} type="button" onClick={() => togglePref(pref.type)}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 border-b border-gray-50 text-left">
+                      <span className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors ${pref.muted ? "bg-gray-200" : "bg-teal-500"}`}>
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${pref.muted ? "left-0.5" : "left-4.5"}`}
+                          style={{ left: pref.muted ? "0.125rem" : "1.125rem" }} />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className={`block text-xs truncate ${pref.muted ? "text-gray-400 line-through" : "text-gray-800 font-medium"}`}>{pref.label}</span>
+                        {pref.received > 0 && (
+                          <span className="block text-[10px] text-gray-400">{pref.received} received</span>
+                        )}
+                      </span>
+                      <span className={`text-[9px] font-bold uppercase flex-shrink-0 ${pref.muted ? "text-gray-400" : "text-teal-600"}`}>
+                        {pref.muted ? "Muted" : "On"}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {showPrefs && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-2">
+              <button onClick={savePrefs} disabled={prefsSaving}
+                className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50">
+                {prefsSaving ? "Saving…" : "Save preferences"}
+              </button>
+              <button onClick={() => setShowPrefs(false)}
+                className="px-3 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+            </div>
+          )}
+
+          <div className={showPrefs ? "hidden" : "max-h-80 overflow-y-auto"}>
             {(() => {
               if (notifications.length === 0) {
                 return (

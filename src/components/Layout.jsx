@@ -2156,15 +2156,26 @@ export default function Layout() {
         {/* User Profile */}
         <div className="p-3 border-t border-teal-700">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-teal-600 flex items-center justify-center text-white font-medium text-xs">
-              {user.name?.charAt(0) || "U"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-xs truncate">
-                {user.name || "User"}
-              </p>
-              <p className="text-teal-300 text-[10px]">{user.email || ""}</p>
-            </div>
+            {/* Avatar + name open the profile. Same destination as the
+                header menu, so the two never disagree about where "me" is. */}
+            <Link
+              to="/profile"
+              onClick={closeSidebar}
+              title="View my profile"
+              className="flex items-center gap-2 flex-1 min-w-0 group"
+            >
+              <div className="w-7 h-7 rounded-full bg-teal-600 group-hover:bg-teal-500 flex items-center justify-center text-white font-medium text-xs overflow-hidden flex-shrink-0 transition-colors">
+                {user.profile_photo
+                  ? <img src={user.profile_photo} alt={user.name || "User"} className="w-full h-full object-cover" />
+                  : (user.name?.charAt(0) || "U")}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-medium text-xs truncate group-hover:underline">
+                  {user.name || "User"}
+                </p>
+                <p className="text-teal-300 text-[10px] truncate">{user.email || ""}</p>
+              </div>
+            </Link>
             <button
               onClick={handleLogout}
               className="text-teal-300 hover:text-white flex-shrink-0"

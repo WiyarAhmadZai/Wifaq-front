@@ -122,18 +122,20 @@ export default function StaffForm() {
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
 
   const [form, setForm] = useState({
     application_id: "",
     father_name: "", blood_type: "",
     profile_photo: null,
     branch_id: "", department_id: "", job_requisition_id: "",
-    role_title_en: "", status: "active",
+    role_title_en: "", status: "active", supervisor_id: "",
   });
 
   useEffect(() => {
     fetchHiredApplicants();
     fetchBranches();
+    fetchSupervisors();
     fetchDepartments();
     if (isEdit) loadStaff();
   }, [id]);
@@ -151,6 +153,16 @@ export default function StaffForm() {
 
   const fetchBranches = async () => {
     try { const res = await get('/branches/list'); setBranches(res.data?.data || res.data || []); } catch { setBranches([]); }
+  };
+
+  // Approver for this person's leave and other requests.
+  const fetchSupervisors = async () => {
+    try {
+      const res = await get('/hr/staff/supervisors/list');
+      setSupervisors(res.data?.data || []);
+    } catch {
+      setSupervisors([]);
+    }
   };
 
   const fetchDepartments = async () => {
@@ -171,6 +183,7 @@ export default function StaffForm() {
       branch_id: d.branch_id || "",
       department: d.department || "",
       department_id: d.department_id || "",
+      supervisor_id: d.supervisor_id || "",
       role_title_en: d.role_title_en || "",
       contract_type: d.contract_type || "",
       status: d.status || "active",
@@ -208,6 +221,7 @@ export default function StaffForm() {
         branch_id: d.branch_id || "",
         department: d.department || "",
         department_id: d.department_id || "",
+        supervisor_id: d.supervisor_id || "",
         role_title_en: d.role_title_en || "",
         contract_type: d.contract_type || "",
         status: d.status || "active",
@@ -537,6 +551,18 @@ export default function StaffForm() {
                     onChange={v => set('department_id', v)}
                     placeholder={selectedApplicant?.department ? `From requisition: ${selectedApplicant.department}` : "Select department..."}
                   />
+                </div>
+                <div>
+                  <Label>Supervisor</Label>
+                  <SearchSelect
+                    options={supervisors
+                      .filter(sv => !isEdit || String(sv.id) !== String(id))
+                      .map(sv => ({ value: sv.id, label: sv.role_title_en ? `${sv.full_name_en} — ${sv.role_title_en}` : sv.full_name_en }))}
+                    value={form.supervisor_id}
+                    onChange={v => set('supervisor_id', v)}
+                    placeholder="Select supervisor..."
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Receives this person's leave and other requests first. Leave empty to send them straight to HR.</p>
                 </div>
                 <div>
                   <Label>Position Title</Label>

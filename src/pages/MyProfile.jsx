@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
+import ImageLightbox from "../components/user/ImageLightbox";
 import { get, put, post, del, peekCache } from '../api/axios';
 import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
@@ -21,6 +22,9 @@ export default function MyProfile() {
   const { user: authUser, hasRole } = useAuth();
 
   const [profile, setProfile] = useState(null);
+  // Full-screen photo viewer. Open to any visitor — the picture is already
+  // on the page; this only shows it at its real size.
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -186,7 +190,12 @@ export default function MyProfile() {
 
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black overflow-hidden bg-white/20">
+              {/* Click opens the photo full screen at its own size — only when there
+                  IS a photo, since an initial has nothing to enlarge. */}
+              <div
+                onClick={() => photoUrl && setPhotoOpen(true)}
+                title={photoUrl ? "View photo full size" : undefined}
+                className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black overflow-hidden bg-white/20 ${photoUrl ? "cursor-zoom-in hover:ring-2 hover:ring-white/60 transition" : ""}`}>
                 {photoUrl ? <img src={photoUrl} alt={u.name} className="w-full h-full object-cover" /> : (u.name?.charAt(0) || 'U')}
               </div>
               {isSelf && (
@@ -394,6 +403,10 @@ export default function MyProfile() {
 
       {showReminders && (
         <RemindersModal onClose={() => setShowReminders(false)} />
+      )}
+
+      {photoOpen && (
+        <ImageLightbox src={photoUrl} alt={u.name} onClose={() => setPhotoOpen(false)} />
       )}
     </div>
   );

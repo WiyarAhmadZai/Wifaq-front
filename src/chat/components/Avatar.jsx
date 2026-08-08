@@ -1,12 +1,32 @@
+import { Link } from 'react-router-dom';
 import { avatarUrl, initials, avatarColor } from '../utils';
 
-// Circular avatar with optional presence dot. Falls back to coloured initials.
-export default function Avatar({ user, size = 44, online = false, showDot = false }) {
+/**
+ * Circular avatar with optional presence dot. Falls back to coloured initials.
+ *
+ * Links to the person's profile when we know which user it is. `linkable`
+ * exists so the composer and the header of the conversation you are already
+ * looking at can opt out — a link that reloads the page you are on is noise.
+ */
+export default function Avatar({ user, size = 44, online = false, showDot = false, linkable = true }) {
   const url = avatarUrl(user?.avatar_url || user?.avatar);
   const dot = Math.max(9, Math.round(size * 0.28));
 
+  const userId = user?.id ?? user?.user_id;
+  const Wrapper = linkable && userId ? Link : 'div';
+  const wrapperProps = linkable && userId
+    ? {
+        to: `/profile/${userId}`,
+        title: `View ${user?.name || 'profile'}`,
+        // Avatars sit inside conversation rows that select the thread on
+        // click; opening the profile must not also switch conversation.
+        onClick: (e) => e.stopPropagation(),
+        className: 'relative flex-shrink-0 block hover:opacity-90 transition-opacity',
+      }
+    : { className: 'relative flex-shrink-0' };
+
   return (
-    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+    <Wrapper {...wrapperProps} style={{ width: size, height: size }}>
       {url ? (
         <img
           src={url}
@@ -28,6 +48,6 @@ export default function Avatar({ user, size = 44, online = false, showDot = fals
           style={{ width: dot, height: dot }}
         />
       )}
-    </div>
+    </Wrapper>
   );
 }

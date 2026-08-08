@@ -133,7 +133,16 @@ export default function Bugs() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search reports"
               className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-400" />
           </div>
-          {openCount > 0 && (
+          {/* Counts what the filters actually match — meta.total already
+            * accounts for scope, status and search — so the chip follows the
+            * selected tab instead of always reporting unresolved reports.
+            * With no status tab chosen it falls back to the unresolved total,
+            * which is the number worth surfacing when nothing is filtered. */}
+          {status ? (
+            <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${STATUS_TONE[status]}`}>
+              {meta?.total ?? 0} {statusLabel(status).toLowerCase()}
+            </span>
+          ) : openCount > 0 && (
             <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold">
               {openCount} open
             </span>

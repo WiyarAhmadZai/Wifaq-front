@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import ListExportActions from "../../components/ListExportActions";
+import { useAuth } from "../../admin/context/AuthContext";
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -91,6 +92,32 @@ const screeningSummary = (item) => {
   );
 };
 
+/* Which applications this reviewer has already opened.
+ *
+ * Held per user id so a shared workstation never shows one recruiter the
+ * other's read state, and kept client-side because "have I looked at this"
+ * is a personal reading aid, not shared workflow state — writing it onto the
+ * record would make an application look handled to the whole team the moment
+ * one person opened it. Status is what the team shares; this is not. */
+const viewedKey = (userId) => `recruitment.viewedApplications.${userId ?? "anon"}`;
+
+const loadViewed = (userId) => {
+  try {
+    const raw = localStorage.getItem(viewedKey(userId));
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map(Number) : []);
+  } catch {
+    return new Set(); // storage disabled or corrupt — treat everything as new
+  }
+};
+
+const saveViewed = (userId, ids) => {
+  try {
+    // Bounded so the entry cannot grow forever; oldest ids drop off first.
+    localStorage.setItem(viewedKey(userId), JSON.stringify([...ids].slice(-3000)));
+  } catch { /* quota or private mode — the highlight is cosmetic, so ignore */ }
+};
+
 const statusBadge = (val) => {
   const stage = pipelineStages.find((s) => s.key === val);
   return (
@@ -102,6 +129,23 @@ const statusBadge = (val) => {
 
 export default function Applications() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [viewed, setViewed] = useState(() => loadViewed(userId));
+
+  // Re-read on user change so a logout/login in the same tab does not carry
+  // the previous person's highlights over.
+  useEffect(() => { setViewed(loadViewed(userId)); }, [userId]);
+
+  const openApplication = useCallback((id) => {
+    setViewed((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev).add(id);
+      saveViewed(userId, next);
+      return next;
+    });
+    navigate(`/recruitment/applications/show/${id}`);
+  }, [navigate, userId]);
   // URL query is the source of truth for page/filter/search, so the current
   // pagination page (and filter/search) survives a refresh or browser back.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -228,6 +272,19 @@ export default function Applications() {
     const timer = setTimeout(() => setParams({ search: searchQuery, page: 1 }), 400);
     return () => clearTimeout(timer);
   }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Only the rows on screen — the list is paginated, so a global figure
+  // would not match what the reviewer can actually see and act on.
+  const unviewedCount = useMemo(() => items.filter((it) => !viewed.has(it.id)).length, [items, viewed]);
+
+  const markAllViewed = useCallback(() => {
+    setViewed((prev) => {
+      const next = new Set(prev);
+      items.forEach((it) => next.add(it.id));
+      saveViewed(userId, next);
+      return next;
+    });
+  }, [items, userId]);
 
   const handleFilter = (status) => {
     setParams({ status: activeFilter === status ? "all" : status, page: 1 });
@@ -427,6 +484,18 @@ export default function Applications() {
         </div>
       )}
 
+      {/* Unviewed legend — explains the amber rows and offers a way out of
+        * them without opening each one. */}
+      {unviewedCount > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            {unviewedCount} not viewed yet
+          </span>
+          <button onClick={markAllViewed} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Mark all as viewed</button>
+        </div>
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="text-center py-8">
@@ -450,14 +519,22 @@ export default function Applications() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recruitment/applications/show/${item.id}`)}>
+                {items.map((item) => {
+                  const isNew = !viewed.has(item.id);
+                  return (
+                  <tr key={item.id}
+                      className={`cursor-pointer transition-colors ${isNew ? "bg-amber-50 hover:bg-amber-100/80" : "bg-white hover:bg-gray-50"}`}
+                      onClick={() => openApplication(item.id)}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-[10px] flex-shrink-0">
+                        {/* Colour alone would not survive a colour-vision
+                          * difference, so the dot and the weight carry it too. */}
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isNew ? "bg-amber-500" : "bg-transparent"}`}
+                              title={isNew ? "Not viewed yet" : "Viewed"} />
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 ${isNew ? "bg-amber-200 text-amber-800" : "bg-teal-100 text-teal-700"}`}>
                           {item.full_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-xs font-medium text-gray-800">{item.full_name}</span>
+                        <span className={`text-xs ${isNew ? "font-bold text-gray-900" : "font-medium text-gray-500"}`}>{item.full_name}</span>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_posting?.title || "-"}</td>
@@ -468,7 +545,7 @@ export default function Applications() {
                     <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? fmtDate(item.created_at) : "-"}</td>
                     <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/recruitment/applications/show/${item.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded" title="View & Manage">
+                        <button onClick={() => openApplication(item.id)} className="p-1 text-teal-600 hover:bg-teal-50 rounded" title="View & Manage">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -487,7 +564,8 @@ export default function Applications() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

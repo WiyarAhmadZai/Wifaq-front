@@ -135,7 +135,7 @@ export default function Meetings() {
     if (!dt) return "";
     return new Date(dt).toLocaleString("en-US", { month: "short" }).toUpperCase();
   };
-  const recurrenceLabel = (r) => ({ weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" }[r] || "");
+  const recurrenceLabel = (r) => ({ daily: "Daily", weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" }[r] || "");
 
   const upcoming = items.filter((i) => i.status === "scheduled" && new Date(i.start_time) > new Date()).length;
 

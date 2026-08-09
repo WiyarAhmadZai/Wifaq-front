@@ -25,7 +25,7 @@ export default function MeetingForm() {
     status: "scheduled",
     meeting_type: "routine",
     reminder_minutes_before: 180, // 3 hours — editable per meeting
-    recurrence: "",            // "" | weekly | monthly | yearly
+    recurrence: "",            // "" | daily | weekly | monthly | yearly
     recurrence_until: "",      // YYYY-MM-DD
   });
 
@@ -415,6 +415,7 @@ export default function MeetingForm() {
                     className={ic("recurrence")}
                   >
                     <option value="">Does not repeat</option>
+                    <option value="daily">Daily (same time)</option>
                     <option value="weekly">Weekly (same day &amp; time)</option>
                     <option value="monthly">Monthly (same date &amp; time)</option>
                     <option value="yearly">Yearly (same date &amp; time)</option>

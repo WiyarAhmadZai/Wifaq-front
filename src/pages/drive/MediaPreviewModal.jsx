@@ -10,6 +10,12 @@ import { fileObjectUrl, previewKind, embedUrl, KIND_LABEL } from "./mediaPreview
  * back to a clean "open in a new tab" panel when it does not, rather than
  * showing an empty white box.
  */
+/** Centred stage for the media. Module scope: defining it inside the component
+ *  would make React remount the iframe/<video> on every state change. */
+function Frame({ children }) {
+  return <div className="w-full h-full flex items-center justify-center bg-[#0b1416]">{children}</div>;
+}
+
 export default function MediaPreviewModal({ item, onClose, onDownload }) {
   const kind = previewKind(item);
   const [src, setSrc] = useState(null);
@@ -19,11 +25,12 @@ export default function MediaPreviewModal({ item, onClose, onDownload }) {
   const external = item?.is_link ? item.external_url : null;
   const frameSrc = external ? embedUrl(external) : null;
 
-  // Internal media needs an authenticated fetch before it can be shown.
+  // Internal media needs an authenticated fetch before it can be shown. The
+  // parent keys this component by item id, so state starts clean per item and
+  // nothing has to be reset here.
   useEffect(() => {
     if (!item || item.is_link) return;
     let alive = true;
-    setError(null);
     fileObjectUrl(item.id)
       .then((url) => alive && setSrc(url))
       .catch(() => alive && setError("Could not load this file."));
@@ -31,14 +38,6 @@ export default function MediaPreviewModal({ item, onClose, onDownload }) {
       alive = false;
     };
   }, [item]);
-
-  // A framed page that never loads leaves the panel blank; give it a moment,
-  // then offer the link instead.
-  useEffect(() => {
-    if (!frameSrc) return;
-    const t = setTimeout(() => setFrameFailed((f) => f), 100);
-    return () => clearTimeout(t);
-  }, [frameSrc]);
 
   const close = useCallback(() => onClose?.(), [onClose]);
 
@@ -49,10 +48,6 @@ export default function MediaPreviewModal({ item, onClose, onDownload }) {
   }, [close]);
 
   if (!item) return null;
-
-  const Frame = ({ children }) => (
-    <div className="w-full h-full flex items-center justify-center bg-[#0b1416]">{children}</div>
-  );
 
   const openExternal = () => window.open(external, "_blank", "noopener");
 

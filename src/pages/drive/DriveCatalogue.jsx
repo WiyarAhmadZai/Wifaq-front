@@ -3,9 +3,12 @@ import { useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   getTaxonomy, listCatalogue, saveCatalogue,
-  uploadFiles, addLink, deleteFile, fileRawBlob, fileDownloadBlob,
+  uploadFiles, addLink, deleteFile, fileDownloadBlob,
 } from "../../api/drive";
 import { fmtDate } from "../../utils/formErrors";
+import MediaThumb from "./MediaThumb";
+import MediaPreviewModal from "./MediaPreviewModal";
+import { releaseObjectUrls } from "./mediaPreview";
 
 /* Drive — institutional catalogue (Drive Module spec v3).
  *
@@ -48,6 +51,35 @@ const EMPTY_FORM = {
 const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none";
 const lbl = "block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1";
 
+/* Cards per row.
+ *
+ * Explicit rather than purely responsive: how many cards fit is a judgement
+ * about how much detail you want to see per item, not only how wide the window
+ * is. The choice is clamped to what the viewport can actually carry, so a 6-up
+ * grid on a phone does not turn into six unreadable slivers.
+ */
+const COL_CHOICES = [2, 3, 4, 5, 6];
+
+function useColumns() {
+  const [choice, setChoice] = useState(() => {
+    const saved = Number(localStorage.getItem("driveCols"));
+    return COL_CHOICES.includes(saved) ? saved : 4;
+  });
+  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
+
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // The category rail eats ~240px, so the grid gets far less than the window.
+  const max = width < 640 ? 1 : width < 900 ? 2 : width < 1200 ? 3 : 6;
+  const pick = (n) => { setChoice(n); localStorage.setItem("driveCols", String(n)); };
+
+  return { choice, effective: Math.min(choice, max), pick, capped: choice > max };
+}
+
 export default function DriveCatalogue() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -61,6 +93,11 @@ export default function DriveCatalogue() {
   const [filters, setFilters] = useState({
     sub_category: "", institution: "", file_type: "", edu_level: "", status: "", q: "",
   });
+
+  const { choice: cols, effective: effectiveCols, pick: pickCols, capped } = useColumns();
+  // Past four across there is not enough width for notes and secondary lines,
+  // so the card sheds them rather than clipping everything.
+  const dense = effectiveCols >= 4;
 
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -100,6 +137,13 @@ export default function DriveCatalogue() {
     setFilters((f) => ({ ...f, sub_category: "", edu_level: "" }));
   };
 
+  // Item currently open in the preview overlay (null = closed).
+  const [preview, setPreview] = useState(null);
+
+  // Object URLs are shared between thumbnails and the preview; release them
+  // when the page goes away so the blobs are not held for the whole session.
+  useEffect(() => () => releaseObjectUrls(), []);
+
   const setFilter = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
 
   const activeFilterCount = useMemo(
@@ -107,18 +151,9 @@ export default function DriveCatalogue() {
     [filters],
   );
 
-  const openItem = async (item) => {
-    if (item.is_link) { window.open(item.external_url, "_blank", "noopener"); return; }
-    try {
-      const res = await fileRawBlob(item.id);
-      const url = URL.createObjectURL(res.data);
-      window.open(url, "_blank", "noopener");
-      // Revoked late so the new tab has time to read it.
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch {
-      Swal.fire("Error", "Could not open this file.", "error");
-    }
-  };
+  // Preview in place. Images and video play inline, PDFs frame, and external
+  // links embed where the provider allows it — no more blind jump to a new tab.
+  const openItem = (item) => setPreview(item);
 
   const download = async (item) => {
     if (item.is_link) { window.open(item.external_url, "_blank", "noopener"); return; }
@@ -161,6 +196,9 @@ export default function DriveCatalogue() {
 
         <div className="min-w-0">
           <FilterBar
+            cols={cols}
+            pickCols={pickCols}
+            capped={capped}
             tax={tax}
             filters={filters}
             setFilter={setFilter}
@@ -177,13 +215,15 @@ export default function DriveCatalogue() {
           ) : items.length === 0 ? (
             <EmptyState hasFilters={activeFilterCount > 0 || !!filters.q} onAdd={() => setAddOpen(true)} />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid gap-3"
+              style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
               {items.map((item) => (
                 <ItemCard
                   key={item.id}
                   item={item}
                   tax={tax}
                   busy={busy}
+                  dense={dense}
                   onOpen={() => openItem(item)}
                   onDownload={() => download(item)}
                   onEdit={() => setEditing(item)}
@@ -201,6 +241,15 @@ export default function DriveCatalogue() {
           defaultCategory={category}
           onClose={() => setAddOpen(false)}
           onSaved={async () => { setAddOpen(false); await load(); }}
+        />
+      )}
+
+      {preview && (
+        <MediaPreviewModal
+          key={preview.id}
+          item={preview}
+          onClose={() => setPreview(null)}
+          onDownload={(it) => download(it)}
         />
       )}
 
@@ -286,7 +335,7 @@ function CategoryRail({ categories, counts, active, onPick }) {
   );
 }
 
-function FilterBar({ tax, filters, setFilter, activeCategory, showsEduLevel, activeFilterCount, onClear }) {
+function FilterBar({ tax, filters, setFilter, activeCategory, showsEduLevel, activeFilterCount, onClear, cols, pickCols, capped }) {
   const sel = "px-2.5 py-2 border border-gray-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-teal-500 outline-none";
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 mb-4">
@@ -335,33 +384,47 @@ function FilterBar({ tax, filters, setFilter, activeCategory, showsEduLevel, act
             Clear
           </button>
         )}
+
+        {/* Cards per row. Hidden below lg because the viewport already
+          * dictates the count there and the control would only mislead. */}
+        <div className="hidden lg:flex items-center gap-1.5 ml-auto" title={capped ? "Limited by the window width" : "Cards per row"}>
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Per row</span>
+          <div className="flex rounded-lg overflow-hidden border border-gray-200">
+            {COL_CHOICES.map((n) => (
+              <button key={n} type="button" onClick={() => pickCols(n)}
+                className={`w-7 py-1 text-[11px] font-semibold transition-colors ${cols === n ? "bg-teal-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function ItemCard({ item, tax, busy, onOpen, onDownload, onEdit, onDelete }) {
-  const type = item.file_type || "document";
+function ItemCard({ item, tax, busy, dense, onOpen, onDownload, onEdit, onDelete }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={TYPE_ICON[type] || TYPE_ICON.document} />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <button onClick={onOpen} className="text-left w-full">
-            <p className="text-sm font-semibold text-gray-900 leading-snug break-words hover:text-teal-700">
-              {item.title || item.name}
-            </p>
-          </button>
-          <p className="text-[11px] text-gray-400 truncate mt-0.5">{item.name}</p>
-        </div>
+    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col hover:shadow-md hover:border-teal-200 transition-all ${dense ? "p-2 gap-1.5" : "p-3 gap-2.5"}`}>
+      {/* Real preview instead of a grey placeholder — this is what makes the
+          grid scannable at a glance. */}
+      <div className="relative">
+        <MediaThumb item={item} onClick={onOpen} />
         {item.status && (
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${STATUS_TONE[item.status] || "bg-gray-100 text-gray-600"}`}>
+          <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${STATUS_TONE[item.status] || "bg-gray-100 text-gray-600"}`}>
             {labelOf(tax?.statuses, item.status)}
           </span>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <button onClick={onOpen} className="text-left w-full">
+          <p className={`font-semibold text-gray-900 leading-snug break-words hover:text-teal-700 line-clamp-2 ${dense ? "text-xs" : "text-sm"}`}>
+            {item.title || item.name}
+          </p>
+        </button>
+        {!dense && item.name !== item.title && (
+          <p className="text-[11px] text-gray-400 truncate mt-0.5">{item.name}</p>
         )}
       </div>
 
@@ -384,12 +447,13 @@ function ItemCard({ item, tax, busy, onOpen, onDownload, onEdit, onDelete }) {
         )}
       </div>
 
-      {item.notes && <p className="text-[11px] text-gray-500 line-clamp-2">{item.notes}</p>}
+      {!dense && item.notes && <p className="text-[11px] text-gray-500 line-clamp-2">{item.notes}</p>}
 
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto">
+      <div className={`flex items-center justify-between border-t border-gray-100 mt-auto ${dense ? "pt-1.5" : "pt-2"}`}>
         <span className="text-[10px] text-gray-400 truncate">
-          {item.creator?.name || "—"} · {fmtDate(item.created_at)}
-          {item.size ? ` · ${fmtSize(item.size)}` : ""}
+          {dense
+            ? fmtDate(item.created_at)
+            : `${item.creator?.name || "—"} · ${fmtDate(item.created_at)}${item.size ? ` · ${fmtSize(item.size)}` : ""}`}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
           <IconBtn title="Open" onClick={onOpen} d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" tone="text-teal-600 hover:bg-teal-50" />

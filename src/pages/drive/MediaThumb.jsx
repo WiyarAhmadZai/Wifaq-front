@@ -25,18 +25,15 @@ export default function MediaThumb({ item, onClick }) {
   const wantsImage = isThumbnailable(item);
   const [src, setSrc] = useState(null);
   const [failed, setFailed] = useState(false);
-  const [visible, setVisible] = useState(false);
+  // Browsers without IntersectionObserver just load immediately.
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
   const ref = useRef(null);
 
   // Only start downloading once the card is actually on screen.
   useEffect(() => {
     if (!wantsImage || visible) return;
     const el = ref.current;
-    if (!el) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
+    if (!el || typeof IntersectionObserver === "undefined") return;
     const io = new IntersectionObserver(
       (entries) => entries.forEach((e) => e.isIntersecting && setVisible(true)),
       { rootMargin: "200px" },

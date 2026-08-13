@@ -66,6 +66,10 @@ const RULES = [
   // /edit → .update via action-swap. Backend additionally enforces
   // lesson-plans.review / .analyze on those endpoints.
   { prefix: "/education/lesson-plans", permission: "lesson-plans.view" },
+  // Gradebook has its own permission family. Without this it fell through to
+  // the catch-all /education rule and demanded student-observations.view, so a
+  // teacher holding gradebook.view was bounced to /403.
+  { prefix: "/education/gradebook", permission: "gradebook.view" },
   { prefix: "/education", permission: "student-observations.view" },
 
   // HR
@@ -159,6 +163,13 @@ const RULES = [
   { prefix: "/purchase/routine-items", permission: "routine-items.view" },
   { prefix: "/purchase/repair-requests", permission: "repair-requests.view" },
   { prefix: "/purchase/projects", permission: "projects.view" },
+
+  // Neither had a rule, so permissionForPath() returned "untagged" and the
+  // guard allowed super-admins only — even though the sidebar showed the link
+  // to anyone holding the matching permission. (/my-questionnaire needs no rule
+  // here: it is already in PUBLIC_PATHS below.)
+  { prefix: "/drive", permission: "drive.view" },
+  { prefix: "/admin/trash", permission: "trash.view" },
 ];
 
 // Sort longest-prefix first so /class-management/classes wins over /class-management.

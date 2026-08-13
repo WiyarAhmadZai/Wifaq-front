@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, put, peekCache } from "../../api/axios";
+import { get, del, put, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDateTime } from "../../utils/formErrors";
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import ExperienceLetterModal from '../../components/ExperienceLetterModal';
 
 const Icons = {
   Plus: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>),
@@ -12,6 +13,8 @@ const Icons = {
   Edit: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>),
   EditStatus: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>),
   Trash: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>),
+  EndContract: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>),
+  Letter: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>),
   Renew: () => (<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>),
 };
 
@@ -90,6 +93,9 @@ const getContractTimeInfo = (item) => {
 export default function Contracts() {
   const navigate = useNavigate();
   const { canCreate, canUpdate, canDelete } = useResourcePermissions('contracts');
+  // Letters are gated on the STAFF permission server-side, not contracts —
+  // keep the UI in step so the editor never appears to someone who will 403.
+  const { canUpdate: canEditLetters } = useResourcePermissions('staff');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: "", contract_type: "", search: "" });
@@ -107,6 +113,10 @@ export default function Contracts() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [meta, setMeta] = useState({ total: 0, last_page: 1, from: 0, to: 0 });
+  // Experience letter currently open: { id, name }. null = closed.
+  const [letterView, setLetterView] = useState(null);
+  const [letterLoading, setLetterLoading] = useState(null);
+  const [endingId, setEndingId] = useState(null);
 
   // Any filter change invalidates the current page number.
   useEffect(() => { setPage(1); }, [filters]);
@@ -142,6 +152,95 @@ export default function Contracts() {
       Swal.fire("Error", e.response?.data?.message || "Failed to load contracts", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Open the experience letter for an ended contract.
+   *
+   * Ending the contract already raises the draft server-side; this POST is the
+   * same idempotent generator, so it also covers contracts that ended before
+   * the feature existed. It never duplicates and never touches a final letter.
+   */
+  const handleOpenLetter = async (item) => {
+    const staffId = item.staff_id || item.staff?.id;
+    const name = item.staff?.application?.full_name || item.staff?.full_name || "";
+    if (!staffId) {
+      Swal.fire({ icon: "error", title: "This contract has no staff record attached." });
+      return;
+    }
+    setLetterLoading(item.id);
+    try {
+      const res = await post(`/hr/staff/${staffId}/letters/experience`, {
+        staff_contract_id: item.id,
+      });
+      setLetterView({ id: res.data?.data?.id, name });
+    } catch (e) {
+      Swal.fire({
+        icon: "error",
+        title: "Could not open the experience letter",
+        text: e?.response?.data?.message || "Please try again.",
+      });
+    } finally {
+      setLetterLoading(null);
+    }
+  };
+
+  /**
+   * End a running contract: pick how it ended, on what date, and why.
+   *
+   * The backend fills in today's date for an open-ended contract and raises the
+   * experience-letter draft off the back of the same status change, so this one
+   * action covers the whole exit.
+   */
+  const handleEndContract = async (item) => {
+    const staffLabel = item.staff?.application?.full_name || item.staff?.full_name || item.contract_number;
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { value, isConfirmed } = await Swal.fire({
+      title: "End this contract?",
+      html: `
+        <p style="font-size:13px;color:#4b5563;margin-bottom:14px">${staffLabel}</p>
+        <label style="display:block;font-size:11px;font-weight:600;text-align:left;color:#374151">How did it end?</label>
+        <select id="swal-end-status" class="swal2-select" style="width:100%;margin:4px 0 12px">
+          <option value="expired">Contract Ended (expired)</option>
+          <option value="terminated">Terminated</option>
+        </select>
+        <label style="display:block;font-size:11px;font-weight:600;text-align:left;color:#374151">Last working day</label>
+        <input id="swal-end-date" type="date" class="swal2-input" style="width:100%;margin:4px 0 12px" value="${item.end_date ? String(item.end_date).slice(0, 10) : today}">
+        <label style="display:block;font-size:11px;font-weight:600;text-align:left;color:#374151">Reason <span style="font-weight:400;color:#9ca3af">(internal — never printed on the letter)</span></label>
+        <input id="swal-end-reason" class="swal2-input" style="width:100%;margin:4px 0 0" placeholder="e.g. Resigned, moved abroad">
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#e11d48",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "End contract",
+      preConfirm: () => ({
+        status: document.getElementById("swal-end-status").value,
+        end_date: document.getElementById("swal-end-date").value || null,
+        reason_for_leaving: document.getElementById("swal-end-reason").value || null,
+      }),
+    });
+    if (!isConfirmed) return;
+
+    setEndingId(item.id);
+    try {
+      await put(`/hr/contracts/update-status/${item.id}`, value);
+      await fetchItems();
+      Swal.fire({
+        icon: "success",
+        title: "Contract ended",
+        text: "The experience letter has been raised as a draft — write the contribution paragraph, then finalize it.",
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: "error",
+        title: "Could not end the contract",
+        text: e?.response?.data?.message || "Please try again.",
+      });
+    } finally {
+      setEndingId(null);
     }
   };
 
@@ -267,6 +366,8 @@ export default function Contracts() {
                     return daysBetween(today, parseDate(item.probation_end_date));
                   })();
                   const showRenewBtn = (probDaysLeft !== null && probDaysLeft <= 3) || item.status === 'expired';
+                  // Employment is over -> the experience letter applies.
+                  const isEnded = item.status === 'expired' || item.status === 'terminated';
 
                   return (
                     <tr key={item.id} className="hover:bg-gray-50">
@@ -305,6 +406,30 @@ export default function Contracts() {
                               <Icons.Renew />
                             </button>
                           )}
+                          {/* End the contract outright — sets the end date and
+                              raises the experience letter in one step. */}
+                          {!isEnded && canUpdate && (
+                            <button onClick={() => handleEndContract(item)}
+                              disabled={endingId === item.id}
+                              className="p-1 text-rose-600 hover:bg-rose-50 rounded transition-colors disabled:opacity-40" title="End Contract">
+                              {endingId === item.id
+                                ? <span className="block w-3.5 h-3.5 rounded-full border-2 border-rose-200 border-t-rose-600 animate-spin" />
+                                : <Icons.EndContract />}
+                            </button>
+                          )}
+                          {/* Experience letter. Available before the contract
+                              ends too, so HR can prepare and review the wording
+                              ahead of someone's last day. */}
+                          <button onClick={() => handleOpenLetter(item)}
+                            disabled={letterLoading === item.id}
+                            className={`p-1 rounded transition-colors disabled:opacity-40 ${
+                              isEnded ? 'text-purple-600 hover:bg-purple-50' : 'text-gray-400 hover:bg-gray-100 hover:text-purple-600'
+                            }`}
+                            title={isEnded ? 'Experience Letter' : 'Experience Letter (prepare early — contract has not ended yet)'}>
+                            {letterLoading === item.id
+                              ? <span className="block w-3.5 h-3.5 rounded-full border-2 border-purple-200 border-t-purple-600 animate-spin" />
+                              : <Icons.Letter />}
+                          </button>
                           <button onClick={() => navigate(`/hr/contracts/show/${item.id}`)}
                             className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors" title="View">
                             <Icons.Eye />
@@ -530,6 +655,15 @@ export default function Contracts() {
             )}
           </div>
         </div>
+      )}
+
+      {letterView && (
+        <ExperienceLetterModal
+          letterId={letterView.id}
+          staffName={letterView.name}
+          canEdit={canEditLetters}
+          onClose={() => setLetterView(null)}
+        />
       )}
     </div>
   );

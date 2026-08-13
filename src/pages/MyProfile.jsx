@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
 import ImageLightbox from "../components/user/ImageLightbox";
+import WelcomeLetterDownload from "../components/WelcomeLetterDownload";
 import { get, put, post, del, peekCache } from '../api/axios';
 import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
@@ -166,6 +167,9 @@ export default function MyProfile() {
               </h1>
             </div>
             <div className="flex items-center gap-2">
+              {/* Own letter only — the endpoint always serves the signed-in
+                  user's copy, so it would be wrong on someone else's profile. */}
+              {isSelf && <WelcomeLetterDownload userName={u.name} />}
               {isSelf && (
                 <button
                   onClick={() => setShowReminders(true)}

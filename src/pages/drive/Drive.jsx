@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import {
   listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder,
   fileRawBlob, fileDownloadBlob,
+  moveFile, moveFolder, copyFileTo, copyFolderTo,
 } from "../../api/drive";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
@@ -45,6 +46,93 @@ export default function Drive() {
   const [dragOver, setDragOver] = useState(false);
 
   const goTo = (id) => setSearchParams(id ? { folder: String(id) } : {});
+
+  /* Move / copy.
+   *
+   * Two ways to do the same thing, because both are what people expect of a
+   * file manager: drag an item onto a folder, or cut/copy it and paste it
+   * elsewhere. Both funnel through moveInto()/pasteInto() so the rules live in
+   * one place. A null destination means Home (root).
+   */
+  const [clip, setClip] = useState(null);          // { mode, kind, id, name }
+  const [dragging, setDragging] = useState(null);  // { kind, id, name }
+  const [dropTarget, setDropTarget] = useState(null);
+
+  const currentFolderId = folderId ? Number(folderId) : null;
+
+  const runTransfer = async (fn, okTitle) => {
+    setBusy(true);
+    try {
+      await fn();
+      await load();
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: okTitle, timer: 1300, showConfirmButton: false });
+      return true;
+    } catch (e) {
+      // The server rejects a folder dropped into its own subtree with a 422 —
+      // show that reason rather than a generic failure.
+      Swal.fire("Could not complete", e.response?.data?.message || "Something went wrong.", "error");
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  const moveInto = (kind, id, destId) => {
+    const dest = destId ?? null;
+    // Dropping something where it already sits is a no-op, not an error.
+    if (kind === "folder" && Number(id) === Number(dest)) return Promise.resolve(false);
+    return runTransfer(
+      () => (kind === "folder" ? moveFolder(id, dest) : moveFile(id, dest)),
+      "Moved",
+    );
+  };
+
+  const pasteInto = async (destId) => {
+    if (!clip) return;
+    const dest = destId ?? null;
+    const { mode, kind, id } = clip;
+    const ok = await runTransfer(() => {
+      if (mode === "copy") return kind === "folder" ? copyFolderTo(id, dest) : copyFileTo(id, dest);
+      return kind === "folder" ? moveFolder(id, dest) : moveFile(id, dest);
+    }, mode === "copy" ? "Copied" : "Moved");
+    // A cut is consumed by its paste; a copy stays on the clipboard so the same
+    // item can be dropped into several folders in a row.
+    if (ok && mode === "cut") setClip(null);
+  };
+
+  const dnd = {
+    clip,
+    setClip,
+    drag: (kind, item) => ({
+      draggable: true,
+      onDragStart: (e) => {
+        e.stopPropagation();
+        setDragging({ kind, id: item.id, name: item.name });
+        e.dataTransfer.effectAllowed = "move";
+        // Firefox will not start a drag unless some data is attached.
+        e.dataTransfer.setData("text/plain", kind + ":" + item.id);
+      },
+      onDragEnd: () => { setDragging(null); setDropTarget(null); },
+    }),
+    drop: (destId) => ({
+      onDragOver: (e) => {
+        if (!dragging) return;   // an OS file drag, not one of ours
+        if (dragging.kind === "folder" && Number(dragging.id) === Number(destId)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        setDropTarget(destId ?? "root");
+      },
+      onDragLeave: () => setDropTarget((t) => (t === (destId ?? "root") ? null : t)),
+      onDrop: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const item = dragging;
+        setDragging(null);
+        setDropTarget(null);
+        if (item) moveInto(item.kind, item.id, destId ?? null);
+      },
+    }),
+    isOver: (destId) => dropTarget === (destId ?? "root"),
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,9 +269,29 @@ export default function Drive() {
       </div>
 
       {/* Breadcrumb + view switcher */}
+      {/* Clipboard bar — only rendered while something is held, so it never
+        * takes up room during ordinary browsing. */}
+      {clip && (
+        <div className="flex items-center justify-between gap-3 mb-3 px-3 py-2 bg-teal-50 border border-teal-200 rounded-xl">
+          <p className="text-xs text-teal-800 min-w-0 truncate">
+            <span className="font-semibold">{clip.mode === "cut" ? "Cut" : "Copied"}:</span> {clip.name}
+          </p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => pasteInto(currentFolderId)} disabled={busy}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-40">
+              Paste here
+            </button>
+            <button onClick={() => setClip(null)} className="text-xs text-teal-700 hover:underline">Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 mb-4">
         <div className="flex items-center flex-wrap gap-1 text-xs">
-          <button onClick={() => goTo("")} className={`px-2 py-1 rounded hover:bg-gray-100 ${!folderId ? "font-bold text-teal-700" : "text-gray-500"}`}>Home</button>
+          {/* Crumbs are drop targets too — that is how an item moves UP the
+            * tree, which dropping onto a child folder cannot express. */}
+          <button onClick={() => goTo("")} {...dnd.drop(null)}
+            className={`px-2 py-1 rounded transition-colors ${dnd.isOver(null) ? "bg-teal-100 ring-2 ring-teal-400" : "hover:bg-gray-100"} ${!folderId ? "font-bold text-teal-700" : "text-gray-500"}`}>Home</button>
           {(data.breadcrumb || []).map((c, i, arr) => (
             <span key={c.id} className="flex items-center gap-1">
               <span className="text-gray-300">/</span>
@@ -208,11 +316,11 @@ export default function Drive() {
           <p className="text-sm text-gray-400">This folder is empty. Upload files, add a link, or create a folder.</p>
         </div>
       ) : view === "details" ? (
-        <DetailsView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} />
+        <DetailsView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
       ) : view === "list" ? (
-        <ListView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} />
+        <ListView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
       ) : (
-        <LargeView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} />
+        <LargeView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
       )}
 
       {/* Upload modal */}
@@ -304,14 +412,40 @@ function FileActions({ f, openFile, downloadFile, copyLink, removeFile, compact 
   );
 }
 
+/* Cut / Copy for one item.
+ *
+ * Drag-and-drop only reaches folders that are on screen; cut/copy is how an
+ * item travels somewhere you have to navigate to first. Clicking loads the
+ * clipboard, then the bar above the breadcrumb pastes into whatever folder
+ * you have opened. */
+function TransferButtons({ item, kind, dnd, inline }) {
+  const held = dnd.clip && dnd.clip.kind === kind && dnd.clip.id === item.id;
+  const pick = (e, mode) => {
+    e.stopPropagation();   // the row itself navigates or opens
+    dnd.setClip({ mode, kind, id: item.id, name: item.name });
+  };
+  const base = "px-1 rounded text-[10px] font-semibold transition-colors";
+  return (
+    <span className={inline ? "flex gap-1" : "absolute top-2 left-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100"}>
+      <button type="button" title="Cut" onClick={(e) => pick(e, "cut")}
+        className={`${base} ${held && dnd.clip.mode === "cut" ? "bg-teal-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>Cut</button>
+      <button type="button" title="Copy" onClick={(e) => pick(e, "copy")}
+        className={`${base} ${held && dnd.clip.mode === "copy" ? "bg-teal-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>Copy</button>
+    </span>
+  );
+}
+
 /* ── Large icons (thumbnails) ── */
-function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder }) {
+function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
   return (
     <>
       {data.folders.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
           {data.folders.map((f) => (
-            <div key={`fo-${f.id}`} className="group relative bg-white border border-gray-200 rounded-xl p-3 hover:border-teal-300 hover:shadow-sm cursor-pointer" onClick={() => goTo(f.id)}>
+            <div key={`fo-${f.id}`} {...dnd.drag("folder", f)} {...dnd.drop(f.id)}
+              className={`group relative bg-white border rounded-xl p-3 hover:shadow-sm cursor-pointer transition-colors ${dnd.isOver(f.id) ? "border-teal-500 ring-2 ring-teal-300 bg-teal-50" : "border-gray-200 hover:border-teal-300"}`}
+              onClick={() => goTo(f.id)}>
+              <TransferButtons item={f} kind="folder" dnd={dnd} />
               <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs">✕</button>
               <div className="flex items-center gap-2">
                 <FolderGlyph className="w-9 h-9" />
@@ -327,8 +461,10 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
       {data.files.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {data.files.map((f) => (
-            <div key={`fi-${f.id}`} className="group relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-teal-300 hover:shadow-sm">
+            <div key={`fi-${f.id}`} {...dnd.drag("file", f)}
+              className="group relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-teal-300 hover:shadow-sm">
               <div className="absolute top-1.5 right-1.5 z-10 flex gap-1 opacity-0 group-hover:opacity-100">
+                <TransferButtons item={f} kind="file" dnd={dnd} inline />
                 <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} />
               </div>
               <button onClick={() => openFile(f)} className="block w-full text-left">
@@ -347,23 +483,30 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
 }
 
 /* ── List (compact rows) ── */
-function ListView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder }) {
+function ListView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
       {data.folders.map((f) => (
-        <div key={`fo-${f.id}`} className="group flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => goTo(f.id)}>
+        <div key={`fo-${f.id}`} {...dnd.drag("folder", f)} {...dnd.drop(f.id)}
+          className={`group flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${dnd.isOver(f.id) ? "bg-teal-50 ring-2 ring-inset ring-teal-300" : "hover:bg-gray-50"}`}
+          onClick={() => goTo(f.id)}>
           <FolderGlyph className="w-5 h-5" />
           <span className="text-xs font-medium text-gray-800 flex-1 truncate">{f.name}</span>
           <span className="text-[10px] text-gray-400 hidden sm:block">{f.files_count || 0} files</span>
-          <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs px-1">✕</button>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+            <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+            <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
+          </div>
         </div>
       ))}
       {data.files.map((f) => (
-        <div key={`fi-${f.id}`} className="group flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
+        <div key={`fi-${f.id}`} {...dnd.drag("file", f)}
+          className="group flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
           <FileGlyph file={f} className="w-5 h-5" />
           <span className="text-xs font-medium text-gray-800 flex-1 truncate" title={f.name}>{f.name}</span>
           <span className="text-[10px] text-gray-400 hidden sm:block w-24 text-right">{f.size ? fmtSize(f.size) : kindLabel(f)}</span>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+            <TransferButtons item={f} kind="file" dnd={dnd} inline />
             <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} compact />
           </div>
         </div>
@@ -373,7 +516,7 @@ function ListView({ data, goTo, openFile, downloadFile, copyLink, removeFile, re
 }
 
 /* ── Details (table) ── */
-function DetailsView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder }) {
+function DetailsView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <table className="w-full text-xs">
@@ -388,21 +531,30 @@ function DetailsView({ data, goTo, openFile, downloadFile, copyLink, removeFile,
         </thead>
         <tbody className="divide-y divide-gray-100">
           {data.folders.map((f) => (
-            <tr key={`fo-${f.id}`} className="group hover:bg-gray-50 cursor-pointer" onClick={() => goTo(f.id)}>
+            <tr key={`fo-${f.id}`} {...dnd.drag("folder", f)} {...dnd.drop(f.id)}
+              className={`group cursor-pointer transition-colors ${dnd.isOver(f.id) ? "bg-teal-50" : "hover:bg-gray-50"}`}
+              onClick={() => goTo(f.id)}>
               <td className="px-3 py-2"><div className="flex items-center gap-2"><FolderGlyph className="w-4 h-4" /><span className="font-medium text-gray-800 truncate">{f.name}</span></div></td>
               <td className="px-3 py-2 text-gray-500">Folder</td>
               <td className="px-3 py-2 text-right text-gray-400">—</td>
               <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{f.updated_at ? fmtDate(f.updated_at) : "—"}</td>
-              <td className="px-3 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600">✕</button></td>
+              <td className="px-3 py-2"><div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
+                <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600">✕</button>
+              </div></td>
             </tr>
           ))}
           {data.files.map((f) => (
-            <tr key={`fi-${f.id}`} className="group hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
+            <tr key={`fi-${f.id}`} {...dnd.drag("file", f)}
+              className="group hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
               <td className="px-3 py-2"><div className="flex items-center gap-2"><FileGlyph file={f} className="w-4 h-4" /><span className="font-medium text-gray-800 truncate" title={f.name}>{f.name}</span></div></td>
               <td className="px-3 py-2 text-gray-500">{kindLabel(f)}</td>
               <td className="px-3 py-2 text-right text-gray-500">{f.size ? fmtSize(f.size) : "—"}</td>
               <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{f.created_at ? fmtDate(f.created_at) : "—"}</td>
-              <td className="px-3 py-2"><div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100"><FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} compact /></div></td>
+              <td className="px-3 py-2"><div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
+                <TransferButtons item={f} kind="file" dnd={dnd} inline />
+                <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} compact />
+              </div></td>
             </tr>
           ))}
         </tbody>

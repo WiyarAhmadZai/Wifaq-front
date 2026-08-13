@@ -113,7 +113,7 @@ const StudentAcademicHistory = lazy(() => import("./pages/education/StudentAcade
 const GradebookDashboard = lazy(() => import("./pages/education/GradebookDashboard"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
-const Drive = lazy(() => import("./pages/drive/Drive"));
+const Drive = lazy(() => import("./pages/drive/DriveHome"));
 const Questionnaires = lazy(() => import("./pages/questionnaire/Questionnaires"));
 const QuestionnaireForm = lazy(() => import("./pages/questionnaire/QuestionnaireForm"));
 const QuestionnaireResponses = lazy(() => import("./pages/questionnaire/QuestionnaireResponses"));

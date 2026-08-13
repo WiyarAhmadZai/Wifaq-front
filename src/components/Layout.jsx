@@ -6,6 +6,8 @@ import PathPermissionGate from "../admin/guards/PathPermissionGate";
 import ErrorBoundary from "./ErrorBoundary";
 import MessagesButton from "../chat/components/MessagesButton";
 import ChatDrawer from "../chat/components/ChatDrawer";
+import WelcomeLetterModal from "./WelcomeLetterModal";
+import ExperienceLetterModal from "./ExperienceLetterModal";
 import { isRealtimeLive } from "../chat/echo";
 
 const PageFallback = () => (
@@ -1266,10 +1268,69 @@ function ProfileButton() {
   );
 }
 
+// ── Portal label ────────────────────────────────────────────────────────────
+// The sidebar subtitle names the portal the signed-in user is actually in
+// rather than always saying "Admin Portal". Exactly one role → that role's
+// portal; more than one → "Staff User Portal", because no single label
+// describes someone who wears several hats.
+const ROLE_PORTAL_LABELS = {
+  "super-admin": "Admin Portal",
+  admin: "Admin Portal",
+  teacher: "Teacher Portal",
+  "hr-manager": "HR Portal",
+  "registration-manager": "Registration Portal",
+  "class-manager": "Class Portal",
+  "finance-manager": "Finance Portal",
+  "welfare-officer": "Welfare Portal",
+  department_head: "Department Portal",
+  "staff-member": "Staff Portal",
+  parent: "Parent Portal",
+  student: "Student Portal",
+};
+
+// Fallback for a role created after this map was written:
+// "library-manager" → "Library Manager Portal".
+const prettyRolePortal = (role) =>
+  role
+    .split(/[-_]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ") + " Portal";
+
+function usePortalLabel() {
+  const { roles } = useAuth();
+  // Teachers hold the plain `staff-member` role — there is no `teacher` role
+  // to read. The only signal that separates them is /profile's `type`, which
+  // is "teacher" when the staff row has a Teacher record attached.
+  const [isTeacher, setIsTeacher] = useState(false);
+  const singleRole = roles.length === 1 ? roles[0] : null;
+
+  useEffect(() => {
+    // Only staff-members need the lookup. The flag is read behind the same
+    // `singleRole === "staff-member"` check below, so leaving it stale for
+    // any other role is harmless.
+    if (singleRole !== "staff-member") return;
+    let alive = true;
+    get("/profile")
+      .then((res) => {
+        if (alive) setIsTeacher(res.data?.data?.type === "teacher");
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [singleRole]);
+
+  if (roles.length === 0) return "User Portal";
+  if (roles.length > 1) return "Staff User Portal";
+  if (singleRole === "staff-member" && isTeacher) return "Teacher Portal";
+  return ROLE_PORTAL_LABELS[singleRole] || prettyRolePortal(singleRole);
+}
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission, isSuperAdmin, hasRole } = useAuth();
+  const portalLabel = usePortalLabel();
   const [openMenu, setOpenMenu] = useState([]);
   const [openSubMenu, setOpenSubMenu] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1700,7 +1761,7 @@ export default function Layout() {
             <div>
               <h1 className="text-white font-bold text-sm">Wifaq School</h1>
               <p className="text-teal-300 text-[10px] uppercase tracking-wider">
-                Admin Portal
+                {portalLabel}
               </p>
             </div>
           </div>
@@ -2248,6 +2309,101 @@ export default function Layout() {
       {/* Real-time chat drawer (WhatsApp-style). Global overlay — the user never
           leaves the current page. */}
       <ChatDrawer />
+
+      {/* First sign-in: the leadership team's welcome letter, once. Dismissing
+          it stamps welcome_letter_seen_at server-side so it never returns. */}
+      <FirstLoginWelcome />
+
+      {/* The other end of the lifecycle: on/after their last day, a departing
+          staff member sees their finalized experience letter once. */}
+      <ExitLetterOnLogin />
     </div>
+  );
+}
+
+/**
+ * Shows the experience letter on the first sign-in on or after the contract end
+ * date. The endpoint only ever returns a FINALIZED letter, so a draft HR is
+ * still writing can never surface here.
+ */
+function ExitLetterOnLogin() {
+  const { user } = useAuth();
+  const [state, setState] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    get("/profile/experience-letter", { cache: false })
+      .then((res) => {
+        const d = res.data?.data;
+        if (!alive || !d?.show) return;
+        const letters = {};
+        Object.entries(d.letters || {}).forEach(([code, v]) => {
+          letters[code] = v.html;
+        });
+        setState({ name: d.staff_name, lang: d.default_lang || "fa", letters });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!state) return null;
+
+  return (
+    <ExperienceLetterModal
+      selfMode
+      staffName={state.name}
+      defaultLang={state.lang}
+      initialLetters={state.letters}
+      onClose={() => setState(null)}
+    />
+  );
+}
+
+/**
+ * Opens the welcome letter the first time a staff member signs in.
+ *
+ * The check is a single call to /profile/welcome-letter, which answers
+ * `show: false` for everyone who has already dismissed it (and for every
+ * account that existed before the feature shipped), so the common case costs
+ * one cheap request per page load of the layout.
+ */
+function FirstLoginWelcome() {
+  const { user } = useAuth();
+  const [state, setState] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    get("/profile/welcome-letter", { cache: false })
+      .then((res) => {
+        const d = res.data?.data;
+        if (!alive || !d?.show) return;
+        // The check already carries all three letters — hand them straight to
+        // the modal instead of making it re-request the same thing.
+        const letters = {};
+        Object.entries(d.letters || {}).forEach(([code, v]) => {
+          letters[code] = v.html;
+        });
+        setState({ name: d.staff_name, lang: d.default_lang || "fa", letters });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!state) return null;
+
+  return (
+    <WelcomeLetterModal
+      selfMode
+      staffName={state.name}
+      defaultLang={state.lang}
+      initialLetters={state.letters}
+      onClose={() => setState(null)}
+    />
   );
 }

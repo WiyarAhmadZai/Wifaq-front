@@ -89,6 +89,26 @@ api.interceptors.response.use(
           response.fromCache = true;
           // Refresh recency so it isn't evicted while actively in use.
           setEntry(key, entry.etag, entry.data);
+        } else {
+          // 304 but the copy it refers to is gone — evicted by the LRU, dropped
+          // by a mutation, or the ETag came from the browser's own HTTP cache
+          // after ours was cleared. Passing the empty 304 body through would
+          // hand callers `undefined` and blow up the first property read, so
+          // fetch it again for real with the conditional header stripped.
+          // `cache: false` makes isCacheable() false on the way back through,
+          // so the retry can never re-enter this branch and loop.
+          const retry = { ...config, headers: { ...config.headers }, cache: false };
+          delete retry.headers['If-None-Match'];
+          delete retry.headers['if-none-match'];
+          delete retry.__cacheKey;
+          delete retry.__noEtagRetry;
+          if (config.__noEtagRetry) {
+            // Already retried once — a second 304 means the server is ignoring
+            // the missing header. Give up rather than spin.
+            return response;
+          }
+          retry.__noEtagRetry = true;
+          return api.request(retry);
         }
       } else if (response.status === 200) {
         const etag = response.headers?.etag || response.headers?.ETag || null;

@@ -44,11 +44,20 @@ export const deletePlan      = (id)          => del(`${BASE}/${id}`);
 
 // Workflow transitions.
 export const submitPlan      = (id, note)    => post(`${BASE}/${id}/submit`, { note });
-export const approvePlan     = (id, note)    => post(`${BASE}/${id}/approve`, { note });
+// `confirmLargeSeries` re-posts after the approver accepted the volume warning
+// a big series triggers (addendum A 10.1).
+export const approvePlan     = (id, note, confirmLargeSeries = false) =>
+  post(`${BASE}/${id}/approve`, { note, confirm_large_series: confirmLargeSeries });
 export const rejectPlan      = (id, note)    => post(`${BASE}/${id}/reject`, { note });
 export const completePlan    = (id)          => post(`${BASE}/${id}/complete`, {});
 export const archivePlan     = (id)          => post(`${BASE}/${id}/archive`, {});
 export const addDiscussion   = (id, body)    => post(`${BASE}/${id}/discussions`, { body });
+
+// Addendum A: clone a plan into a new year, preview a monthly rollout, and
+// amend one item of an auto-drafted monthly (local vs propagating).
+export const duplicatePlan   = (id, data)    => post(`${BASE}/${id}/duplicate`, data);
+export const rolloutPreview  = (id, month)   => get(`${BASE}/${id}/rollout-preview`, { params: { month } });
+export const amendPlanItem   = (itemId, d)   => put(`/planning/plan-items/${itemId}/amend`, d);
 
 // Check-ins (per key result).
 export const storeCheckIn    = (krId, data)  => post(`/planning/keyresults/${krId}/check-ins`, data);

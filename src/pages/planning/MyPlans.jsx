@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { listPlans, deletePlan, PLAN_TYPES, PLAN_STATES } from "../../api/planning";
+import { listPlans, deletePlan, duplicatePlan, PLAN_TYPES, PLAN_STATES } from "../../api/planning";
 import { peekCache } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { PageHeader, StatGrid, EmptyState, Spinner } from "../../components/hr/HrUI";
@@ -60,6 +60,56 @@ export default function MyPlans() {
     window.addEventListener("focus", onFocus);
     return () => { clearInterval(id); window.removeEventListener("focus", onFocus); };
   }, []);
+
+  /**
+   * "د پلان Duplicate کول د نوي کال لپاره" — copy a whole plan into a new year.
+   * Objectives, measures, items, repeat rules and their task templates all come
+   * across; progress and approvals do not. The copy lands as a fresh draft.
+   */
+  const handleDuplicate = async (e, plan) => {
+    e.stopPropagation();
+    const suggested = (Number(plan.period_year) || new Date().getFullYear()) + 1;
+
+    const { value, isConfirmed } = await Swal.fire({
+      title: "Duplicate for a new year",
+      html: `
+        <p style="font-size:13px;color:#4b5563;margin-bottom:14px">${plan.title}</p>
+        <label style="display:block;font-size:11px;font-weight:600;text-align:left;color:#374151">New year</label>
+        <input id="swal-dup-year" type="number" class="swal2-input" style="width:100%;margin:4px 0 12px" value="${suggested}">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#374151;text-align:left">
+          <input id="swal-dup-shift" type="checkbox" checked style="width:16px;height:16px">
+          Move all dates forward by the same number of years
+        </label>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Duplicate",
+      preConfirm: () => ({
+        period_year: Number(document.getElementById("swal-dup-year").value),
+        shift_dates: document.getElementById("swal-dup-shift").checked,
+      }),
+    });
+    if (!isConfirmed) return;
+
+    try {
+      const res = await duplicatePlan(plan.id, value);
+      const copy = res.data?.data;
+      await Swal.fire({
+        icon: "success",
+        title: "Duplicated",
+        text: res.data?.message || "The copy is a draft — review it before submitting.",
+      });
+      if (copy?.id) navigate(`/planning/plans/edit/${copy.id}`);
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Could not duplicate",
+        text: err?.response?.data?.message || "Please try again.",
+      });
+    }
+  };
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
@@ -180,6 +230,9 @@ export default function MyPlans() {
                       <button onClick={(e) => { e.stopPropagation(); navigate(`/planning/plans/show/${p.id}`); }} className="text-teal-600 hover:text-teal-800 text-xs font-semibold px-2">View</button>
                       {p.status === "draft" && (hasPermission("planning.update") || hasPermission("planning.manage")) && (
                         <button onClick={(e) => { e.stopPropagation(); navigate(`/planning/plans/edit/${p.id}`); }} className="text-blue-600 hover:text-blue-800 text-xs font-semibold px-2">Edit</button>
+                      )}
+                      {(hasPermission("planning.create") || hasPermission("planning.manage")) && (
+                        <button onClick={(e) => handleDuplicate(e, p)} className="text-purple-600 hover:text-purple-800 text-xs font-semibold px-2" title="Copy this plan into a new year">Duplicate</button>
                       )}
                       {(hasPermission("planning.delete") || hasPermission("planning.manage")) && (
                         <button onClick={(e) => handleDelete(e, p.id)} className="text-red-500 hover:text-red-700 text-xs font-semibold px-2">Delete</button>

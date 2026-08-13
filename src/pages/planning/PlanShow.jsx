@@ -62,13 +62,49 @@ export default function PlanShow() {
     finally { setBusy(false); }
   };
 
+  /** Show whatever the cascade actually produced. Annual plans produce nothing
+   *  yet — their months are drafted later — so they get their own wording. */
+  const announceApproval = (r) => {
+    const s = r.data?.cascade;
+    if (!s) {
+      Swal.fire("Approved", r.data?.message || "Plan approved.", "success");
+      return;
+    }
+    const series = s.routines
+      ? ` Armed ${s.routines} routine(s) — each occurrence is created a day before it is due, and you'll be notified.`
+      : "";
+    Swal.fire(
+      "Approved",
+      `Cascade complete — ${s.tasks || 0} task(s), ${s.events || 0} event(s), ${s.meetings || 0} meeting(s), ${s.purchase_requests || 0} purchase request(s), ${s.budget_requests || 0} budget request(s).${series}`,
+      "success"
+    );
+  };
+
   const doApprove = async () => {
-    const c = await Swal.fire({ title: "Approve & cascade?", html: "Creates real <b>Tasks, Events, Meetings</b> and draft <b>Purchase Requests</b> from the plan items. Cannot be undone.", icon: "question", showCancelButton: true, confirmButtonColor: "#0d9488", confirmButtonText: "Approve & cascade" });
-    if (!c.isConfirmed) return;
-    run(() => approvePlan(id, note), null, (r) => {
-      const s = r.data?.cascade || {};
-      Swal.fire("Approved", `Cascade complete — ${s.tasks || 0} task(s), ${s.events || 0} event(s), ${s.meetings || 0} meeting(s), ${s.purchase_requests || 0} purchase request(s), ${s.budget_requests || 0} budget request(s).`, "success");
+    const isAnnual = plan?.type === "annual";
+    const c = await Swal.fire({
+      title: isAnnual ? "Approve annual plan?" : "Approve & cascade?",
+      html: isAnnual
+        ? "The plan goes live as a schedule. <b>Nothing is created yet</b> — each month is drafted from it automatically a few days before the month starts, and you approve that."
+        : "Creates real <b>Tasks, Events, Meetings</b> and draft <b>Purchase Requests</b> from the plan items. Cannot be undone.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      confirmButtonText: isAnnual ? "Approve" : "Approve & cascade",
     });
+    if (!c.isConfirmed) return;
+
+    setBusy(true);
+    try {
+      const r = await approvePlan(id, note);
+      await load();
+      setNote("");
+      announceApproval(r);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Failed", "error");
+    } finally {
+      setBusy(false);
+    }
   };
   const doReject = () => { if (!note.trim()) return Swal.fire("Note required", "Please note what needs revising.", "warning"); run(() => rejectPlan(id, note), "Revision requested"); };
 

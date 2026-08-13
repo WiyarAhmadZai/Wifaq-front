@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { get, del, API_BASE_URL as _API, peekCache } from '../../api/axios';
 const STORAGE_URL = _API.replace(/\/api\/?$/, '');
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import WelcomeLetterModal from '../../components/WelcomeLetterModal';
+import ExperienceLetterModal from '../../components/ExperienceLetterModal';
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -220,6 +222,9 @@ export default function StaffShow() {
                 <Field label="Contract Type" value={data.contract_type?.replace('_', ' ') || CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || '—'} />
               </div>
             </Section>
+
+            {/* Lifecycle letters — welcome on day one, experience on exit */}
+            <LettersSection staffId={data.id} staffName={name} canEdit={canUpdate} />
 
             {/* Documents */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
@@ -532,6 +537,87 @@ function MiniStat({ label, value, tone = "text-gray-800" }) {
       <div className={`text-base font-bold ${tone}`}>{value}</div>
       <div className="text-[9px] text-gray-400 uppercase tracking-wide mt-0.5">{label}</div>
     </div>
+  );
+}
+
+/**
+ * Lifecycle letters on the staff record.
+ *
+ * The welcome letter is always present (it is rendered on demand from fixed
+ * text, so there is no blank state). Experience letters only appear once the
+ * person has actually left and one has been raised.
+ */
+function LettersSection({ staffId, staffName, canEdit }) {
+  const [letters, setLetters] = useState([]);
+  const [openWelcome, setOpenWelcome] = useState(false);
+  const [openLetter, setOpenLetter] = useState(null);
+
+  const load = useCallback(() => {
+    get(`/hr/staff/${staffId}/letters`, { cache: false })
+      .then((r) => setLetters(r.data?.data || []))
+      .catch(() => setLetters([]));
+  }, [staffId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const experience = letters.filter((l) => l.type === 'experience');
+
+  return (
+    <Section title="Letters" icon="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+      <div className="space-y-2.5">
+        <button onClick={() => setOpenWelcome(true)}
+          className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-teal-200 bg-teal-50 hover:shadow-md transition-all text-left">
+          <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800">Welcome Letter</p>
+            <p className="text-[10px] text-gray-500">Day one · English · دری · پښتو</p>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-700">Final</span>
+        </button>
+
+        {experience.map((l) => (
+          <button key={l.id} onClick={() => setOpenLetter(l)}
+            className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-purple-200 bg-purple-50 hover:shadow-md transition-all text-left">
+            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Experience Letter</p>
+              <p className="text-[10px] text-gray-500 truncate">
+                {l.start_date || '—'} → {l.end_date || '—'}
+                {l.tenure_label ? ` · ${l.tenure_label}` : ''}
+              </p>
+            </div>
+            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+              l.status === 'draft' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+            }`}>{l.status}</span>
+          </button>
+        ))}
+
+        {experience.length === 0 && (
+          <p className="text-[11px] text-gray-400 px-1">
+            The experience letter is raised automatically when this person&apos;s contract ends or their status is set to terminated.
+          </p>
+        )}
+      </div>
+
+      {openWelcome && (
+        <WelcomeLetterModal staffId={staffId} staffName={staffName} onClose={() => setOpenWelcome(false)} />
+      )}
+      {openLetter && (
+        <ExperienceLetterModal
+          letterId={openLetter.id}
+          staffName={staffName}
+          canEdit={canEdit}
+          onClose={() => setOpenLetter(null)}
+          onSaved={load}
+        />
+      )}
+    </Section>
   );
 }
 

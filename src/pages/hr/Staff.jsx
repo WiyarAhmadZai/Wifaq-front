@@ -4,6 +4,7 @@ import { get, del, put, API_BASE_URL, peekCache } from '../../api/axios';
 import { listDepartments } from '../../api/departments';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import WelcomeLetterModal from '../../components/WelcomeLetterModal';
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
@@ -28,6 +29,8 @@ export default function Staff() {
   const [transferData, setTransferData] = useState({ branch_id: '', department: '', role_title_en: '', contract_type: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
+  // Staff row whose welcome letter is open (null = modal closed).
+  const [letterStaff, setLetterStaff] = useState(null);
 
   useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); }, []);
   useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
@@ -311,6 +314,11 @@ export default function Staff() {
                               className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             </button>
+                            {/* Welcome letter — view / print / download in EN, Dari or Pashto. */}
+                            <button onClick={() => setLetterStaff({ id: item.id, name })}
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Welcome Letter">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                            </button>
                             {canUpdate && (
                               <button onClick={() => navigate(`/hr/staff/edit/${item.id}`)}
                                 className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
@@ -477,6 +485,14 @@ export default function Staff() {
             </div>
           </div>
         </div>
+      )}
+
+      {letterStaff && (
+        <WelcomeLetterModal
+          staffId={letterStaff.id}
+          staffName={letterStaff.name}
+          onClose={() => setLetterStaff(null)}
+        />
       )}
     </div>
   );

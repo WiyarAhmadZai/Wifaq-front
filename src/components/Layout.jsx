@@ -1496,6 +1496,7 @@ export default function Layout() {
     { label: "New Plan", path: "/planning/plans/create", permission: "planning.create" },
     { label: "Approval Review", path: "/planning/approvals", permission: "planning.approve" },
     { label: "Departments", path: "/planning/department", permission: "planning.manage" },
+    { label: "Calendar", path: "/planning/calendar", permission: "planning.view" },
     { label: "Templates & Audit", path: "/planning/templates", permission: "planning.manage" },
   ];
   const teacherMenus = [

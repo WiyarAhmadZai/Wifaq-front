@@ -140,6 +140,7 @@ const PlanCheckIn = lazy(() => import("./pages/planning/CheckIn"));
 const PlanReflect = lazy(() => import("./pages/planning/Reflect"));
 const PlanCascadeResult = lazy(() => import("./pages/planning/CascadeResult"));
 const PlanTemplates = lazy(() => import("./pages/planning/Templates"));
+const PlanningCalendar = lazy(() => import("./pages/planning/PlanningCalendar"));
 
 // HR Pages - Form
 const StaffForm = lazy(() => import("./pages/hr/StaffForm"));
@@ -398,6 +399,7 @@ function App() {
             <Route path="planning/plans/cascade/:id" element={<Suspense fallback={<PageLoader />}><PlanCascadeResult /></Suspense>} />
             <Route path="planning/approvals" element={<Suspense fallback={<PageLoader />}><PlanApprovals /></Suspense>} />
             <Route path="planning/department" element={<Suspense fallback={<PageLoader />}><DepartmentPlans /></Suspense>} />
+            <Route path="planning/calendar" element={<Suspense fallback={<PageLoader />}><PlanningCalendar /></Suspense>} />
             <Route path="planning/templates" element={<Suspense fallback={<PageLoader />}><PlanTemplates /></Suspense>} />
             <Route path="hr/departments" element={<Suspense fallback={<PageLoader />}><Departments /></Suspense>} />
             <Route path="hr/departments/create" element={<Suspense fallback={<PageLoader />}><DepartmentForm /></Suspense>} />

@@ -156,37 +156,37 @@ export default function PlanningCalendar() {
   };
 
   return (
-    <div className="px-4 py-5">
+    <div className="px-4 py-3">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Planning Calendar</h1>
-          <p className="text-sm text-gray-500 mt-1">View and manage your planned meetings and events</p>
+          <h1 className="text-lg font-bold text-gray-800">Planning Calendar</h1>
+          <p className="text-xs text-gray-500 mt-0.5">View and manage your planned meetings and events</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleToday}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
             Today
           </button>
           <button
             onClick={handlePreviousMonth}
-            className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <button
             onClick={handleNextMonth}
-            className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
-          <span className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold">
+          <span className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </span>
         </div>
@@ -194,15 +194,15 @@ export default function PlanningCalendar() {
 
       {/* Calendar Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin" />
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin" />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-gray-200">
             {dayNames.map(day => (
-              <div key={day} className="px-2 py-3 text-center text-xs font-semibold text-gray-500 bg-gray-50">
+              <div key={day} className="px-2 py-2 text-center text-[10px] font-semibold text-gray-500 bg-gray-50">
                 {day}
               </div>
             ))}
@@ -218,31 +218,31 @@ export default function PlanningCalendar() {
                 <div
                   key={index}
                   onClick={() => handleDayClick(date)}
-                  className={`min-h-[100px] border-b border-r border-gray-100 p-2 cursor-pointer transition-colors ${
+                  className={`min-h-[60px] border-b border-r border-gray-100 p-1.5 cursor-pointer transition-colors ${
                     !date ? 'bg-gray-50' : 'hover:bg-gray-50'
                   } ${isToday ? 'bg-teal-50/50' : ''}`}
                 >
                   {date && (
                     <>
-                      <div className={`text-sm font-medium mb-1 ${
+                      <div className={`text-xs font-medium mb-1 ${
                         isToday ? 'text-teal-600 font-bold' : 'text-gray-700'
                       }`}>
                         {date.getDate()}
                       </div>
-                      <div className="space-y-1">
-                        {dayEvents.slice(0, 3).map((event, idx) => (
+                      <div className="space-y-0.5">
+                        {dayEvents.slice(0, 2).map((event, idx) => (
                           <div
                             key={idx}
                             onClick={(e) => handleEventClick(event, e)}
-                            className={`px-2 py-1 rounded text-[10px] font-medium truncate border ${getEventColor(event.type)}`}
+                            className={`px-1.5 py-0.5 rounded text-[8px] font-medium truncate border ${getEventColor(event.type)}`}
                             title={event.title}
                           >
                             {event.title}
                           </div>
                         ))}
-                        {dayEvents.length > 3 && (
-                          <div className="text-[10px] text-gray-500 font-medium">
-                            +{dayEvents.length - 3} more
+                        {dayEvents.length > 2 && (
+                          <div className="text-[8px] text-gray-500 font-medium">
+                            +{dayEvents.length - 2} more
                           </div>
                         )}
                       </div>

@@ -1512,6 +1512,21 @@ export default function Layout() {
     { label: "Record 4D Rating", path: "/education/4d-self-rating", permission: "student-profiles.update" },
     { label: "Student Cards", path: "/education/cards", permission: "student-cards.view" },
     { label: "Card Rankings", path: "/education/card-rankings", permission: "student-card-rankings.view" },
+    // Weekly Recognition — the weekly, topic-scoped version of the recognition
+    // already done monthly. Same four areas, same student history.
+    { label: "Weekly Topic", path: "/education/weekly-recognition", permission: "weekly-recognition.view" },
+    { label: "Nominate", path: "/education/weekly-recognition/nominate", permission: "weekly-recognition.create" },
+    { label: "Review & Select", path: "/education/weekly-recognition/review", permission: "weekly-recognition.select" },
+    { label: "Weekly Winners", path: "/education/weekly-recognition/history", permission: "weekly-recognition.view" },
+  ];
+
+  // Morning Assembly Program — its own light module. It references the Drive
+  // Assembly Program Kit, the Task Board and Weekly Recognition rather than
+  // re-creating any of them.
+  const assemblyMenus = [
+    { label: "Assembly Calendar", path: "/assembly/calendar", permission: "assemblies.view" },
+    { label: "Plan Assembly", path: "/assembly/plan", permission: "assemblies.create" },
+    { label: "Archive / Reuse", path: "/assembly/templates", permission: "assemblies.view" },
   ];
   // Lesson Planning — its own module (the 4D Lesson Plan), separate from the
   // Student Development / observation engine.
@@ -1604,6 +1619,7 @@ export default function Layout() {
     { key: "planning", label: "Planning", items: planningMenus },
     { key: "teacher-management", label: "Teachers", items: teacherMenus },
     { key: "education", label: "Education", items: educationMenus },
+    { key: "morning-assembly", label: "Morning Assembly", items: assemblyMenus },
     { key: "lesson-planning", label: "Lesson Plans", items: lessonPlanMenus },
     { key: "gradebook", label: "Gradebook", items: gradebookMenus },
     { key: "class-management", label: "Class Management", items: classMgmtMenus },
@@ -1973,7 +1989,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -1985,6 +2001,19 @@ export default function Layout() {
               onClick={() => toggleMenu("education")}
             >
               {visible(educationMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(assemblyMenus) && (
+            <ParentMenu
+              icon={Icons.Dashboard}
+              label="Morning Assembly"
+              isOpen={openMenu.includes("morning-assembly")}
+              onClick={() => toggleMenu("morning-assembly")}
+            >
+              {visible(assemblyMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

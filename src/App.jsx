@@ -90,6 +90,17 @@ const AnnualReview = lazy(() => import("./pages/education/AnnualReview"));
 const QuickFourD = lazy(() => import("./pages/education/QuickFourD"));
 const StudentCards = lazy(() => import("./pages/education/StudentCards"));
 const CardRankings = lazy(() => import("./pages/education/CardRankings"));
+// Weekly Recognition — the weekly, topic-scoped screens inside Student Development.
+const WeeklyTopic = lazy(() => import("./pages/education/WeeklyTopic"));
+const WeeklyNominate = lazy(() => import("./pages/education/WeeklyNominate"));
+const WeeklyReview = lazy(() => import("./pages/education/WeeklyReview"));
+const WeeklyHistory = lazy(() => import("./pages/education/WeeklyHistory"));
+// Morning Assembly Program — its own light module.
+const AssemblyCalendar = lazy(() => import("./pages/assembly/AssemblyCalendar"));
+const AssemblyPlan = lazy(() => import("./pages/assembly/AssemblyPlan"));
+const AssemblyAgenda = lazy(() => import("./pages/assembly/AssemblyAgenda"));
+const AssemblyRunSheet = lazy(() => import("./pages/assembly/AssemblyRunSheet"));
+const AssemblyArchive = lazy(() => import("./pages/assembly/AssemblyArchive"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -485,6 +496,20 @@ function App() {
             <Route path="education/4d-self-rating" element={<Suspense fallback={<PageLoader />}><QuickFourD /></Suspense>} />
             <Route path="education/cards" element={<Suspense fallback={<PageLoader />}><StudentCards /></Suspense>} />
             <Route path="education/card-rankings" element={<Suspense fallback={<PageLoader />}><CardRankings /></Suspense>} />
+
+            {/* Weekly Recognition — Best Performer of the Week */}
+            <Route path="education/weekly-recognition" element={<Suspense fallback={<PageLoader />}><WeeklyTopic /></Suspense>} />
+            <Route path="education/weekly-recognition/nominate" element={<Suspense fallback={<PageLoader />}><WeeklyNominate /></Suspense>} />
+            <Route path="education/weekly-recognition/review" element={<Suspense fallback={<PageLoader />}><WeeklyReview /></Suspense>} />
+            <Route path="education/weekly-recognition/history" element={<Suspense fallback={<PageLoader />}><WeeklyHistory /></Suspense>} />
+
+            {/* Morning Assembly Program */}
+            <Route path="assembly/calendar" element={<Suspense fallback={<PageLoader />}><AssemblyCalendar /></Suspense>} />
+            <Route path="assembly/templates" element={<Suspense fallback={<PageLoader />}><AssemblyArchive /></Suspense>} />
+            <Route path="assembly/plan" element={<Suspense fallback={<PageLoader />}><AssemblyPlan /></Suspense>} />
+            <Route path="assembly/plan/:id" element={<Suspense fallback={<PageLoader />}><AssemblyPlan /></Suspense>} />
+            <Route path="assembly/:id/agenda" element={<Suspense fallback={<PageLoader />}><AssemblyAgenda /></Suspense>} />
+            <Route path="assembly/:id/run-sheet" element={<Suspense fallback={<PageLoader />}><AssemblyRunSheet /></Suspense>} />
             <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
             <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
             <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />

@@ -31,6 +31,10 @@ const RULES = [
   // Planning — Annual / Monthly / Weekly plans (top-level "Planning" menu).
   { prefix: "/planning", permission: "planning.view" },
 
+  // Morning Assembly Program — its own light module (calendar → plan → agenda
+  // → run sheet → archive).
+  { prefix: "/assembly", permission: "assemblies.view" },
+
   // Weekly parent questionnaires (admin). One umbrella rule: the action is
   // derived from the tail — /create → create, /edit/:id → update,
   // /:id and /:id/responses → view — with questionnaires.manage as override.
@@ -61,6 +65,9 @@ const RULES = [
   // umbrella /education rule (longest-prefix sort handles it either way).
   { prefix: "/education/card-rankings", permission: "student-card-rankings.view" },
   { prefix: "/education/cards", permission: "student-cards.view" },
+  // Weekly Recognition — Best Performer of the Week. Lives inside Student
+  // Development; every teacher who may nominate also holds .view.
+  { prefix: "/education/weekly-recognition", permission: "weekly-recognition.view" },
   // Lesson planning — one umbrella: list/review/analytics/templates need
   // lesson-plans.view (reviewers/analysts also hold it); /create → .create,
   // /edit → .update via action-swap. Backend additionally enforces

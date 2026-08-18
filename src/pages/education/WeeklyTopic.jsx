@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
-import { DIMS, DimPill, Spinner, TEAL } from "./weeklyUi";
+import { DIMS, DimPill, Spinner, describeError, TEAL } from "./weeklyUi";
 
 /** Monday-based start of the week containing `d`, as YYYY-MM-DD. */
 const weekBounds = (d = new Date()) => {
@@ -45,8 +45,8 @@ export default function WeeklyTopic() {
     try {
       const res = await get("/weekly-recognition");
       apply(res.data);
-    } catch {
-      Swal.fire("Error", "Failed to load weekly recognition", "error");
+    } catch (err) {
+      Swal.fire("Error", describeError(err, "Failed to load weekly recognition."), "error");
     } finally { setLoading(false); }
   }, [apply]);
 

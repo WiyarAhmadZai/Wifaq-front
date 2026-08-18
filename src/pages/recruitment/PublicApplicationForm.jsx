@@ -28,6 +28,26 @@ const L = {
     step6: "Education", step6d: "Your educational background",
     step7: "Experience", step7d: "Work history & responsibilities",
     step8: "Documents", step8d: "Upload your CV and credentials",
+    step9: "Talents", step9d: "Your key skills and languages",
+    step10: "About Wifaq", step10d: "How you know us",
+    step11: "Values", step11d: "How you think and work",
+    key_skills: "Your key talents and skills", ph_key_skills: "Practical, artistic, drawing, storytelling, communication, management, IT, languages, or anything else useful in education",
+    how_heard: "How did you hear about Wifaq?", hh_social: "Social media", hh_friend: "Friend or acquaintance",
+    hh_ad: "Job advertisement", hh_site: "Wifaq website", hh_other: "Other", select_one: "Select one...",
+    about_wifaq: "What do you know about the Wifaq Education Network?", ph_about_wifaq: "Anything you know about Wifaq, its activities or its approach",
+    known_person: "Do you know anyone at Wifaq?", ph_known_person: "If yes, give the name and the relationship. If not, write \u201cNo\u201d.",
+    scenario_q: "A student is persistently disruptive in class and shows little interest in learning. What do you do?",
+    sc_a: "Take firm disciplinary action to keep order in the class",
+    sc_b: "Try to understand the root cause of the student\u2019s behaviour",
+    sc_c: "Involve the parents or guardians to address the issue",
+    sc_d: "Change my teaching approach to connect better with the student",
+    responsibility_def: "How do you define responsibility?", ph_responsibility: "2\u20133 sentences",
+    beyond_duty: "Describe a time you went beyond your basic duty", ph_beyond_duty: "About 50 words",
+    optional_block: "Life principles & self-discipline",
+    optional_hint: "This part is optional, but answering helps us know you better.",
+    inspiration: "Who or what inspires you most in life?", ph_inspiration: "A person, a book, an event \u2014 anything",
+    life_principles: "What are your core principles and values?", ph_life_principles: "The beliefs and principles that guide your daily life",
+    time_management: "How do you manage your time and daily work?", ph_time_management: "Self-discipline, daily habits, and how you manage your time",
     jd_overview: "Job Overview", jd_description: "Job Description", jd_requirements: "Requirements & Qualifications",
     jd_department: "Department", jd_employment: "Employment Type", jd_location: "Location",
     jd_positions: "Open Positions", jd_experience: "Experience Required", jd_deadline: "Application Deadline",
@@ -92,6 +112,26 @@ const L = {
     step6: "زده‌کړې", step6d: "ستاسو تحصیلي شالید",
     step7: "تجربه", step7d: "د کار سابقه او مسؤلیتونه",
     step8: "اسناد", step8d: "خپل سي‌وي او اسناد پورته کړئ",
+    step9: "وړتیاوې", step9d: "ستاسو کلیدي مهارتونه او ژبې",
+    step10: "د وفاق په اړه", step10d: "تاسو څنګه موږ پیژنئ",
+    step11: "ارزښتونه", step11d: "تاسو څنګه فکر او کار کوئ",
+    key_skills: "خپل کلیدي استعدادونه او مهارتونه ولیکئ", ph_key_skills: "عملي، هنري، رسامي، کیسه ویل، اړیکې، مدیریت، آی‌ټي، ژبې، یا هر څه چې په تعلیم او تربیه کې ګټور وي",
+    how_heard: "د وفاق په اړه مو څنګه خبر شو؟", hh_social: "ټولنیزې رسنۍ", hh_friend: "ملګری یا آشنا",
+    hh_ad: "د دندې اعلان", hh_site: "د وفاق ویب‌پاڼه", hh_other: "بل", select_one: "یو یې وټاکئ...",
+    about_wifaq: "د وفاق تعلیمي شبکې په اړه څه پوهیږئ؟", ph_about_wifaq: "هر څه چې د وفاق، فعالیتونو یا کړنلارې په اړه پوهیږئ",
+    known_person: "آیا په وفاق کې څوک پیژنئ؟", ph_known_person: "که هو، نوم او اړیکه ولیکئ. که نه، «نه» ولیکئ.",
+    scenario_q: "یو زده‌کوونکی په دوامداره توګه په ټولګي کې ګډوډي کوي او زده‌کړې ته لږ لیوالتیا ښیي. تاسو څه کوئ؟",
+    sc_a: "د ټولګي د نظم ساتلو لپاره کلک انضباطي اقدامات",
+    sc_b: "د زده‌کوونکي د چلند د اصلي لامل د پوهیدو هڅه",
+    sc_c: "د مسئلې د حل لپاره والدینو یا سرپرستانو ښکېلول",
+    sc_d: "د زده‌کوونکي سره د ښې اړیکې لپاره د تدریس د طریقې بدلول",
+    responsibility_def: "مسؤلیت‌پذیري څنګه تعریفوئ؟", ph_responsibility: "۲-۳ جملې",
+    beyond_duty: "یوه بېلګه ولیکئ چې له اصلي دندې هاخوا مو کار کړی وي", ph_beyond_duty: "شاوخوا ۵۰ کلمې",
+    optional_block: "د ژوند اصول او شخصي انضباط",
+    optional_hint: "دا برخه اختیاري ده، خو ځواب ورکول یې موږ سره مرسته کوي چې تاسو ښه وپیژنو.",
+    inspiration: "څوک یا څه شی تاسو ته په ژوند کې ډېر الهام درکوي؟", ph_inspiration: "یو کس، کتاب، پېښه، یا بل هر څه",
+    life_principles: "ستاسو د ژوند بنسټیز اصول او ارزښتونه څه دي؟", ph_life_principles: "هغه باورونه او اصول چې ستاسو ورځني ژوند لارښوونه کوي",
+    time_management: "خپل وخت او ورځني کارونه څنګه مدیریت کوئ؟", ph_time_management: "شخصي انضباط، ورځني عادتونه، او د وخت مدیریت طریقې",
     jd_overview: "د بست لنډیز", jd_description: "د بست تشریح", jd_requirements: "شرایط او وړتیاوې",
     jd_department: "څانګه", jd_employment: "د دندې ډول", jd_location: "ځای",
     jd_positions: "خلاص بستونه", jd_experience: "اړینه تجربه", jd_deadline: "د غوښتنلیک وروستۍ نېټه",
@@ -156,6 +196,26 @@ const L = {
     step6: "تحصیلات", step6d: "پیشینه تحصیلی شما",
     step7: "تجربه", step7d: "سابقه کاری و مسئولیت‌ها",
     step8: "اسناد", step8d: "بارگذاری رزومه و مدارک",
+    step9: "استعدادها", step9d: "مهارت‌های کلیدی و زبان‌های شما",
+    step10: "آشنایی با وفاق", step10d: "چگونه ما را می‌شناسید",
+    step11: "ارزش‌ها", step11d: "چگونه فکر و کار می‌کنید",
+    key_skills: "استعدادها و مهارت‌های کلیدی خود را بنویسید", ph_key_skills: "مهارت‌های عملی، هنری، رسامی، قصه‌گویی، ارتباطات، مدیریت، آی‌تی، زبان‌ها، یا هر چیز دیگری که در بخش تعلیم و تربیه مفید باشد",
+    how_heard: "از وفاق چگونه خبر شدید؟", hh_social: "رسانه‌های اجتماعی", hh_friend: "دوست یا آشنا",
+    hh_ad: "اعلان وظیفه", hh_site: "ویبسایت وفاق", hh_other: "دیگر", select_one: "یکی را انتخاب کنید...",
+    about_wifaq: "در مورد شبکه تعلیمی وفاق چه می‌دانید؟", ph_about_wifaq: "هر چیزی که در مورد وفاق، فعالیت‌ها، یا رویکرد آن می‌دانید بنویسید",
+    known_person: "آیا کسی را در وفاق می‌شناسید؟", ph_known_person: "اگر بلی، نام و نوع رابطه را بنویسید. اگر نه، «نخیر» بنویسید",
+    scenario_q: "یک شاگرد به طور مداوم در صنف اخلال ایجاد می‌کند و علاقه کمی به یادگیری نشان می‌دهد. شما چه می‌کنید؟",
+    sc_a: "اقدامات انضباطی سختگیرانه برای حفظ نظم صنف",
+    sc_b: "تلاش برای درک علت اصلی رفتار شاگرد",
+    sc_c: "دخیل ساختن والدین یا سرپرستان برای رسیدگی به مسئله",
+    sc_d: "تغییر روش تدریس برای ارتباط بهتر با شاگرد",
+    responsibility_def: "مسؤلیت‌پذیری را چگونه تعریف می‌کنید؟", ph_responsibility: "۲-۳ جمله",
+    beyond_duty: "یک نمونه از وقتی که فراتر از وظیفه اساسی عمل کردید بنویسید", ph_beyond_duty: "حدود ۵۰ کلمه",
+    optional_block: "اصول زندگی و انضباط شخصی",
+    optional_hint: "این بخش اختیاری است، اما پاسخ به آن به ما کمک می‌کند شما را بهتر بشناسیم.",
+    inspiration: "چه کسی یا چه چیزی بیشترین الهام را در زندگی به شما می‌دهد؟", ph_inspiration: "می‌تواند شخص، کتاب، رویداد، یا هر چیز دیگری باشد",
+    life_principles: "اصول و ارزش‌های اساسی زندگی شما چیست؟", ph_life_principles: "باورها و اصولی که زندگی روزمره شما را هدایت می‌کنند",
+    time_management: "وقت و کارهای روزانه خود را چگونه مدیریت می‌کنید؟", ph_time_management: "در مورد انضباط شخصی، عادت‌های روزانه، و روش‌های مدیریت زمان خود بنویسید",
     jd_overview: "خلاصه بست", jd_description: "شرح وظایف بست", jd_requirements: "شرایط و شایستگی‌ها",
     jd_department: "بخش", jd_employment: "نوع استخدام", jd_location: "موقعیت",
     jd_positions: "بست‌های باز", jd_experience: "تجربه مورد نیاز", jd_deadline: "آخرین مهلت درخواست",
@@ -243,8 +303,26 @@ const SECTIONS = [
   { key: "motivation", icon: STEP_ICONS[4], labelKey: "motivation_title", descKey: "step5d", shortKey: "step5" },
   { key: "education",  icon: STEP_ICONS[5], labelKey: "step6",         descKey: "step6d" },
   { key: "work",       icon: STEP_ICONS[6], labelKey: "step7",         descKey: "step7d" },
+  // Sections 7-9 of the careers questionnaire. They sit after work history and
+  // before documents, which is where the applicant is already writing prose.
+  { key: "talents",    icon: STEP_ICONS[4], labelKey: "step9",         descKey: "step9d" },
+  { key: "wifaq",      icon: STEP_ICONS[0], labelKey: "step10",        descKey: "step10d" },
+  { key: "values",     icon: STEP_ICONS[2], labelKey: "step11",        descKey: "step11d" },
   { key: "documents",  icon: STEP_ICONS[7], labelKey: "step8",         descKey: "step8d" },
   { key: "social",     icon: STEP_ICONS[3], labelKey: "step4",         descKey: "step4d" },
+];
+
+/* The classroom-scenario choices, kept beside the section that renders them. */
+const SCENARIO_OPTS = [
+  { value: "a", key: "sc_a" }, { value: "b", key: "sc_b" },
+  { value: "c", key: "sc_c" }, { value: "d", key: "sc_d" },
+];
+
+const HOW_HEARD_OPTS = [
+  { value: "", key: "select_one" },
+  { value: "social_media", key: "hh_social" }, { value: "friend", key: "hh_friend" },
+  { value: "job_ad", key: "hh_ad" }, { value: "website", key: "hh_site" },
+  { value: "other", key: "hh_other" },
 ];
 
 /* 1-based step number for a section key. */
@@ -309,6 +387,10 @@ export default function PublicApplicationForm() {
   const [referenceId, setReferenceId] = useState(null);
   const [jobPostings, setJobPostings] = useState([]);
   const [errors, setErrors] = useState({});
+  /* Which field to reveal once the erroring section has mounted. Setting the
+   * step and focusing in the same tick cannot work — the input does not exist
+   * until the new section renders — so the focus is deferred to an effect. */
+  const [focusField, setFocusField] = useState(null);
 
   const [formData, setFormData] = useState({
     job_posting_id: "", full_name: "", contact_number: "", email: "", date_of_birth: "",
@@ -316,6 +398,9 @@ export default function PublicApplicationForm() {
     current_address: "", place_of_origin: "", introduction: "", facebook: "", instagram: "",
     twitter_x: "", youtube: "", motivation: "", education_level: "", field_of_study: "",
     institution_name: "", total_experience_years: 0, unique_skill: [""], notes: "",
+    key_skills: "", how_heard: "", about_wifaq: "", known_person: "",
+    scenario_answer: "", responsibility_definition: "", beyond_duty_example: "",
+    inspiration: "", life_principles: "", time_management: "",
   });
   const [workExperiences, setWorkExperiences] = useState([{ company_name: "", job_title: "", duration: "", responsibilities: "" }]);
   const [metRequirements, setMetRequirements] = useState([]);
@@ -352,7 +437,42 @@ export default function PublicApplicationForm() {
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     setFormData((prev) => ({ ...prev, [name]: type === "number" ? (value === "" ? 0 : parseInt(value)) : value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
+    clearError(name);
+  };
+
+  /* Drop a field's error the moment the applicant starts fixing it, so the red
+   * state never lingers on an input they have already corrected. Also clears
+   * the dotted server keys (work_experiences.0.company_name) that share the
+   * same base name. */
+  const clearError = (name) => {
+    setErrors((prev) => {
+      if (!prev || !Object.keys(prev).length) return prev;
+      const next = { ...prev };
+      let touched = false;
+      Object.keys(next).forEach((k) => {
+        if (k === name || k.split(".")[0] === name) { delete next[k]; touched = true; }
+      });
+      return touched ? next : prev;
+    });
+  };
+
+  /* Laravel reports nested failures under dotted keys. Mirroring each one onto
+   * its base name lets the block that renders the field light up red, which is
+   * what was missing: the applicant was sent to the right section but nothing
+   * on screen was marked. */
+  const expandServerErrors = (errs) => {
+    const out = { ...errs };
+    Object.keys(errs).forEach((k) => {
+      const base = k.split(".")[0];
+      if (base !== k && !out[base]) out[base] = errs[k];
+    });
+    return out;
+  };
+
+  /* Bring the first offending input into view and focus it. */
+  const revealError = (errs) => {
+    const first = Object.keys(errs || {})[0];
+    if (first) setFocusField(first);
   };
   const handleSkillChange = (index, value) => { const n = [...formData.unique_skill]; n[index] = value; setFormData((p) => ({ ...p, unique_skill: n })); };
   const addSkill = () => setFormData((p) => ({ ...p, unique_skill: [...p.unique_skill, ""] }));
@@ -360,7 +480,10 @@ export default function PublicApplicationForm() {
     if (formData.unique_skill.length === 1) { setFormData((p) => ({ ...p, unique_skill: [""] })); return; }
     setFormData((p) => ({ ...p, unique_skill: p.unique_skill.filter((_, i) => i !== index) }));
   };
-  const handleWorkExperienceChange = (index, field, value) => { const n = [...workExperiences]; n[index][field] = value; setWorkExperiences(n); };
+  const handleWorkExperienceChange = (index, field, value) => {
+    const n = [...workExperiences]; n[index][field] = value; setWorkExperiences(n);
+    clearError("work_experiences");
+  };
   const addWorkExperience = () => setWorkExperiences((p) => [...p, { company_name: "", job_title: "", duration: "", responsibilities: "" }]);
   const removeWorkExperience = (index) => {
     if (workExperiences.length === 1) { setWorkExperiences([{ company_name: "", job_title: "", duration: "", responsibilities: "" }]); return; }
@@ -395,6 +518,7 @@ export default function PublicApplicationForm() {
       if (!formData.date_of_birth) e.date_of_birth = t("e_dob");
       if (!formData.current_address) e.current_address = t("e_address");
       if (!formData.place_of_origin) e.place_of_origin = t("e_origin");
+      if (!formData.native_language?.trim()) e.native_language = t("e_required", { x: t("native_language") });
     }
     if (k === "motivation") {
       if (!formData.introduction) e.introduction = t("e_intro");
@@ -410,20 +534,58 @@ export default function PublicApplicationForm() {
     if (k === "work" && Number(formData.total_experience_years) > 0 && !firstExperienceComplete()) {
       e.work_experiences = t("e_required", { x: t("experience_n", { n: 1 }) });
     }
+    if (k === "talents") {
+      if (!formData.key_skills?.trim()) e.key_skills = t("e_required", { x: t("key_skills") });
+    }
+    if (k === "wifaq") {
+      if (!formData.how_heard) e.how_heard = t("e_required", { x: t("how_heard") });
+      if (!formData.about_wifaq?.trim()) e.about_wifaq = t("e_required", { x: t("about_wifaq") });
+      if (!formData.known_person?.trim()) e.known_person = t("e_required", { x: t("known_person") });
+    }
+    if (k === "values") {
+      if (!formData.scenario_answer) e.scenario_answer = t("e_required", { x: t("scenario_q") });
+      if (!formData.responsibility_definition?.trim()) e.responsibility_definition = t("e_required", { x: t("responsibility_def") });
+      if (!formData.beyond_duty_example?.trim()) e.beyond_duty_example = t("e_required", { x: t("beyond_duty") });
+    }
     if (k === "documents") DOC_TYPES.forEach((d) => { if (d.required && !documents[d.key]) e[d.key] = t("e_required", { x: t(d.labelKey) }); });
     setErrors(e);
+    // Failing in place is no better than failing silently — show them which one.
+    if (Object.keys(e).length) revealError(e);
     return Object.keys(e).length === 0;
   };
 
   const canNext = () => {
     const k = cur.key;
     if (k === "role" || k === "job") return !!formData.job_posting_id;
-    if (k === "personal") return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin;
+    if (k === "personal") return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin && formData.native_language?.trim();
     if (k === "motivation") return !!formData.introduction && !!formData.motivation;
     if (k === "education") return formData.education_level && formData.field_of_study && formData.institution_name;
     if (k === "work") return Number(formData.total_experience_years) > 0 ? firstExperienceComplete() : true;
+    if (k === "talents") return !!formData.key_skills?.trim();
+    if (k === "wifaq") return !!formData.how_heard && !!formData.about_wifaq?.trim() && !!formData.known_person?.trim();
+    if (k === "values") return !!formData.scenario_answer && !!formData.responsibility_definition?.trim() && !!formData.beyond_duty_example?.trim();
     return true;
   };
+  /* Runs after the erroring section is on screen. Scrolls the field to the
+   * middle of the viewport and focuses it; `preventScroll` stops the browser
+   * from fighting the smooth scroll we just started. */
+  useEffect(() => {
+    if (!focusField) return;
+    const id = requestAnimationFrame(() => {
+      const base = focusField.split(".")[0];
+      const el =
+        document.querySelector(`[name="${CSS.escape(focusField)}"]`) ||
+        document.querySelector(`[name="${CSS.escape(base)}"]`) ||
+        document.querySelector(`[data-field="${CSS.escape(base)}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        window.setTimeout(() => { try { el.focus({ preventScroll: true }); } catch { /* not focusable */ } }, 320);
+      }
+      setFocusField(null);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [focusField, step]);
+
   const handleNext = () => { if (validateStep()) { setStep((s) => Math.min(s + 1, STEPS.length)); window.scrollTo({ top: 0, behavior: "smooth" }); } };
   /* Jump back from the progress bar. Backwards only — a later step has not been
    * validated yet, so skipping ahead would bypass the required fields. */
@@ -459,7 +621,8 @@ export default function PublicApplicationForm() {
     } catch (error) {
       const status = error.response?.status;
       if (status === 422 && error.response?.data?.errors) {
-        const errs = error.response.data.errors; setErrors(errs);
+        const errs = expandServerErrors(error.response.data.errors);
+        setErrors(errs);
         // Field → section key, so a 422 lands the applicant on the section that
         // actually holds the offending input regardless of the display order.
         const fieldSection = {
@@ -471,10 +634,20 @@ export default function PublicApplicationForm() {
           institution_name: "education", total_experience_years: "work",
           work_experiences: "work", unique_skill: "motivation",
           facebook: "social", instagram: "social", twitter_x: "social", youtube: "social", notes: "social",
+          key_skills: "talents", native_language: "personal",
+          how_heard: "wifaq", about_wifaq: "wifaq", known_person: "wifaq",
+          scenario_answer: "values", responsibility_definition: "values",
+          beyond_duty_example: "values", inspiration: "values",
+          life_principles: "values", time_management: "values",
+          cv_resume: "documents", educational_document: "documents",
+          identity_document: "documents", work_samples: "documents",
         };
         const firstField = Object.keys(errs)[0] || "";
         const section = fieldSection[firstField.split(".")[0]];
         if (section) setStep(stepOf(section));
+        // Mark AND show it — jumping to the section alone left the applicant
+        // hunting for which input was wrong.
+        revealError(errs);
       } else { Swal.fire(t("submit_failed"), error.response?.data?.message || t("went_wrong"), "error"); }
     } finally { setSaving(false); }
   };
@@ -640,9 +813,10 @@ export default function PublicApplicationForm() {
                     <option value="female">{t("female")}</option>
                   </select>
                 </div>
-                <div><Label>{t("native_language")}</Label>
+                <div><Label required>{t("native_language")}</Label>
                   <input type="text" name="native_language" value={formData.native_language} onChange={handleChange}
-                    placeholder={t("ph_language")} className={inp} />
+                    placeholder={t("ph_language")} className={errors.native_language ? inpError : inp} />
+                  {errors.native_language && <p className="text-red-500 text-xs mt-1">{errors.native_language}</p>}
                 </div>
                 <div className="sm:col-span-2"><Label required>{t("current_address")}</Label><input type="text" name="current_address" value={formData.current_address} onChange={handleChange} placeholder={t("ph_address")} className={errors.current_address ? inpError : inp} />{errors.current_address && <p className="text-red-500 text-xs mt-1">{errors.current_address}</p>}</div>
                 <div className="sm:col-span-2"><Label required>{t("place_of_origin")}</Label><input type="text" name="place_of_origin" value={formData.place_of_origin} onChange={handleChange} placeholder={t("ph_origin")} className={errors.place_of_origin ? inpError : inp} />{errors.place_of_origin && <p className="text-red-500 text-xs mt-1">{errors.place_of_origin}</p>}</div>
@@ -767,6 +941,107 @@ export default function PublicApplicationForm() {
             </StepCard>
           )}
 
+          {/* ── Section 7 · talents & key skills ─────────────────────── */}
+          {cur.key === "talents" && (
+            <div className="space-y-5">
+              <div>
+                <Label required>{t("key_skills")}</Label>
+                <textarea name="key_skills" value={formData.key_skills} onChange={handleChange} rows={5}
+                  placeholder={t("ph_key_skills")} className={errors.key_skills ? inpError : inp} />
+                {errors.key_skills && <p className="text-red-500 text-xs mt-1">{errors.key_skills}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* ── Section 8 · familiarity with Wifaq ───────────────────────── */}
+          {cur.key === "wifaq" && (
+            <div className="space-y-5">
+              <div>
+                <Label required>{t("how_heard")}</Label>
+                <select name="how_heard" value={formData.how_heard} onChange={handleChange}
+                  className={errors.how_heard ? inpError : inp}>
+                  {HOW_HEARD_OPTS.map((o) => <option key={o.key} value={o.value}>{t(o.key)}</option>)}
+                </select>
+                {errors.how_heard && <p className="text-red-500 text-xs mt-1">{errors.how_heard}</p>}
+              </div>
+              <div>
+                <Label required>{t("about_wifaq")}</Label>
+                <textarea name="about_wifaq" value={formData.about_wifaq} onChange={handleChange} rows={4}
+                  placeholder={t("ph_about_wifaq")} className={errors.about_wifaq ? inpError : inp} />
+                {errors.about_wifaq && <p className="text-red-500 text-xs mt-1">{errors.about_wifaq}</p>}
+              </div>
+              <div>
+                <Label required>{t("known_person")}</Label>
+                <textarea name="known_person" value={formData.known_person} onChange={handleChange} rows={2}
+                  placeholder={t("ph_known_person")} className={errors.known_person ? inpError : inp} />
+                {errors.known_person && <p className="text-red-500 text-xs mt-1">{errors.known_person}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* ── Section 9 · values & personality, plus the optional block ── */}
+          {cur.key === "values" && (
+            <div className="space-y-5">
+              <div data-field="scenario_answer">
+                <Label required>{t("scenario_q")}</Label>
+                <div className={`space-y-2 mt-1 rounded-xl ${errors.scenario_answer ? "border border-red-400 bg-red-50 p-3" : ""}`}>
+                  {SCENARIO_OPTS.map((o) => (
+                    <label key={o.value}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        formData.scenario_answer === o.value
+                          ? "border-teal-500 bg-teal-50"
+                          : "border-gray-200 bg-white hover:border-teal-300"}`}>
+                      <input type="radio" name="scenario_answer" value={o.value}
+                        checked={formData.scenario_answer === o.value} onChange={handleChange}
+                        className="mt-0.5 accent-teal-600 shrink-0" />
+                      <span className="text-sm text-gray-700">{t(o.key)}</span>
+                    </label>
+                  ))}
+                </div>
+                {errors.scenario_answer && <p className="text-red-500 text-xs mt-1">{errors.scenario_answer}</p>}
+              </div>
+
+              <div>
+                <Label required>{t("responsibility_def")}</Label>
+                <textarea name="responsibility_definition" value={formData.responsibility_definition}
+                  onChange={handleChange} rows={3} placeholder={t("ph_responsibility")}
+                  className={errors.responsibility_definition ? inpError : inp} />
+                {errors.responsibility_definition && <p className="text-red-500 text-xs mt-1">{errors.responsibility_definition}</p>}
+              </div>
+
+              <div>
+                <Label required>{t("beyond_duty")}</Label>
+                <textarea name="beyond_duty_example" value={formData.beyond_duty_example}
+                  onChange={handleChange} rows={4} placeholder={t("ph_beyond_duty")}
+                  className={errors.beyond_duty_example ? inpError : inp} />
+                {errors.beyond_duty_example && <p className="text-red-500 text-xs mt-1">{errors.beyond_duty_example}</p>}
+              </div>
+
+              {/* Optional by design — asked, but never a barrier to applying. */}
+              <div className="pt-4 mt-2 border-t border-gray-200">
+                <h3 className="text-sm font-bold text-gray-800">{t("optional_block")}</h3>
+                <p className="text-xs text-gray-500 mt-0.5 mb-4">{t("optional_hint")}</p>
+                <div className="space-y-5">
+                  <div>
+                    <Label>{t("inspiration")}</Label>
+                    <textarea name="inspiration" value={formData.inspiration} onChange={handleChange}
+                      rows={2} placeholder={t("ph_inspiration")} className={inp} />
+                  </div>
+                  <div>
+                    <Label>{t("life_principles")}</Label>
+                    <textarea name="life_principles" value={formData.life_principles} onChange={handleChange}
+                      rows={3} placeholder={t("ph_life_principles")} className={inp} />
+                  </div>
+                  <div>
+                    <Label>{t("time_management")}</Label>
+                    <textarea name="time_management" value={formData.time_management} onChange={handleChange}
+                      rows={3} placeholder={t("ph_time_management")} className={inp} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {cur.key === "documents" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <div className="space-y-3">
@@ -812,7 +1087,7 @@ export default function PublicApplicationForm() {
             <div className="flex items-center gap-3">
               <div className="hidden sm:flex gap-1">{STEPS.map((s) => <div key={s.num} className={`h-1.5 rounded-full transition-all ${s.num === step ? "w-6 bg-teal-600" : s.num < step ? "w-3 bg-teal-300" : "w-3 bg-gray-200"}`} />)}</div>
               {step < STEPS.length ? (
-                <button type="button" disabled={!canNext()} onClick={handleNext} className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-teal-600 to-cyan-600 rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
+                <button type="button" onClick={handleNext} aria-disabled={!canNext()} className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-teal-600 to-cyan-600 rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all shadow-sm ${canNext() ? "" : "opacity-60"}`}>
                   {cur.key === "job" ? t("jd_apply") : t("continue")}
                   <svg className={`w-4 h-4 ${dir === "rtl" ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                 </button>

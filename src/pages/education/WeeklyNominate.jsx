@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
-import { DIMS, DimPill, Spinner, StudentName, StudentPicker, cleanClass, TEAL } from "./weeklyUi";
+import { DIMS, DimPill, Spinner, StudentName, StudentPicker, cleanClass, describeError, TEAL } from "./weeklyUi";
 
 
 /**
@@ -26,8 +26,8 @@ export default function WeeklyNominate() {
     try {
       const res = await get("/weekly-recognition");
       setData(res.data);
-    } catch {
-      Swal.fire("Error", "Failed to load this week's topic", "error");
+    } catch (err) {
+      Swal.fire("Error", describeError(err, "Failed to load this week's topic."), "error");
     } finally { setLoading(false); }
   }, []);
 

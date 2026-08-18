@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
-import { DimPill, Spinner, StudentName, cleanClass, cleanName, TEAL } from "./weeklyUi";
+import { DimPill, Spinner, StudentName, cleanClass, cleanName, describeError, TEAL } from "./weeklyUi";
 
 
 /**
@@ -22,8 +22,8 @@ export default function WeeklyHistory() {
     try {
       const res = await get("/weekly-recognition/history");
       setData(res.data);
-    } catch {
-      Swal.fire("Error", "Failed to load the recognition history", "error");
+    } catch (err) {
+      Swal.fire("Error", describeError(err, "Failed to load the recognition history."), "error");
     } finally { setLoading(false); }
   }, []);
 

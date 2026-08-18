@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, post, del } from "../../api/axios";
 import Swal from "sweetalert2";
-import { DimPill, Spinner, StudentName, cleanClass, cleanName, TEAL, GOLD } from "./weeklyUi";
+import { DimPill, Spinner, StudentName, cleanClass, cleanName, describeError, isEmptyPayload, TEAL, GOLD } from "./weeklyUi";
 import PrintSheet from "../../components/PrintSheet";
 import AwardCertificate from "./AwardCertificate";
 import { CERT_LANGS } from "./certificateI18n";
@@ -25,22 +25,32 @@ export default function WeeklyReview() {
   const [printing, setPrinting] = useState(null); // the award being printed
   const [certLang, setCertLang] = useState("en");
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async (id) => {
     setLoading(true);
+    setLoadError(null);
     try {
       let tid = id;
       if (!tid) {
         // No topic given — fall back to whatever the module considers current.
-        const base = await get("/weekly-recognition");
+        // `cache: false` skips the conditional GET: a stale ETag can resolve to
+        // an empty 304 body, which would look like "no topic set" rather than
+        // the topic that is actually there.
+        const base = await get("/weekly-recognition", { cache: false });
+        if (isEmptyPayload(base.data)) throw new Error("The server returned an empty response.");
         tid = base.data?.topic?.id;
         if (!tid) { setData(null); setLoading(false); return; }
       }
-      const res = await get(`/weekly-recognition/topics/${tid}/review`);
+      const res = await get(`/weekly-recognition/topics/${tid}/review`, { cache: false });
+      if (isEmptyPayload(res.data)) throw new Error("The server returned an empty response.");
       setData(res.data);
     } catch (err) {
-      if (err.response?.status === 403) setData({ forbidden: true });
-      else Swal.fire("Error", "Failed to load the review", "error");
+      if (err.response?.status === 403) { setData({ forbidden: true }); return; }
+      // Say what actually happened — the old fixed string hid whether the API
+      // was down, the session had expired, or the server had thrown.
+      setLoadError(describeError(err, "Failed to load the review."));
+      setData(null);
     } finally { setLoading(false); }
   }, []);
 
@@ -100,6 +110,26 @@ export default function WeeklyReview() {
   };
 
   if (loading) return <Spinner />;
+
+  if (loadError) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="text-3xl">⚠️</div>
+        <p className="text-sm font-semibold text-[#0A3A3E] mt-2">Could not load Review &amp; Select</p>
+        <p className="text-xs text-[#5A7A7E] mt-2">{loadError}</p>
+        <div className="flex items-center justify-center gap-2 mt-5">
+          <button onClick={() => load(topicId)}
+            className="px-5 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
+            Try again
+          </button>
+          <button onClick={() => navigate("/education/weekly-recognition")}
+            className="px-4 py-2 text-xs font-semibold text-[#5A7A7E] border border-[#D0E0E0] rounded-xl bg-white">
+            Back to this week
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (data?.forbidden) {
     return (

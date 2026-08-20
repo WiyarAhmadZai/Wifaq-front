@@ -53,6 +53,10 @@ export default function AssemblyPlan() {
     school_class_id: "", team_name: "", lead_teacher_id: "", target_minutes: 20, notes: "",
   });
   const [team, setTeam] = useState([]); // student ids
+  // { [student_id]: role } — the class roster's assignments. Kept as a plain
+  // map so a row edit never has to walk an array to find its own entry.
+  const [roles, setRoles] = useState({});
+  const [rosterSearch, setRosterSearch] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +78,13 @@ export default function AssemblyPlan() {
           notes: a.notes || "",
         });
         setTeam((a.team_members || []).map((m) => m.student_id));
+        // Whoever already has a block on the agenda shows up on the roster with
+        // their role filled in, so the two screens never disagree.
+        setRoles(Object.fromEntries(
+          (a.items || [])
+            .filter((i) => i.assigned_student_id)
+            .map((i) => [i.assigned_student_id, i.assigned_role || i.title || ""]),
+        ));
       } else {
         // Default to tomorrow — the realistic planning horizon.
         const t = new Date(); t.setDate(t.getDate() + 1);
@@ -110,6 +121,28 @@ export default function AssemblyPlan() {
   const toggleMember = (sid) =>
     setTeam((prev) => (prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]));
 
+  /**
+   * The people this assembly can hand roles to: the chosen class, or the
+   * hand-picked team. Same rule the agenda screen uses, so a student never
+   * appears on one and not the other.
+   */
+  const rosterPool = useMemo(() => {
+    if (form.performing_unit_type === "team") {
+      return students.filter((s) => team.includes(s.id));
+    }
+    return classStudents;
+  }, [form.performing_unit_type, students, team, classStudents]);
+
+  const roster = useMemo(() => {
+    const q = rosterSearch.trim().toLowerCase();
+    if (!q) return rosterPool;
+    return rosterPool.filter((s) => [s.name, s.code].some((v) => (v || "").toLowerCase().includes(q)));
+  }, [rosterPool, rosterSearch]);
+
+  const roleFor = (sid) => roles[sid] || "";
+  const setRoleFor = (sid, role) => setRoles((prev) => ({ ...prev, [sid]: role }));
+  const assignedCount = rosterPool.filter((s) => (roles[s.id] || "").trim()).length;
+
   const save = async (thenAgenda) => {
     if (!form.date) return Swal.fire("Date needed", "Which morning is this assembly?", "info");
     if (!form.theme.trim()) return Swal.fire("Theme needed", "Give the assembly a theme.", "info");
@@ -131,6 +164,12 @@ export default function AssemblyPlan() {
         target_minutes: Number(form.target_minutes) || 20,
         notes: form.notes?.trim() || null,
         team_members: form.performing_unit_type === "team" ? team : [],
+        // Only rows that actually name a role. Clearing one here does not
+        // delete the block — removal lives on the agenda screen, where the
+        // notes and minutes that would be lost are visible.
+        role_assignments: rosterPool
+          .filter((s) => (roles[s.id] || "").trim())
+          .map((s) => ({ student_id: s.id, role: roles[s.id].trim() })),
       };
 
       const res = editing
@@ -293,6 +332,61 @@ export default function AssemblyPlan() {
             </div>
           )}
         </div>
+
+        {/* The roster. Once the class is settled, handing out parts is the next
+            thing that happens, so it belongs on this screen rather than behind
+            a second navigation. */}
+        {rosterPool.length > 0 && (
+          <div className="bg-white rounded-2xl border border-[#D0E0E0] shadow-sm p-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+              <h3 className="text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider">
+                Who does what — {form.performing_unit_type === "team" ? (form.team_name || "the team") : "class roster"}
+              </h3>
+              <span className="text-[11px] font-bold" style={{ color: assignedCount ? TEAL : "#8AA4A7" }}>
+                {assignedCount} of {rosterPool.length} given a role
+              </span>
+            </div>
+
+            {rosterPool.length > 8 && (
+              <input value={rosterSearch} onChange={(e) => setRosterSearch(e.target.value)}
+                placeholder="Find a student…" className={`${field} mb-2`} />
+            )}
+
+            <div className="divide-y divide-[#D0E0E0] max-h-96 overflow-y-auto -mx-1 px-1">
+              {roster.map((s) => {
+                const on = Boolean(roleFor(s.id).trim());
+                return (
+                  <div key={s.id} className="py-2 flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 text-white"
+                      style={{ background: on ? TEAL : "#B9CDCE" }}>
+                      {on ? "✓" : (s.name || "?").trim().charAt(0).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <bdi dir="auto" className="block text-sm font-semibold text-[#0A3A3E] truncate">{s.name}</bdi>
+                      <span className="block text-[10px] text-[#8AA4A7]">{[s.class, s.code].filter(Boolean).join(" · ")}</span>
+                    </span>
+                    <input list="assembly-plan-roles" value={roleFor(s.id)}
+                      onChange={(e) => setRoleFor(s.id, e.target.value)}
+                      placeholder="Role — e.g. Quran Reciter"
+                      className="w-full sm:w-56 px-3 py-1.5 border border-[#D0E0E0] rounded-xl text-xs focus:ring-2 focus:ring-[#9CCBCB] focus:outline-none" />
+                  </div>
+                );
+              })}
+              {roster.length === 0 && (
+                <p className="text-[11px] text-[#8AA4A7] py-4 text-center">No student matches “{rosterSearch}”.</p>
+              )}
+            </div>
+
+            <datalist id="assembly-plan-roles">
+              {(ref?.role_template || []).map((r) => <option key={r} value={r} />)}
+            </datalist>
+
+            <p className="text-[10px] text-[#8AA4A7] mt-3">
+              Naming a role adds that student to the agenda and notifies them on save. Clearing one here does not
+              remove their block — do that on the agenda screen, where its notes and minutes are visible.
+            </p>
+          </div>
+        )}
 
         <div className="bg-[#E8F6F6] rounded-xl px-4 py-3 text-xs flex gap-2" style={{ color: TEAL }}>
           <span>📎</span>

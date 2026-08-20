@@ -227,6 +227,14 @@ const PUBLIC_PATHS = new Set([
   // any authenticated user may open the page and simply sees their own
   // children. The sidebar link is gated to the parent role.
   "/student-management/attendance/my-children",
+  // Student / parent portal — the caller's OWN assembly responsibilities, and
+  // the target of the assembly-role notification. The backend resolves the
+  // caller's students and 403s anyone with none, so any authenticated user may
+  // open the page and simply sees their own part. The sidebar link is gated to
+  // the student and parent roles. Must sit here rather than under the
+  // /assembly RULES prefix, which demands assemblies.view — a permission no
+  // student holds, and the whole point is that they never plan, only read.
+  "/assembly/my-responsibilities",
 ]);
 
 /**

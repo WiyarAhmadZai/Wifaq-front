@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
@@ -53,6 +53,27 @@ export default function AssemblyAgenda() {
   useEffect(() => { load(); }, [load]);
 
   const apply = (res) => { if (res?.data?.data) setA(res.data.data); };
+
+  /**
+   * Who this role can go to.
+   *
+   * The order the school works in is class → student → responsibility, so by
+   * the time a role is being handed out the class is already settled: either
+   * the performing class chosen on the plan screen, or the hand-picked team.
+   * The list never widens past that, and the API is scoped the same way, so a
+   * teacher only ever sees the students of the class they supervise.
+   */
+  const roleCandidates = useMemo(() => {
+    if (!a) return [];
+    if (a.unit_type === "team" && a.team_members?.length) {
+      return a.team_members.map((m) => ({ id: m.student_id, name: m.name, class: m.class }));
+    }
+    const pool = ref?.students || [];
+    if (a.unit_type === "class" && a.school_class_id) {
+      return pool.filter((s) => String(s.class_id) === String(a.school_class_id));
+    }
+    return pool;
+  }, [a, ref]);
 
   const saveItem = async () => {
     if (!draft.title.trim()) return Swal.fire("Title needed", "Name this activity.", "info");
@@ -141,7 +162,7 @@ export default function AssemblyAgenda() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="min-w-0">
             <div className="text-[11px] text-[#CFE6E6]">
-              {a.date} · {a.unit_type === "class" ? "🏫" : "👥"} {a.unit}
+              {a.date}{a.day_name ? ` (${a.day_name})` : ""} · {a.unit_type === "class" ? "🏫" : "👥"} {a.unit}
               {a.lead_teacher ? ` · Lead: ${a.lead_teacher}` : ""}
             </div>
             <h1 className="text-sm font-bold text-white truncate">{a.theme}</h1>
@@ -313,17 +334,24 @@ export default function AssemblyAgenda() {
                   </datalist>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-[#5A7A7E] mb-1">Assigned student</label>
+                  <label className="block text-[10px] text-[#5A7A7E] mb-1">
+                    Assigned student
+                    <span className="text-[#8AA4A7]"> — {a.unit || "this unit"}</span>
+                  </label>
                   <select value={draft.assigned_student_id}
                     onChange={(e) => setDraft({ ...draft, assigned_student_id: e.target.value })} className={field}>
-                    <option value="">Not assigned yet…</option>
-                    {(a.unit_type === "team" && a.team_members?.length
-                      ? a.team_members.map((m) => ({ id: m.student_id, name: m.name, class: m.class }))
-                      : (ref?.students || []).filter((s) => a.unit_type !== "class" || !a.school_class_id || s.class_id === a.school_class_id)
-                    ).map((s) => (
+                    <option value="">
+                      {roleCandidates.length === 0 ? "No students available for this unit" : "Not assigned yet…"}
+                    </option>
+                    {roleCandidates.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}{s.class ? ` — ${s.class}` : ""}</option>
                     ))}
                   </select>
+                  <p className="text-[10px] text-[#8AA4A7] mt-1">
+                    {roleCandidates.length === 0
+                      ? "Set the performing class on the plan screen first."
+                      : `${roleCandidates.length} student${roleCandidates.length === 1 ? "" : "s"} · they are notified as soon as you save this role.`}
+                  </p>
                 </div>
               </div>
 

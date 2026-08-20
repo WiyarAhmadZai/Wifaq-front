@@ -2012,7 +2012,7 @@ export default function Layout() {
               ))}
             </ParentMenu>
           )}
-          {canSeeGroup(assemblyMenus) && (
+          {(canSeeGroup(assemblyMenus) || hasRole("student") || hasRole("parent")) && (
             <ParentMenu
               icon={Icons.Dashboard}
               label="Morning Assembly"
@@ -2023,6 +2023,13 @@ export default function Layout() {
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}
+              {/* Read-only. A student never plans an assembly, they only need to
+                  know their own part of it — so this is role-gated rather than
+                  tagged with assemblies.view, which no student holds. */}
+              {(hasRole("student") || hasRole("parent")) && (
+                <SubMenuItem label="My Assembly Role" to="/assembly/my-responsibilities"
+                             active={isActive("/assembly/my-responsibilities")} onClick={closeSidebar} />
+              )}
             </ParentMenu>
           )}
           {canSeeGroup(lessonPlanMenus) && (

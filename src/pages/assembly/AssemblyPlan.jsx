@@ -19,6 +19,20 @@ const dayBefore = (iso) => {
 };
 
 /**
+ * The weekday the chosen date falls on.
+ *
+ * Parsed from the parts rather than `new Date(iso)` — that form is read as UTC
+ * midnight, so anywhere east of Greenwich it lands on the previous day and the
+ * form would name the wrong weekday.
+ */
+const weekdayOf = (iso) => {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "long" });
+};
+
+/**
  * Plan Assembly — deliberately quick, because assemblies are arranged a few
  * days ahead, not weeks. Set date, theme, lead teacher and the performing unit
  * (a whole class OR a hand-picked cross-class team — the field takes either),
@@ -64,7 +78,10 @@ export default function AssemblyPlan() {
         // Default to tomorrow — the realistic planning horizon.
         const t = new Date(); t.setDate(t.getDate() + 1);
         const iso = t.toISOString().slice(0, 10);
-        setForm((f) => ({ ...f, date: iso, prepare_by: dayBefore(iso) }));
+        // A teacher who supervises exactly one class has no choice to make, so
+        // it is already chosen. Leadership still picks from the full list.
+        const only = (fd.data?.classes || []).length === 1 ? fd.data.classes[0].id : "";
+        setForm((f) => ({ ...f, date: iso, prepare_by: dayBefore(iso), school_class_id: only }));
       }
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to load the planner", "error");
@@ -76,6 +93,14 @@ export default function AssemblyPlan() {
   const setDate = (iso) => setForm((f) => ({ ...f, date: iso, prepare_by: dayBefore(iso) }));
 
   const students = useMemo(() => ref?.students || [], [ref]);
+  const classes = useMemo(() => ref?.classes || [], [ref]);
+  const scope = ref?.scope;
+  // Who is actually reachable once a class is chosen — the number the teacher
+  // wants confirmed before they move on to handing out roles.
+  const classStudents = useMemo(
+    () => students.filter((s) => String(s.class_id) === String(form.school_class_id)),
+    [students, form.school_class_id],
+  );
   const teamCandidates = useMemo(() => {
     const q = teamSearch.trim().toLowerCase();
     if (!q) return students.slice(0, 40);
@@ -152,15 +177,22 @@ export default function AssemblyPlan() {
           <h3 className="text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider mb-3">Assembly basics</h3>
 
           <div className="grid md:grid-cols-4 gap-3">
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-[10px] text-[#5A7A7E] mb-1">Assembly date</label>
-              <input type="date" value={form.date} onChange={(e) => setDate(e.target.value)} className={field} />
-            </div>
-            <div>
-              <label className="block text-[10px] text-[#5A7A7E] mb-1">Arrange by</label>
-              <input type="date" value={form.prepare_by}
-                onChange={(e) => setForm({ ...form, prepare_by: e.target.value })} className={field} />
-              <p className="text-[10px] text-[#8AA4A7] mt-1">Defaults to the day before.</p>
+              <div className="flex items-center gap-2">
+                <input type="date" value={form.date} onChange={(e) => setDate(e.target.value)} className={field} />
+                {/* The weekday follows the date on its own — one field to fill,
+                    and nobody has to check a calendar to see which day it is. */}
+                {form.date && (
+                  <span className="px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap"
+                    style={{ background: "#E8F6F6", color: TEAL }}>
+                    {weekdayOf(form.date)}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-[#8AA4A7] mt-1">
+                Arrange by {form.prepare_by || dayBefore(form.date) || "the day before"} — set automatically.
+              </p>
             </div>
             <div className="md:col-span-2">
               <label className="block text-[10px] text-[#5A7A7E] mb-1">Theme</label>
@@ -183,6 +215,7 @@ export default function AssemblyPlan() {
               <label className="block text-[10px] text-[#5A7A7E] mb-1">Target length (minutes)</label>
               <input type="number" min={5} max={120} value={form.target_minutes}
                 onChange={(e) => setForm({ ...form, target_minutes: e.target.value })} className={field} />
+              <p className="text-[10px] text-[#8AA4A7] mt-1">The supervising teacher sets how long the program runs.</p>
             </div>
           </div>
         </div>
@@ -208,9 +241,23 @@ export default function AssemblyPlan() {
               <label className="block text-[10px] text-[#5A7A7E] mb-1">Class</label>
               <select value={form.school_class_id} onChange={(e) => setForm({ ...form, school_class_id: e.target.value })}
                 className={field}>
-                <option value="">Select a class…</option>
-                {(ref?.classes || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="">
+                  {classes.length === 0 ? "No class available to you" : "Select a class…"}
+                </option>
+                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {/* Class first, then the students of that class — that is the
+                  whole order of the flow, so say which list you are looking at. */}
+              <p className="text-[10px] text-[#8AA4A7] mt-1">
+                {scope?.scoped
+                  ? `${scope.label}. Roles are then assigned to students of this class on the agenda screen.`
+                  : "Pick the class first — the agenda screen then offers only that class's students."}
+              </p>
+              {form.school_class_id && (
+                <p className="text-[10px] mt-1" style={{ color: TEAL }}>
+                  {classStudents.length} student{classStudents.length === 1 ? "" : "s"} in this class are available for roles.
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-3">

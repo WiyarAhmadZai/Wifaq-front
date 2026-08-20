@@ -102,6 +102,7 @@ const AssemblyPlan = lazy(() => import("./pages/assembly/AssemblyPlan"));
 const AssemblyAgenda = lazy(() => import("./pages/assembly/AssemblyAgenda"));
 const AssemblyRunSheet = lazy(() => import("./pages/assembly/AssemblyRunSheet"));
 const AssemblyArchive = lazy(() => import("./pages/assembly/AssemblyArchive"));
+const MyAssemblyRoles = lazy(() => import("./pages/assembly/MyAssemblyRoles"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -512,6 +513,9 @@ function App() {
             <Route path="assembly/plan/:id" element={<Suspense fallback={<PageLoader />}><AssemblyPlan /></Suspense>} />
             <Route path="assembly/:id/agenda" element={<Suspense fallback={<PageLoader />}><AssemblyAgenda /></Suspense>} />
             <Route path="assembly/:id/run-sheet" element={<Suspense fallback={<PageLoader />}><AssemblyRunSheet /></Suspense>} />
+            {/* Student / parent portal — no permission tag; the server scopes it
+                to the caller's own students and refuses anyone else. */}
+            <Route path="assembly/my-responsibilities" element={<Suspense fallback={<PageLoader />}><MyAssemblyRoles /></Suspense>} />
             <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
             <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
             <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -64,6 +65,9 @@ const STATUS_OPTIONS = [
 
 export default function JobPostingShow() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/job-postings");
   const { id } = useParams();
   const { canUpdate, canDelete } = useResourcePermissions("job-postings");
   const [data, setData] = useState(null);
@@ -108,7 +112,7 @@ export default function JobPostingShow() {
       try {
         await del(`/recruitment/job-postings/${id}`);
         Swal.fire("Deleted", "Job posting deleted successfully", "success");
-        navigate("/recruitment/job-postings");
+        goBack();
       } catch {
         Swal.fire("Error", "Failed to delete job posting", "error");
       }
@@ -195,7 +199,7 @@ export default function JobPostingShow() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/recruitment/job-postings")}
+            onClick={goBack}
             className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
           >
             <Icons.ArrowLeft />

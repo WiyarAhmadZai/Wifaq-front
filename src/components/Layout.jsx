@@ -4,6 +4,7 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
 import PathPermissionGate from "../admin/guards/PathPermissionGate";
 import ErrorBoundary from "./ErrorBoundary";
+import ScrollMemory from "./ScrollMemory";
 import MessagesButton from "../chat/components/MessagesButton";
 import ChatDrawer from "../chat/components/ChatDrawer";
 import WelcomeLetterModal from "./WelcomeLetterModal";
@@ -1737,6 +1738,9 @@ export default function Layout() {
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
+      {/* Puts the scroll position back when the user presses Back. */}
+      <ScrollMemory />
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div

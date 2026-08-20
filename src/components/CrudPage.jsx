@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, del, put, peekCache } from "../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../admin/context/AuthContext";
@@ -59,23 +59,64 @@ export default function CrudPage({
   // Highlight support: when arriving with ?highlight=ID, scroll that row into
   // view and ring it briefly so the user sees exactly which item the
   // notification was about.
-  const location = useLocation();
-  const highlightId = new URLSearchParams(location.search).get("highlight");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("highlight");
   const [pulseActive, setPulseActive] = useState(false);
   const rowRefs = useRef({});
 
+  /* -- Which page, which search, which filters: all of it lives in the URL --
+   *
+   * These used to be component state. React Router unmounts the list when the
+   * user opens a record, so that state was gone the moment they left - Back
+   * brought them to an unfiltered page 1 and they had to find their place
+   * again. As query parameters the same three things ride along in the history
+   * entry, so Back (and refresh, and a pasted link) reproduce the list exactly.
+   *
+   * Writes are `replace`, not push: a list keeps ONE history entry that always
+   * carries its current filters, so Back leaves the list instead of stepping
+   * backwards through every filter the user tried on the way here.
+   */
+  const filterKeys = filters.map((f) => f.key);
+  const paramString = searchParams.toString();
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const urlSearch = searchParams.get("q") || "";
+  const filterValues = useMemo(() => {
+    const out = {};
+    filterKeys.forEach((k) => {
+      const v = searchParams.get("f_" + k);
+      if (v) out[k] = v;
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramString, filterKeys.join("|")]);
+
+  const setParams = useCallback((patch) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(patch).forEach(([k, v]) => {
+        const isDefault = v == null || v === "" || (k === "page" && Number(v) <= 1);
+        if (isDefault) next.delete(k);
+        else next.set(k, String(v));
+      });
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterValues, setFilterValues] = useState({}); // { [key]: value }
-  const [filterOpen, setFilterOpen] = useState(false);
+  // Local mirror of the search box so typing stays responsive; debounced into
+  // the URL below, and re-synced from it when Back changes the URL under us.
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
+  // Open the filter panel on arrival when the URL already carries filters, so
+  // a restored (or shared) list shows WHY it is showing only these rows.
+  const [filterOpen, setFilterOpen] = useState(() => filterKeys.some((k) => searchParams.get('f_' + k)));
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [newStatus, setNewStatus] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
 
-  const fetchItems = useCallback(async (page = 1, search = searchQuery) => {
+  const fetchItems = useCallback(async (page = 1, search = "") => {
     const params = new URLSearchParams();
     params.append("page", page);
     if (search) params.append("search", search);
@@ -127,9 +168,17 @@ export default function CrudPage({
         setItems([]);
       }
     } finally { setLoading(false); }
-  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams), JSON.stringify(filterValues)]);
+  }, [apiEndpoint, JSON.stringify(baseParams), JSON.stringify(filterValues)]);
 
-  useEffect(() => { fetchItems(1, ""); }, []);
+  // One fetch driven by the URL - covers the first paint, every search/filter/
+  // page change, a refresh, and the Back button restoring an earlier query.
+  useEffect(() => {
+    fetchItems(page, urlSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramString, apiEndpoint, JSON.stringify(baseParams)]);
+
+  /** Re-fetch the list exactly as it stands now (used after a mutation). */
+  const refresh = useCallback(() => fetchItems(page, urlSearch), [fetchItems, page, urlSearch]);
 
   // Fetch EVERY page (respecting the current search + base filters) so the
   // Excel/Print export covers all records, not just the visible page.
@@ -141,7 +190,7 @@ export default function CrudPage({
       const params = new URLSearchParams();
       params.append("page", page);
       params.append("per_page", 1000);
-      if (searchQuery) params.append("search", searchQuery);
+      if (urlSearch) params.append("search", urlSearch);
       Object.entries(baseParams || {}).forEach(([k, v]) => {
         if (v !== undefined && v !== null && v !== "") params.append(k, v);
       });
@@ -155,7 +204,7 @@ export default function CrudPage({
       page += 1;
     } while (page <= lastPage && page <= 200); // hard safety cap
     return all;
-  }, [apiEndpoint, searchQuery, JSON.stringify(baseParams), JSON.stringify(filterValues)]);
+  }, [apiEndpoint, urlSearch, JSON.stringify(baseParams), JSON.stringify(filterValues)]);
 
   // Once items are loaded and the URL carries ?highlight=ID, scroll to that row
   // and pulse it for ~2.5s.
@@ -171,28 +220,22 @@ export default function CrudPage({
     return () => clearTimeout(tmr);
   }, [highlightId, items]);
 
-  const handleSearch = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-  };
+  const handleSearch = (e) => setSearchQuery(e.target.value);
 
+  // Typing is debounced into the URL (a new search always starts at page 1).
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchItems(1, searchQuery);
-    }, 400);
+    if (searchQuery === urlSearch) return;
+    const timer = setTimeout(() => setParams({ q: searchQuery, page: 1 }), 400);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, urlSearch, setParams]);
 
-  // Refetch (page 1) whenever a dropdown filter changes.
-  const isFirstFilterRun = useRef(true);
-  useEffect(() => {
-    if (isFirstFilterRun.current) { isFirstFilterRun.current = false; return; }
-    fetchItems(1, searchQuery);
-  }, [JSON.stringify(filterValues)]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ...and the box follows the URL when Back or a pasted link changes it.
+  useEffect(() => { setSearchQuery(urlSearch); }, [urlSearch]);
 
-  const setFilter = (key, value) => setFilterValues((prev) => ({ ...prev, [key]: value }));
-  const clearAll = () => { setSearchQuery(""); setFilterValues({}); };
-  const clearFilters = () => setFilterValues({});
+  const blankFilters = () => Object.fromEntries(filterKeys.map((k) => ["f_" + k, ""]));
+  const setFilter = (key, value) => setParams({ ["f_" + key]: value, page: 1 });
+  const clearAll = () => { setSearchQuery(""); setParams({ q: "", page: 1, ...blankFilters() }); };
+  const clearFilters = () => setParams({ page: 1, ...blankFilters() });
   const activeFilterCount = Object.values(filterValues).filter((v) => v !== "" && v != null).length;
 
   // Human-readable summary of what is currently filtered, shown as removable
@@ -206,8 +249,8 @@ export default function CrudPage({
     })
     .filter(Boolean);
 
-  const handlePageChange = (page) => {
-    fetchItems(page, searchQuery);
+  const handlePageChange = (p) => {
+    setParams({ page: p });
   };
 
   const handleDelete = async (id) => {
@@ -216,7 +259,7 @@ export default function CrudPage({
       try {
         await del(`${deleteEndpoint ?? apiEndpoint}/${id}`);
         Swal.fire({ icon: "success", title: "Deleted", timer: 1500, showConfirmButton: false });
-        fetchItems(meta.current_page, searchQuery);
+        refresh();
       } catch { Swal.fire("Error", "Failed to delete record.", "error"); }
     }
   };
@@ -229,7 +272,7 @@ export default function CrudPage({
     try {
       await put(`${statusEndpoint}/${selectedItem[idField]}${statusSuffix}`, { [statusField]: newStatus });
       Swal.fire({ icon: "success", title: "Status updated", timer: 1500, showConfirmButton: false });
-      handleCloseStatusModal(); fetchItems(meta.current_page, searchQuery);
+      handleCloseStatusModal(); refresh();
     } catch (error) { Swal.fire("Error", error.response?.data?.message || "Failed to update status", "error"); }
     finally { setSavingStatus(false); }
   };
@@ -422,7 +465,7 @@ export default function CrudPage({
                       {/* nowrap keeps every action on ONE row — the table body
                           already scrolls horizontally when space is tight. */}
                       <div className="flex items-center justify-end gap-1 flex-nowrap whitespace-nowrap">
-                        {rowActions && rowActions(item, () => fetchItems(meta.current_page, searchQuery))}
+                        {rowActions && rowActions(item, refresh)}
                         {canView && showRoute && (
                           <button onClick={() => navigate(`${showRoute}/${item[idField]}`)}
                             className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">

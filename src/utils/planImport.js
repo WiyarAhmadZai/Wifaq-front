@@ -129,7 +129,8 @@ export function buildPlanFromRows(rawRows, { staff = [], uid = () => Math.random
     } else if (type === "task") {
       tasks.push({
         uid: uid(), title, task_type: normTaskType(r.priority),
-        assigned_staff_id: findStaff(r.assignee),
+        // "Ali, Sara" in the assignee column assigns the task to both.
+        assigned_staff_ids: findStaffMany(r.assignee),
         start_date: toDateStr(r.start_date), deadline: toDateStr(r.end_date),
         notes: norm(r.description),
       });

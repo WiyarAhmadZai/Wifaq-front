@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import { get, put, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
@@ -118,6 +119,9 @@ const EMPTY_REVIEW = { rating: 0, recommendation: "", comment: "", flagged_to_hr
 export default function ApplicationShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/applications");
   const { canCreate, canUpdate, canDelete } = useResourcePermissions("applications");
   // Reviewer identity comes from the session — never typed in.
   const { user } = useAuth();
@@ -894,7 +898,7 @@ export default function ApplicationShow() {
     <div className="px-4 py-6 mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/recruitment/applications")} className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
+        <button onClick={goBack} className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>

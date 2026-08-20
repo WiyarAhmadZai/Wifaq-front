@@ -46,7 +46,7 @@ const uid = () => `r${++_uid}`;
 const blankKr = () => ({ statement: "", kr_type: "percentage", baseline: "", target: "", unit: "", current_value: "", confidence_score: "" });
 const blankEvent = () => ({ uid: uid(), title: "", description: "", start_date: "", end_date: "", location: "", responsible_staff_id: "", series: blankSeries() });
 const blankMeeting = () => ({ uid: uid(), title: "", description: "", meeting_date: "", start_time: "09:00", end_time: "10:00", location: "", meeting_type: "routine", participant_staff_ids: [], series: blankSeries() });
-const blankTask = () => ({ uid: uid(), title: "", task_type: "normal", assigned_staff_id: "", start_date: "", deadline: "", notes: "", series: blankSeries() });
+const blankTask = () => ({ uid: uid(), title: "", task_type: "normal", assigned_staff_ids: [], start_date: "", deadline: "", notes: "", series: blankSeries() });
 const blankPrItem = () => ({ item_name: "", description: "", quantity: 1, unit: "piece", estimated_unit_price: 0, chart_account_id: null, stock_id: null });
 const blankPurchase = () => ({ uid: uid(), request_date: today(), priority: "medium", purpose: "", notes: "", link: "", items: [blankPrItem()] });
 
@@ -203,7 +203,11 @@ export default function PlanForm() {
         posToUid[it.position] = u;
         me.push({ uid: u, title: it.title || "", description: it.description || "", meeting_date: (m.meeting_date || "").slice(0, 10), start_time: (m.start_time || "09:00").slice(0, 5), end_time: (m.end_time || "10:00").slice(0, 5), location: m.location || "", meeting_type: m.meeting_type || "routine", participant_staff_ids: m.participant_staff_ids || [], series });
       } else if (it.kind === "task") {
-        ta.push({ uid: uid(), title: it.title || "", task_type: m.task_type || "normal", assigned_staff_id: it.assigned_staff_id || "", start_date: (m.start_date || "").slice(0, 10), deadline: it.due_date?.slice(0, 10) || "", notes: it.description || "", series });
+        // Plans saved before multi-assignee only have the single column.
+        const taskStaffIds = (m.assigned_staff_ids || []).length
+          ? m.assigned_staff_ids
+          : (it.assigned_staff_id ? [it.assigned_staff_id] : []);
+        ta.push({ uid: uid(), title: it.title || "", task_type: m.task_type || "normal", assigned_staff_ids: taskStaffIds, start_date: (m.start_date || "").slice(0, 10), deadline: it.due_date?.slice(0, 10) || "", notes: it.description || "", series });
       }
     }
     // Second pass for purchases so event/meeting links resolve to row uids.
@@ -325,13 +329,17 @@ export default function PlanForm() {
 
     tasks.filter((t) => t.title.trim()).forEach((t) => {
       posByUid[t.uid] = items.length;
+      // One task, many people. The first stays in assigned_staff_id so every
+      // single-assignee path keeps working; the full list rides in meta and
+      // the cascade turns it into one staff task per person on approval.
+      const staffIds = (t.assigned_staff_ids || []).filter(Boolean);
       items.push({
         kind: "task",
         title: t.title,
         description: t.notes || null,
-        assigned_staff_id: t.assigned_staff_id || null,
+        assigned_staff_id: staffIds[0] || null,
         due_date: t.deadline || null,
-        meta: { task_type: t.task_type || "normal", start_date: t.start_date || null },
+        meta: { task_type: t.task_type || "normal", start_date: t.start_date || null, assigned_staff_ids: staffIds },
         ...seriesPayload(t.series),
       });
     });
@@ -611,7 +619,7 @@ export default function PlanForm() {
         </Section>
 
         {/* STAFF TASKS */}
-        <Section title="Staff tasks" subtitle="Each becomes a Staff Task assigned to a person when approved." icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+        <Section title="Staff tasks" subtitle="Each becomes a Staff Task for every person it is assigned to when approved." icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
           action={<AddBtn onClick={() => setTasks((a) => [...a, blankTask()])}>+ Add task</AddBtn>}>
           {tasks.length === 0 ? <Empty>No tasks yet.</Empty> : (
             <div className="space-y-3">
@@ -619,7 +627,7 @@ export default function PlanForm() {
                 <RowCard key={t.uid} onRemove={() => setTasks((a) => a.filter((_, idx) => idx !== i))}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="sm:col-span-2"><input className={input} value={t.title} onChange={(ev) => patchTask(i, { title: ev.target.value })} placeholder="What needs to be done? *" /></div>
-                    <Field lbl="Who does it"><Select2 size="sm" value={t.assigned_staff_id} onChange={(v) => patchTask(i, { assigned_staff_id: v })} options={staffOptions} placeholder="Choose person…" /></Field>
+                    <Field lbl="Who does it"><Select2 size="sm" isMulti value={t.assigned_staff_ids} onChange={(v) => patchTask(i, { assigned_staff_ids: v })} options={staffOptions} placeholder="Choose one or more people…" /></Field>
                     <Field lbl="Priority">
                       <select className={cell} value={t.task_type} onChange={(ev) => patchTask(i, { task_type: ev.target.value })}>
                         {TASK_TYPES.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}

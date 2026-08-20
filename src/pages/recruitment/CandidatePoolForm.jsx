@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
@@ -17,6 +18,9 @@ const POOL_CATEGORIES = [
 
 export default function CandidatePoolForm() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/candidate-pool");
   const { id } = useParams();
   const isEdit = Boolean(id);
 
@@ -83,7 +87,7 @@ export default function CandidatePoolForm() {
         await post("/recruitment/candidate-pool", formData);
         Swal.fire({ icon: "success", title: "Pool created successfully", timer: 1500, showConfirmButton: false });
       }
-      navigate("/recruitment/candidate-pool");
+      goBack();
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save candidate", "error");
@@ -113,7 +117,7 @@ export default function CandidatePoolForm() {
   return (
     <div className="px-4 py-4 mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/recruitment/candidate-pool")}
+        <button onClick={goBack}
           className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -170,7 +174,7 @@ export default function CandidatePoolForm() {
         </div>
 
         <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-          <button type="button" onClick={() => navigate("/recruitment/candidate-pool")}
+          <button type="button" onClick={goBack}
             className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all">
             Cancel
           </button>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -22,6 +23,9 @@ const statusConfig = {
 export default function InterviewShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/interviews");
   const { canUpdate, canDelete } = useResourcePermissions("applications");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -58,7 +62,7 @@ export default function InterviewShow() {
       try {
         await del(`/recruitment/interviews/${id}`);
         Swal.fire("Deleted", "Interview deleted", "success");
-        navigate("/recruitment/interviews");
+        goBack();
       } catch {
         Swal.fire("Error", "Failed to delete", "error");
       }
@@ -94,7 +98,7 @@ export default function InterviewShow() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/recruitment/interviews")} className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors">
+          <button onClick={goBack} className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>

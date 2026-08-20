@@ -6,11 +6,22 @@ import Swal from "sweetalert2";
 import { fmtDate } from "../../utils/formErrors";
 import { DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
+import useSmartBack from "../../hooks/useSmartBack";
+import { useAuth } from "../../admin/context/AuthContext";
+import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
+import { RestoreDraftBanner, DraftStatus } from "../../components/hr/DraftBar";
+
+// Fires the server autosave this long after the last keystroke, once the
+// event already exists as a draft. Short enough that little is ever at risk,
+// long enough that typing a description is not a stream of PUTs.
+const AUTOSAVE_IDLE_MS = 15000;
 const ROLE_OPTIONS = ["Coordinator", "Welcoming", "Hospitality", "Registration", "Speaker", "Security", "Logistics", "Photography", "IT Support", "Other"];
 
 export default function EventForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack("/hr/events");
+  const { user } = useAuth();
   const isEdit = Boolean(id);
   const roleRef = useRef(null);
 
@@ -23,11 +34,132 @@ export default function EventForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  /* ── Nothing typed here gets thrown away ────────────────────────────────
+   *
+   * The event is saved as a `draft` the moment the planner asks for it (or
+   * automatically, once a draft exists and they stop typing). A draft is a
+   * real row: it survives leaving the page, a refresh and a different device,
+   * it shows in the events list marked as a draft, and it notifies nobody
+   * until it is published. Between those saves the browser holds a local copy
+   * as well, so even a first, never-saved attempt is recoverable.
+   */
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [localDraft, setLocalDraft] = useState(null);   // pending restore offer
+  const savedSnapshot = useRef(null);                   // what the server has
+  const isDraft = form.status === "draft";
+  const localKey = draftKey("event", user?.id, id);
+
+  const snapshotOf = () => JSON.stringify({ form, roles, requirements });
+
+  const buildPayload = (status) => ({
+    ...form,
+    status,
+    roles: roles.map(({ userName, ...r }) => r),
+    requirements: requirements.filter((r) => r.description.trim()),
+  });
+
   // Role form
   const [roleForm, setRoleForm] = useState({ user_id: "", role_name: "", notes: "" });
   const [showRoleForm, setShowRoleForm] = useState(false);
 
   useEffect(() => { fetchUsers(); if (isEdit) loadEvent(); }, [id]);
+
+  // Offer to restore anything the browser kept from a previous visit. Never
+  // applied automatically — see RestoreDraftBanner.
+  useEffect(() => {
+    if (loading) return;
+    const found = readDraft(localKey);
+    if (found) setLocalDraft(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localKey]);
+
+  // Local mirror: cheap, synchronous, and covers the window before the first
+  // server save (and every keystroke between server saves).
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => {
+      if (form.title || form.description || roles.length || requirements.some((r) => r.description)) {
+        writeDraft(localKey, { form, roles, requirements });
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [form, roles, requirements, loading, localKey]);
+
+  // Server autosave: only once the draft exists (we have an id), and only when
+  // something actually changed since the last save. Re-arming on every edit
+  // makes this fire once the planner pauses, not on a fixed drumbeat.
+  useEffect(() => {
+    if (!id || !isDraft || loading || saving || savingDraft) return;
+    const t = setTimeout(() => {
+      if (savedSnapshot.current !== snapshotOf()) saveDraft({ silent: true });
+    }, AUTOSAVE_IDLE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, roles, requirements, id, isDraft, loading, saving, savingDraft]);
+
+  const restoreLocalDraft = () => {
+    const d = localDraft?.data;
+    if (!d) return;
+    if (d.form) setForm(d.form);
+    if (Array.isArray(d.roles)) setRoles(d.roles);
+    if (Array.isArray(d.requirements) && d.requirements.length) setRequirements(d.requirements);
+    setLocalDraft(null);
+  };
+
+  const discardLocalDraft = () => { clearDraft(localKey); setLocalDraft(null); };
+
+  /**
+   * Save without publishing. Only a title is required — everything else can
+   * still be missing, which is the point: the planner keeps their progress and
+   * comes back to it. The first save turns the URL into an edit URL so every
+   * later save (and every autosave) updates the same row instead of piling up
+   * new drafts.
+   */
+  const saveDraft = async ({ silent = false } = {}) => {
+    if (!form.title.trim()) {
+      setErrors((p) => ({ ...p, title: "Give the event a title so you can find the draft again" }));
+      if (!silent) Swal.fire("Title needed", "Give the event a title so you can find the draft again.", "warning");
+      return false;
+    }
+    setSavingDraft(true);
+    const snapshot = snapshotOf();
+    try {
+      if (id) {
+        await put(`/events/${id}`, buildPayload("draft"));
+      } else {
+        const res = await post("/events", buildPayload("draft"));
+        const newId = res.data?.data?.id;
+        clearDraft(localKey);                      // the "new" key
+        if (newId) navigate(`/hr/events/edit/${newId}`, { replace: true });
+      }
+      setForm((p) => ({ ...p, status: "draft" }));
+      savedSnapshot.current = snapshot;
+      setSavedAt(new Date());
+      clearDraft(localKey);                        // the server has it now
+      setLocalDraft(null);
+      if (!silent) {
+        Swal.fire({
+          icon: "success", title: "Draft saved",
+          text: "Come back to it from the events list whenever you are ready.",
+          timer: 1800, showConfirmButton: false,
+        });
+      }
+      return true;
+    } catch (err) {
+      if (err.response?.status === 422 && err.response?.data?.errors) {
+        const se = {};
+        Object.entries(err.response.data.errors).forEach(([k, v]) => { se[k] = v[0]; });
+        setErrors(se);
+      }
+      // A failed autosave must not interrupt: the local copy still holds the
+      // work, and the next pause tries again.
+      if (!silent) Swal.fire("Error", err.response?.data?.message || "Failed to save draft", "error");
+      return false;
+    } finally {
+      setSavingDraft(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setUsersLoading(true);
@@ -84,6 +216,14 @@ export default function EventForm() {
     finally { setLoading(false); }
   };
 
+  // Whatever was just loaded IS what the server holds — recorded so a freshly
+  // opened draft does not immediately autosave itself back unchanged.
+  useEffect(() => {
+    if (loading) return;
+    savedSnapshot.current = snapshotOf();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   const handle = (e) => { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); if (errors[e.target.name]) setErrors((p) => ({ ...p, [e.target.name]: null })); };
 
   // Roles
@@ -103,17 +243,21 @@ export default function EventForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Publishing is where the real rules apply — this is the point at which
+    // the event reaches everybody's calendar and inbox.
     const errs = {};
     if (!form.title) errs.title = "Title is required";
     if (!form.start_date) errs.start_date = "Start date is required";
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSaving(true);
-    const payload = { ...form, roles: roles.map(({ userName, ...r }) => r), requirements: requirements.filter((r) => r.description.trim()) };
+    // A draft becomes a real, announced event; anything else keeps its status.
+    const payload = buildPayload(isDraft ? "upcoming" : form.status);
     try {
-      if (isEdit) { await put(`/events/${id}`, payload); Swal.fire({ icon: "success", title: "Event Updated!", timer: 1500, showConfirmButton: false }); }
+      if (isEdit) { await put(`/events/${id}`, payload); Swal.fire({ icon: "success", title: isDraft ? "Event Published!" : "Event Updated!", timer: 1500, showConfirmButton: false }); }
       else { await post("/events", payload); Swal.fire({ icon: "success", title: "Event Created!", timer: 1500, showConfirmButton: false }); }
-      navigate("/hr/events");
+      clearDraft(localKey);
+      goBack();
     } catch (err) {
       if (err.response?.status === 422 && err.response?.data?.errors) { const se = {}; Object.entries(err.response.data.errors).forEach(([k, v]) => { se[k] = v[0]; }); setErrors(se); }
       else Swal.fire("Error", err.response?.data?.message || "Failed to save", "error");
@@ -128,17 +272,28 @@ export default function EventForm() {
     <div className="min-h-screen bg-gray-50/60">
       <div className="bg-teal-600 px-5 py-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/hr/events")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Event" : "Create Event"}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Set up event details, team roles, and requirements</p>
+            <h1 className="text-sm font-bold text-white flex items-center gap-2">
+              {isDraft ? "Continue Draft Event" : isEdit ? "Edit Event" : "Create Event"}
+              {isDraft && <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 text-[9px] font-black uppercase tracking-wide">Draft</span>}
+            </h1>
+            <p className="text-xs text-teal-100 mt-0.5">
+              {isDraft
+                ? "Saved and private. Publish when the plan is settled."
+                : "Set up event details, team roles, and requirements"}
+            </p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 py-5 space-y-4">
+        {localDraft && (
+          <RestoreDraftBanner savedAt={localDraft.savedAt} onRestore={restoreLocalDraft} onDiscard={discardLocalDraft} />
+        )}
+
         {/* 1. Event Details */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
           <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2.5">
@@ -344,16 +499,34 @@ export default function EventForm() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
-          <button type="button" onClick={() => navigate("/hr/events")}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Cancel
-          </button>
-          <button type="submit" disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
-            {saving ? (<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>) : (<><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Event" : "Create Event"}</>)}
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={goBack}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              Back
+            </button>
+            {/* Only meaningful while the event is still being planned; a
+                published event is saved by the Update button, not by drafts. */}
+            {(!isEdit || isDraft) && (
+              <DraftStatus isDraft={isDraft} savedAt={savedAt} saving={savingDraft} noun="event" />
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Save without publishing — the escape hatch from "finish it all
+                now or lose it". Available while the event is new or a draft. */}
+            {(!isEdit || isDraft) && (
+              <button type="button" onClick={() => saveDraft()} disabled={savingDraft || saving}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-amber-800 bg-amber-100 border border-amber-200 rounded-xl hover:bg-amber-200 transition-colors disabled:opacity-50">
+                {savingDraft ? (<><div className="w-4 h-4 border-2 border-amber-300 border-t-amber-700 rounded-full animate-spin"></div>Saving...</>) : (<><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>Save draft</>)}
+              </button>
+            )}
+            <button type="submit" disabled={saving || savingDraft}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
+              {saving ? (<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>) : (<><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isDraft ? "Publish Event" : isEdit ? "Update Event" : "Create Event"}</>)}
+            </button>
+          </div>
         </div>
       </form>
     </div>

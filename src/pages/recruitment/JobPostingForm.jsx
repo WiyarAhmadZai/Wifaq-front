@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
@@ -16,6 +17,9 @@ const STATUS_OPTIONS = [
 
 export default function JobPostingForm() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/job-postings");
   const { id } = useParams();
   const isEdit = Boolean(id);
 
@@ -172,7 +176,7 @@ export default function JobPostingForm() {
         await post("/recruitment/job-postings", dataToSend);
         Swal.fire("Success", "Job posting created successfully", "success");
       }
-      navigate("/recruitment/job-postings");
+      goBack();
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save job posting", "error");
@@ -204,7 +208,7 @@ export default function JobPostingForm() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate("/recruitment/job-postings")}
+          onClick={goBack}
           className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -421,7 +425,7 @@ export default function JobPostingForm() {
         <div className="flex items-center justify-between pt-2">
           <button
             type="button"
-            onClick={() => navigate("/recruitment/job-postings")}
+            onClick={goBack}
             className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all"
           >
             Cancel

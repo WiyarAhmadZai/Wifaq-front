@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
@@ -8,11 +8,22 @@ import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import { DateField } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
 import { listDepartments } from "../../api/departments";
+import useSmartBack from "../../hooks/useSmartBack";
+import { useAuth } from "../../admin/context/AuthContext";
+import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
+import { RestoreDraftBanner, DraftStatus } from "../../components/hr/DraftBar";
+
 const emptyAgenda = { title: "", description: "", assigned_to_id: "", duration_min: "" };
+
+// Fires the server autosave this long after the last keystroke, once the
+// meeting already exists as a draft.
+const AUTOSAVE_IDLE_MS = 15000;
 
 export default function MeetingForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack("/hr/meetings");
+  const { user } = useAuth();
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState({
@@ -39,11 +50,81 @@ export default function MeetingForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  /* ── Nothing typed here gets thrown away ────────────────────────────────
+   *
+   * Assembling a meeting means picking a time, a room, a participant list and
+   * an agenda — rarely in one sitting. "Save draft" stores it as a real row
+   * with `status = 'draft'`: it survives leaving the page and a different
+   * device, it shows in the meetings list marked as a draft, and it invites
+   * nobody until it is published. The browser also keeps a local copy between
+   * saves, so even a first, never-saved attempt can be recovered.
+   */
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [localDraft, setLocalDraft] = useState(null);   // pending restore offer
+  const savedSnapshot = useRef(null);                   // what the server has
+  const isDraft = form.status === "draft";
+  const localKey = draftKey("meeting", user?.id, id);
+
+  const snapshotOf = () => JSON.stringify({ form, participants, agendaItems });
+
   useEffect(() => {
     fetchUsers();
     fetchDepartments();
     if (isEdit) loadMeeting();
   }, [id]);
+
+  // Offer to restore anything the browser kept from a previous visit. Never
+  // applied automatically — the user decides.
+  useEffect(() => {
+    if (loading) return;
+    const found = readDraft(localKey);
+    if (found) setLocalDraft(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localKey]);
+
+  // Whatever was just loaded IS what the server holds — recorded so a freshly
+  // opened draft does not immediately autosave itself back unchanged.
+  useEffect(() => {
+    if (loading) return;
+    savedSnapshot.current = snapshotOf();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Local mirror: covers the window before the first server save, and every
+  // keystroke between server saves.
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => {
+      if (form.title || form.description || participants.length || agendaItems.some((a) => a.title)) {
+        writeDraft(localKey, { form, participants, agendaItems });
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [form, participants, agendaItems, loading, localKey]);
+
+  // Server autosave: only once the draft exists, and only when something
+  // changed. Re-arming on every edit makes this fire once the organizer
+  // pauses, not on a fixed drumbeat.
+  useEffect(() => {
+    if (!id || !isDraft || loading || saving || savingDraft) return;
+    const t = setTimeout(() => {
+      if (savedSnapshot.current !== snapshotOf()) saveDraft({ silent: true });
+    }, AUTOSAVE_IDLE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, participants, agendaItems, id, isDraft, loading, saving, savingDraft]);
+
+  const restoreLocalDraft = () => {
+    const d = localDraft?.data;
+    if (!d) return;
+    if (d.form) setForm(d.form);
+    if (Array.isArray(d.participants)) setParticipants(d.participants);
+    if (Array.isArray(d.agendaItems) && d.agendaItems.length) setAgendaItems(d.agendaItems);
+    setLocalDraft(null);
+  };
+
+  const discardLocalDraft = () => { clearDraft(localKey); setLocalDraft(null); };
 
   const fetchDepartments = async () => {
     try {
@@ -217,6 +298,86 @@ export default function MeetingForm() {
 
   const totalDuration = agendaItems.reduce((s, a) => s + (Number(a.duration_min) || 0), 0);
 
+  /**
+   * Everything on the form, shaped the way the API wants it.
+   *
+   * The date and the two clock times are three fields on screen but two
+   * datetimes on the wire. A draft may legitimately have only some of them —
+   * a half-planned meeting genuinely has no time yet — so the stitching is
+   * skipped rather than guessed at whenever a piece is missing.
+   */
+  const buildPayload = (status) => {
+    const isRoutine = form.meeting_type === "routine";
+    const reminderMinutes = isRoutine
+      ? Math.max(0, Math.min(10080, Number(form.reminder_minutes_before) || 0))
+      : 0;
+    const haveStart = Boolean(form.meeting_date && form.start_time);
+    const haveEnd   = Boolean(form.meeting_date && form.end_time);
+    const { meeting_date, ...rest } = form;   // eslint-disable-line no-unused-vars
+    return {
+      ...rest,
+      status,
+      start_time: haveStart ? `${form.meeting_date} ${form.start_time}:00` : null,
+      end_time:   haveEnd   ? `${form.meeting_date} ${form.end_time}:00`   : null,
+      reminder_minutes_before: reminderMinutes,
+      recurrence: isRoutine && form.recurrence ? form.recurrence : null,
+      recurrence_until: isRoutine && form.recurrence && form.recurrence_until ? form.recurrence_until : null,
+      participants: participants.map((p) => p.id),
+      agenda_items: agendaItems.filter((a) => a.title.trim()),
+    };
+  };
+
+  /**
+   * Save without inviting anybody. Only a title is required — everything else
+   * can still be missing, which is the point. The first save turns the URL
+   * into an edit URL so every later save (and every autosave) updates the same
+   * row instead of piling up new drafts.
+   */
+  const saveDraft = async ({ silent = false } = {}) => {
+    if (!form.title.trim()) {
+      setErrors((p) => ({ ...p, title: "Give the meeting a title so you can find the draft again" }));
+      if (!silent) Swal.fire("Title needed", "Give the meeting a title so you can find the draft again.", "warning");
+      return false;
+    }
+    setSavingDraft(true);
+    const snapshot = snapshotOf();
+    try {
+      if (id) {
+        await put(`/meetings/${id}`, buildPayload("draft"));
+      } else {
+        const res = await post("/meetings", buildPayload("draft"));
+        const newId = res.data?.data?.id;
+        clearDraft(localKey);                     // the "new" key
+        if (newId) navigate(`/hr/meetings/edit/${newId}`, { replace: true });
+      }
+      setForm((p) => ({ ...p, status: "draft" }));
+      savedSnapshot.current = snapshot;
+      setSavedAt(new Date());
+      clearDraft(localKey);                       // the server has it now
+      setLocalDraft(null);
+      if (!silent) {
+        Swal.fire({
+          icon: "success", title: "Draft saved",
+          text: "Come back to it from the meetings list whenever you are ready.",
+          timer: 1800, showConfirmButton: false,
+        });
+      }
+      return true;
+    } catch (err) {
+      if (err.response?.status === 422 && err.response?.data?.errors) {
+        const se = {};
+        Object.entries(err.response.data.errors).forEach(([k, v]) => { se[k] = v[0]; });
+        setErrors(se);
+      }
+      // A failed autosave must not interrupt: the local copy still holds the
+      // work, and the next pause tries again.
+      if (!silent) Swal.fire("Error", err.response?.data?.message || "Failed to save draft", "error");
+      return false;
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = {};
@@ -230,36 +391,19 @@ export default function MeetingForm() {
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSaving(true);
-    // Recurrence only makes sense for routine meetings; drop it otherwise.
-    const isRoutine = form.meeting_type === "routine";
-    const reminderMinutes = isRoutine
-      ? Math.max(0, Math.min(10080, Number(form.reminder_minutes_before) || 0))
-      : 0;
-    // The API still expects full datetimes — stitch the single date with the
-    // two clock times before sending.
-    const startDateTime = `${form.meeting_date} ${form.start_time}:00`;
-    const endDateTime   = `${form.meeting_date} ${form.end_time}:00`;
-    const { meeting_date, ...rest } = form;
-    const payload = {
-      ...rest,
-      start_time: startDateTime,
-      end_time: endDateTime,
-      reminder_minutes_before: reminderMinutes,
-      recurrence: isRoutine && form.recurrence ? form.recurrence : null,
-      recurrence_until: isRoutine && form.recurrence && form.recurrence_until ? form.recurrence_until : null,
-      participants: participants.map((p) => p.id),
-      agenda_items: agendaItems.filter((a) => a.title.trim()),
-    };
+    // Publishing a draft schedules it; anything else keeps the status it has.
+    const payload = buildPayload(isDraft ? "scheduled" : form.status);
 
     try {
       if (isEdit) {
         await put(`/meetings/${id}`, payload);
-        Swal.fire({ icon: "success", title: "Meeting Updated!", timer: 1500, showConfirmButton: false });
+        Swal.fire({ icon: "success", title: isDraft ? "Meeting Scheduled!" : "Meeting Updated!", timer: 1500, showConfirmButton: false });
       } else {
         await post("/meetings", payload);
         Swal.fire({ icon: "success", title: "Meeting Created!", timer: 1500, showConfirmButton: false });
       }
-      navigate("/hr/meetings");
+      clearDraft(localKey);
+      goBack();
     } catch (err) {
       if (err.response?.status === 422 && err.response?.data?.errors) {
         const se = {};
@@ -282,17 +426,28 @@ export default function MeetingForm() {
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/hr/meetings")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Meeting" : "Schedule Meeting"}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Set up meeting details, participants, and agenda</p>
+            <h1 className="text-sm font-bold text-white flex items-center gap-2">
+              {isDraft ? "Continue Draft Meeting" : isEdit ? "Edit Meeting" : "Schedule Meeting"}
+              {isDraft && <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 text-[9px] font-black uppercase tracking-wide">Draft</span>}
+            </h1>
+            <p className="text-xs text-teal-100 mt-0.5">
+              {isDraft
+                ? "Saved and private. Schedule it when the plan is settled."
+                : "Set up meeting details, participants, and agenda"}
+            </p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 py-5 space-y-4">
+        {localDraft && (
+          <RestoreDraftBanner savedAt={localDraft.savedAt} onRestore={restoreLocalDraft} onDiscard={discardLocalDraft} />
+        )}
+
         {/* 1. Meeting Details */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
           <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2.5">
@@ -441,7 +596,9 @@ export default function MeetingForm() {
               </>
             )}
 
-            {isEdit && (
+            {/* A draft has no status to choose — it is a draft until it is
+                published, and the Schedule button is what publishes it. */}
+            {isEdit && !isDraft && (
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Status</label>
                 <select name="status" value={form.status} onChange={handle} className={ic("status")}>
@@ -635,20 +792,40 @@ export default function MeetingForm() {
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
-          <button type="button" onClick={() => navigate("/hr/meetings")}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Cancel
-          </button>
-          <button type="submit" disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
-            {saving ? (
-              <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
-            ) : (
-              <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Meeting" : "Schedule Meeting"}</>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={goBack}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              Back
+            </button>
+            {(!isEdit || isDraft) && (
+              <DraftStatus isDraft={isDraft} savedAt={savedAt} saving={savingDraft} noun="meeting" />
             )}
-          </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Save without inviting anyone — the escape hatch from "finish it
+                all now or lose it". Available while the meeting is new or a draft. */}
+            {(!isEdit || isDraft) && (
+              <button type="button" onClick={() => saveDraft()} disabled={savingDraft || saving}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-amber-800 bg-amber-100 border border-amber-200 rounded-xl hover:bg-amber-200 transition-colors disabled:opacity-50">
+                {savingDraft ? (
+                  <><div className="w-4 h-4 border-2 border-amber-300 border-t-amber-700 rounded-full animate-spin"></div>Saving...</>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>Save draft</>
+                )}
+              </button>
+            )}
+            <button type="submit" disabled={saving || savingDraft}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
+              {saving ? (
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
+              ) : (
+                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isDraft ? "Schedule Meeting" : isEdit ? "Update Meeting" : "Schedule Meeting"}</>
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </div>

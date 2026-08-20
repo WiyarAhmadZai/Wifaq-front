@@ -8,6 +8,9 @@ import { useResourcePermissions } from "../../admin/utils/useResourcePermissions
 
 import { DateField } from "../../components/hr/HrUI";
 const statusConf = {
+  // A meeting the organizer saved part-way through. Only they can see it, and
+  // nobody is invited until it is published.
+  draft: { label: "Draft", color: "bg-amber-50 text-amber-800 border-amber-200", dot: "bg-amber-500" },
   scheduled: { label: "Scheduled", color: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
   in_progress: { label: "In Progress", color: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
   completed: { label: "Completed", color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
@@ -138,6 +141,7 @@ export default function Meetings() {
   const recurrenceLabel = (r) => ({ daily: "Daily", weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" }[r] || "");
 
   const upcoming = items.filter((i) => i.status === "scheduled" && new Date(i.start_time) > new Date()).length;
+  const draftCount = items.filter((i) => i.status === "draft").length;
 
   return (
     <div className="min-h-screen bg-gray-50/60">
@@ -145,7 +149,9 @@ export default function Meetings() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold text-white">Meetings</h1>
-            <p className="text-xs text-teal-100 mt-0.5">{items.length} total · {upcoming} upcoming</p>
+            <p className="text-xs text-teal-100 mt-0.5">
+              {items.length} total · {upcoming} upcoming{draftCount > 0 ? ` · ${draftCount} draft${draftCount === 1 ? "" : "s"}` : ""}
+            </p>
           </div>
           {canCreate && (
             <button onClick={() => navigate("/hr/meetings/create")}
@@ -180,14 +186,35 @@ export default function Meetings() {
           </div>
           <div className="flex gap-1 flex-wrap">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider self-center">Status:</span>
-            {["all", "scheduled", "in_progress", "completed", "cancelled"].map((s) => (
+            {["all", "draft", "scheduled", "in_progress", "completed", "cancelled"].map((s) => (
               <button key={s} onClick={() => setFilter(s)}
-                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-semibold capitalize transition-colors ${filter === s ? "bg-teal-600 text-white" : "bg-gray-50 border border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-semibold capitalize transition-colors ${
+                  filter === s
+                    ? (s === "draft" ? "bg-amber-500 text-white" : "bg-teal-600 text-white")
+                    : "bg-gray-50 border border-gray-200 text-gray-600 hover:border-gray-300"}`}>
                 {s === "all" ? "All" : s.replace("_", " ")}
+                {s === "draft" && draftCount > 0 && (
+                  <span className={`ml-1 px-1.5 rounded-full text-[9px] font-black ${filter === s ? "bg-white/25" : "bg-amber-100 text-amber-800"}`}>{draftCount}</span>
+                )}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Drafts are invisible to everyone else, so nobody will chase you for
+            them — this makes sure you do not forget them yourself. */}
+        {draftCount > 0 && filter !== "draft" && (
+          <button onClick={() => setFilter("draft")}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 text-left hover:bg-amber-100 transition-colors">
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span className="text-xs font-semibold text-amber-900">
+              {draftCount} unfinished draft{draftCount === 1 ? "" : "s"} waiting on you
+            </span>
+            <span className="ml-auto text-[11px] font-semibold text-amber-700">Show them</span>
+          </button>
+        )}
 
         {/* Table */}
         {loading ? (
@@ -225,18 +252,21 @@ export default function Meetings() {
                     const isEmergency = m.meeting_type === "emergency";
 
                     return (
-                      <tr key={m.id} onClick={() => navigate(`/hr/meetings/show/${m.id}`)}
-                        className={`hover:bg-gray-50/60 cursor-pointer transition-colors ${isPast && m.status === "scheduled" ? "opacity-70" : ""}`}>
+                      <tr key={m.id}
+                        onClick={() => navigate(m.status === "draft" ? `/hr/meetings/edit/${m.id}` : `/hr/meetings/show/${m.id}`)}
+                        className={`cursor-pointer transition-colors ${m.status === "draft" ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-gray-50/60"} ${isPast && m.status === "scheduled" ? "opacity-70" : ""}`}>
                         {/* Date — fixed 220px so it can't push other columns */}
                         <td className="px-4 py-3 w-[220px]">
                           <div className="flex items-center gap-2.5">
                             <div className={`w-11 h-11 rounded-lg flex flex-col items-center justify-center flex-shrink-0 border ${isEmergency ? "bg-red-50 border-red-100" : "bg-teal-50 border-teal-100"}`}>
-                              <span className={`text-[9px] font-bold uppercase leading-none ${isEmergency ? "text-red-600" : "text-teal-600"}`}>{monthAbbr(m.start_time)}</span>
+                              <span className={`text-[9px] font-bold uppercase leading-none ${isEmergency ? "text-red-600" : "text-teal-600"}`}>{m.start_time ? monthAbbr(m.start_time) : "TBD"}</span>
                               <span className={`text-base font-black leading-none mt-0.5 ${isEmergency ? "text-red-700" : "text-teal-700"}`}>{m.start_time ? new Date(m.start_time).getDate() : "—"}</span>
                             </div>
                             <div className="min-w-0">
-                              <p className="text-[11px] font-semibold text-gray-700 truncate">{fmtDate(m.start_time)}</p>
-                              <p className="text-[10px] text-gray-500">{formatTime(m.start_time)} → {formatTime(m.end_time)}</p>
+                              <p className="text-[11px] font-semibold text-gray-700 truncate">{m.start_time ? fmtDate(m.start_time) : "No date set yet"}</p>
+                              <p className="text-[10px] text-gray-500">
+                                {m.start_time ? `${formatTime(m.start_time)} → ${formatTime(m.end_time)}` : "Click to continue planning"}
+                              </p>
                             </div>
                           </div>
                         </td>

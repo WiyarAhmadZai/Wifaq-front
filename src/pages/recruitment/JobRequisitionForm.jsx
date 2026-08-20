@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import Select from "react-select";
 import { get, post, put } from "../../api/axios";
 import { listDepartments } from "../../api/departments";
@@ -27,6 +28,9 @@ const APPROVAL_STATUSES = [
 
 export default function JobRequisitionForm() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/job-requisitions");
   const { id } = useParams();
   const isEdit = Boolean(id);
 
@@ -231,7 +235,7 @@ export default function JobRequisitionForm() {
         await post("/recruitment/job-requisitions", dataToSend);
         Swal.fire("Success", "Job requisition created successfully", "success");
       }
-      navigate("/recruitment/job-requisitions");
+      goBack();
     } catch (error) {
       console.error("Submit error:", error);
       console.error("Error response:", error.response);
@@ -271,7 +275,7 @@ export default function JobRequisitionForm() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate("/recruitment/job-requisitions")}
+          onClick={goBack}
           className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -476,7 +480,7 @@ export default function JobRequisitionForm() {
         <div className="flex items-center justify-between pt-2">
           <button
             type="button"
-            onClick={() => navigate("/recruitment/job-requisitions")}
+            onClick={goBack}
             className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all"
           >
             Cancel

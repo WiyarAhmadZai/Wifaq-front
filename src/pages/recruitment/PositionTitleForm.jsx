@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import Swal from "sweetalert2";
 import { peekCache } from "../../api/axios";
 import {
@@ -31,6 +32,9 @@ const EMPTY = {
 
 export default function PositionTitleForm() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/position-titles");
   const { id } = useParams();
   const isEdit = !!id;
 
@@ -120,7 +124,7 @@ export default function PositionTitleForm() {
         `Position title ${isEdit ? "updated" : "created"} successfully`,
         "success",
       );
-      navigate("/recruitment/position-titles");
+      goBack();
     } catch (err) {
       const status = err.response?.status;
       const data = err.response?.data;
@@ -154,7 +158,7 @@ export default function PositionTitleForm() {
       <div className="flex items-center gap-3 mb-6">
         <button
           type="button"
-          onClick={() => navigate("/recruitment/position-titles")}
+          onClick={goBack}
           className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <Icons.ArrowLeft />
@@ -259,7 +263,7 @@ export default function PositionTitleForm() {
           <div className="flex justify-end gap-3 pt-6 border-t">
             <button
               type="button"
-              onClick={() => navigate("/recruitment/position-titles")}
+              onClick={goBack}
               className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
             >
               Cancel

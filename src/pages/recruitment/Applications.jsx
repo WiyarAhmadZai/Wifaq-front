@@ -99,6 +99,59 @@ const screeningSummary = (item) => {
  * is a personal reading aid, not shared workflow state — writing it onto the
  * record would make an application look handled to the whole team the moment
  * one person opened it. Status is what the team shares; this is not. */
+/* How far a candidate has been taken, as a colour.
+ *
+ * Recruiters asked to be able to tell at a glance who still needs looking at.
+ * The row tint answers exactly that, and it is derived from shared record
+ * state — the screening reviews on file plus the pipeline status — so every
+ * recruiter sees the same colours. (The amber dot beside the name is the
+ * separate, per-person "I have not opened this one yet" marker.)
+ *
+ *   green  — brand new: nobody has screened or moved this application yet
+ *   blue   — screened / reviewed: at least one review is in, or the candidate
+ *            has been moved on down the pipeline
+ *   plain  — settled: hired, rejected, withdrawn or parked on the waiting list;
+ *            nothing is waiting on anybody, so the highlight comes off
+ */
+const SETTLED_STATUSES = ["hired", "rejected", "withdrawn", "waiting_list"];
+
+const reviewStateOf = (item) => {
+  if (SETTLED_STATUSES.includes(item.status)) return "settled";
+  const reviewed = (item.reviews_count || 0) > 0;
+  const movedOn = item.status && item.status !== "received";
+  return reviewed || movedOn ? "reviewed" : "new";
+};
+
+const REVIEW_STATE = {
+  new: {
+    label: "New candidate",
+    hint: "Not screened yet",
+    row: "bg-emerald-50 hover:bg-emerald-100/70",
+    dot: "bg-emerald-500",
+    avatar: "bg-emerald-100 text-emerald-800",
+    name: "font-bold text-gray-900",
+    chip: "bg-emerald-100 text-emerald-800",
+  },
+  reviewed: {
+    label: "Screened / reviewed",
+    hint: "Screening or candidate review done",
+    row: "bg-sky-50 hover:bg-sky-100/70",
+    dot: "bg-sky-500",
+    avatar: "bg-sky-100 text-sky-800",
+    name: "font-semibold text-gray-800",
+    chip: "bg-sky-100 text-sky-800",
+  },
+  settled: {
+    label: "Closed",
+    hint: "Hired, rejected, withdrawn or on the waiting list",
+    row: "bg-white hover:bg-gray-50",
+    dot: "bg-gray-300",
+    avatar: "bg-gray-100 text-gray-500",
+    name: "font-medium text-gray-500",
+    chip: "bg-gray-100 text-gray-600",
+  },
+};
+
 const viewedKey = (userId) => `recruitment.viewedApplications.${userId ?? "anon"}`;
 
 const loadViewed = (userId) => {
@@ -276,6 +329,12 @@ export default function Applications() {
   // Only the rows on screen — the list is paginated, so a global figure
   // would not match what the reviewer can actually see and act on.
   const unviewedCount = useMemo(() => items.filter((it) => !viewed.has(it.id)).length, [items, viewed]);
+
+  const reviewCounts = useMemo(() => {
+    const acc = { new: 0, reviewed: 0, settled: 0 };
+    items.forEach((it) => { acc[reviewStateOf(it)] += 1; });
+    return acc;
+  }, [items]);
 
   const markAllViewed = useCallback(() => {
     setViewed((prev) => {
@@ -484,17 +543,31 @@ export default function Applications() {
         </div>
       )}
 
-      {/* Unviewed legend — explains the amber rows and offers a way out of
-        * them without opening each one. */}
-      {unviewedCount > 0 && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-            {unviewedCount} not viewed yet
+      {/* Legend for the row colours. Without it the tints are just decoration —
+        * with it a recruiter can read the whole page in one glance. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        {["new", "reviewed", "settled"].map((key) => {
+          const conf = REVIEW_STATE[key];
+          return (
+            <span key={key} className="inline-flex items-center gap-1.5 text-[11px] text-gray-600" title={conf.hint}>
+              <span className={`w-2.5 h-2.5 rounded-sm ${conf.dot}`} />
+              <span className="font-semibold">{conf.label}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${conf.chip}`}>{reviewCounts[key]}</span>
+            </span>
+          );
+        })}
+
+        {/* Separate, personal marker: rows this recruiter has never opened. */}
+        {unviewedCount > 0 && (
+          <span className="inline-flex items-center gap-2 ml-auto">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              {unviewedCount} you have not opened
+            </span>
+            <button onClick={markAllViewed} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Mark all as viewed</button>
           </span>
-          <button onClick={markAllViewed} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Mark all as viewed</button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Table */}
       {loading ? (
@@ -520,21 +593,34 @@ export default function Applications() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {items.map((item) => {
-                  const isNew = !viewed.has(item.id);
+                  const state = reviewStateOf(item);
+                  const conf = REVIEW_STATE[state];
+                  const unopened = !viewed.has(item.id);
                   return (
                   <tr key={item.id}
-                      className={`cursor-pointer transition-colors ${isNew ? "bg-amber-50 hover:bg-amber-100/80" : "bg-white hover:bg-gray-50"}`}
+                      className={`cursor-pointer transition-colors ${conf.row}`}
+                      title={conf.hint}
                       onClick={() => openApplication(item.id)}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
                         {/* Colour alone would not survive a colour-vision
-                          * difference, so the dot and the weight carry it too. */}
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isNew ? "bg-amber-500" : "bg-transparent"}`}
-                              title={isNew ? "Not viewed yet" : "Viewed"} />
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 ${isNew ? "bg-amber-200 text-amber-800" : "bg-teal-100 text-teal-700"}`}>
+                          * difference, so the bar, the label and the weight
+                          * carry the same information. */}
+                        <span className={`w-1 h-8 rounded-full flex-shrink-0 ${conf.dot}`} aria-hidden="true" />
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 ${conf.avatar}`}>
                           {item.full_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                         </div>
-                        <span className={`text-xs ${isNew ? "font-bold text-gray-900" : "font-medium text-gray-500"}`}>{item.full_name}</span>
+                        <div className="min-w-0">
+                          <span className={`text-xs ${conf.name}`}>{item.full_name}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${conf.chip}`}>{conf.label}</span>
+                            {unopened && (
+                              <span className="text-[9px] font-semibold text-amber-600" title="You have not opened this one">
+                                &bull; unopened
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_posting?.title || "-"}</td>

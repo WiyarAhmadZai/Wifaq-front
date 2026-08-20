@@ -343,8 +343,12 @@ function CareersRedirect() {
 }
 
 function App() {
+  // Vite fills BASE_URL from the build's `base` — "/" at a domain root,
+  // "/folder/" for a subfolder build. Routing has to agree with what the assets
+  // were built for, or a subfolder deploy loads its JS and then 404s on every
+  // single route.
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL}>
       <AuthProvider>
         <ChatProvider>
         <Suspense fallback={<PageLoader />}>

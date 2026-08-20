@@ -1,0 +1,49 @@
+# Wifaq frontend — Apache rules for a single-page app.
+#
+# Lives in public/ so `vite build` copies it into dist/ untouched; upload it
+# alongside index.html and assets/.
+#
+# THE BUG THIS FIXES: without the "real file wins" rule below, the catch-all
+# sends /assets/index-*.js to index.html, the browser is handed HTML where it
+# asked for a module, and refuses it with
+#   "Expected a JavaScript-or-Wasm module script but the server responded
+#    with a MIME type of text/html"
+# — so nothing renders at all.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Serving from a subfolder? Set this to that folder, e.g. RewriteBase /wifaq/
+  # and rebuild with VITE_BASE_PATH=/wifaq/ so the asset URLs agree.
+  RewriteBase /
+
+  # A request that maps to a real file or directory is served as-is. This must
+  # come first — it is what keeps the hashed assets out of the SPA fallback.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else is a client-side route: hand it the shell.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Some shared hosts still serve .js as text/plain or omit the type entirely,
+# which trips the same strict module check. State it explicitly.
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType text/css            .css
+  AddType application/json    .json .map
+  AddType image/svg+xml       .svg
+  AddType font/woff2          .woff2
+</IfModule>
+
+# Hashed filenames change on every build, so they are safe to cache hard.
+# index.html must NOT be, or a stale shell keeps asking for deleted assets.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|mjs|css|woff2|svg|png|jpg|jpeg|webp)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^(index\.html|sw\.js)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

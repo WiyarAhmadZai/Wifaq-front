@@ -66,7 +66,9 @@ export default function MeetingForm() {
   const isDraft = form.status === "draft";
   const localKey = draftKey("meeting", user?.id, id);
 
-  const snapshotOf = () => JSON.stringify({ form, participants, agendaItems });
+  // Content only — `status` is tracked separately (saving a draft flips it,
+  // and that must not read as "the user changed something").
+  const snapshotOf = () => JSON.stringify({ ...form, status: null, participants, agendaItems });
 
   useEffect(() => {
     fetchUsers();
@@ -96,6 +98,10 @@ export default function MeetingForm() {
   useEffect(() => {
     if (loading) return;
     const t = setTimeout(() => {
+      // Only what the server does not already have. Mirroring an already-saved
+      // draft would put up a "restore unsaved work?" banner on the next visit
+      // offering the user exactly what is already on screen.
+      if (savedSnapshot.current === snapshotOf()) return;
       if (form.title || form.description || participants.length || agendaItems.some((a) => a.title)) {
         writeDraft(localKey, { form, participants, agendaItems });
       }

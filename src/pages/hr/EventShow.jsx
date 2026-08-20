@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import { get, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -13,9 +14,19 @@ const statusConf = {
   cancelled: { label: "Cancelled", bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500" },
 };
 
+/* Deliberately NOT part of statusConf: that object doubles as the list of
+ * statuses the badge menu offers, and "put this back to draft" is not a move
+ * anyone should be able to make. People have already been told the event is
+ * happening — quietly hiding it from them again would be worse than useless.
+ * Publishing is one-way; this entry exists only so a draft renders honestly. */
+const draftConf = { label: "Draft", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", dot: "bg-amber-500" };
+
 export default function EventShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered list, a
+  // dashboard, a notification — not always to the top of the module.
+  const goBack = useSmartBack("/hr/events");
   const { canUpdate, canDelete } = useResourcePermissions("events");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +59,7 @@ export default function EventShow() {
 
   const handleDelete = async () => {
     const r = await Swal.fire({ title: "Delete event?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
-    if (r.isConfirmed) { try { await del(`/events/${id}`); } catch {} navigate("/hr/events"); }
+    if (r.isConfirmed) { try { await del(`/events/${id}`); } catch {} goBack(); }
   };
 
   const toggleReq = async (reqId) => {
@@ -64,7 +75,8 @@ export default function EventShow() {
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div></div>;
   if (!data) return <div className="text-center py-24 text-sm text-gray-400">Event not found</div>;
 
-  const sc = statusConf[data.status] || statusConf.upcoming;
+  const isDraft = data.status === "draft";
+  const sc = isDraft ? draftConf : (statusConf[data.status] || statusConf.upcoming);
   const formatDate = (d) => d ? fmtDate(d) : "-";
   const isMultiDay = data.end_date && data.start_date !== data.end_date;
   const roles = data.roles || [];
@@ -77,7 +89,7 @@ export default function EventShow() {
       {/* Header */}
       <div className="bg-teal-600 px-5 py-5">
         <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => navigate("/hr/events")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div className="flex-1"><h1 className="text-sm font-bold text-white">Event Details</h1></div>
@@ -90,6 +102,14 @@ export default function EventShow() {
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
         <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {isDraft ? (
+            /* An unfinished draft has one sensible action: go and finish it. */
+            <button onClick={() => navigate(`/hr/events/edit/${id}`)}
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+              Draft — continue planning
+            </button>
+          ) : (
           <div className="relative" ref={statusRef}>
             <button onClick={() => setShowStatusMenu(!showStatusMenu)}
               className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
@@ -112,8 +132,11 @@ export default function EventShow() {
               </div>
             )}
           </div>
+          )}
           <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">
-            {formatDate(data.start_date)}{isMultiDay ? ` - ${formatDate(data.end_date)}` : ""}
+            {data.start_date
+              ? `${formatDate(data.start_date)}${isMultiDay ? ` - ${formatDate(data.end_date)}` : ""}`
+              : "No date set yet"}
           </span>
           {data.location && (
             <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full flex items-center gap-1">

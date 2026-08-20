@@ -114,18 +114,23 @@ const screeningSummary = (item) => {
  *            nothing is waiting on anybody, so the highlight comes off
  */
 const SETTLED_STATUSES = ["hired", "rejected", "withdrawn", "waiting_list"];
+// Past the screening stage: whatever the review count says, somebody has
+// clearly looked at this person and decided to take them further.
+const ADVANCED_STATUSES = ["shortlisted", "interview", "offer"];
 
 const reviewStateOf = (item) => {
   if (SETTLED_STATUSES.includes(item.status)) return "settled";
-  const reviewed = (item.reviews_count || 0) > 0;
-  const movedOn = item.status && item.status !== "received";
-  return reviewed || movedOn ? "reviewed" : "new";
+  // A recorded review is the real signal. Note that status `screening` on its
+  // own does NOT count — it means "being screened", and the whole point of the
+  // green row is to show who is still waiting for that to actually happen.
+  if ((item.reviews_count || 0) > 0 || ADVANCED_STATUSES.includes(item.status)) return "reviewed";
+  return "new";
 };
 
 const REVIEW_STATE = {
   new: {
-    label: "New candidate",
-    hint: "Not screened yet",
+    label: "New — not screened",
+    hint: "No screening or candidate review recorded yet",
     row: "bg-emerald-50 hover:bg-emerald-100/70",
     dot: "bg-emerald-500",
     avatar: "bg-emerald-100 text-emerald-800",
@@ -134,7 +139,7 @@ const REVIEW_STATE = {
   },
   reviewed: {
     label: "Screened / reviewed",
-    hint: "Screening or candidate review done",
+    hint: "A screening or candidate review is on file, or the candidate has been shortlisted",
     row: "bg-sky-50 hover:bg-sky-100/70",
     dot: "bg-sky-500",
     avatar: "bg-sky-100 text-sky-800",

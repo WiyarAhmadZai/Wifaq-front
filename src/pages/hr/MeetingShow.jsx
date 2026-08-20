@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import useSmartBack from "../../hooks/useSmartBack";
 import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -14,6 +15,13 @@ const statusConf = {
   cancelled: { label: "Cancelled", bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500" },
   ended: { label: "Ended", bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-600", dot: "bg-gray-400" },
 };
+
+/* Deliberately NOT part of statusConf: that object doubles as the list of
+ * statuses the badge menu offers, and "put this back to draft" is not a move
+ * anyone should be able to make. The invitations have already gone out —
+ * quietly hiding the meeting again would be worse than useless. Publishing is
+ * one-way; this entry exists only so a draft renders honestly. */
+const draftConf = { label: "Draft", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", dot: "bg-amber-500" };
 
 const emptyNote = { key_points: "", action_items_summary: "", reminders: "", additional_notes: "" };
 
@@ -202,6 +210,9 @@ function SearchableStaffSelect({ options, value, onChange }) {
 export default function MeetingShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered list, a
+  // dashboard, a notification — not always to the top of the module.
+  const goBack = useSmartBack("/hr/meetings");
   const { canUpdate, canDelete } = useResourcePermissions("meetings");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -304,7 +315,7 @@ export default function MeetingShow() {
 
   const handleDelete = async () => {
     const r = await Swal.fire({ title: "Delete meeting?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
-    if (r.isConfirmed) { try { await del(`/meetings/${id}`); } catch {} navigate("/hr/meetings"); }
+    if (r.isConfirmed) { try { await del(`/meetings/${id}`); } catch {} goBack(); }
   };
 
   const handleCopy = async () => {
@@ -487,7 +498,8 @@ export default function MeetingShow() {
 
   // Display the clock-derived status (e.g. "In Progress" while it's happening);
   // the dropdown below still edits the canonical stored status.
-  const sc = statusConf[data.live_status || data.status] || statusConf.scheduled;
+  const isDraft = data.status === "draft";
+  const sc = isDraft ? draftConf : (statusConf[data.live_status || data.status] || statusConf.scheduled);
   const formatDT = (dt) => dt ? fmtDateTime(dt) : "-";
   const getDuration = () => {
     if (!data.start_time || !data.end_time) return "-";
@@ -503,7 +515,7 @@ export default function MeetingShow() {
       {/* Header */}
       <div className="bg-teal-600 px-5 py-5">
         <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => navigate("/hr/meetings")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div className="flex-1">
@@ -531,6 +543,14 @@ export default function MeetingShow() {
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
         <div className="flex items-center gap-2 mt-2">
+          {isDraft ? (
+            /* An unfinished draft has one sensible action: go and finish it. */
+            <button onClick={() => navigate(`/hr/meetings/edit/${id}`)}
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+              Draft — continue planning
+            </button>
+          ) : (
           <div className="relative" ref={statusRef}>
             <button onClick={() => setShowStatusMenu(!showStatusMenu)}
               className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
@@ -551,6 +571,7 @@ export default function MeetingShow() {
               </div>
             )}
           </div>
+          )}
           {data.meeting_type === "emergency" && (
             <span className="flex items-center gap-1 px-2.5 py-0.5 bg-red-500 text-white text-[11px] font-bold rounded-full">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>

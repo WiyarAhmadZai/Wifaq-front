@@ -1519,6 +1519,8 @@ export default function Layout() {
     { label: "Nominate", path: "/education/weekly-recognition/nominate", permission: "weekly-recognition.create" },
     { label: "Review & Select", path: "/education/weekly-recognition/review", permission: "weekly-recognition.select" },
     { label: "Weekly Winners", path: "/education/weekly-recognition/history", permission: "weekly-recognition.view" },
+    // Derived from the weekly winners above — computed, never selected.
+    { label: "Annual Winner", path: "/education/weekly-recognition/annual-winner", permission: "weekly-recognition.view" },
   ];
 
   // Morning Assembly Program — its own light module. It references the Drive

@@ -50,7 +50,9 @@ export default function EventForm() {
   const isDraft = form.status === "draft";
   const localKey = draftKey("event", user?.id, id);
 
-  const snapshotOf = () => JSON.stringify({ form, roles, requirements });
+  // Content only — `status` is tracked separately (saving a draft flips it,
+  // and that must not read as "the user changed something").
+  const snapshotOf = () => JSON.stringify({ ...form, status: null, roles, requirements });
 
   const buildPayload = (status) => ({
     ...form,
@@ -79,6 +81,10 @@ export default function EventForm() {
   useEffect(() => {
     if (loading) return;
     const t = setTimeout(() => {
+      // Only what the server does not already have. Mirroring an already-saved
+      // draft would put up a "restore unsaved work?" banner on the next visit
+      // offering the user exactly what is already on screen.
+      if (savedSnapshot.current === snapshotOf()) return;
       if (form.title || form.description || roles.length || requirements.some((r) => r.description)) {
         writeDraft(localKey, { form, roles, requirements });
       }

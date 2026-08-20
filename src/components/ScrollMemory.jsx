@@ -43,6 +43,7 @@ export default function ScrollMemory() {
   const location = useLocation();
   const navigationType = useNavigationType(); // PUSH | POP | REPLACE
   const currentKey = useRef(location.key);
+  const lastPath = useRef(location.pathname);
 
   // Track the live position for whichever entry is on screen. Written on every
   // scroll (rAF-coalesced) because there is no reliable "about to navigate"
@@ -50,20 +51,32 @@ export default function ScrollMemory() {
   useEffect(() => {
     currentKey.current = location.key;
     let frame = null;
+    const capture = () => {
+      const map = readAll();
+      map[currentKey.current] = window.scrollY || document.documentElement.scrollTop || 0;
+      writeAll(map);
+    };
+    // Scroll fires far more often than it needs storing, so writes are
+    // coalesced to one per frame.
     const record = () => {
       if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = null;
-        const map = readAll();
-        map[currentKey.current] = window.scrollY || document.documentElement.scrollTop || 0;
-        writeAll(map);
-      });
+      frame = requestAnimationFrame(() => { frame = null; capture(); });
     };
+    // Seed a brand-new entry with wherever the page currently sits, so an
+    // entry the user never scrolls (a filter change mid-list, say) still has a
+    // position to come back to. Only when the entry is new — on a Back the
+    // stored position IS the answer, and seeding would overwrite it with the
+    // scroll position of the page being left.
+    if (readAll()[currentKey.current] === undefined) capture();
     window.addEventListener("scroll", record, { passive: true });
     return () => {
-      record();                                  // final flush before unmount
+      // Cleanup runs while `currentKey` still points at the entry being left,
+      // and before anything has scrolled the new page — so this is the last
+      // and most accurate reading of where the user was. Synchronous, because
+      // a queued frame would be cancelled below before it ever ran.
+      if (frame) { cancelAnimationFrame(frame); frame = null; }
+      capture();
       window.removeEventListener("scroll", record);
-      if (frame) cancelAnimationFrame(frame);
     };
   }, [location.key]);
 
@@ -73,8 +86,17 @@ export default function ScrollMemory() {
     if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
 
     const saved = navigationType === "POP" ? readAll()[location.key] : undefined;
-    const target = typeof saved === "number" ? saved : 0;
+    const samePage = lastPath.current === location.pathname;
+    lastPath.current = location.pathname;
 
+    if (typeof saved !== "number") {
+      // Changing a filter, a search or a page number rewrites the query string
+      // but the user has not gone anywhere — yanking them to the top of a list
+      // they are reading would be its own bug. Only a real page change resets.
+      if (!samePage) window.scrollTo(0, 0);
+      return;
+    }
+    const target = saved;
     if (target === 0) {
       window.scrollTo(0, 0);
       return;
@@ -93,7 +115,7 @@ export default function ScrollMemory() {
     };
     requestAnimationFrame(attempt);
     return () => { cancelled = true; };
-  }, [location.key, navigationType]);
+  }, [location.key, location.pathname, navigationType]);
 
   return null;
 }

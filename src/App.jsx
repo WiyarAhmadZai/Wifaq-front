@@ -95,6 +95,7 @@ const WeeklyTopic = lazy(() => import("./pages/education/WeeklyTopic"));
 const WeeklyNominate = lazy(() => import("./pages/education/WeeklyNominate"));
 const WeeklyReview = lazy(() => import("./pages/education/WeeklyReview"));
 const WeeklyHistory = lazy(() => import("./pages/education/WeeklyHistory"));
+const WeeklyAnnualWinner = lazy(() => import("./pages/education/WeeklyAnnualWinner"));
 // Morning Assembly Program — its own light module.
 const AssemblyCalendar = lazy(() => import("./pages/assembly/AssemblyCalendar"));
 const AssemblyPlan = lazy(() => import("./pages/assembly/AssemblyPlan"));
@@ -502,6 +503,7 @@ function App() {
             <Route path="education/weekly-recognition/nominate" element={<Suspense fallback={<PageLoader />}><WeeklyNominate /></Suspense>} />
             <Route path="education/weekly-recognition/review" element={<Suspense fallback={<PageLoader />}><WeeklyReview /></Suspense>} />
             <Route path="education/weekly-recognition/history" element={<Suspense fallback={<PageLoader />}><WeeklyHistory /></Suspense>} />
+            <Route path="education/weekly-recognition/annual-winner" element={<Suspense fallback={<PageLoader />}><WeeklyAnnualWinner /></Suspense>} />
 
             {/* Morning Assembly Program */}
             <Route path="assembly/calendar" element={<Suspense fallback={<PageLoader />}><AssemblyCalendar /></Suspense>} />

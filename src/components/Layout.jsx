@@ -1531,6 +1531,14 @@ export default function Layout() {
     { label: "Plan Assembly", path: "/assembly/plan", permission: "assemblies.create" },
     { label: "Archive / Reuse", path: "/assembly/templates", permission: "assemblies.view" },
   ];
+
+  // The 100 Essential Books — the reading initiative. Its own group: it is a
+  // library of recommendations, not part of the assembly or lesson modules.
+  const essentialBookMenus = [
+    { label: "All Books", path: "/library/essential-books", permission: "essential-books.view" },
+    { label: "Recommend a Book", path: "/library/essential-books/create", permission: "essential-books.create" },
+  ];
+
   // Lesson Planning — its own module (the 4D Lesson Plan), separate from the
   // Student Development / observation engine.
   const lessonPlanMenus = [
@@ -1995,7 +2003,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -2030,6 +2038,19 @@ export default function Layout() {
                 <SubMenuItem label="My Assembly Role" to="/assembly/my-responsibilities"
                              active={isActive("/assembly/my-responsibilities")} onClick={closeSidebar} />
               )}
+            </ParentMenu>
+          )}
+          {canSeeGroup(essentialBookMenus) && (
+            <ParentMenu
+              icon={Icons.Dashboard}
+              label="Essential Books"
+              isOpen={openMenu.includes("essential-books")}
+              onClick={() => toggleMenu("essential-books")}
+            >
+              {visible(essentialBookMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
             </ParentMenu>
           )}
           {canSeeGroup(lessonPlanMenus) && (

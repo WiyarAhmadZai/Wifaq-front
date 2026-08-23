@@ -103,6 +103,11 @@ const AssemblyAgenda = lazy(() => import("./pages/assembly/AssemblyAgenda"));
 const AssemblyRunSheet = lazy(() => import("./pages/assembly/AssemblyRunSheet"));
 const AssemblyArchive = lazy(() => import("./pages/assembly/AssemblyArchive"));
 const MyAssemblyRoles = lazy(() => import("./pages/assembly/MyAssemblyRoles"));
+
+// The 100 Essential Books — recommendation intake + curation.
+const EssentialBooks = lazy(() => import("./pages/library/EssentialBooks"));
+const EssentialBookForm = lazy(() => import("./pages/library/EssentialBookForm"));
+const EssentialBookShow = lazy(() => import("./pages/library/EssentialBookShow"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -520,6 +525,12 @@ function App() {
             {/* Student / parent portal — no permission tag; the server scopes it
                 to the caller's own students and refuses anyone else. */}
             <Route path="assembly/my-responsibilities" element={<Suspense fallback={<PageLoader />}><MyAssemblyRoles /></Suspense>} />
+
+            {/* The 100 Essential Books */}
+            <Route path="library/essential-books" element={<Suspense fallback={<PageLoader />}><EssentialBooks /></Suspense>} />
+            <Route path="library/essential-books/create" element={<Suspense fallback={<PageLoader />}><EssentialBookForm /></Suspense>} />
+            <Route path="library/essential-books/edit/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookForm /></Suspense>} />
+            <Route path="library/essential-books/show/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookShow /></Suspense>} />
             <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
             <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
             <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />

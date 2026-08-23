@@ -35,6 +35,10 @@ const RULES = [
   // → run sheet → archive).
   { prefix: "/assembly", permission: "assemblies.view" },
 
+  // The 100 Essential Books. The RULES loop appends the action for /create,
+  // /edit/:id and /show/:id on its own, so this one prefix covers the module.
+  { prefix: "/library/essential-books", permission: "essential-books.view" },
+
   // Weekly parent questionnaires (admin). One umbrella rule: the action is
   // derived from the tail — /create → create, /edit/:id → update,
   // /:id and /:id/responses → view — with questionnaires.manage as override.

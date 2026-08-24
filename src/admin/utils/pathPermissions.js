@@ -39,6 +39,10 @@ const RULES = [
   // /edit/:id and /show/:id on its own, so this one prefix covers the module.
   { prefix: "/library/essential-books", permission: "essential-books.view" },
 
+  // Broadcast management. READING a broadcast needs no permission — it
+  // arrives in a modal, not on a page — so only these screens are gated.
+  { prefix: "/broadcasts", permission: "broadcasts.view" },
+
   // Weekly parent questionnaires (admin). One umbrella rule: the action is
   // derived from the tail — /create → create, /edit/:id → update,
   // /:id and /:id/responses → view — with questionnaires.manage as override.

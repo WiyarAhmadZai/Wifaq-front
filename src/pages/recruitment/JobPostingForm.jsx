@@ -32,8 +32,12 @@ export default function JobPostingForm() {
     status: "published",
   });
 
-  const [requisitions, setRequisitions] = useState([]);
   const [requisitionOptions, setRequisitionOptions] = useState([]);
+  // The requisition this posting is already attached to. Kept separately
+  // because the picker lists only requisitions that are still open, and the
+  // one already in use may have expired since the posting was created — it
+  // still has to be visible, or editing the posting would silently blank it.
+  const [currentRequisition, setCurrentRequisition] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,22 +47,22 @@ export default function JobPostingForm() {
     if (isEdit) fetchPosting();
   }, [id]);
 
+  /* A requisition with no deadline never expires — say so, rather than
+   * showing nothing where every other option shows a date. */
+  const requisitionOption = (req, note = "") => ({
+    value: req.id,
+    label: `${req.position_title} - ${req.department} (${
+      req.deadline_date ? `Deadline: ${fmtDate(req.deadline_date)}` : "No deadline"
+    }${note ? ` · ${note}` : ""})`,
+    ...req, // Keep original data for reference
+  });
+
   const fetchApprovedRequisitions = async () => {
     try {
       const response = await get("/recruitment/job-postings/approved-requisitions");
       const data = response.data?.data || [];
       const requisitionsArray = Array.isArray(data) ? data : [];
-      setRequisitions(requisitionsArray);
-      
-      // Transform data for react-select
-      const options = requisitionsArray.map((req) => ({
-        value: req.id,
-        label: `${req.position_title} - ${req.department}${
-          req.deadline_date ? ` (Deadline: ${fmtDate(req.deadline_date)})` : ""
-        }`,
-        ...req // Keep original data for reference
-      }));
-      setRequisitionOptions(options);
+      setRequisitionOptions(requisitionsArray.map((req) => requisitionOption(req)));
     } catch (error) {
       console.error("Failed to fetch requisitions", error);
     }
@@ -77,6 +81,7 @@ export default function JobPostingForm() {
         location: d.location || "",
         status: d.status || "published",
       });
+      if (d.requisition) setCurrentRequisition(d.requisition);
       setLoading(false);
     }
     try {
@@ -91,13 +96,9 @@ export default function JobPostingForm() {
         status: d.status || "published",
       });
       
-      // Set the selected requisition option for react-select
-      if (d.requisition_id && requisitionOptions.length > 0) {
-        const selectedOption = requisitionOptions.find(opt => opt.value === d.requisition_id);
-        if (selectedOption) {
-          // We'll handle this in the component after options are loaded
-        }
-      }
+      // The posting carries its own requisition, which is the only reliable
+      // source when that requisition is no longer in the open list.
+      if (d.requisition) setCurrentRequisition(d.requisition);
     } catch (error) {
       Swal.fire("Error", "Failed to load job posting", "error");
       navigate("/recruitment/job-postings");
@@ -105,6 +106,16 @@ export default function JobPostingForm() {
       setLoading(false);
     }
   };
+
+  /* What the dropdown actually offers: every still-open requisition, plus the
+   * one this posting is already using if it is not among them. Without the
+   * second half, opening a posting whose requisition has expired would show an
+   * empty picker and a "required" error on a field the user never touched. */
+  const selectableRequisitions = (() => {
+    if (!currentRequisition) return requisitionOptions;
+    if (requisitionOptions.some((o) => o.value === currentRequisition.id)) return requisitionOptions;
+    return [requisitionOption(currentRequisition, "currently linked"), ...requisitionOptions];
+  })();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -248,13 +259,12 @@ export default function JobPostingForm() {
             </label>
             <Select
               name="requisition_id"
-              value={requisitionOptions.find(option => option.value === formData.requisition_id) || null}
+              value={selectableRequisitions.find(option => option.value === formData.requisition_id) || null}
               onChange={handleRequisitionChange}
-              options={requisitionOptions}
+              options={selectableRequisitions}
               placeholder="Select Requisition"
               isSearchable
               isClearable
-              isDisabled={isEdit}
               className={`react-select-container ${err("requisition_id") ? "react-select-error" : ""}`}
               classNamePrefix="react-select"
               menuPortalTarget={document.body}
@@ -285,7 +295,12 @@ export default function JobPostingForm() {
               }}
             />
             {err("requisition_id") && <p className="text-red-500 text-[10px] mt-1">{err("requisition_id")}</p>}
-            {requisitionOptions.length === 0 && (
+            {isEdit && (
+              <p className="text-gray-500 text-[10px] mt-1.5">
+                You can move this posting to a different approved requisition.
+              </p>
+            )}
+            {selectableRequisitions.length === 0 && (
               <p className="text-amber-600 text-[10px] mt-2">
                 No approved requisitions available. Please approve a job requisition first.
               </p>

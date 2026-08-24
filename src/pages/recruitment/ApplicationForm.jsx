@@ -485,7 +485,9 @@ export default function ApplicationForm() {
                   { label: "Department", value: selected.department?.replace(/_/g, ' ') },
                   { label: "Employment Type", value: selected.employment_type?.replace(/_/g, ' ') },
                   { label: "Open Positions", value: selected.number_of_positions },
-                  { label: "Deadline", value: selected.deadline_date },
+                  // A blank deadline would be dropped by the filter below, so
+                  // it is spelled out — this posting never closes on its own.
+                  { label: "Deadline", value: selected.deadline_date || "No deadline — open permanently" },
                 ].filter(item => item.value);
                 return (
                   <div className="mt-4 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-200">

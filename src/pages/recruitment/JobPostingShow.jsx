@@ -330,14 +330,18 @@ export default function JobPostingShow() {
                   {data.requisition?.department || "N/A"}
                 </p>
               </div>
-              {data.requisition?.deadline_date && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wider">Deadline</p>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Deadline</p>
+                {data.requisition?.deadline_date ? (
                   <p className="text-sm font-medium text-gray-800">
                     {fmtDate(data.requisition.deadline_date)}
                   </p>
-                </div>
-              )}
+                ) : (
+                  /* Stated rather than hidden: whether a vacancy expires is
+                   * exactly what someone opens this page to find out. */
+                  <p className="text-sm font-medium text-emerald-700">No deadline — open permanently</p>
+                )}
+              </div>
             </div>
           </div>
 

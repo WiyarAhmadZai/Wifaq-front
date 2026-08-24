@@ -15,12 +15,51 @@ import { permissionForPath } from "../utils/pathPermissions";
  */
 export default function PathPermissionGate({ children }) {
   const location = useLocation();
-  const { user, loading, hasPermission, isSuperAdmin } = useAuth();
+  const { user, loading, error, reload, hasPermission, isSuperAdmin } = useAuth();
 
   // While loading OR while a token exists in localStorage but the user payload
   // hasn't arrived yet, render a spinner instead of redirecting. This prevents
   // a ping-pong loop with /login (which redirects back to / when token is set).
   const hasToken = Boolean(localStorage.getItem("token"));
+
+  /* A held token whose /access/me call FAILED is not a loading state.
+   *
+   * It used to fall into the spinner below and stay there forever, so a
+   * database or network hiccup looked exactly like "the system is broken and
+   * says nothing". A 401 is different — the axios interceptor is already
+   * sending those to /login — so only non-401 failures land here, and they get
+   * a cause and a retry instead of an endless spinner. */
+  if (!loading && hasToken && !user && error && error?.response?.status !== 401) {
+    const status = error?.response?.status;
+    const reason = !error?.response
+      ? "The server is not responding. Check that the Laravel API is running."
+      : status >= 500
+        ? "The server hit an error while signing you in. It is often the database being unreachable."
+        : `The server refused the request (HTTP ${status}).`;
+
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm text-center">
+          <div className="text-3xl mb-3">⚠️</div>
+          <p className="text-sm font-bold text-gray-800">Cannot load your account</p>
+          <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{reason}</p>
+          <div className="flex gap-2 justify-center mt-4">
+            <button onClick={() => reload()}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white"
+              style={{ background: "#0D5C63" }}>
+              Try again
+            </button>
+            <button onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-xl text-xs font-bold border bg-white text-gray-600"
+              style={{ borderColor: "#D0E0E0" }}>
+              Reload page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading || (hasToken && !user)) {
     // Identical markup/size/position to App PageLoader & Layout PageFallback
     // so the auth → chunk → data phases overlay in the SAME spot — the user

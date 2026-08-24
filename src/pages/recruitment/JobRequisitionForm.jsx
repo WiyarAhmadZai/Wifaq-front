@@ -451,15 +451,30 @@ export default function JobRequisitionForm() {
             {/* Deadline Date */}
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                Deadline Date
+                Deadline Date <span className="font-normal text-gray-400">(optional)</span>
               </label>
               <DateField
                 name="deadline_date"
                 value={formData.deadline_date}
                 onChange={handleChange}
                 min={new Date().toISOString().split("T")[0]}
+                placeholder="dd/mm/yyyy — leave empty for no deadline"
                 className={inputClass("deadline_date")} />
               {err("deadline_date") && <p className="text-red-500 text-[10px] mt-1">{err("deadline_date")}</p>}
+              {/* Leaving this empty is a decision, not an omission: the vacancy
+                * then stays open for applications until it is closed by hand. */}
+              {!formData.deadline_date ? (
+                <p className="text-[10px] text-emerald-700 mt-1.5 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  No deadline — once published, this vacancy stays open permanently.
+                </p>
+              ) : (
+                <button type="button"
+                  onClick={() => handleChange({ target: { name: "deadline_date", value: "" } })}
+                  className="text-[10px] text-teal-600 hover:text-teal-700 font-semibold mt-1.5">
+                  Clear deadline (keep open permanently)
+                </button>
+              )}
             </div>
 
             {/* Hidden fields for create mode - approval_status */}

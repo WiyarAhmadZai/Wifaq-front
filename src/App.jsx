@@ -12,6 +12,7 @@ import { AuthProvider } from "./admin/context/AuthContext";
 import { I18nProvider } from "./i18n/I18nContext";
 import { ChatProvider } from "./chat/ChatContext";
 import Protected from "./admin/guards/Protected";
+import BroadcastModal from "./components/BroadcastModal";
 
 const AdminRoles = lazy(() => import("./admin/pages/AdminRoles"));
 const AdminRoleShow = lazy(() => import("./admin/pages/AdminRoleShow"));
@@ -109,6 +110,10 @@ const MyAssemblyRoles = lazy(() => import("./pages/assembly/MyAssemblyRoles"));
 const EssentialBooks = lazy(() => import("./pages/library/EssentialBooks"));
 const EssentialBookForm = lazy(() => import("./pages/library/EssentialBookForm"));
 const EssentialBookShow = lazy(() => import("./pages/library/EssentialBookShow"));
+
+// System-wide broadcasts — the once-a-day notice everyone sees.
+const Broadcasts = lazy(() => import("./pages/broadcasts/Broadcasts"));
+const BroadcastForm = lazy(() => import("./pages/broadcasts/BroadcastForm"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -359,6 +364,10 @@ function App() {
       <AuthProvider>
         <ChatProvider>
         <Suspense fallback={<PageLoader />}>
+          {/* The day's announcement, also on the sign-in page. Self-gating: it
+              draws nothing unless a live broadcast exists, and falls back to
+              the public endpoint while nobody is signed in. */}
+          <BroadcastModal />
           <Routes>
             <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
             <Route path="/403" element={<Suspense fallback={<PageLoader />}><Forbidden /></Suspense>} />
@@ -533,6 +542,11 @@ function App() {
             <Route path="library/essential-books/create" element={<Suspense fallback={<PageLoader />}><EssentialBookForm /></Suspense>} />
             <Route path="library/essential-books/edit/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookForm /></Suspense>} />
             <Route path="library/essential-books/show/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookShow /></Suspense>} />
+
+            {/* Broadcasts */}
+            <Route path="broadcasts" element={<Suspense fallback={<PageLoader />}><Broadcasts /></Suspense>} />
+            <Route path="broadcasts/create" element={<Suspense fallback={<PageLoader />}><BroadcastForm /></Suspense>} />
+            <Route path="broadcasts/edit/:id" element={<Suspense fallback={<PageLoader />}><BroadcastForm /></Suspense>} />
             <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
             <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
             <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />

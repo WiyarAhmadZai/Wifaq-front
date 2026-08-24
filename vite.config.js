@@ -9,6 +9,17 @@ export default defineConfig(({ mode }) => ({
   // expected a module script. Must end with a slash.
   base: loadEnv(mode, process.cwd(), '').VITE_BASE_PATH || '/',
   plugins: [react()],
+  server: {
+    watch: {
+      // Windows' native file events are missed when a file is rewritten by
+      // anything other than the editor (a script, git, a sync tool). When that
+      // happens HMR never fires, the browser keeps serving the module it
+      // already has, and a change looks like it "did not apply" — polling is
+      // the reliable watcher on this platform.
+      usePolling: true,
+      interval: 400,
+    },
+  },
   build: {
     // Split vendor chunks for better caching
     rollupOptions: {

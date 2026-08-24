@@ -156,6 +156,9 @@ export default function JobRequisitionShow() {
   };
 
   const formatValue = (key, value) => {
+    // Checked before the generic null case: an empty deadline is a decision
+    // ("open until we close it"), not a gap in the record.
+    if (key === "deadline_date" && !value) return "No deadline — open permanently";
     if (value === null || value === undefined) return "-";
     if (key === "created_at" || key === "updated_at") {
       return fmtDateTime(value);

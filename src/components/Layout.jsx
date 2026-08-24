@@ -1533,6 +1533,12 @@ export default function Layout() {
     { label: "Archive / Reuse", path: "/assembly/templates", permission: "assemblies.view" },
   ];
 
+  // Broadcasts — the system-wide notice everyone sees once a day.
+  const broadcastMenus = [
+    { label: "All Broadcasts", path: "/broadcasts", permission: "broadcasts.view" },
+    { label: "New Broadcast", path: "/broadcasts/create", permission: "broadcasts.create" },
+  ];
+
   // The 100 Essential Books — the reading initiative. Its own group: it is a
   // library of recommendations, not part of the assembly or lesson modules.
   const essentialBookMenus = [
@@ -2039,6 +2045,19 @@ export default function Layout() {
                 <SubMenuItem label="My Assembly Role" to="/assembly/my-responsibilities"
                              active={isActive("/assembly/my-responsibilities")} onClick={closeSidebar} />
               )}
+            </ParentMenu>
+          )}
+          {canSeeGroup(broadcastMenus) && (
+            <ParentMenu
+              icon={Icons.Dashboard}
+              label="Broadcasts"
+              isOpen={openMenu.includes("broadcasts")}
+              onClick={() => toggleMenu("broadcasts")}
+            >
+              {visible(broadcastMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
             </ParentMenu>
           )}
           {canSeeGroup(essentialBookMenus) && (

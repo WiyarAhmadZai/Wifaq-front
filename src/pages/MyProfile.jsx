@@ -277,6 +277,7 @@ export default function MyProfile() {
                   <Field label="Email" value={u.email} />
                   <Field label="Phone" value={u.phone} />
                   <Field label="WhatsApp" value={u.whatsapp} />
+                  <Field label="Bio" value={u.bio} />
                   <Field label="Current Address" value={a.current_address} className="col-span-2 lg:col-span-3" />
                 </div>
               </Section>
@@ -369,6 +370,7 @@ export default function MyProfile() {
               email: form.email,
               phone: form.phone,
               whatsapp: form.whatsapp,
+              bio: form.bio,
               'application_data.current_address': form.current_address,
             });
             if (ok) setShowContact(false);
@@ -1070,6 +1072,7 @@ function ContactModal({ profile, onClose, onSave, saving }) {
     email: profile.user?.email || '',
     phone: profile.user?.phone || '',
     whatsapp: profile.user?.whatsapp || '',
+    bio: profile.user?.bio || '',
     current_address: app.current_address || '',
   });
   return (
@@ -1086,6 +1089,15 @@ function ContactModal({ profile, onClose, onSave, saving }) {
         <div>
           <label className={lbl}>WhatsApp</label>
           <input className={inp} value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
+        </div>
+        <div>
+          <label className={lbl}>Short bio</label>
+          <textarea rows={2} maxLength={300} className={inp} value={form.bio}
+            onChange={(e) => setForm({ ...form, bio: e.target.value })}
+            placeholder="e.g. Head of Academic Affairs · 12 years teaching" />
+          <p className="text-[10px] text-gray-400 mt-1">
+            Shown under your name on your profile and on any announcement you publish. {300 - (form.bio?.length || 0)} left.
+          </p>
         </div>
         <div>
           <label className={lbl}>Current Address</label>

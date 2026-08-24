@@ -77,6 +77,7 @@ const L = {
     search_positions: "Search positions…", no_match: 'No positions match "{q}"', clear_search: "Clear search",
     no_positions: "No open positions at the moment", check_back: "Please check back soon — we post new opportunities regularly.",
     closed: "Closed", closes_today: "Closes today", days_left: "{n} days left", day_left: "1 day left", closes_on: "Closes {d}",
+    no_deadline: "Open — no deadline",
     n_open: "{n} open", n_yrs: "{n}+ yrs",
     received_title: "Application Received", thank_you: "Thank you for applying to Wifaq School.",
     received_body: "We've received your application and our recruitment team will review it shortly. If your profile is a match, we'll reach out to you by email or phone to schedule the next steps.",
@@ -161,6 +162,7 @@ const L = {
     search_positions: "د بستونو لټون…", no_match: '"{q}" سره هیڅ بست سمون نه لري', clear_search: "لټون پاکول",
     no_positions: "اوس مهال هیڅ خلاص بست نشته", check_back: "مهرباني وکړئ ژر بیا وګورئ — موږ په منظمه توګه نوي فرصتونه خپروو.",
     closed: "تړل شوی", closes_today: "نن تړل کیږي", days_left: "{n} ورځې پاتې", day_left: "۱ ورځ پاتې", closes_on: "په {d} تړل کیږي",
+    no_deadline: "پرانیستی — وروستۍ نېټه نه لري",
     n_open: "{n} خلاص", n_yrs: "{n}+ کاله",
     received_title: "غوښتنلیک ترلاسه شو", thank_you: "د وفاق ښوونځي ته ستاسو د غوښتنې مننه.",
     received_body: "موږ ستاسو غوښتنلیک ترلاسه کړ او زموږ د استخدام ټیم به یې ژر وڅیړي. که ستاسو پروفایل مناسب وي، د بریښنالیک یا تلیفون له لارې به درسره اړیکه ونیسو.",
@@ -245,6 +247,7 @@ const L = {
     search_positions: "جستجوی بست‌ها…", no_match: 'هیچ بستی با "{q}" مطابقت ندارد', clear_search: "پاک کردن جستجو",
     no_positions: "در حال حاضر بست بازی وجود ندارد", check_back: "لطفاً به‌زودی دوباره سر بزنید — ما به‌طور منظم فرصت‌های جدید منتشر می‌کنیم.",
     closed: "بسته شد", closes_today: "امروز بسته می‌شود", days_left: "{n} روز باقی‌مانده", day_left: "۱ روز باقی‌مانده", closes_on: "بسته شدن در {d}",
+    no_deadline: "باز — بدون مهلت",
     n_open: "{n} باز", n_yrs: "{n}+ سال",
     received_title: "درخواست دریافت شد", thank_you: "از درخواست شما به مکتب وفاق سپاسگزاریم.",
     received_body: "ما درخواست شما را دریافت کردیم و تیم استخدام ما به‌زودی آن را بررسی خواهد کرد. اگر پروفایل شما مناسب باشد، از طریق ایمیل یا تلفن برای مراحل بعدی با شما تماس خواهیم گرفت.",
@@ -1157,9 +1160,13 @@ function JobPicker({ t, jobPostings, selectedId, onSelect, error }) {
 
 /* Deadline countdown shared by the job card and the job detail view. */
 function deadlineInfo(job, t) {
-  if (!job?.deadline_date) return { label: null, urgent: false, closed: false, date: null };
+  // No deadline is not "unknown" — it is a vacancy that stays open until the
+  // school closes it by hand. Applicants were left guessing by a blank space
+  // where every other posting shows a countdown.
+  const openEnded = { label: t("no_deadline"), urgent: false, closed: false, date: t("no_deadline") };
+  if (!job?.deadline_date) return openEnded;
   const d = new Date(job.deadline_date);
-  if (isNaN(d.getTime())) return { label: null, urgent: false, closed: false, date: null };
+  if (isNaN(d.getTime())) return openEnded;
   const days = Math.ceil((d - new Date()) / (1000 * 60 * 60 * 24));
   const date = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   if (days < 0) return { label: t("closed"), urgent: true, closed: true, date };

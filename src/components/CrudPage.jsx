@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { useAuth } from "../admin/context/AuthContext";
 import ListExportActions from "./ListExportActions";
 import Select2 from "./hr/Select2";
+import { useI18n } from "../i18n/I18nContext";
 
 export default function CrudPage({
   title,
@@ -51,6 +52,8 @@ export default function CrudPage({
     if (!permissionBase) return true;
     return hasPermission(`${permissionBase}.${action}`) || hasPermission(`${permissionBase}.manage`);
   };
+  const { t } = useI18n();
+
   const canCreate = permCheck("create");
   const canUpdate = permCheck("update");
   const canDelete = permCheck("delete");
@@ -277,8 +280,13 @@ export default function CrudPage({
     finally { setSavingStatus(false); }
   };
 
+  // The page title doubles as a noun inside several sentences ("Total X",
+  // "Search x…"). Translate it once here so every one of them reads naturally.
+  const noun = t(title);
+  const lowerNoun = noun.toLowerCase();
+
   const stats = [
-    { label: `Total ${title}`, value: meta.total, icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+    { label: t("Total {}", noun), value: meta.total, icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   ];
 
   return (
@@ -286,8 +294,8 @@ export default function CrudPage({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-gray-800">{title}</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Manage {title.toLowerCase()} records</p>
+          <h1 className="text-lg font-bold text-gray-800">{noun}</h1>
+          <p className="text-xs text-gray-400 mt-0.5">{t("Manage {} records", lowerNoun)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ListExportActions getRows={fetchAllItems} columns={listColumns} title={title} />
@@ -325,7 +333,7 @@ export default function CrudPage({
             <div className="flex-1 relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input value={searchQuery} onChange={handleSearch}
-                placeholder={`Search ${title.toLowerCase()}...`}
+                placeholder={t("Search {}...", lowerNoun)}
                 className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" />
             </div>
             {filters.length > 0 && (
@@ -413,7 +421,7 @@ export default function CrudPage({
                   className="inline-flex items-center gap-1.5 max-w-full pl-2.5 pr-1 py-1 rounded-full bg-teal-50 border border-teal-100 text-teal-800 text-[11px] font-medium">
                   <span className="text-teal-500 font-semibold">{chip.label}:</span>
                   <span className="truncate">{chip.text}</span>
-                  <button onClick={() => setFilter(chip.key, "")} title={`Remove ${chip.label} filter`}
+                  <button onClick={() => setFilter(chip.key, "")} title={t("Remove {} filter", t(chip.label))}
                     className="w-4 h-4 rounded-full flex items-center justify-center text-teal-500 hover:bg-teal-600 hover:text-white transition-colors flex-shrink-0">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
@@ -505,7 +513,7 @@ export default function CrudPage({
                 <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </div>
               <p className="text-sm font-medium text-gray-600">{searchQuery ? "No matching records" : "No records found"}</p>
-              <p className="text-xs text-gray-400 mt-1">{searchQuery ? "Try adjusting your search" : `Create your first ${title.toLowerCase()} entry`}</p>
+              <p className="text-xs text-gray-400 mt-1">{searchQuery ? t("Try adjusting your search") : t("Create your first {} entry", lowerNoun)}</p>
               {searchQuery ? (
                 <button onClick={() => { setSearchQuery(""); }}
                   className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors">Clear Search</button>

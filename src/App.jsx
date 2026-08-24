@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./admin/context/AuthContext";
+import { I18nProvider } from "./i18n/I18nContext";
 import { ChatProvider } from "./chat/ChatContext";
 import Protected from "./admin/guards/Protected";
 
@@ -354,6 +355,7 @@ function App() {
   // single route.
   return (
     <Router basename={import.meta.env.BASE_URL}>
+      <I18nProvider>
       <AuthProvider>
         <ChatProvider>
         <Suspense fallback={<PageLoader />}>
@@ -797,6 +799,7 @@ function App() {
         </Suspense>
         </ChatProvider>
       </AuthProvider>
+      </I18nProvider>
     </Router>
   );
 }

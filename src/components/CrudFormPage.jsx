@@ -5,7 +5,9 @@ import Swal from 'sweetalert2';
 import { handleValidationErrors } from '../utils/formErrors';
 
 import { DateField } from "./hr/HrUI";
+import { useI18n } from "../i18n/I18nContext";
 export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, storeEndpoint = null, editEndpoint = null }) {
+  const { t } = useI18n();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
@@ -247,7 +249,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
         <div className="relative">
           <input
             type="text"
-            placeholder={field.placeholder || `Search ${field.label.toLowerCase()}...`}
+            placeholder={field.placeholder || t("Search {}...", t(field.label).toLowerCase())}
             value={searchTerm || selectedDisplay}
             onChange={handleInputChange}
             onFocus={() => setShowDropdown(true)}
@@ -425,7 +427,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? `Edit ${title}` : `Create ${title}`}</h1>
+            <h1 className="text-sm font-bold text-white">{isEdit ? t("Edit {}", t(title)) : t("Create {}", t(title))}</h1>
             <p className="text-xs text-teal-100 mt-0.5">Fill in the details below</p>
           </div>
         </div>

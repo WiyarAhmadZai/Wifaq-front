@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './i18n/rtl.css'
 import App from './App.jsx'
 
 // After a new deploy, hashed chunk filenames change. A browser still running

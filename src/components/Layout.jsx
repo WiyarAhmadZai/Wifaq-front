@@ -10,6 +10,7 @@ import ChatDrawer from "../chat/components/ChatDrawer";
 import WelcomeLetterModal from "./WelcomeLetterModal";
 import ExperienceLetterModal from "./ExperienceLetterModal";
 import { isRealtimeLive } from "../chat/echo";
+import LanguageSwitcher from "../i18n/LanguageSwitcher";
 
 const PageFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -2343,14 +2344,7 @@ export default function Layout() {
               <GlobalSearch index={searchIndex} />
             </div>
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-1">
-                <button className="px-2 py-0.5 text-xs font-medium text-gray-600 hover:text-gray-800">
-                  EN
-                </button>
-                <button className="px-2 py-0.5 text-xs font-medium text-gray-400 hover:text-gray-600">
-                  AR
-                </button>
-              </div>
+              <LanguageSwitcher />
               <MessagesButton />
               <NotificationBell />
               <ProfileButton />

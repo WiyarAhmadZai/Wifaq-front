@@ -26,6 +26,30 @@ const needsChange = (c) => ["positive", "concern", "urgent"].includes(c);
 const isNegative = (c) => ["concern", "urgent"].includes(c);
 const initials = (n) => (n || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
+/**
+ * How many observations this student already has.
+ *
+ * Zero is deliberately still shown, in muted grey rather than hidden — an
+ * absent badge would be read as "no data loaded", while a visible 0 is the
+ * answer the teacher is looking for: this child has not been observed yet.
+ *
+ * Module scope, not inside the page component: a component declared during
+ * render is a new type on every render, so React unmounts and remounts it each
+ * time instead of updating it.
+ */
+function ObsCount({ total, week }) {
+  const n = Number(total) || 0;
+  return (
+    <span
+      className="px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none flex-shrink-0 whitespace-nowrap"
+      style={n > 0 ? { background: "#E8F6F6", color: TEAL } : { background: "#F1F4F4", color: "#9aa8a8" }}
+      title={`${n} observation${n === 1 ? "" : "s"} recorded${week ? ` · ${week} in the last 7 days` : ""}`}
+    >
+      {n} obs
+    </span>
+  );
+}
+
 export default function DailyObservation() {
   const [classes, setClasses] = useState([]);
   const [activeClass, setActiveClass] = useState(null);
@@ -105,8 +129,16 @@ export default function DailyObservation() {
       const r = await post("/student-observations/batch", { student_id: selected.id, observations });
       Swal.fire({ icon: "success", title: r.data?.message || "Recorded", timer: 1300, showConfirmButton: false, toast: true, position: "top-end" });
       setForms(blankForms()); setActiveDim("intellectual"); setAdding(false);
-      setRoster((p) => p.map((x) => (x.id === selected.id ? { ...x, seen_today: true, days_since: 0, total_count: x.total_count + observations.length } : x)));
-      setSelected((s) => ({ ...s, seen_today: true, days_since: 0, total_count: s.total_count + observations.length }));
+      const bump = (x) => ({
+        ...x,
+        seen_today: true,
+        days_since: 0,
+        total_count: x.total_count + observations.length,
+        // Saved today, so it is inside the 7-day window by definition.
+        week_count: (x.week_count || 0) + observations.length,
+      });
+      setRoster((p) => p.map((x) => (x.id === selected.id ? bump(x) : x)));
+      setSelected(bump);
       loadHistory(selected.id);
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || Object.values(err.response?.data?.errors || {})[0]?.[0] || "Failed", "error");
@@ -163,9 +195,17 @@ export default function DailyObservation() {
                   style={on ? { background: "#E8F6F6", borderColor: TEAL } : { background: "transparent", borderColor: "transparent" }}>
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(s.full_name)}</div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-gray-800 truncate">{s.full_name}</p>
+                    {/* The tally rides ALONGSIDE the name, not on a line of its
+                        own below it — how many observations a student already
+                        has is the thing being scanned for, and as grey text on
+                        a third line it read as a footnote and got missed.
+                        `bdi` isolates the RTL name so the LTR count pill cannot
+                        be pulled to the wrong side of it. */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <bdi dir="auto" className="text-xs font-bold text-gray-800 truncate">{s.full_name}</bdi>
+                      <ObsCount total={s.total_count} week={s.week_count} />
+                    </div>
                     {s.father_name && <p className="text-[10px] text-gray-500 truncate">{s.gender === "female" ? "D/O" : "S/O"} {s.father_name}</p>}
-                    <p className="text-[10px] text-gray-400">{s.total_count} obs</p>
                   </div>
                   <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0" style={{ background: b.bg, color: b.c }}>{b.label}</span>
                 </button>
@@ -195,7 +235,10 @@ export default function DailyObservation() {
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-black text-gray-800 truncate">{selected.full_name}</h2>
                   {selected.father_name && <p className="text-[11px] text-gray-500 truncate">{selected.gender === "female" ? "D/O" : "S/O"} {selected.father_name}</p>}
-                  <p className="text-[11px] text-gray-400">{selected.total_count} observation{selected.total_count === 1 ? "" : "s"} · {selected.seen_today ? "seen today" : selected.days_since === null ? "never observed" : `last ${selected.days_since}d ago`}</p>
+                  <p className="text-[11px] text-gray-400 flex items-center gap-1.5 flex-wrap">
+                    <ObsCount total={selected.total_count} week={selected.week_count} />
+                    <span>observation{selected.total_count === 1 ? "" : "s"} recorded · {selected.seen_today ? "seen today" : selected.days_since === null ? "never observed" : `last ${selected.days_since}d ago`}</span>
+                  </p>
                 </div>
                 {!adding && <button onClick={() => setAdding(true)} className="px-4 py-2 rounded-xl text-xs font-bold text-white" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>＋ Observe</button>}
               </div>

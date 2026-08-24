@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { post, clearApiCache } from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../admin/context/AuthContext';
+import LanguageSwitcher from "../i18n/LanguageSwitcher";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -70,6 +71,10 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-teal-100 flex items-center justify-center p-4">
+      {/* Sign in in your own language: the picker works before login too. */}
+      <div className="absolute top-4 end-4">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-sm">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-teal-600 px-6 py-4 text-center">

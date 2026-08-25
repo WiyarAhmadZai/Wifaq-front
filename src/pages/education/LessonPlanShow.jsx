@@ -161,9 +161,17 @@ export default function LessonPlanShow() {
         {ref && (
           <div className="rounded-2xl border bg-white p-5 space-y-3" style={{ borderColor: "#dbe8e8" }}>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-gray-800">Post-teaching reflection</h3>
-              {ref.rating != null && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "#e6f3ec", color: "#2E7D5B" }}>★ {ref.rating}/5</span>}
+              <h3 className="text-sm font-black text-gray-800">Lesson result</h3>
+              <div className="flex items-center gap-1.5">
+                {ref.goals_met != null && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "#eaf2f2", color: "#0D5C63" }}>
+                    {ref.goals_met}% of plan achieved
+                  </span>
+                )}
+                {ref.rating != null && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "#e6f3ec", color: "#2E7D5B" }}>★ {ref.rating}/5</span>}
+              </div>
             </div>
+            <Block label="Result">{ref.outcome}</Block>
             <Block label="What worked">{ref.what_worked}</Block>
             <Block label="What to change">{ref.what_to_change}</Block>
             <Block label="Next time">{ref.next_time}</Block>

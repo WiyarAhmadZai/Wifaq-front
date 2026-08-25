@@ -24,11 +24,41 @@ export default function LessonPlanReview() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  /**
+   * Confirm what actually happened to the teacher.
+   *
+   * A 1-second toast saying "Returned" could not tell the reviewer whether the
+   * teacher had been told — which is exactly what they asked for. The server
+   * now reports whether a notification could be delivered, so a reachable
+   * teacher gets a confirmation the reviewer has to dismiss, and an
+   * unreachable one gets a warning instead of a green tick.
+   */
+  const reportDelivery = (res, fallbackTitle) => {
+    const d = res?.data || {};
+    if (d.notified === false) {
+      return Swal.fire({
+        icon: "warning",
+        title: "Saved — but not delivered",
+        text: d.message || "The teacher has no user account linked, so they were not notified.",
+        confirmButtonText: "I'll tell them another way",
+      });
+    }
+    return Swal.fire({
+      icon: "success",
+      title: fallbackTitle,
+      text: d.message || "",
+      timer: 2600,
+      timerProgressBar: true,
+      showConfirmButton: true,
+      confirmButtonText: "Done",
+    });
+  };
+
   const approve = async (p) => {
     setBusy(p.id);
     try {
-      await post(`/lesson-plans/${p.id}/approve`);
-      Swal.fire({ icon: "success", title: "Approved", timer: 1100, showConfirmButton: false, toast: true, position: "top-end" });
+      const res = await post(`/lesson-plans/${p.id}/approve`);
+      await reportDelivery(res, "Approved");
       load();
     } catch (err) { Swal.fire("Error", err.response?.data?.message || "Failed", "error"); }
     finally { setBusy(null); }
@@ -45,8 +75,8 @@ export default function LessonPlanReview() {
     if (!note) return;
     setBusy(p.id);
     try {
-      await post(`/lesson-plans/${p.id}/return`, { note });
-      Swal.fire({ icon: "success", title: "Returned", timer: 1100, showConfirmButton: false, toast: true, position: "top-end" });
+      const res = await post(`/lesson-plans/${p.id}/return`, { note });
+      await reportDelivery(res, "Sent back to the teacher");
       load();
     } catch (err) { Swal.fire("Error", err.response?.data?.message || "Failed", "error"); }
     finally { setBusy(null); }

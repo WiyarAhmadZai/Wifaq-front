@@ -10,7 +10,7 @@ import { TEAL, TEAL_LT, GOLD } from "./lessonPlanUi";
  *   <ReflectionModal plan={plan} onClose={fn} onSaved={fn} />
  */
 export default function ReflectionModal({ plan, onClose, onSaved }) {
-  const [form, setForm] = useState({ what_worked: "", what_to_change: "", next_time: "", support_request: "", rating: 0 });
+  const [form, setForm] = useState({ outcome: "", goals_met: "", what_worked: "", what_to_change: "", next_time: "", support_request: "", rating: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -20,6 +20,7 @@ export default function ReflectionModal({ plan, onClose, onSaved }) {
     if (__cached) {
       const ref = __cached?.data?.reflection;
       if (ref) setForm({
+        outcome: ref.outcome || "", goals_met: ref.goals_met ?? "",
         what_worked: ref.what_worked || "", what_to_change: ref.what_to_change || "",
         next_time: ref.next_time || "", support_request: ref.support_request || "", rating: ref.rating || 0,
       });
@@ -29,6 +30,7 @@ export default function ReflectionModal({ plan, onClose, onSaved }) {
       .then((r) => {
         const ref = r.data?.data?.reflection;
         if (alive && ref) setForm({
+          outcome: ref.outcome || "", goals_met: ref.goals_met ?? "",
           what_worked: ref.what_worked || "", what_to_change: ref.what_to_change || "",
           next_time: ref.next_time || "", support_request: ref.support_request || "", rating: ref.rating || 0,
         });
@@ -43,12 +45,16 @@ export default function ReflectionModal({ plan, onClose, onSaved }) {
   const save = async () => {
     setSaving(true);
     try {
-      await post(`/lesson-plans/${plan.id}/reflect`, { ...form, rating: form.rating || null });
-      Swal.fire({ icon: "success", title: "Reflection recorded", timer: 1300, showConfirmButton: false, toast: true, position: "top-end" });
+      await post(`/lesson-plans/${plan.id}/reflect`, {
+        ...form,
+        rating: form.rating || null,
+        goals_met: form.goals_met === "" ? null : Number(form.goals_met),
+      });
+      Swal.fire({ icon: "success", title: "Lesson result saved", timer: 1300, showConfirmButton: false, toast: true, position: "top-end" });
       onSaved?.();
       onClose?.();
     } catch (err) {
-      Swal.fire("Error", err.response?.data?.message || "Could not save the reflection.", "error");
+      Swal.fire("Error", err.response?.data?.message || "Could not save the lesson result.", "error");
     } finally { setSaving(false); }
   };
 
@@ -58,8 +64,8 @@ export default function ReflectionModal({ plan, onClose, onSaved }) {
         {/* Header */}
         <div className="px-5 py-4 flex items-center justify-between sticky top-0" style={{ background: `linear-gradient(135deg, ${TEAL}, #063033)` }}>
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: GOLD }}>2-minute reflection</p>
-            <h2 className="text-sm font-black text-white mt-0.5">Post-teaching reflection</h2>
+            <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: GOLD }}>After the lesson</p>
+            <h2 className="text-sm font-black text-white mt-0.5">Lesson result</h2>
             <p className="text-[11px] text-white/70 mt-0.5 truncate max-w-[20rem]">{plan.title}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-white" style={{ background: "rgba(255,255,255,.18)" }}>✕</button>
@@ -69,6 +75,33 @@ export default function ReflectionModal({ plan, onClose, onSaved }) {
           <div className="flex justify-center py-12"><div className="w-7 h-7 border-2 rounded-full animate-spin" style={{ borderColor: "#cfe4e4", borderTopColor: TEAL }} /></div>
         ) : (
           <div className="p-5 space-y-4">
+            {/* The result itself: what the class came away with, measured
+                against the goals written in the plan. Everything below it is
+                the teacher's reflection on how it went. */}
+            <Field label="Result of the lesson" hint="Against the goals in your plan, what did the students actually come away with?">
+              <textarea rows={3} value={form.outcome} onChange={(e) => set("outcome", e.target.value)}
+                placeholder="e.g. 18 of 22 students could give their own example of the rule unprompted; the rest managed it with a hint." className={txt} />
+            </Field>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">How much of the plan was achieved?</p>
+              <div className="flex items-center gap-3">
+                <input type="range" min={0} max={100} step={5}
+                  value={form.goals_met === "" ? 50 : form.goals_met}
+                  onChange={(e) => set("goals_met", e.target.value)}
+                  className="flex-1 accent-teal-700" />
+                <span className="text-xs font-black tabular-nums w-14 text-right" style={{ color: TEAL }}>
+                  {form.goals_met === "" ? "—" : `${form.goals_met}%`}
+                </span>
+              </div>
+              {form.goals_met === "" && (
+                <button type="button" onClick={() => set("goals_met", 50)}
+                  className="text-[10px] mt-1 underline" style={{ color: TEAL }}>Set a figure</button>
+              )}
+            </div>
+
+            <div className="h-px" style={{ background: "#eef4f4" }} />
+
             <Field label="What worked well?" hint="The basis of better teaching next time.">
               <textarea rows={3} value={form.what_worked} onChange={(e) => set("what_worked", e.target.value)}
                 placeholder="e.g. Group work on finding examples — students were active and produced about 15." className={txt} />
@@ -105,7 +138,7 @@ export default function ReflectionModal({ plan, onClose, onSaved }) {
         <div className="px-5 py-3 border-t flex gap-2 justify-end sticky bottom-0 bg-white" style={{ borderColor: "#eef4f4" }}>
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-xs font-bold border" style={{ borderColor: "#dbe8e8", color: "#5d7273" }}>Cancel</button>
           <button onClick={save} disabled={saving || loading} className="px-5 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>
-            {saving ? "Recording…" : "Record reflection"}
+            {saving ? "Saving…" : "Save lesson result"}
           </button>
         </div>
       </div>

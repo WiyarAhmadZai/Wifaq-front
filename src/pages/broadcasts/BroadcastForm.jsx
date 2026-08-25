@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { get, post, put } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
+import { textDirection, arabicTextStyle } from "../../utils/textDirection";
 
 const TEAL = "#0D5C63";
 const TEAL_LT = "#14919B";
@@ -113,6 +114,12 @@ export default function BroadcastForm() {
   }
 
   const tone = TONES.find((t) => t.value === form.tone) || TONES[0];
+
+  /* The preview mirrors BroadcastModal: each block reads in the direction of
+   * its own text, so an author typing in Dari watches it right-align as they
+   * go and knows exactly what will land on everyone's screen. */
+  const previewTitleDir = textDirection(form.title || form.body);
+  const previewBodyDir = textDirection(form.body || form.title);
 
   return (
     <div className="min-h-screen bg-[#F4F8F8]">
@@ -248,19 +255,22 @@ export default function BroadcastForm() {
               <span className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 flex-shrink-0">✕</span>
             </div>
 
+            {/* Same direction rules as the real modal — see BroadcastModal. A
+              * preview that aligned text differently would be worse than none. */}
             <div className="px-4 pb-4">
               {form.title && (
-                <h2 className="text-base font-black mb-1.5" style={{ color: "#0A3A3E" }}>
-                  <bdi dir="auto">{form.title}</bdi>
+                <h2 dir={previewTitleDir} className="text-base font-black mb-1.5"
+                  style={{ color: "#0A3A3E", ...arabicTextStyle(previewTitleDir) }}>
+                  {form.title}
                 </h2>
               )}
-              <bdi dir="auto" className="block text-sm leading-relaxed whitespace-pre-wrap"
-                style={{ color: form.body ? "#334A4C" : "#C3D0D0" }}>
+              <div dir={previewBodyDir} className="text-sm leading-relaxed whitespace-pre-wrap"
+                style={{ color: form.body ? "#334A4C" : "#C3D0D0", ...arabicTextStyle(previewBodyDir) }}>
                 {form.body || "Your message appears here…"}
-              </bdi>
+              </div>
             </div>
 
-            <div className="px-4 py-3 flex items-center gap-2 flex-wrap"
+            <div dir="ltr" className="px-4 py-3 flex items-center gap-2 flex-wrap"
               style={{ borderTop: `1px solid ${BORDER}`, background: "#FAFCFC" }}>
               {form.link_url && (
                 <span className="px-4 py-2 rounded-xl text-xs font-bold text-white" style={{ background: tone.accent }}>

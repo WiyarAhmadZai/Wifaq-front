@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { listPlans, deletePlan, duplicatePlan, PLAN_TYPES, PLAN_STATES } from "../../api/planning";
+import { listPlans, deletePlan, duplicatePlan, rejectPlan, PLAN_TYPES, PLAN_STATES } from "../../api/planning";
 import { peekCache } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { PageHeader, StatGrid, EmptyState, Spinner } from "../../components/hr/HrUI";
@@ -109,6 +109,64 @@ export default function MyPlans() {
         text: err?.response?.data?.message || "Please try again.",
       });
     }
+  };
+
+  /**
+   * Edit is offered on every plan, not just drafts.
+   *
+   * The server deliberately locks a plan once it is submitted, so the approver
+   * always reviews the same document that was sent. Hiding the button for
+   * those plans just looked broken — there was no way to tell a locked plan
+   * from a missing feature. Now the button is always there and says what to do:
+   * a draft opens straight away, a submitted plan can be returned to draft in
+   * one step by whoever is allowed to approve it, and a live plan explains
+   * that individual items are changed by amendment instead.
+   */
+  const handleEdit = async (e, p) => {
+    e.stopPropagation();
+
+    if (p.status === "draft") {
+      navigate(`/planning/plans/edit/${p.id}`);
+      return;
+    }
+
+    if (p.status === "submitted") {
+      const canUnlock = hasPermission("planning.approve") || hasPermission("planning.reject") || hasPermission("planning.manage");
+      if (!canUnlock) {
+        Swal.fire({
+          icon: "info",
+          title: "With the approver",
+          text: "This plan has been submitted, so it is locked while it is being reviewed. Ask the approver to return it to you if it needs changing.",
+        });
+        return;
+      }
+      const { value: note } = await Swal.fire({
+        icon: "question",
+        title: "Reopen for editing?",
+        html: "This plan is submitted. To edit it, it goes back to <b>draft</b> and the owner is told why.",
+        input: "textarea",
+        inputPlaceholder: "What needs changing?",
+        showCancelButton: true,
+        confirmButtonText: "Return to draft & edit",
+        inputValidator: (v) => (!v || v.trim().length < 3) && "Please say briefly what needs changing.",
+      });
+      if (!note) return;
+      try {
+        await rejectPlan(p.id, note);
+        setPlans((list) => list.map((x) => (x.id === p.id ? { ...x, status: "draft" } : x)));
+        navigate(`/planning/plans/edit/${p.id}`);
+      } catch (err) {
+        Swal.fire("Error", err.response?.data?.message || "Could not reopen the plan.", "error");
+      }
+      return;
+    }
+
+    Swal.fire({
+      icon: "info",
+      title: "This plan is live",
+      text: "An approved plan has already created its tasks, events and requests, so it is not edited as a whole. Open the plan and amend the individual item you need to change.",
+      confirmButtonText: "Open the plan",
+    }).then((r) => r.isConfirmed && navigate(`/planning/plans/show/${p.id}`));
   };
 
   const handleDelete = async (e, id) => {
@@ -228,8 +286,8 @@ export default function MyPlans() {
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button onClick={(e) => { e.stopPropagation(); navigate(`/planning/plans/show/${p.id}`); }} className="text-teal-600 hover:text-teal-800 text-xs font-semibold px-2">View</button>
-                      {p.status === "draft" && (hasPermission("planning.update") || hasPermission("planning.manage")) && (
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/planning/plans/edit/${p.id}`); }} className="text-blue-600 hover:text-blue-800 text-xs font-semibold px-2">Edit</button>
+                      {(hasPermission("planning.update") || hasPermission("planning.manage")) && (
+                        <button onClick={(e) => handleEdit(e, p)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold px-2">Edit</button>
                       )}
                       {(hasPermission("planning.create") || hasPermission("planning.manage")) && (
                         <button onClick={(e) => handleDuplicate(e, p)} className="text-purple-600 hover:text-purple-800 text-xs font-semibold px-2" title="Copy this plan into a new year">Duplicate</button>

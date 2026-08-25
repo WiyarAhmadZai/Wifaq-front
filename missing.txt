@@ -1,0 +1,30 @@
+Pr ojects
+Pos
+URL
+teacher1@wifaq.test
+children ?
+NEXT
+Period (May 2026)
+NGO
+partner@example.com
+USD
+ID
+CV
+CV:
+Branch 1
+Branch 2
+email1@example.com, email2@example.com
+07XX-XXX-XXXX
+admin@wifaq.edu
+WEN-ST-26-0001
+Facebook
+Instagram
+Twitter/X
+YouTube
+e.g. ahmad@example.com
+@username
+USDT
++93 7xx xxx xxxx
+e.g. family@example.com
++93 7XX XXX XXXX
+items.length === 0 ? null : (

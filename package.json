@@ -8,7 +8,8 @@
     "dev:restart": "npm cache clean --force && rm -rf node_modules .vite && npm install && npm run dev",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "i18n:check": "node scripts/i18n-coverage.mjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.1",

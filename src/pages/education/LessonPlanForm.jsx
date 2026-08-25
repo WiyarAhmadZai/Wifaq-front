@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
 import { DateField } from "../../components/hr/HrUI";
+import useLocalDraft, { readDraft, clearDraft, draftAge } from "../../hooks/useLocalDraft";
 import { TEAL, TEAL_LT, GOLD, PAPER, DIMENSIONS, MATERIALS, Hero, Spinner, Chip, DimensionDots, weekdayKey, DAY_LABEL } from "./lessonPlanUi";
 
 const blankForm = () => ({
@@ -34,6 +35,11 @@ export default function LessonPlanForm() {
   const [status, setStatus] = useState("draft");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Survives a dropped connection: the form is mirrored to this browser while
+  // it is being written, and cleared as soon as the server has it.
+  const draftKey = `lesson-plan:${id || "new"}`;
+  useLocalDraft(draftKey, form, { enabled: !loading });
 
   useEffect(() => {
     (async () => {
@@ -69,6 +75,26 @@ export default function LessonPlanForm() {
       } finally {
         setLoading(false);
       }
+
+      // Anything left behind by a dropped connection is offered back rather
+      // than restored silently — the server copy may well be the newer one.
+      const saved = readDraft(`lesson-plan:${id || "new"}`);
+      if (saved) {
+        const { isConfirmed } = await Swal.fire({
+          icon: "info",
+          title: "Unsaved work found",
+          // One sentence per text node: an inline <b> splits the string in the
+          // DOM, and half a sentence can never be matched by the dictionary.
+          text: "This plan was never saved to the server. Restore what you had written?",
+          footer: `Last edited ${draftAge(saved.savedAt)}`,
+          showCancelButton: true,
+          confirmButtonText: "Restore my work",
+          cancelButtonText: "Discard it",
+          reverseButtons: true,
+        });
+        if (isConfirmed) setForm((f) => ({ ...f, ...saved.data }));
+        else clearDraft(`lesson-plan:${id || "new"}`);
+      }
     })();
   }, [id]);
 
@@ -90,6 +116,22 @@ export default function LessonPlanForm() {
     () => ORDER.filter((d) => slots.some((s) => s.day_of_week === d)),
     [slots],
   );
+
+  /**
+   * Moving a lesson to another date.
+   *
+   * The slot used to be cleared on EVERY date change, which made a plan
+   * impossible to reschedule once approved: the slot picker is frozen at that
+   * point, so the plan was left with no slot and could never be saved again.
+   *
+   * A slot belongs to a weekday, so moving a lesson from one Sunday to the
+   * next keeps the very same timetable period — only a change of weekday
+   * really invalidates it.
+   */
+  const moveDate = (next) =>
+    weekdayKey(next) === weekdayKey(form.lesson_date)
+      ? { lesson_date: next }
+      : { lesson_date: next, schedule_entry_id: "" };
 
   // Set the date to the next upcoming occurrence of a given weekday.
   const jumpToDay = (day) => {
@@ -121,6 +163,7 @@ export default function LessonPlanForm() {
       } else {
         await post("/lesson-plans", payload);
       }
+      clearDraft(draftKey);   // the server has it now — drop the safety copy
       Swal.fire({
         icon: "success",
         title: submit ? "Submitted for review" : "Draft saved",
@@ -128,7 +171,19 @@ export default function LessonPlanForm() {
       });
       navigate("/education/lesson-plans/my");
     } catch (err) {
-      Swal.fire("Error", err.response?.data?.message || Object.values(err.response?.data?.errors || {})[0]?.[0] || "Failed to save.", "error");
+      // No response at all means the request never reached the server — the
+      // classic dropped connection. The work is safe in this browser, and
+      // saying so is the difference between retrying and rewriting.
+      if (!err.response) {
+        Swal.fire({
+          icon: "warning",
+          title: "No connection",
+          text: "Your plan could not be sent, but everything you typed is kept safely on this device. Reconnect and press Save again — nothing is lost.",
+          confirmButtonText: "Got it",
+        });
+      } else {
+        Swal.fire("Error", err.response?.data?.message || Object.values(err.response?.data?.errors || {})[0]?.[0] || "Failed to save.", "error");
+      }
     } finally {
       setSaving(false);
     }
@@ -173,7 +228,7 @@ export default function LessonPlanForm() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Lesson date *">
               <DateField name="lesson_date" value={form.lesson_date}
-                onChange={(e) => set({ lesson_date: e.target.value, schedule_entry_id: "" })} className={inp} />
+                onChange={(e) => set(moveDate(e.target.value))} className={inp} />
               {dayKey === "friday" && <p className="text-[10px] mt-1" style={{ color: "#C0473F" }}>Friday is not a school day — pick another date.</p>}
             </Field>
             <Field label="Timetable slot *">

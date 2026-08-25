@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, post } from "../api/axios";
 import { useAuth } from "../admin/context/AuthContext";
+import { textDirection, arabicTextStyle } from "../utils/textDirection";
 
 /* Brand tokens — the same ones the rest of the system uses. */
 const TEAL = "#0D5C63";
@@ -186,6 +187,12 @@ export default function BroadcastModal() {
     setTimeout(() => navigate(author.profile_url), 200);
   };
 
+  /* Each block reads in the direction of its own text, and an empty one
+   * borrows the other's — a title-only or body-only announcement should not
+   * flip alignment halfway down the card. */
+  const titleDir = textDirection(msg.title || msg.body);
+  const bodyDir = textDirection(msg.body || msg.title);
+
   const followLink = () => {
     if (!msg.link_url) return;
     const url = msg.link_url;
@@ -220,8 +227,13 @@ export default function BroadcastModal() {
         {/* Thin accent rule — a whole coloured banner would shout. */}
         <div style={{ height: 4, background: `linear-gradient(90deg, ${tone.accent}, ${GOLD})` }} />
 
-        {/* ── Author header: the Facebook-post row ── */}
-        <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+        {/* ── Author header: the Facebook-post row ──
+          * Pinned LTR on purpose. This row is a byline, not prose: the photo
+          * leads, the ✕ closes from the far corner, and that stays put whatever
+          * script the announcement itself is written in. The name is wrapped in
+          * <bdi> below, so an Arabic-script name still renders correctly inside
+          * this left-to-right row. */}
+        <div dir="ltr" className="flex items-start gap-3 px-4 pt-4 pb-3">
           {author && canOpenProfile ? (
             <button type="button" onClick={openProfile}
               className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 transition-transform hover:scale-105"
@@ -287,27 +299,38 @@ export default function BroadcastModal() {
           </button>
         </div>
 
-        {/* ── The message ── */}
+        {/* ── The message ──
+          * Each block reads in the direction of its OWN text, so a Dari
+          * announcement is right-aligned in an otherwise English interface.
+          * `dir` sits on the block, not on an inner <bdi>: bdi flows the
+          * characters but leaves the block's alignment alone, which is what
+          * left a Dari heading hugging the left edge above a right-aligned
+          * Dari body. Title and body are judged separately, and each falls
+          * back to the other when it is the one that is empty. */}
         <div className="px-4 pb-4">
           {msg.title && (
-            <h2 id="broadcast-heading" className="text-base font-black mb-1.5" style={{ color: "#0A3A3E" }}>
-              <bdi dir="auto">{msg.title}</bdi>
+            <h2 id="broadcast-heading" dir={titleDir}
+              className="text-base font-black mb-1.5"
+              style={{ color: "#0A3A3E", ...arabicTextStyle(titleDir) }}>
+              {msg.title}
             </h2>
           )}
           {/* Line breaks are the author's paragraphing — keep them. */}
-          <bdi dir="auto" className="block text-sm leading-relaxed whitespace-pre-wrap"
-            style={{ color: "#334A4C" }}>
+          <div dir={bodyDir} className="text-sm leading-relaxed whitespace-pre-wrap"
+            style={{ color: "#334A4C", ...arabicTextStyle(bodyDir) }}>
             {msg.body}
-          </bdi>
+          </div>
         </div>
 
-        <div className="px-4 py-3 flex items-center gap-2 flex-wrap"
+        <div dir="ltr" className="px-4 py-3 flex items-center gap-2 flex-wrap"
           style={{ borderTop: `1px solid ${BORDER}`, background: "#FAFCFC" }}>
           {msg.link_url && (
             <button onClick={followLink}
               className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-transform hover:scale-[1.02]"
               style={{ background: tone.accent }}>
-              {msg.link_label || "Open"} →
+              {/* The label is the author's words; the arrow is ours and always
+                * points forward, so the two are kept from swapping places. */}
+              <bdi dir="auto">{msg.link_label || "Open"}</bdi> →
             </button>
           )}
           <button onClick={close}

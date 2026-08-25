@@ -17,6 +17,9 @@ const FILTERS = [
   { key: "reflected", label: "Reflected" },
 ];
 
+/** Mirrors LessonPlan::isEditableByTeacher() on the server. */
+const EDITABLE_STATUSES = ["draft", "returned_for_revision", "submitted", "approved"];
+
 export default function MyLessonPlans() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
@@ -104,20 +107,32 @@ export default function MyLessonPlans() {
                     </Action>
                   ) : (
                   <>
-                  {["draft", "returned_for_revision"].includes(p.status) ? (
-                    <Action onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)}>Edit</Action>
+                  {/* A teacher who spots a mistake must be able to fix it. That
+                      now includes a plan already sent for review and an
+                      approved one (where the 4D content is editable but the
+                      title and homework are frozen). Only a plan a reviewer is
+                      actively reading, or one already taught, stays read-only. */}
+                  {EDITABLE_STATUSES.includes(p.status) ? (
+                    <Action onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)}>
+                      {p.status === "approved" ? "Correct plan" : "Edit"}
+                    </Action>
                   ) : (
                     <Action onClick={() => navigate(`/education/lesson-plans/show/${p.id}`)}>View</Action>
                   )}
                   {["draft", "returned_for_revision"].includes(p.status) && (
                     <Action primary disabled={busy === p.id} onClick={() => act(p.id, "submit")}>Submit for review</Action>
                   )}
+                  {/* Marking a lesson taught without writing it up yet is still
+                      here — it is what the reports count. */}
                   {p.status === "approved" && (
-                    <Action primary disabled={busy === p.id} onClick={() => act(p.id, "deliver")}>Mark delivered</Action>
+                    <Action disabled={busy === p.id} onClick={() => act(p.id, "deliver")}>Mark delivered</Action>
                   )}
-                  {["delivered", "reflected"].includes(p.status) && (
-                    <Action primary={p.status === "delivered"} disabled={busy === p.id} onClick={() => setReflectPlan(p)}>
-                      {p.status === "reflected" ? "Edit reflection" : "Add reflection"}
+                  {/* Writing up the result is itself the record that the lesson
+                      happened, so it opens straight from "approved" too — that
+                      extra click was why results went unrecorded. */}
+                  {["approved", "delivered", "reflected"].includes(p.status) && (
+                    <Action primary={p.status !== "reflected"} disabled={busy === p.id} onClick={() => setReflectPlan(p)}>
+                      {p.status === "reflected" ? "Edit lesson result" : "Add lesson result"}
                     </Action>
                   )}
                   {p.status === "reflected" && p.dimensions_filled === 4 && (

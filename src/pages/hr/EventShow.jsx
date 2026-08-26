@@ -6,6 +6,8 @@ import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 import { fmtDate } from "../../utils/formErrors";
+import ChecklistPanel from "../../components/hr/ChecklistPanel";
+import AttachmentPanel from "../../components/hr/AttachmentPanel";
 
 const statusConf = {
   upcoming: { label: "Upcoming", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
@@ -245,6 +247,15 @@ export default function EventShow() {
               </div>
             </div>
           </div>
+
+          {/* Customisable checklists — guests, equipment, who brings what.
+              Shared with the other module: the same panel and the same tables
+              serve a meeting's attendance and an event's guest list. */}
+          <ChecklistPanel parentType="events" parentId={id} />
+
+          {/* Files — agendas, photos, venue plans. Same polymorphic
+              store as the checklists, so both modules share one panel. */}
+          <AttachmentPanel parentType="events" parentId={id} />
 
           {/* Sidebar */}
           <div className="space-y-4">

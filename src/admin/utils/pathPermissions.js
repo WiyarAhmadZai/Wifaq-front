@@ -43,6 +43,23 @@ const RULES = [
   // arrives in a modal, not on a page — so only these screens are gated.
   { prefix: "/broadcasts", permission: "broadcasts.view" },
 
+  // Parent Communication — the log of every contact with a family. One
+  // umbrella rule: the loop derives the action from the tail on its own
+  // (/create → create, /edit/:id → update, /show/:id and /history/:id → view).
+  //
+  // The follow-up board and the report screen need MORE than `.view`, and this
+  // table cannot express that: withAction() rewrites the trailing segment, so
+  // a rule naming `parent-communications.follow-up` on a listing path would be
+  // rewritten straight back to `.view`. Those two screens therefore check their
+  // own permission on mount and bounce to /403, and the backend gates their
+  // endpoints on `.follow-up` / `.report` regardless of either.
+  { prefix: "/parent-communications", permission: "parent-communications.view" },
+
+  // Combined Meetings & Events timeline. Longest-prefix sorting keeps this
+  // ahead of the shorter /hr/meetings rule. Gated on meetings.view; the page
+  // asks each module separately and omits the half the caller may not see.
+  { prefix: "/hr/meetings-events", permission: "meetings.view" },
+
   // Weekly parent questionnaires (admin). One umbrella rule: the action is
   // derived from the tail — /create → create, /edit/:id → update,
   // /:id and /:id/responses → view — with questionnaires.manage as override.
@@ -132,6 +149,11 @@ const RULES = [
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   { prefix: "/student-management/student-enrollments", permission: "student-enrollments.view" },
   { prefix: "/student-management/students/profile", permission: "student-profiles.view" },
+  // The Enrolled Students row "view" button opens the shared student detail
+  // page, which otherwise demands students.view — a permission an
+  // enrolled-students-only user does not hold, so the eye bounced them to
+  // /403. Longest prefix wins, so this beats the /students rule below.
+  { prefix: "/student-management/students/show", permission: "students.view", alt: ["enrolled-students.view"] },
   { prefix: "/student-management/students", permission: "students.view" },
   { prefix: "/student-management/parents", permission: "parents.view" },
   { prefix: "/student-management/grades", permission: "grades.view" },
@@ -289,8 +311,8 @@ function actionForTail(tail) {
 
 /**
  * Replace the trailing ".{action}" of a permission key with a different action.
- * For permissions that only have ".view" seeded (e.g. enrolled-students.view),
- * the caller should still try ".manage" as a fallback (handled by the gate).
+ * For modules that only have ".view" seeded, the caller should still try
+ * ".manage" as a fallback (handled by the gate).
  */
 function withAction(permission, action) {
   if (!permission.includes(".")) return `${permission}.${action}`;
@@ -320,6 +342,11 @@ export function permissionForPath(pathname) {
       const manage = withAction(rule.permission, "manage");
       // For pure listing, .view alone is fine; .manage is a global override.
       const candidates = action === "view" ? [base, manage] : [base, manage];
+      // Alternate modules that also unlock this path (OR semantics). Each entry
+      // is a full permission key whose action suffix is swapped the same way.
+      for (const altPermission of rule.alt || []) {
+        candidates.push(withAction(altPermission, action), withAction(altPermission, "manage"));
+      }
       return { type: "protected", permissions: candidates };
     }
   }

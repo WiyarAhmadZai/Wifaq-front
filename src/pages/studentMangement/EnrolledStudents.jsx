@@ -55,6 +55,10 @@ const lastCompletedTransferLabel = (item) => {
   return label;
 };
 
+// Either module unlocks this roster: its own `enrolled-students.*` grant, or
+// the wider `students.*` one held by the registration manager.
+const PERMISSION_BASES = ["enrolled-students", "students"];
+
 const PHASE_2_PARAMS = { registration_status: "phase_2" };
 
 const FILTER_OPTIONS_URL = "/student-management/students/filter-options";
@@ -70,11 +74,17 @@ const toOptions = (rows, label) => {
 export default function EnrolledStudents() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  // The edit modal saves through the shared student/family write endpoints,
-  // which the backend gates on students.update (+ parents.update for family
-  // fields). `enrolled-students` is a view-only permission — .update/.manage
-  // were never seeded — so gate on the permission the API actually enforces.
-  const canUpdate = hasPermission("students.update") || hasPermission("students.manage");
+  // The edit modal saves through the shared student/family write endpoints.
+  // Those resolve to `students` / `parents` on the backend, which now accepts
+  // `enrolled-students.*` as an alias for them (PathPermissionMiddleware::
+  // PREFIX_ALIAS_BASES) — so either module unlocks the button, and both are
+  // actually enforced by the API.
+  const canWith = (action) =>
+    PERMISSION_BASES.some((base) => hasPermission(`${base}.${action}`) || hasPermission(`${base}.manage`));
+  const canUpdate = canWith("update");
+  // The uniform invoice posts to the finance module (fee-invoices), which is a
+  // separate grant — showing the button without it just produced a 403 toast.
+  const canInvoice = hasPermission("fee-invoices.create") || hasPermission("fee-invoices.manage");
   const [transferStudent, setTransferStudent] = useState(null);
   const [editStudentId, setEditStudentId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -165,7 +175,7 @@ export default function EnrolledStudents() {
   return (
     <>
       <CrudPage
-        permissionBase="enrolled-students"
+        permissionBase={PERMISSION_BASES}
         key={refreshKey}
         title="Enrolled Students — Officially Registered"
         apiEndpoint="/student-management/students/list"
@@ -185,6 +195,7 @@ export default function EnrolledStudents() {
             render: (_, item) => {
               const ok = Boolean(item.need_uniform) && Number(item.uniform_price || 0) > 0;
               if (!ok) return <span className="text-xs text-gray-300">—</span>;
+              if (!canInvoice) return <span className="text-xs text-gray-300">Needed</span>;
               return (
                 <button
                   type="button"
@@ -230,6 +241,7 @@ export default function EnrolledStudents() {
           student={transferStudent}
           onClose={closeTransferModal}
           onSaved={bumpRefreshKey}
+          readOnly={!canUpdate}
         />
       )}
 

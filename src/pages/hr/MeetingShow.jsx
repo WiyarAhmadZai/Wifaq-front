@@ -8,6 +8,8 @@ import { useResourcePermissions } from "../../admin/utils/useResourcePermissions
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
+import ChecklistPanel from "../../components/hr/ChecklistPanel";
+import AttachmentPanel from "../../components/hr/AttachmentPanel";
 const statusConf = {
   scheduled: { label: "Scheduled", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
   in_progress: { label: "In Progress", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
@@ -1002,6 +1004,15 @@ export default function MeetingShow() {
               </div>
             </div>
           </div>
+
+          {/* Customisable checklists — guests, equipment, who brings what.
+              Shared with the other module: the same panel and the same tables
+              serve a meeting's attendance and an event's guest list. */}
+          <ChecklistPanel parentType="meetings" parentId={id} />
+
+          {/* Files — agendas, photos, venue plans. Same polymorphic
+              store as the checklists, so both modules share one panel. */}
+          <AttachmentPanel parentType="meetings" parentId={id} />
 
           {/* Sidebar */}
           <div className="space-y-4">

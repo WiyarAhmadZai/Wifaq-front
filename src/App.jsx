@@ -114,6 +114,15 @@ const EssentialBookShow = lazy(() => import("./pages/library/EssentialBookShow")
 // System-wide broadcasts — the once-a-day notice everyone sees.
 const Broadcasts = lazy(() => import("./pages/broadcasts/Broadcasts"));
 const BroadcastForm = lazy(() => import("./pages/broadcasts/BroadcastForm"));
+
+// Parent Communication — the log of every contact with a family.
+const ParentCommunications = lazy(() => import("./pages/parent/ParentCommunications"));
+const ParentCommunicationForm = lazy(() => import("./pages/parent/ParentCommunicationForm"));
+const ParentCommunicationShow = lazy(() => import("./pages/parent/ParentCommunicationShow"));
+const ParentCommunicationHistory = lazy(() => import("./pages/parent/ParentCommunicationHistory"));
+const ParentFollowUps = lazy(() => import("./pages/parent/ParentFollowUps"));
+const ParentCommunicationReports = lazy(() => import("./pages/parent/ParentCommunicationReports"));
+const ParentCallGuide = lazy(() => import("./pages/parent/ParentCallGuide"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -146,6 +155,8 @@ const MyQuestionnaire = lazy(() => import("./pages/questionnaire/MyQuestionnaire
 const ParentGradebook = lazy(() => import("./pages/parent/ParentGradebook"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
 const Meetings = lazy(() => import("./pages/hr/Meetings"));
+const MeetingsAndEvents = lazy(() => import("./pages/hr/MeetingsAndEvents"));
+const MeetingEventForm = lazy(() => import("./pages/hr/MeetingEventForm"));
 const MeetingForm = lazy(() => import("./pages/hr/MeetingForm"));
 const MeetingShow = lazy(() => import("./pages/hr/MeetingShow"));
 const Events = lazy(() => import("./pages/hr/Events"));
@@ -543,6 +554,18 @@ function App() {
             <Route path="library/essential-books/edit/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookForm /></Suspense>} />
             <Route path="library/essential-books/show/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookShow /></Suspense>} />
 
+            {/* Parent Communication. `follow-ups` and `reports` are listed
+                before `show/:id` so the literal segments always win over the
+                parameterised route. */}
+            <Route path="parent-communications" element={<Suspense fallback={<PageLoader />}><ParentCommunications /></Suspense>} />
+            <Route path="parent-communications/follow-ups" element={<Suspense fallback={<PageLoader />}><ParentFollowUps /></Suspense>} />
+            <Route path="parent-communications/reports" element={<Suspense fallback={<PageLoader />}><ParentCommunicationReports /></Suspense>} />
+            <Route path="parent-communications/call-guide" element={<Suspense fallback={<PageLoader />}><ParentCallGuide /></Suspense>} />
+            <Route path="parent-communications/create" element={<Suspense fallback={<PageLoader />}><ParentCommunicationForm /></Suspense>} />
+            <Route path="parent-communications/edit/:id" element={<Suspense fallback={<PageLoader />}><ParentCommunicationForm /></Suspense>} />
+            <Route path="parent-communications/show/:id" element={<Suspense fallback={<PageLoader />}><ParentCommunicationShow /></Suspense>} />
+            <Route path="parent-communications/history/:familyId" element={<Suspense fallback={<PageLoader />}><ParentCommunicationHistory /></Suspense>} />
+
             {/* Broadcasts */}
             <Route path="broadcasts" element={<Suspense fallback={<PageLoader />}><Broadcasts /></Suspense>} />
             <Route path="broadcasts/create" element={<Suspense fallback={<PageLoader />}><BroadcastForm /></Suspense>} />
@@ -594,6 +617,13 @@ function App() {
             <Route path="hr/welfare/alerts" element={<Suspense fallback={<PageLoader />}><WelfareAlerts /></Suspense>} />
             <Route path="hr/welfare/benefits" element={<Suspense fallback={<PageLoader />}><WelfareBenefits /></Suspense>} />
             <Route path="hr/holidays" element={<Suspense fallback={<PageLoader />}><Holidays /></Suspense>} />
+
+            {/* Combined planner — meetings and events on one timeline.
+                The per-module screens below stay as they were: the combined
+                list links into them rather than replacing them. */}
+            <Route path="hr/meetings-events" element={<Suspense fallback={<PageLoader />}><MeetingsAndEvents /></Suspense>} />
+            {/* One form for either kind — the type is a toggle inside it. */}
+            <Route path="hr/meetings-events/create" element={<Suspense fallback={<PageLoader />}><MeetingEventForm /></Suspense>} />
 
             {/* HR Routes - Meetings */}
             <Route path="hr/meetings" element={<Suspense fallback={<PageLoader />}><Meetings /></Suspense>} />

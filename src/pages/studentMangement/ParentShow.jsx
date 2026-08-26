@@ -124,6 +124,9 @@ export default function ParentShow() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { canUpdate } = useResourcePermissions("parents");
+  // The family's communication file lives in its own module; this page just
+  // offers the way in, and only to someone allowed to read it.
+  const { canView: canViewComms } = useResourcePermissions("parent-communications");
   const [family, setFamily] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -192,15 +195,26 @@ export default function ParentShow() {
             </p>
           </div>
         </div>
-        {canUpdate && (
-          <button
-            onClick={() => navigate(`/student-management/parents/edit/${id}`)}
-            className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
-          >
-            <Icons.Edit />
-            Edit Family
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canViewComms && (
+            <button
+              onClick={() => navigate(`/parent-communications/history/${id}`)}
+              className="px-5 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-all flex items-center gap-2 font-medium"
+            >
+              <Icons.Phone />
+              Communication History
+            </button>
+          )}
+          {canUpdate && (
+            <button
+              onClick={() => navigate(`/student-management/parents/edit/${id}`)}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+            >
+              <Icons.Edit />
+              Edit Family
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Card */}

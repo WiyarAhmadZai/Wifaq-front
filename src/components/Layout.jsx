@@ -1409,8 +1409,10 @@ export default function Layout() {
     ]},
     { label: "Add Vendor", path: "/hr/add-vendor", permission: "vendors.view" },
     { label: "Planner", key: "planner", children: [
-      { label: "Meetings", path: "/hr/meetings", permission: "meetings.view" },
-      { label: "Events", path: "/hr/events", permission: "events.view" },
+      // One entry for both. The combined screen interleaves them on a single
+      // timeline; each row still opens its own module's detail page, so
+      // nothing about meetings or events is duplicated.
+      { label: "Meetings & Events", path: "/hr/meetings-events", permission: "meetings.view" },
       { label: "Staff Tasks", path: "/hr/staff-task", permission: "staff-task.view" },
       { label: "Daily Tasks", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
@@ -1429,6 +1431,20 @@ export default function Layout() {
     // "Attendance" while the office sees both entries.
     { label: "Attendance", path: "/student-management/attendance", permission: "student-attendance.view" },
     { label: "Attendance Report", path: "/student-management/attendance/report", permission: "student-attendance.report" },
+  ];
+
+  // Parent — the family-facing group. "Parents" is the SAME page the Students
+  // menu already links to (families are the parent record; there is no second
+  // one), listed here too so everything about a family sits in one place.
+  // Each entry names the permission its screens actually need, so a user with
+  // only `parent-communications.view` sees the log and nothing else.
+  const parentMenus = [
+    { label: "Parents", path: "/student-management/parents", permission: "parents.view" },
+    { label: "Communication Logs", path: "/parent-communications", permission: "parent-communications.view" },
+    { label: "New Communication", path: "/parent-communications/create", permission: "parent-communications.create" },
+    { label: "Follow-ups", path: "/parent-communications/follow-ups", permission: "parent-communications.follow-up" },
+    { label: "Call Guide", path: "/parent-communications/call-guide", permission: "parent-communications.view" },
+    { label: "Reports", path: "/parent-communications/reports", permission: "parent-communications.report" },
   ];
 
   const academic = [
@@ -1624,6 +1640,7 @@ export default function Layout() {
   const MENU_GROUPS = [
     { key: "hr", label: "HR", items: hrSubMenus },
     { key: "students", label: "Students", items: studentsMenus },
+    { key: "parent", label: "Parent", items: parentMenus },
     { key: "academic", label: "Academic", items: academic },
     { key: "dob", label: "Birthdays", items: dobMenus },
     { key: "transportation", label: "Transportation", items: transportationMenus },
@@ -2149,6 +2166,20 @@ export default function Layout() {
               onClick={() => toggleMenu("students")}
             >
               {visible(studentsMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+
+          {canSeeGroup(parentMenus) && (
+            <ParentMenu
+              icon={Icons.HR}
+              label="Parent"
+              isOpen={openMenu.includes("parent")}
+              onClick={() => toggleMenu("parent")}
+            >
+              {visible(parentMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

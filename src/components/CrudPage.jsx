@@ -31,10 +31,11 @@ export default function CrudPage({
    */
   filters = [],
   /**
-   * Permission base name (e.g. "academic-terms", "parents"). When provided,
+   * Permission base name (e.g. "academic-terms", "parents"), or an array of
+   * bases when a screen may be unlocked by more than one module. When provided,
    * Create/Edit/Delete/Status buttons are hidden unless the user holds the
-   * corresponding `{base}.create | .update | .delete | .manage` permission.
-   * If omitted, all buttons remain visible (legacy behaviour).
+   * corresponding `{base}.create | .update | .delete | .manage` permission on
+   * ANY of the bases. If omitted, all buttons remain visible (legacy behaviour).
    */
   permissionBase = null,
   /**
@@ -43,14 +44,32 @@ export default function CrudPage({
    * the list — call it after a mutation so the row updates immediately.
    */
   rowActions = null,
+  /**
+   * Columns for Excel / Print, when the export should carry MORE than the table
+   * shows. Same shape as `listColumns`. Defaults to `listColumns`, so every
+   * existing list keeps exporting exactly what it displays.
+   *
+   * A wide record (a communication log carries a dozen useful fields) is
+   * unreadable if the table shows all of them, but an export that drops them is
+   * a worse answer than a scrolling table — a printed sheet is where the long
+   * tail actually gets read.
+   */
+  exportColumns = null,
 }) {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
 
   // Permission resolution. If no base provided → all true (legacy behavior).
+  // Multiple bases are OR-ed: the Enrolled Students roster, for instance, is
+  // unlocked by either `enrolled-students.*` or the wider `students.*`.
+  const permissionBases = permissionBase
+    ? (Array.isArray(permissionBase) ? permissionBase : [permissionBase])
+    : [];
   const permCheck = (action) => {
-    if (!permissionBase) return true;
-    return hasPermission(`${permissionBase}.${action}`) || hasPermission(`${permissionBase}.manage`);
+    if (permissionBases.length === 0) return true;
+    return permissionBases.some(
+      (base) => hasPermission(`${base}.${action}`) || hasPermission(`${base}.manage`),
+    );
   };
   const { t } = useI18n();
 
@@ -298,7 +317,7 @@ export default function CrudPage({
           <p className="text-xs text-gray-400 mt-0.5">{t("Manage {} records", lowerNoun)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ListExportActions getRows={fetchAllItems} columns={listColumns} title={title} />
+          <ListExportActions getRows={fetchAllItems} columns={exportColumns || listColumns} title={title} />
           {extraHeaderButtons}
           {canCreate && createRoute && (
             <button onClick={() => navigate(createRoute)}

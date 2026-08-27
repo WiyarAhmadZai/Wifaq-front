@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
-import { get, post, peekCache } from "../../api/axios";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
+import { enqueue, flush, pendingCount, watchConnection } from "../../utils/offlineQueue";
+import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
+import { useAuth } from "../../admin/context/AuthContext";
 
 /* ── Brand tokens ── */
 const TEAL = "#0D5C63", TEAL_LT = "#14919B", GOLD = "#C9A227", PAPER = "#F4F8F8";
@@ -52,6 +55,19 @@ function ObsCount({ total, week }) {
 
 export default function DailyObservation() {
   const [classes, setClasses] = useState([]);
+  /* Leadership sees the school through one teacher at a time.
+   *
+   * The class list used to be flat: a teacher got the classes they teach, and
+   * leadership got EVERY class with no indication of who teaches what — no way
+   * to answer "show me her classes and her students". Picking a teacher now
+   * narrows the classes to the ones they are actually scheduled to teach a
+   * subject in, and names the subject. "All classes" is still there for anyone
+   * who wants the whole school.
+   */
+  const [teachers, setTeachers] = useState([]);
+  const [isLeadership, setIsLeadership] = useState(false);
+  const [teacherId, setTeacherId] = useState("");   // "" = every class
+
   const [activeClass, setActiveClass] = useState(null);
   const [roster, setRoster] = useState([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
@@ -65,6 +81,16 @@ export default function DailyObservation() {
   const [toDate, setToDate] = useState("");           // history date filter — end
 
   const [adding, setAdding] = useState(false);
+  /* An observation being corrected rather than written. The API has always
+   * allowed it (own record, 24h window; leadership any time) — the button was
+   * simply never on screen, so a typo meant living with it. */
+  const [editing, setEditing] = useState(null);
+
+  /* Connectivity. A dropped connection must cost nobody their typing:
+   * every keystroke is mirrored locally, and a submit that cannot reach the
+   * server is HELD rather than lost, then sent the moment the browser is back. */
+  const [online, setOnline] = useState(navigator.onLine !== false);
+  const [queued, setQueued] = useState(pendingCount());
   const [forms, setForms] = useState(blankForms());
   const [activeDim, setActiveDim] = useState("intellectual");
   const [saving, setSaving] = useState(false);
@@ -73,10 +99,78 @@ export default function DailyObservation() {
     const __cached = peekCache("/student-observations/my-classes");
     if (__cached) { const l = __cached?.data || []; setClasses(l); if (l.length) setActiveClass(l[0].id); setLoadingClasses(false); }
     get("/student-observations/my-classes")
-      .then((r) => { const l = r.data?.data || []; setClasses(l); if (l.length) setActiveClass(l[0].id); })
+      .then((r) => {
+        const l = r.data?.data || [];
+        setClasses(l);
+        if (l.length) setActiveClass(l[0].id);
+      })
       .catch(() => setClasses([]))
       .finally(() => setLoadingClasses(false));
+
+    /* Whether this user is leadership is decided by ASKING, not by a flag on
+     * another response.
+     *
+     * my-classes is a cached GET, so a body stored before the flag existed
+     * comes back without it and the teacher picker would never appear — the
+     * user would have to clear their cache to see a feature they have access
+     * to. The endpoint already refuses non-leadership with a 403, so calling
+     * it is the check: 200 means leadership, anything else means no picker.
+     */
+    get("/student-observations/teachers")
+      .then((t) => { setTeachers(t.data?.data || []); setIsLeadership(true); })
+      .catch(() => { setTeachers([]); setIsLeadership(false); });
   }, []);
+
+  /* Which classes the dropdown offers: one teacher's, or all of them. */
+  const activeTeacher = teacherId ? teachers.find((t) => String(t.id) === String(teacherId)) : null;
+  const shownClasses = activeTeacher ? activeTeacher.classes : classes;
+  const activeClassLink = activeTeacher?.classes.find((c) => c.id === activeClass);
+
+  const pickTeacher = (id) => {
+    setTeacherId(id);
+    setSelected(null);
+    const next = id ? (teachers.find((t) => String(t.id) === String(id))?.classes || []) : classes;
+    // Land on a class the new selection actually contains, rather than leaving
+    // the roster showing a class this teacher does not teach.
+    setActiveClass(next.length ? next[0].id : null);
+    if (!next.length) setRoster([]);
+  };
+
+  const { user } = useAuth();
+  const draftId = selected ? draftKey("observation", user?.id, selected.id) : null;
+
+  /* Send anything the outbox is holding. Called on mount, whenever the browser
+   * says it is back online, and right after a successful save (a save proves
+   * the connection is up again more reliably than navigator.onLine does). */
+  const drainOutbox = useCallback(async () => {
+    if (!pendingCount()) { setQueued(0); return; }
+    const r = await flush((item) => post(item.url, item.body));
+    setQueued(r.remaining);
+    if (r.sent) {
+      Swal.fire({
+        icon: "success", toast: true, position: "top-end", timer: 2600, showConfirmButton: false,
+        title: `${r.sent} saved observation${r.sent === 1 ? "" : "s"} synced`,
+      });
+      if (selected) loadHistoryRef.current?.(selected.id);
+    }
+    // Anything the server itself refused is reported once, then dropped —
+    // retrying a 422 on every reconnect would be noise the user cannot act on.
+    r.failed.forEach(({ item, error }) => {
+      Swal.fire("Could not sync", `${item.label || "An observation"} was rejected: `
+        + (error?.response?.data?.message || "the server refused it."), "error");
+    });
+  }, [selected]);
+
+  // loadHistory is defined below; a ref keeps drainOutbox from depending on it.
+  const loadHistoryRef = useRef(null);
+
+  useEffect(() => {
+    const stop = watchConnection((up) => {
+      setOnline(up);
+      if (up) drainOutbox();
+    });
+    return stop;
+  }, [drainOutbox]);
 
   const loadRoster = useCallback(() => {
     if (!activeClass) return;
@@ -103,8 +197,59 @@ export default function DailyObservation() {
       .finally(() => setLoadingHistory(false));
   }, [fromDate, toDate]);
 
+  useEffect(() => { loadHistoryRef.current = loadHistory; }, [loadHistory]);
+
+  /* Mirror the in-progress form locally, so a refresh, a crash or a closed tab
+   * does not cost the user what they had written. Cleared once it is saved. */
+  useEffect(() => {
+    if (!draftId || !adding) return;
+    const t = setTimeout(() => {
+      if (DIMENSIONS.some((d) => forms[d.key].description.trim())) writeDraft(draftId, forms);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [forms, draftId, adding]);
+
   // Selecting a student clears any active date filter and reloads a clean history.
-  const pick = (s) => { setSelected(s); setForms(blankForms()); setActiveDim("intellectual"); setAdding(false); setFromDate(""); setToDate(""); loadHistory(s.id, "", ""); };
+  const pick = (s) => {
+    setSelected(s); setForms(blankForms()); setActiveDim("intellectual");
+    setAdding(false); setEditing(null); setFromDate(""); setToDate("");
+    loadHistory(s.id, "", "");
+    // Unfinished writing for THIS student, kept from a previous visit.
+    const d = readDraft(draftKey("observation", user?.id, s.id));
+    if (d?.data) {
+      setForms({ ...blankForms(), ...d.data });
+      setAdding(true);
+      Swal.fire({
+        icon: "info", toast: true, position: "top-end", timer: 3200, showConfirmButton: false,
+        title: "Restored what you had written",
+      });
+    }
+  };
+
+  /** Load one existing observation back into the form to be corrected. */
+  const startEdit = (o) => {
+    setEditing(o);
+    setAdding(true);
+    setActiveDim(o.dimension);
+    setForms({
+      ...blankForms(),
+      [o.dimension]: {
+        category: o.category || "routine",
+        description: o.description || "",
+        is_usual: o.is_usual || "",
+        change_vs_before: o.change_vs_before || "",
+        alternative_interpretation: o.alternative_interpretation || "",
+        urgency_reason: o.urgency_reason || "",
+        recommendation: o.recommendation || "",
+        monitoring_flag: Boolean(o.monitoring_flag),
+      },
+    });
+  };
+
+  const cancelForm = () => {
+    setAdding(false); setEditing(null); setForms(blankForms()); setActiveDim("intellectual");
+    if (draftId) clearDraft(draftId);
+  };
   const clearDates = () => { setFromDate(""); setToDate(""); if (selected) loadHistory(selected.id, "", ""); };
 
   const cur = forms[activeDim];
@@ -125,10 +270,41 @@ export default function DailyObservation() {
       urgency_reason: e.urgency_reason || null, monitoring_flag: e.monitoring_flag,
     }));
     setSaving(true);
+
+    /* Correcting an existing observation is a different verb on a different
+     * URL, and only ever touches the one dimension being edited. */
+    if (editing) {
+      const e = entries.find((x) => x.dimension === editing.dimension) || entries[0];
+      try {
+        await put(`/student-observations/${editing.id}`, {
+          category: e.category, dimension: e.dimension, description: e.description.trim(),
+          is_usual: e.is_usual || null, change_vs_before: e.change_vs_before || null,
+          alternative_interpretation: e.alternative_interpretation || null,
+          urgency_reason: e.urgency_reason || null, recommendation: e.recommendation || null,
+        });
+        Swal.fire({ icon: "success", title: "Observation updated", timer: 1300, showConfirmButton: false, toast: true, position: "top-end" });
+        cancelForm();
+        loadHistory(selected.id);
+      } catch (err) {
+        Swal.fire("Error", err.response?.data?.message || Object.values(err.response?.data?.errors || {})[0]?.[0] || "Failed", "error");
+      } finally { setSaving(false); }
+      return;
+    }
+
+    const payload = { student_id: selected.id, observations };
+
+    // Offline before we even try: hold it rather than fail in their face.
+    if (!online) {
+      holdForLater(payload, observations.length);
+      setSaving(false);
+      return;
+    }
+
     try {
-      const r = await post("/student-observations/batch", { student_id: selected.id, observations });
+      const r = await post("/student-observations/batch", payload);
       Swal.fire({ icon: "success", title: r.data?.message || "Recorded", timer: 1300, showConfirmButton: false, toast: true, position: "top-end" });
-      setForms(blankForms()); setActiveDim("intellectual"); setAdding(false);
+      if (draftId) clearDraft(draftId);
+      setForms(blankForms()); setActiveDim("intellectual"); setAdding(false); setEditing(null);
       const bump = (x) => ({
         ...x,
         seen_today: true,
@@ -140,9 +316,43 @@ export default function DailyObservation() {
       setRoster((p) => p.map((x) => (x.id === selected.id ? bump(x) : x)));
       setSelected(bump);
       loadHistory(selected.id);
+      drainOutbox();   // the connection is evidently up — send anything held
     } catch (err) {
+      // No response at all means the request never reached the server. That is
+      // the connection, not the data: hold it and send it when we are back.
+      if (!err.response) { holdForLater(payload, observations.length); return; }
       Swal.fire("Error", err.response?.data?.message || Object.values(err.response?.data?.errors || {})[0]?.[0] || "Failed", "error");
     } finally { setSaving(false); }
+  };
+
+  /**
+   * Park a write in the outbox and tell the user plainly what happened.
+   *
+   * The roster is bumped as though it had saved, because from the teacher's
+   * point of view it HAS been recorded — it is on the device and it is going to
+   * be sent. Pretending otherwise would make them write it again.
+   */
+  const holdForLater = (payload, count) => {
+    const ok = enqueue({
+      url: "/student-observations/batch",
+      body: payload,
+      label: `Observation for ${selected.full_name}`,
+    });
+    if (!ok) {
+      Swal.fire("Could not save offline", "This browser is refusing to store data, so the observation cannot be held until you are back online. Keep this page open and try again once the connection returns.", "error");
+      return;
+    }
+    setQueued(pendingCount());
+    if (draftId) clearDraft(draftId);
+    setForms(blankForms()); setActiveDim("intellectual"); setAdding(false); setEditing(null);
+    setRoster((prev) => prev.map((x) => (x.id === selected.id
+      ? { ...x, seen_today: true, days_since: 0, total_count: x.total_count + count, week_count: (x.week_count || 0) + count }
+      : x)));
+    Swal.fire({
+      icon: "info", toast: true, position: "top-end", timer: 4200, showConfirmButton: false,
+      title: "Saved on this device",
+      text: "You are offline — it will be sent automatically when the connection is back.",
+    });
   };
 
   const badge = (s) => {
@@ -162,15 +372,61 @@ export default function DailyObservation() {
         <h1 className="text-base font-black text-white mt-0.5">Daily Observation</h1>
       </div>
 
+      {/* Said plainly and only when it matters. A teacher who has just typed a
+        * paragraph needs to know it is safe, not to discover later that it
+        * never left the device. */}
+      {(!online || queued > 0) && (
+        <div className="px-5 py-2 flex items-center gap-2 text-[11px] font-semibold"
+          style={online ? { background: "#E8F6F6", color: TEAL } : { background: "#fbf0db", color: "#9a6a12" }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: online ? TEAL : "#c9922b" }} />
+          {!online && <span>You are offline — observations are saved on this device and sent automatically when the connection returns.</span>}
+          {online && queued > 0 && (
+            <>
+              <span>{queued} observation{queued === 1 ? "" : "s"} waiting to sync.</span>
+              <button onClick={drainOutbox} className="underline hover:no-underline">Sync now</button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto lg:grid lg:grid-cols-[320px_1fr] lg:gap-0 lg:items-stretch">
         {/* ── LEFT: classes + roster list ── */}
         <aside className={`border-r ${selected ? "hidden lg:block" : ""}`} style={{ borderColor: "#dbe8e8", background: "#fff" }}>
           <div className="p-3 border-b" style={{ borderColor: "#eef4f4" }}>
-            {loadingClasses ? null : (
+            {isLeadership && (
+              <select value={teacherId} onChange={(e) => pickTeacher(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-white border focus:outline-none mb-2"
+                style={{ borderColor: "#dbe8e8", color: TEAL }}>
+                <option value="">All classes ({classes.length})</option>
+                {teachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} — {t.class_count} class{t.class_count === 1 ? "" : "es"} · {t.student_count} student{t.student_count === 1 ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {loadingClasses ? null : shownClasses.length === 0 ? (
+              <p className="text-[11px] px-1 pb-2" style={{ color: "#9a6a12" }}>
+                {activeTeacher
+                  ? `${activeTeacher.name} has no class yet — nobody has been given a subject to teach.`
+                  : "No classes available."}
+              </p>
+            ) : (
               <select value={activeClass || ""} onChange={(e) => { setActiveClass(Number(e.target.value)); setSelected(null); }}
                 className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-white border focus:outline-none mb-2" style={{ borderColor: "#dbe8e8", color: TEAL }}>
-                {classes.map((c) => <option key={c.id} value={c.id}>{c.class_name} ({c.student_count})</option>)}
+                {shownClasses.map((c) => <option key={c.id} value={c.id}>{c.class_name} ({c.student_count})</option>)}
               </select>
+            )}
+
+            {/* What the teacher actually teaches in this class — the reason
+              * these students are on screen, so it is worth saying. */}
+            {activeClassLink && (
+              <p className="text-[10px] mb-2 px-1" style={{ color: "#5d7273" }}>
+                {activeClassLink.subjects.length
+                  ? <>Teaches <span className="font-bold" style={{ color: TEAL }}>{activeClassLink.subjects.join(", ")}</span> here</>
+                  : <>{activeClassLink.sources.includes("supervisor") ? "Class supervisor" : activeClassLink.sources.includes("assistant") ? "Class assistant" : "Assigned to this class"}</>}
+              </p>
             )}
             <div className="relative">
               <svg className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -240,7 +496,7 @@ export default function DailyObservation() {
                     <span>observation{selected.total_count === 1 ? "" : "s"} recorded · {selected.seen_today ? "seen today" : selected.days_since === null ? "never observed" : `last ${selected.days_since}d ago`}</span>
                   </p>
                 </div>
-                {!adding && <button onClick={() => setAdding(true)} className="px-4 py-2 rounded-xl text-xs font-bold text-white" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>＋ Observe</button>}
+                {!adding && <button onClick={() => { setEditing(null); setAdding(true); }} className="px-4 py-2 rounded-xl text-xs font-bold text-white" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>＋ Observe</button>}
               </div>
 
               <div className="p-5 space-y-5">
@@ -282,7 +538,7 @@ export default function DailyObservation() {
                   <div className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: "#dbe8e8" }}>
                     <div className="px-4 py-2.5 flex items-center justify-between border-b" style={{ borderColor: "#eef4f4", background: "#fafcfc" }}>
                       <p className="text-xs font-black" style={{ color: TEAL }}>New observation</p>
-                      <button onClick={() => setAdding(false)} className="text-[11px] font-bold text-gray-400 hover:text-gray-600">Cancel</button>
+                      <button onClick={cancelForm} className="text-[11px] font-bold text-gray-400 hover:text-gray-600">Cancel</button>
                     </div>
                     <div className="p-4 space-y-4">
                       {/* dimension tabs */}
@@ -341,7 +597,7 @@ export default function DailyObservation() {
 
                       <div className="flex items-center justify-between pt-1">
                         <span className="text-[11px] text-gray-500">{filledDims.length} dimension{filledDims.length === 1 ? "" : "s"} ready</span>
-                        <button onClick={submit} disabled={saving || !filledDims.length} className="px-5 py-2 text-xs font-bold text-white rounded-xl disabled:opacity-50" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>{saving ? "Saving…" : `Record ${filledDims.length || ""}`.trim()}</button>
+                        <button onClick={submit} disabled={saving || !filledDims.length} className="px-5 py-2 text-xs font-bold text-white rounded-xl disabled:opacity-50" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>{saving ? "Saving…" : editing ? "Save changes" : !online ? "Save on device" : `Record ${filledDims.length || ""}`.trim()}</button>
                       </div>
                     </div>
                   </div>
@@ -380,7 +636,17 @@ export default function DailyObservation() {
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: cat.bg, color: cat.fg }}>{cat.emoji} {cat.label || o.category}</span>
                                 {o.monitoring_flag ? <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: "#f7e3e1", color: "#C0473F" }}>🔎 monitoring</span> : null}
                               </div>
-                              <span className="text-[10px] text-gray-400 flex-shrink-0">{o.observed_on}</span>
+                              <span className="flex items-center gap-2 flex-shrink-0">
+                                {/* `editable` comes from the server and mirrors
+                                  * exactly what the update endpoint allows, so
+                                  * the button is never a route to a 403. */}
+                                {o.editable && (
+                                  <button onClick={() => startEdit(o)}
+                                    className="text-[10px] font-bold underline hover:no-underline"
+                                    style={{ color: TEAL }}>Edit</button>
+                                )}
+                                <span className="text-[10px] text-gray-400">{o.observed_on}</span>
+                              </span>
                             </div>
                             <p className="text-xs text-gray-800 leading-relaxed">{o.description}</p>
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">

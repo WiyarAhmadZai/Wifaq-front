@@ -55,6 +55,11 @@ const RULES = [
   // endpoints on `.follow-up` / `.report` regardless of either.
   { prefix: "/parent-communications", permission: "parent-communications.view" },
 
+  // Parent engagement ratings. Both screens are read-only listings; rating
+  // happens through a modal whose button checks `parent-ratings.rate` itself,
+  // and the backend gates the endpoint on the same permission.
+  { prefix: "/parent-ratings", permission: "parent-ratings.view" },
+
   // Combined Meetings & Events timeline. Longest-prefix sorting keeps this
   // ahead of the shorter /hr/meetings rule. Gated on meetings.view; the page
   // asks each module separately and omits the half the caller may not see.

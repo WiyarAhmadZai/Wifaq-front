@@ -1444,6 +1444,8 @@ export default function Layout() {
     { label: "New Communication", path: "/parent-communications/create", permission: "parent-communications.create" },
     { label: "Follow-ups", path: "/parent-communications/follow-ups", permission: "parent-communications.follow-up" },
     { label: "Call Guide", path: "/parent-communications/call-guide", permission: "parent-communications.view" },
+    { label: "Parent Ratings", path: "/parent-ratings", permission: "parent-ratings.view" },
+    { label: "Golden Record", path: "/parent-ratings/golden-record", permission: "parent-ratings.view" },
     { label: "Reports", path: "/parent-communications/reports", permission: "parent-communications.report" },
   ];
 

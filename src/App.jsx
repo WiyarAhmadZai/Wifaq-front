@@ -123,6 +123,8 @@ const ParentCommunicationHistory = lazy(() => import("./pages/parent/ParentCommu
 const ParentFollowUps = lazy(() => import("./pages/parent/ParentFollowUps"));
 const ParentCommunicationReports = lazy(() => import("./pages/parent/ParentCommunicationReports"));
 const ParentCallGuide = lazy(() => import("./pages/parent/ParentCallGuide"));
+const ParentRatings = lazy(() => import("./pages/parent/ParentRatings"));
+const ParentGoldenRecord = lazy(() => import("./pages/parent/ParentGoldenRecord"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -561,6 +563,11 @@ function App() {
             <Route path="parent-communications/follow-ups" element={<Suspense fallback={<PageLoader />}><ParentFollowUps /></Suspense>} />
             <Route path="parent-communications/reports" element={<Suspense fallback={<PageLoader />}><ParentCommunicationReports /></Suspense>} />
             <Route path="parent-communications/call-guide" element={<Suspense fallback={<PageLoader />}><ParentCallGuide /></Suspense>} />
+
+            {/* Parent engagement ratings. "golden-record" is listed before the
+                bare list so the literal segment always wins. */}
+            <Route path="parent-ratings/golden-record" element={<Suspense fallback={<PageLoader />}><ParentGoldenRecord /></Suspense>} />
+            <Route path="parent-ratings" element={<Suspense fallback={<PageLoader />}><ParentRatings /></Suspense>} />
             <Route path="parent-communications/create" element={<Suspense fallback={<PageLoader />}><ParentCommunicationForm /></Suspense>} />
             <Route path="parent-communications/edit/:id" element={<Suspense fallback={<PageLoader />}><ParentCommunicationForm /></Suspense>} />
             <Route path="parent-communications/show/:id" element={<Suspense fallback={<PageLoader />}><ParentCommunicationShow /></Suspense>} />

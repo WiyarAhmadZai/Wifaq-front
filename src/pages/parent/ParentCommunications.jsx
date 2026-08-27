@@ -1,5 +1,6 @@
 import CrudPage from "../../components/CrudPage";
 import FamilyContactButton from "../studentMangement/FamilyContactButton";
+import RateParentButton from "./RateParentButton";
 import {
   METHODS, DIRECTIONS, CATEGORIES, OUTCOMES, FOLLOW_UP_STATUS, CONTACT_PERSON,
   Pill, optionsOf, labelOf, fmtDateTime, fmtDate, familyLabel, studentLabel, MUTED,
@@ -187,9 +188,16 @@ export default function ParentCommunications() {
         },
         {
           key: "phone_used",
-          label: "Call",
+          label: "Call / Rate",
           noExport: true,
-          render: (_, row) => <FamilyContactButton family={row.family} />,
+          render: (_, row) => (
+            <div className="flex items-center gap-0.5 justify-end">
+              <FamilyContactButton family={row.family} />
+              {/* Rate the family this contact was with. Hides itself without
+                  `parent-ratings.rate`; the backend enforces the same. */}
+              <RateParentButton family={row.family} />
+            </div>
+          ),
         },
       ]}
     />

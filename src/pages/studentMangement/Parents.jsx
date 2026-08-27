@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import CrudPage from "../../components/CrudPage";
+import RateParentButton from "../parent/RateParentButton";
 
 export default function Parents() {
   return (
@@ -7,6 +8,10 @@ export default function Parents() {
       permissionBase="parents"
       title="Families Management"
       apiEndpoint="/student-management/families/list"
+      // Without this CrudPage hides the Delete button entirely, whatever
+      // permission the user holds — the button is gated on BOTH
+      // `parents.delete` and the endpoint being present.
+      deleteEndpoint="/student-management/families/delete"
       searchable={true}
       searchFields={[
         "family_id",
@@ -50,6 +55,9 @@ export default function Parents() {
           },
         },
       ]}
+      // Rate a family's engagement straight from the roster. The button hides
+      // itself without `parent-ratings.rate`.
+      rowActions={(item) => <RateParentButton family={item} />}
       createRoute="/student-management/parents/create"
       editRoute="/student-management/parents/edit"
       showRoute="/student-management/parents/show"

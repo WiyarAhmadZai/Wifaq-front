@@ -646,9 +646,16 @@ export default function ApplicationShow() {
   const handleOfferResponse = async (response) => {
     const messages = {
       accepted: { title: "Confirm Hiring", text: `Are you sure you want to hire ${data.full_name}? This will finalize the recruitment process and send a welcome email.`, confirmText: "Yes, Hire", color: "#059669" },
+      // Kept as a map so declined / negotiated can be wired back in without
+      // reshaping the handler. Reading msg.title off an unknown key used to
+      // throw before the confirm dialog ever opened.
     };
 
     const msg = messages[response];
+    if (!msg) {
+      Swal.fire("Error", `Unsupported offer response: ${response}`, "error");
+      return;
+    }
     const confirmResult = await Swal.fire({
       title: msg.title,
       text: msg.text,
@@ -1659,8 +1666,17 @@ export default function ApplicationShow() {
                           </button>
                         )}
 
-                        {/* Accept & Confirm Hiring - only for sent or draft */}
-                        {["draft", "sent"].includes(existingOffer.status) && (
+                        {/* Confirm hiring.
+                          *
+                          * Also shown when the offer is already `accepted` but the
+                          * application never reached `hired`. That combination used to
+                          * be a dead end: the button was gated on draft/sent only, so
+                          * the moment an offer was marked accepted without the hire
+                          * going through, the last step vanished and nothing on the
+                          * page could finish the recruitment. The endpoint is
+                          * idempotent, so re-confirming is safe. */}
+                        {(["draft", "sent"].includes(existingOffer.status) ||
+                          (existingOffer.status === "accepted" && !isHired)) && (
                           <button
                             onClick={() => handleOfferResponse("accepted")}
                             disabled={isSubmittingOffer}
@@ -1669,7 +1685,11 @@ export default function ApplicationShow() {
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
-                            {isSubmittingOffer ? "Processing..." : "Accept & Confirm Hiring"}
+                            {isSubmittingOffer
+                              ? "Processing..."
+                              : existingOffer.status === "accepted"
+                                ? "Complete Hiring"
+                                : "Accept & Confirm Hiring"}
                           </button>
                         )}
                       </div>

@@ -45,7 +45,21 @@ export default function Drive() {
   const [pending, setPending] = useState([]);     // files queued in the upload modal
   const [dragOver, setDragOver] = useState(false);
 
-  const goTo = (id) => setSearchParams(id ? { folder: String(id) } : {});
+  /**
+   * Open a folder (or return to the root).
+   *
+   * Patches the existing params instead of replacing them. Replacing dropped
+   * `tab=files`, and DriveHome reads the tab from the URL — so stepping into a
+   * folder threw the user back to the Catalogue. The two tabs are independent
+   * views and navigating inside one must never switch to the other.
+   */
+  const goTo = (id) =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set("folder", String(id));
+      else next.delete("folder");
+      return next;
+    });
 
   /* Move / copy.
    *
@@ -424,13 +438,20 @@ function TransferButtons({ item, kind, dnd, inline }) {
     e.stopPropagation();   // the row itself navigates or opens
     dnd.setClip({ mode, kind, id: item.id, name: item.name });
   };
-  const base = "px-1 rounded text-[10px] font-semibold transition-colors";
+  // Bordered chips rather than bare words. As plain text over a card they read
+  // as part of the content, which is how "Cut Copy" ended up looking like the
+  // start of a folder name.
+  const base = "px-1.5 py-0.5 rounded border text-[10px] font-semibold transition-colors";
   return (
     <span className={inline ? "flex gap-1" : "absolute top-2 left-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100"}>
       <button type="button" title="Cut" onClick={(e) => pick(e, "cut")}
-        className={`${base} ${held && dnd.clip.mode === "cut" ? "bg-teal-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>Cut</button>
+        className={`${base} ${held && dnd.clip.mode === "cut"
+          ? "bg-teal-700 border-teal-700 text-white"
+          : "bg-white border-gray-200 text-gray-500 hover:border-teal-400 hover:text-teal-700"}`}>Cut</button>
       <button type="button" title="Copy" onClick={(e) => pick(e, "copy")}
-        className={`${base} ${held && dnd.clip.mode === "copy" ? "bg-teal-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>Copy</button>
+        className={`${base} ${held && dnd.clip.mode === "copy"
+          ? "bg-teal-700 border-teal-700 text-white"
+          : "bg-white border-gray-200 text-gray-500 hover:border-teal-400 hover:text-teal-700"}`}>Copy</button>
     </span>
   );
 }
@@ -442,17 +463,28 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
       {data.folders.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
           {data.folders.map((f) => (
+            /* The actions used to float on top of the card (absolute, top-left)
+               and sat over the folder name. They live in their own strip now:
+               the name always readable, the buttons always in the same place,
+               and no layout shift on hover because the strip is never hidden. */
             <div key={`fo-${f.id}`} {...dnd.drag("folder", f)} {...dnd.drop(f.id)}
-              className={`group relative bg-white border rounded-xl p-3 hover:shadow-sm cursor-pointer transition-colors ${dnd.isOver(f.id) ? "border-teal-500 ring-2 ring-teal-300 bg-teal-50" : "border-gray-200 hover:border-teal-300"}`}
-              onClick={() => goTo(f.id)}>
-              <TransferButtons item={f} kind="folder" dnd={dnd} />
-              <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs">✕</button>
-              <div className="flex items-center gap-2">
-                <FolderGlyph className="w-9 h-9" />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-gray-800 truncate">{f.name}</p>
-                  <p className="text-[10px] text-gray-400">{f.files_count || 0} files · {f.children_count || 0} folders</p>
+              className={`group bg-white border rounded-xl overflow-hidden transition-colors ${dnd.isOver(f.id) ? "border-teal-500 ring-2 ring-teal-300 bg-teal-50" : "border-gray-200 hover:border-teal-400"}`}>
+              <button type="button" onClick={() => goTo(f.id)}
+                title={f.name}
+                className="block w-full text-left p-3 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <FolderGlyph className="w-9 h-9" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{f.name}</p>
+                    <p className="text-[10px] text-gray-400">{f.files_count || 0} files · {f.children_count || 0} folders</p>
+                  </div>
                 </div>
+              </button>
+              <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
+                <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }}
+                  title="Delete folder"
+                  className="px-1.5 py-0.5 rounded text-[11px] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">✕</button>
               </div>
             </div>
           ))}
@@ -462,18 +494,20 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {data.files.map((f) => (
             <div key={`fi-${f.id}`} {...dnd.drag("file", f)}
-              className="group relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-teal-300 hover:shadow-sm">
-              <div className="absolute top-1.5 right-1.5 z-10 flex gap-1 opacity-0 group-hover:opacity-100">
-                <TransferButtons item={f} kind="file" dnd={dnd} inline />
-                <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} />
-              </div>
-              <button onClick={() => openFile(f)} className="block w-full text-left">
+              className="group bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-teal-400 transition-colors">
+              <button onClick={() => openFile(f)} className="block w-full text-left" title={f.name}>
                 <DriveThumb file={f} />
                 <div className="p-2">
-                  <p className="text-xs font-medium text-gray-800 truncate" title={f.name}>{f.name}</p>
+                  <p className="text-xs font-medium text-gray-800 truncate">{f.name}</p>
                   <p className="text-[10px] text-gray-400">{kindLabel(f)}{f.size ? ` · ${fmtSize(f.size)}` : ""}</p>
                 </div>
               </button>
+              <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
+                <TransferButtons item={f} kind="file" dnd={dnd} inline />
+                <span className="flex items-center gap-0.5">
+                  <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} compact />
+                </span>
+              </div>
             </div>
           ))}
         </div>

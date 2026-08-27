@@ -132,7 +132,14 @@ export default function DriveCatalogue() {
   const showsEduLevel = category === tax?.edu_level_category;
 
   const pickCategory = (key) => {
-    setSearchParams(key ? { category: key } : {});
+    // Patch, don't replace — same reason as Drive.goTo: a bare object would
+    // drop `tab` and bounce the user into the other view.
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (key) next.set("category", key);
+      else next.delete("category");
+      return next;
+    });
     // Sub-category keys only mean something inside their own category.
     setFilters((f) => ({ ...f, sub_category: "", edu_level: "" }));
   };
@@ -269,7 +276,7 @@ function Header({ total, onAdd }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-600 flex items-center justify-center shadow-sm">
+        <div className="w-11 h-11 rounded-xl bg-teal-700 flex items-center justify-center">
           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={CATEGORY_ICON} />
           </svg>
@@ -282,7 +289,7 @@ function Header({ total, onAdd }) {
         </div>
       </div>
       <button onClick={onAdd}
-        className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-xl text-xs font-semibold hover:from-teal-700 hover:to-cyan-700 shadow-sm">
+        className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-700 text-white rounded-xl text-xs font-semibold hover:bg-teal-800">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
@@ -669,7 +676,7 @@ function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
       <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
         <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
         <button onClick={submit} disabled={!canSave || saving}
-          className="px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-teal-600 to-cyan-600 rounded-xl disabled:opacity-40">
+          className="px-5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-xl disabled:opacity-40">
           {saving ? "Saving…" : "Save to Drive"}
         </button>
       </div>
@@ -704,7 +711,7 @@ function EditDialog({ tax, item, onClose, onSaved }) {
       <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
         <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
         <button onClick={submit} disabled={saving}
-          className="px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-teal-600 to-cyan-600 rounded-xl disabled:opacity-40">
+          className="px-5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-xl disabled:opacity-40">
           {saving ? "Saving…" : "Save details"}
         </button>
       </div>

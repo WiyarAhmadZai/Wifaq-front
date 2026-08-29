@@ -11,11 +11,12 @@ import { fmtDate } from "../../utils/formErrors";
 const EXPORT_COLUMNS = [
   { key: "student_id", label: "Student ID" },
   { key: "name", label: "Name", exportValue: (it) => `${it.first_name || ""} ${it.last_name || ""}`.trim() },
+  // Same order as the table, so an export reads like what was on screen.
+  { key: "father", label: "Father Name", exportValue: (it) => it.family?.father_name || "" },
+  { key: "father_phone", label: "Father Number", exportValue: (it) => it.family?.father_phone || "" },
   { key: "class", label: "Class", exportValue: (it) => it.school_class?.class_name || "" },
   { key: "term", label: "Academic Term", exportValue: (it) => it.academic_term?.name || "" },
-  { key: "father", label: "Father", exportValue: (it) => it.family?.father_name || "" },
   { key: "family_id", label: "Family ID", exportValue: (it) => it.family?.family_id || "" },
-  { key: "father_phone", label: "Father Phone", exportValue: (it) => it.family?.father_phone || "" },
   { key: "fee", label: "Monthly Fee", exportValue: (it) => (it.final_fee ? Number(it.final_fee) : "") },
   { key: "enrolled", label: "Enrolled At", exportValue: (it) => (it.phase_2_completed_at ? fmtDate(it.phase_2_completed_at) : "") },
   { key: "status", label: "Status", exportValue: (it) => it.status || "" },
@@ -295,13 +296,14 @@ export default function StudentEnrollments() {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Student</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Student ID</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Father Name</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Class</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Family</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Fee</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Enrolled</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Transfer</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Father Number</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -315,23 +317,25 @@ export default function StudentEnrollments() {
                       onClick={() => navigate(`/student-management/student-enrollments/show/${item.id}`)}
                     >
                       <td className="px-4 py-3">
+                        <span className="text-xs font-mono text-gray-600">{item.student_id || `#${item.id}`}</span>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
                             {(item.first_name || "?").charAt(0)}{(item.last_name || "").charAt(0)}
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{item.first_name} {item.last_name}</p>
-                            <p className="text-[10px] font-mono text-gray-400">{item.student_id || `#${item.id}`}</p>
-                          </div>
+                          <p className="text-sm font-semibold text-gray-800">{item.first_name} {item.last_name}</p>
                         </div>
+                      </td>
+                      {/* The number moved to its own column, so this one is
+                          just the name — it was labelled "Family" before, which
+                          read as a household rather than a person. */}
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-700">{item.family?.father_name || "—"}</p>
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-700">{item.school_class?.class_name || "—"}</p>
                         <p className="text-[10px] text-gray-400">{item.academic_term?.name || ""}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-700">{item.family?.father_name || "—"}</p>
-                        <p className="text-[10px] text-gray-400">{item.family?.father_phone || ""}</p>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="text-xs font-semibold text-gray-800">
@@ -349,28 +353,13 @@ export default function StudentEnrollments() {
                           {st.label}
                         </span>
                       </td>
+                      {/* Was the transfer status. That control still lives in
+                          the row actions, where it already was — nothing is
+                          lost by giving the space to a number people need. */}
                       <td className="px-4 py-3 text-center">
-                        {item.enrollment_type !== "transfer" ? (
-                          <span className="text-xs text-gray-300">—</span>
-                        ) : item.transfer_case_status === "completed" ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full"
-                            title="Transfer process completed"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                            completed
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full whitespace-nowrap"
-                          >
-                            {lastCompletedTransferLabel(item) || "Start"}
-                          </button>
-                        )}
+                        {item.family?.father_phone
+                          ? <span dir="ltr" className="text-xs text-gray-700 whitespace-nowrap">{item.family.father_phone}</span>
+                          : <span className="text-xs text-gray-300">—</span>}
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
@@ -382,11 +371,11 @@ export default function StudentEnrollments() {
                                   ? "text-emerald-600 hover:bg-emerald-50"
                                   : "text-amber-600 hover:bg-amber-50"
                               }`}
-                              title={
+                              title={`Transfer: ${
                                 item.transfer_case_status === "completed"
-                                  ? "Transfer: completed"
-                                  : `Transfer: ${item.transfer_case_status || "pending"}`
-                              }
+                                  ? "completed"
+                                  : (lastCompletedTransferLabel(item) || item.transfer_case_status || "pending")
+                              }`}
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />

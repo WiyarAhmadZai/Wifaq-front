@@ -140,36 +140,40 @@ export default function EnrolledStudents() {
     }
   };
 
-  const transferColumn = {
-    key: "transfer_case_status",
-    label: "Transfer",
-    render: (_, item) => {
-      if (item.enrollment_type !== "transfer") {
-        return <span className="text-xs text-gray-300">—</span>;
-      }
-      if (item.transfer_case_status === "completed") {
-        return (
-          <button
-            onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full"
-            title="Transfer process completed"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-            </svg>
-            completed
-          </button>
-        );
-      }
-      return (
-        <button
-          onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full whitespace-nowrap"
-        >
-          {lastCompletedTransferLabel(item) || "Start"}
-        </button>
-      );
-    },
+  /* The father's contact number, in the slot the transfer status used to hold.
+   * `dir="ltr"` because a phone number is read left-to-right even when the row
+   * around it is Dari or Pashto. */
+  const fatherPhoneColumn = {
+    key: "father_phone",
+    label: "Father Number",
+    render: (_, item) => (item.family?.father_phone
+      ? <span dir="ltr" className="text-xs text-gray-700 whitespace-nowrap">{item.family.father_phone}</span>
+      : <span className="text-xs text-gray-300">—</span>),
+  };
+
+  /* The transfer control, moved out of its own column and into the row's
+   * actions. It is the only way to open the transfer steps on this screen, so
+   * dropping the column without rehoming the button would have quietly removed
+   * the ability to run a transfer. StudentEnrollments already keeps it here. */
+  const transferAction = (item) => {
+    if (item.enrollment_type !== "transfer") return null;
+    const done = item.transfer_case_status === "completed";
+    // The old column showed how far the transfer had got ("Records done").
+    // An icon has no room for that, so it moves into the tooltip rather than
+    // being dropped along with the column.
+    const progress = done ? "completed" : (lastCompletedTransferLabel(item) || item.transfer_case_status || "pending");
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
+        title={`Transfer: ${progress}`}
+        className={`p-1.5 rounded-lg transition-colors ${done ? "text-emerald-600 hover:bg-emerald-50" : "text-amber-600 hover:bg-amber-50"}`}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+        </svg>
+      </button>
+    );
   };
 
   return (
@@ -215,7 +219,7 @@ export default function EnrolledStudents() {
           },
           { key: "phase_2_completed_at", label: "Enrolled At", render: (v) => v ? fmtDate(v) : "—" },
           { key: "status", label: "Status", render: statusBadge },
-          transferColumn,
+          fatherPhoneColumn,
         ]}
         showRoute="/student-management/students/show"
         searchable={true}
@@ -224,6 +228,7 @@ export default function EnrolledStudents() {
           <>
             {/* Contact the family — WhatsApp or Call */}
             <FamilyContactButton family={item.family} />
+            {transferAction(item)}
             {/* Edit EVERYTHING (phase 1 + phase 2 + family) in a modal */}
             {canUpdate && (
               <button

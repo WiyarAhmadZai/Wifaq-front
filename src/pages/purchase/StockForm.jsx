@@ -92,20 +92,53 @@ export default function StockForm() {
     }
   }, [id, isEdit]);
 
-  // Filter to the 1300s — that's the Inventory section of the chart.
-  // Each one is a "current asset" line on the Balance Sheet.
-  const inventoryBuckets = useMemo(
+  /**
+   * Which accounts may hold stock value.
+   *
+   * The 1300s are the conventional Inventory block, so they stay the preferred
+   * answer. But insisting on them made the form unusable on any chart that
+   * numbers its accounts differently: a school that adds its own "Inventory"
+   * account under Assets with, say, code 1230 got "No inventory accounts
+   * found" and a dead end — the item could not be saved at all.
+   *
+   * So: 13xx if they exist, otherwise every other active asset account, which
+   * is the widest set that is still correct. Stock is a current asset; posting
+   * it anywhere that is not an asset would misstate the Balance Sheet, so
+   * `type === "Asset"` is the one rule kept absolute.
+   *
+   * Level-1 roll-up headers (1000 "Assets") are dropped — posting to a parent
+   * total is what makes a chart stop adding up.
+   */
+  const assetAccounts = useMemo(
     () =>
       chartAccounts
-        .filter(
-          (c) =>
-            c.type === "Asset" &&
-            String(c.code).startsWith("13") &&
-            (c.level ?? 1) >= 3 &&
-            c.is_active !== false
-        )
+        .filter((c) => c.type === "Asset" && c.is_active !== false)
         .sort((a, b) => String(a.code).localeCompare(String(b.code))),
     [chartAccounts]
+  );
+
+  const inventoryBuckets = useMemo(() => {
+    const thirteens = assetAccounts.filter(
+      (c) => String(c.code).startsWith("13") && (c.level ?? 1) >= 3
+    );
+    if (thirteens.length > 0) return thirteens;
+
+    // Fallback: any postable asset account, with the ones that are obviously
+    // meant for stock first. A chart with a hand-added "Inventory" account
+    // should not make the user hunt for it among the bank accounts.
+    const LIKELY = /inventor|stock|supplie|store|material|uniform/i;
+    return assetAccounts
+      .filter((c) => (c.level ?? 1) > 1)
+      .sort((a, b) => {
+        const rank = (c) => (LIKELY.test(c.name || "") ? 0 : 1);
+        return rank(a) - rank(b) || String(a.code).localeCompare(String(b.code));
+      });
+  }, [assetAccounts]);
+
+  /** True when we are showing the fallback rather than a real 13xx block. */
+  const usingFallbackBuckets = useMemo(
+    () => inventoryBuckets.length > 0 && !String(inventoryBuckets[0].code).startsWith("13"),
+    [inventoryBuckets]
   );
 
   const set = (key, value) => setForm((p) => ({ ...p, [key]: value }));
@@ -212,9 +245,19 @@ export default function StockForm() {
             <div className="px-3 py-2.5 text-xs text-gray-400">Loading inventory categories…</div>
           ) : inventoryBuckets.length === 0 ? (
             <div className="px-3 py-2.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl">
-              No inventory accounts found (codes 13xx). Seed the chart of accounts first.
+              No asset accounts found. Add one under Finance → Chart of Accounts
+              (type <strong>Asset</strong>) — an “Inventory” account is the usual choice.
             </div>
           ) : (
+            <>
+            {/* Say which list this is. Without it, a chart that has no 13xx
+                block looks like it is offering the wrong accounts. */}
+            {usingFallbackBuckets && (
+              <div className="mb-2 px-3 py-2 text-[11px] text-gray-600 bg-gray-50 border border-gray-200 rounded-xl">
+                No 13xx inventory accounts on this chart, so every asset account is listed.
+                Pick the one you keep stock value in.
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {inventoryBuckets.map((c) => {
                 const selected = String(form.asset_chart_account_id) === String(c.id);
@@ -245,6 +288,7 @@ export default function StockForm() {
                 );
               })}
             </div>
+            </>
           )}
         </Field>
 

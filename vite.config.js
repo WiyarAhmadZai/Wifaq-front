@@ -18,6 +18,12 @@ export default defineConfig(({ mode }) => ({
       // the reliable watcher on this platform.
       usePolling: true,
       interval: 400,
+      // Polling OPENS every watched file on every tick, and the dev server has
+      // no reason to watch build output. Left in, the poller kept handles on
+      // dist/assets and `vite build` could not empty it — EPERM on a different
+      // file each run, because the poller had moved on by the next attempt.
+      // node_modules is excluded for the same reason plus the CPU it wastes.
+      ignored: ['**/dist/**', '**/node_modules/**', '**/.git/**'],
     },
   },
   build: {

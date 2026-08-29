@@ -185,8 +185,11 @@ export default function EnrolledStudents() {
         listColumns={[
           { key: "student_id", label: "Student ID" },
           { key: "full_name", label: "Name", render: (_, item) => `${item.first_name} ${item.last_name}` },
+          // Third, right after the student's own name: the column always held
+          // the father's name, but "Family" read as though it were a household
+          // or a family record, so nobody could tell what the value was.
+          { key: "family", label: "Father Name", render: (_, item) => item.family?.father_name || "—" },
           { key: "school_class", label: "Class", render: (_, item) => item.school_class?.class_name || "—" },
-          { key: "family", label: "Family", render: (_, item) => item.family?.father_name || "—" },
           { key: "date_of_birth", label: "DOB", render: (v) => v ? fmtDate(v) : "—" },
           { key: "final_fee", label: "Monthly Fee", render: (v) => v ? `${Number(v).toLocaleString()} AFN` : "—" },
           {

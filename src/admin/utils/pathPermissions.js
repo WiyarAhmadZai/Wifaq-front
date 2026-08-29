@@ -296,6 +296,12 @@ const SELF_SCOPED_PATH_PATTERNS = [
   // VATS cards — any staff member can land here from a yellow-card
   // notification; the backend row-scopes to their own cards (HR sees all).
   /^\/hr\/vats\/cards$/,
+  // VATS observations — the subject of an observation is the person notified,
+  // so the notification has to open for them. Without this the link led
+  // straight to /403 for everyone except HR and admin. The backend row-scopes
+  // the list to their own record; the "Log observation" button on the page is
+  // gated separately on vats-observations.create.
+  /^\/hr\/vats\/observations$/,
 ];
 
 /**

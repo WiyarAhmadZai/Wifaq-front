@@ -36,7 +36,17 @@ export default function QuickAttendance() {
       setDailySheet(response.data);
     } catch (error) {
       console.error("Failed to load daily sheet", error);
-      Swal.fire("Error", "Failed to load attendance sheet", "error");
+      // Show what the server actually said. "Failed to load attendance sheet"
+      // is the same message whether the date is invalid, a permission is
+      // missing, or a column does not exist — which makes a production report
+      // impossible to act on. The API sends `error` to admins only.
+      const data = error.response?.data;
+      const detail = data?.error || data?.message;
+      Swal.fire({
+        icon: "error",
+        title: "Failed to load attendance sheet",
+        text: detail || `The server returned ${error.response?.status || "an error"}.`,
+      });
       setDailySheet(null);
     } finally {
       setLoading(false);

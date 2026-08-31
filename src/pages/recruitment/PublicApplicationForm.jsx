@@ -62,8 +62,14 @@ const L = {
     full_name: "Full Name", contact_number: "Contact Number", email: "Email",
     dob: "Date of Birth", current_address: "Current Address", place_of_origin: "Place of Origin",
     gender: "Gender", male: "Male", female: "Female", native_language: "Native Language", ph_language: "e.g. Pashto, Dari, English",
-    introduction: "Brief Introduction", social_note: "These fields are optional. Share what you're comfortable with.",
-    why_role: "Why do you want this role?", unique_skills: "Unique Skills", add_skill: "Add Skill", skill_n: "Skill {n}",
+    introduction: "Introduce Yourself",
+    introduction_hint: "Write about yourself, your family and social background, and your path of growth. How did you grow up, and what experiences have shaped you?",
+    social_note: "These fields are optional. Share what you're comfortable with.",
+    why_role: "Why do you want this role?",
+    why_role_hint: "What draws you to this position, and to Wifaq in particular?",
+    unique_skills: "What distinctive skill or quality do you bring to the Wifaq team?",
+    unique_skills_hint: "Anything that sets you apart — a craft, a way of working, an ability others rely on you for.",
+    add_skill: "Add Skill", skill_n: "Skill {n}",
     education_level: "Education Level", field_of_study: "Field of Study", institution: "Institution Name",
     total_exp: "Total Experience (Years)", experience_n: "Experience {n}",
     company: "Company Name", job_title: "Job Title", duration: "Duration (e.g. 2020 - 2022)",
@@ -88,7 +94,7 @@ const L = {
     edu_ba: "Bachelor's Degree", edu_ma: "Master's Degree", edu_phd: "Doctorate", edu_other: "Other",
     doc_cv: "CV / Resume", doc_edu: "Educational Documents", doc_id: "ID / Tazkira / Passport", doc_work: "Work Samples",
     ph_name: "e.g. Ahmad Rahimi", ph_phone: "e.g. +93 770 123 456", ph_email: "e.g. ahmad@example.com",
-    ph_address: "Full address", ph_origin: "City / Province", ph_intro: "Tell us a little about yourself…",
+    ph_address: "Full address", ph_origin: "City / Province", ph_intro: "Where you grew up, your family and community, the turning points that shaped you…",
     ph_profile: "Profile URL", ph_username: "@username", ph_channel: "Channel URL",
     ph_motivation: "Share your motivation, what excites you about the role, and what makes you a great fit…",
     ph_field: "e.g. Computer Science", ph_institution: "University / School name",
@@ -147,8 +153,14 @@ const L = {
     full_name: "بشپړ نوم", contact_number: "د اړیکې شمېره", email: "ایمیل",
     dob: "د زیږېدنې نېټه", current_address: "اوسنۍ پته", place_of_origin: "اصلي ځای",
     gender: "جنسیت", male: "نارینه", female: "ښځینه", native_language: "مورنۍ ژبه", ph_language: "لکه پښتو، دري، انګلیسي",
-    introduction: "لنډه پیژندنه", social_note: "دا برخې اختیاري دي. هغه څه چې راحت یاست شریک یې کړئ.",
-    why_role: "ولې دا بست غواړئ؟", unique_skills: "ځانګړي مهارتونه", add_skill: "مهارت ورزیاتول", skill_n: "مهارت {n}",
+    introduction: "خپله پیژندنه",
+    introduction_hint: "د ځان، د کورنۍ او ټولنیز شالید، او د خپلې ودې د مسیر په اړه ولیکئ. څنګه لوی شوئ او کومو تجربو تاسو جوړ کړئ؟",
+    social_note: "دا برخې اختیاري دي. هغه څه چې راحت یاست شریک یې کړئ.",
+    why_role: "ولې دا بست غواړئ؟",
+    why_role_hint: "څه شی تاسو دې بست ته راکاږي، او په ځانګړې توګه وفاق ته؟",
+    unique_skills: "کوم ځانګړی مهارت یا کیفیت د وفاق ټیم ته راوړئ؟",
+    unique_skills_hint: "هر څه چې تاسو بېل کوي — یو هنر، د کار یوه طریقه، یا هغه وړتیا چې نور پرې تکیه کوي.",
+    add_skill: "مهارت ورزیاتول", skill_n: "مهارت {n}",
     education_level: "د زده‌کړې کچه", field_of_study: "د زده‌کړې څانګه", institution: "د مؤسسې نوم",
     total_exp: "ټوله تجربه (کلونه)", experience_n: "تجربه {n}",
     company: "د شرکت نوم", job_title: "د دندې عنوان", duration: "موده (لکه ۲۰۲۰ - ۲۰۲۲)",
@@ -173,7 +185,7 @@ const L = {
     edu_ba: "لیسانس", edu_ma: "ماسټري", edu_phd: "دکتورا", edu_other: "نور",
     doc_cv: "سي‌وي / ژوندلیک", doc_edu: "تحصیلي اسناد", doc_id: "تذکره یا پاسپورټ", doc_work: "د کار بېلګې",
     ph_name: "لکه احمد رحیمي", ph_phone: "لکه +93 770 123 456", ph_email: "لکه ahmad@example.com",
-    ph_address: "بشپړه پته", ph_origin: "ښار / ولایت", ph_intro: "لږ څه د ځان په اړه ولیکئ…",
+    ph_address: "بشپړه پته", ph_origin: "ښار / ولایت", ph_intro: "چېرې لوی شوئ، ستاسو کورنۍ او ټولنه، او هغه بدلونونه چې تاسو یې جوړ کړئ…",
     ph_profile: "د پروفایل لینک", ph_username: "@کارن‌نوم", ph_channel: "د چینل لینک",
     ph_motivation: "خپله انګیزه، هغه څه چې تاسو هڅوي او ولې تاسو مناسب یاست شریک یې کړئ…",
     ph_field: "لکه کمپیوټر ساینس", ph_institution: "د پوهنتون / ښوونځي نوم",
@@ -232,8 +244,14 @@ const L = {
     full_name: "نام کامل", contact_number: "شماره تماس", email: "ایمیل",
     dob: "تاریخ تولد", current_address: "آدرس فعلی", place_of_origin: "محل اصلی",
     gender: "جنسیت", male: "مرد", female: "زن", native_language: "زبان مادری", ph_language: "مثلاً پشتو، دری، انگلیسی",
-    introduction: "معرفی کوتاه", social_note: "این فیلدها اختیاری هستند. آنچه راحت هستید به اشتراک بگذارید.",
-    why_role: "چرا این بست را می‌خواهید؟", unique_skills: "مهارت‌های ویژه", add_skill: "افزودن مهارت", skill_n: "مهارت {n}",
+    introduction: "معرفی خود",
+    introduction_hint: "در مورد خود، پس‌منظر خانوادگی و اجتماعی، و مسیر رشد خود بنویسید. چگونه بزرگ شدید و چه تجربیاتی شما را شکل داده است؟",
+    social_note: "این فیلدها اختیاری هستند. آنچه راحت هستید به اشتراک بگذارید.",
+    why_role: "چرا این بست را می‌خواهید؟",
+    why_role_hint: "چه چیزی شما را به این بست، و به‌ویژه به وفاق، جذب می‌کند؟",
+    unique_skills: "چه مهارت یا کیفیت متمایز به تیم وفاق می‌آورید؟",
+    unique_skills_hint: "هر آنچه شما را متمایز می‌سازد — یک هنر، یک شیوه کار، یا توانایی‌ای که دیگران روی آن حساب می‌کنند.",
+    add_skill: "افزودن مهارت", skill_n: "مهارت {n}",
     education_level: "سطح تحصیلات", field_of_study: "رشته تحصیلی", institution: "نام موسسه",
     total_exp: "مجموع تجربه (سال)", experience_n: "تجربه {n}",
     company: "نام شرکت", job_title: "عنوان شغل", duration: "مدت (مثلاً ۲۰۲۰ - ۲۰۲۲)",
@@ -258,7 +276,7 @@ const L = {
     edu_ba: "لیسانس", edu_ma: "ماستری", edu_phd: "دکتورا", edu_other: "سایر",
     doc_cv: "رزومه / سی‌وی", doc_edu: "اسناد تحصیلی", doc_id: "تذکره یا پاسپورت", doc_work: "نمونه‌های کاری",
     ph_name: "مثلاً احمد رحیمی", ph_phone: "مثلاً +93 770 123 456", ph_email: "مثلاً ahmad@example.com",
-    ph_address: "آدرس کامل", ph_origin: "شهر / ولایت", ph_intro: "کمی درباره خود بنویسید…",
+    ph_address: "آدرس کامل", ph_origin: "شهر / ولایت", ph_intro: "کجا بزرگ شدید، خانواده و جامعه شما، و نقاط عطفی که شما را ساخته است…",
     ph_profile: "لینک پروفایل", ph_username: "@نام‌کاربری", ph_channel: "لینک چینل",
     ph_motivation: "انگیزه خود، آنچه شما را هیجان‌زده می‌کند و اینکه چرا مناسب هستید را بنویسید…",
     ph_field: "مثلاً علوم کامپیوتر", ph_institution: "نام دانشگاه / مکتب",
@@ -355,6 +373,19 @@ const Label = ({ children, required }) => (
   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
     {children}{required && <span className="text-red-400 ml-0.5">*</span>}
   </label>
+);
+
+/**
+ * The question behind the label.
+ *
+ * The Google Form these questions came from carried a paragraph of context
+ * under each one, and that context is what made applicants answer properly —
+ * "Brief Introduction" gets a sentence, "tell us how you grew up and what
+ * shaped you" gets a story. Porting the labels without the descriptions is
+ * what made the form read dry.
+ */
+const Hint = ({ children }) => (
+  <p className="text-[12px] leading-relaxed text-gray-500 mb-2 -mt-0.5">{children}</p>
 );
 
 const StepCard = ({ icon, label, desc, children }) => (
@@ -861,10 +892,21 @@ export default function PublicApplicationForm() {
 
           {cur.key === "motivation" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
-              <div><Label required>{t("introduction")}</Label><textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={4} placeholder={t("ph_intro")} className={errors.introduction ? inpError : inp} />{errors.introduction && <p className="text-red-500 text-xs mt-1">{errors.introduction}</p>}</div>
-              <div><Label required>{t("why_role")}</Label><textarea name="motivation" value={formData.motivation} onChange={handleChange} rows={6} placeholder={t("ph_motivation")} className={errors.motivation ? inpError : inp} />{errors.motivation && <p className="text-red-500 text-xs mt-1">{errors.motivation}</p>}</div>
+              <div>
+                <Label required>{t("introduction")}</Label>
+                <Hint>{t("introduction_hint")}</Hint>
+                <textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={6} placeholder={t("ph_intro")} className={errors.introduction ? inpError : inp} />
+                {errors.introduction && <p className="text-red-500 text-xs mt-1">{errors.introduction}</p>}
+              </div>
+              <div>
+                <Label required>{t("why_role")}</Label>
+                <Hint>{t("why_role_hint")}</Hint>
+                <textarea name="motivation" value={formData.motivation} onChange={handleChange} rows={6} placeholder={t("ph_motivation")} className={errors.motivation ? inpError : inp} />
+                {errors.motivation && <p className="text-red-500 text-xs mt-1">{errors.motivation}</p>}
+              </div>
               <div>
                 <Label>{t("unique_skills")}</Label>
+                <Hint>{t("unique_skills_hint")}</Hint>
                 <div className="space-y-2">
                   {formData.unique_skill.map((skill, index) => (
                     <div key={index} className="flex gap-2">

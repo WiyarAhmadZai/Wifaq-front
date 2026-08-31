@@ -29,6 +29,17 @@ const SKIP_TAGS = new Set([
   "SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "CODE", "PRE", "SVG", "PATH", "CANVAS",
 ]);
 
+/**
+ * Tags whose TEXT is the user's own data but whose ATTRIBUTES are still ours.
+ *
+ * A <textarea>'s value lives in its child text node, so it has to be skipped —
+ * but skipping the element wholesale took its `placeholder` with it. That is
+ * why every <input> on a form showed a translated placeholder and every
+ * <textarea> beside it stayed in English: same attribute, opposite treatment,
+ * for no reason anyone chose.
+ */
+const VALUE_TAGS = new Set(["TEXTAREA"]);
+
 /** Attributes that hold user-visible copy. */
 const ATTRS = ["placeholder", "title", "aria-label", "alt", "data-tooltip"];
 
@@ -65,6 +76,13 @@ const skip = (el) => {
   }
   return false;
 };
+
+/**
+ * skip() asks "is this element, or anything above it, off limits?". For an
+ * element that is itself off limits for its TEXT only, we still want to know
+ * about its surroundings — a textarea inside [data-no-i18n] is still exempt.
+ */
+const skipAncestors = (el) => (el.parentElement ? skip(el.parentElement) : false);
 
 /** The English a text node started life as. */
 const englishOfText = (node, core) => {
@@ -127,11 +145,18 @@ function walk(root) {
     return;
   }
   if (root.nodeType !== 1 && root.nodeType !== 9 && root.nodeType !== 11) return;
+  // A value-bearing element: translate what we wrote (the placeholder), then
+  // stop before its text, which is what the user typed.
+  if (root.nodeType === 1 && VALUE_TAGS.has(root.tagName)) {
+    if (!skipAncestors(root)) translateAttrs(root);
+    return;
+  }
   if (root.nodeType === 1 && skip(root)) return;
 
   if (root.nodeType === 1) translateAttrs(root);
   for (const el of root.querySelectorAll?.(ATTRS.map((a) => `[${a}]`).join(",")) || []) {
-    if (!skip(el)) translateAttrs(el);
+    // A textarea is skip()-ed for its text, so ask only about its ancestors.
+    if (VALUE_TAGS.has(el.tagName) ? !skipAncestors(el) : !skip(el)) translateAttrs(el);
   }
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {

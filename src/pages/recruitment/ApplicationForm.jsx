@@ -597,8 +597,12 @@ export default function ApplicationForm() {
         {cur.key === "motivation" && (
           <StepCard step={cur}>
             <div>
-              <Label required>Introduction</Label>
-              <textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={4} placeholder="Briefly introduce yourself..." className={errors.introduction ? inpError : inp} />
+              <Label required>Introduce Yourself</Label>
+              <p className="text-[12px] leading-relaxed text-gray-500 mb-2 -mt-0.5">
+                Write about yourself, your family and social background, and your path of growth.
+                How did you grow up, and what experiences have shaped you?
+              </p>
+              <textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={6} placeholder="Where you grew up, your family and community, the turning points that shaped you..." className={errors.introduction ? inpError : inp} />
               {errors.introduction && <p className="text-red-500 text-xs mt-1">{errors.introduction}</p>}
             </div>
             <div>
@@ -607,7 +611,10 @@ export default function ApplicationForm() {
               {errors.motivation && <p className="text-red-500 text-xs mt-1">{errors.motivation}</p>}
             </div>
             <div>
-              <Label>Unique Skills</Label>
+              <Label>What distinctive skill or quality do you bring to the Wifaq team?</Label>
+              <p className="text-[12px] leading-relaxed text-gray-500 mb-2 -mt-0.5">
+                Anything that sets them apart — a craft, a way of working, an ability others rely on them for.
+              </p>
               <div className="space-y-2">
                 {formData.unique_skill.map((skill, index) => (
                   <div key={index} className="flex gap-2">

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put } from "../../api/axios";
 import Swal from "sweetalert2";
-import { TEAL } from "../education/weeklyUi";
+import { TEAL, GOLD } from "../education/weeklyUi";
 
 
 const Spinner = () => (
@@ -47,6 +47,10 @@ export default function AssemblyPlan() {
   const [saving, setSaving] = useState(false);
   const [ref, setRef] = useState(null);       // classes / teachers / students
   const [teamSearch, setTeamSearch] = useState("");
+  // رهبر ټیم — one member of a cross-class team carries it. Held as a student
+  // id rather than a flag per row so "exactly one leader" is true by shape and
+  // cannot drift out of sync the way parallel booleans do.
+  const [teamLeader, setTeamLeader] = useState(null);
 
   const [form, setForm] = useState({
     date: "", prepare_by: "", theme: "", performing_unit_type: "class",
@@ -78,6 +82,7 @@ export default function AssemblyPlan() {
           notes: a.notes || "",
         });
         setTeam((a.team_members || []).map((m) => m.student_id));
+        setTeamLeader((a.team_members || []).find((m) => m.is_leader)?.student_id ?? null);
         // Whoever already has a block on the agenda shows up on the roster with
         // their role filled in, so the two screens never disagree.
         setRoles(Object.fromEntries(
@@ -119,7 +124,15 @@ export default function AssemblyPlan() {
   }, [students, teamSearch]);
 
   const toggleMember = (sid) =>
-    setTeam((prev) => (prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]));
+    setTeam((prev) => {
+      const next = prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid];
+      // Dropping the leader from the team drops the leadership with them.
+      if (!next.includes(sid) && teamLeader === sid) setTeamLeader(null);
+      return next;
+    });
+
+  /** Tapping the star again clears it — a team may have no named leader. */
+  const toggleLeader = (sid) => setTeamLeader((cur) => (cur === sid ? null : sid));
 
   /**
    * The people this assembly can hand roles to: the chosen class, or the
@@ -163,7 +176,9 @@ export default function AssemblyPlan() {
         lead_teacher_id: form.lead_teacher_id ? Number(form.lead_teacher_id) : null,
         target_minutes: Number(form.target_minutes) || 20,
         notes: form.notes?.trim() || null,
-        team_members: form.performing_unit_type === "team" ? team : [],
+        team_members: form.performing_unit_type === "team"
+          ? team.map((sid) => ({ student_id: sid, is_leader: sid === teamLeader }))
+          : [],
         // Only rows that actually name a role. Clearing one here does not
         // delete the block — removal lives on the agenda screen, where the
         // notes and minutes that would be lost are visible.
@@ -326,7 +341,45 @@ export default function AssemblyPlan() {
                   })}
                 </div>
                 {team.length > 0 && (
-                  <p className="text-[10px] text-[#5A7A7E] mt-2">{team.length} student{team.length === 1 ? "" : "s"} on the team</p>
+                  <>
+                    <p className="text-[10px] text-[#5A7A7E] mt-3 mb-1">
+                      {team.length} student{team.length === 1 ? "" : "s"} on the team
+                      {" — "}
+                      <span style={{ color: teamLeader ? TEAL : "#8AA4A7" }}>
+                        {teamLeader ? "leader chosen" : "tap ☆ to name the team leader"}
+                      </span>
+                    </p>
+                    {/* The picked team, spelled out. Searching a long list is
+                        how members go IN; this is how you check who is on it,
+                        which class each came from, and who leads. */}
+                    <div className="rounded-xl border border-[#D0E0E0] divide-y divide-[#D0E0E0] overflow-hidden">
+                      {team.map((sid) => {
+                        const st = students.find((x) => x.id === sid);
+                        const lead = teamLeader === sid;
+                        return (
+                          <div key={sid} className="flex items-center gap-2 px-2.5 py-1.5">
+                            <button type="button" onClick={() => toggleLeader(sid)}
+                              title={lead ? "Team leader — tap to clear" : "Make team leader"}
+                              className="text-sm leading-none shrink-0"
+                              style={{ color: lead ? GOLD : "#C3D0D0" }}>
+                              {lead ? "★" : "☆"}
+                            </button>
+                            <span className="text-[11px] text-[#0A3A3E] min-w-0 flex-1 truncate">
+                              {st?.name || `#${sid}`}
+                              {st?.class ? <span className="text-[#8AA4A7]"> · {st.class}</span> : null}
+                            </span>
+                            {lead && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                                style={{ background: "#FFF8E7", color: "#8A6F10" }}>Team leader</span>
+                            )}
+                            <button type="button" onClick={() => toggleMember(sid)}
+                              title="Remove from team"
+                              className="text-[#8AA4A7] hover:text-red-500 text-xs shrink-0">✕</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             </div>

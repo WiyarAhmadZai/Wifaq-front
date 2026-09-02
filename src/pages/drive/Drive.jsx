@@ -8,6 +8,8 @@ import {
 } from "../../api/drive";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
+import AudiencePicker, { OwnerBadge, AudienceChips } from "../../components/drive/AudiencePicker";
+import { EMPTY_AUDIENCE } from "../../components/drive/audience";
 
 const fmtSize = (n) => {
   if (!n) return "";
@@ -18,6 +20,14 @@ const fmtSize = (n) => {
 };
 
 const kindLabel = (f) => f.is_link ? "Link" : (f.media_type === "image" ? "Image" : f.media_type === "video" ? "Video" : "File");
+
+/* Reading is not writing.
+ *
+ * A worksheet shared with your class opens and downloads, but renaming, moving
+ * or deleting it stays with whoever uploaded it (and with Drive admins). The
+ * server enforces the same rule; this only keeps the buttons honest. */
+const canWrite = (item, me) => !me || me.is_drive_admin || Number(item.created_by) === Number(me.id);
+const isMine   = (item, me) => !!me && Number(item.created_by) === Number(me.id);
 
 // Windows-Explorer-style view modes.
 const VIEWS = [
@@ -30,7 +40,7 @@ export default function Drive() {
   const [searchParams, setSearchParams] = useSearchParams();
   const folderId = searchParams.get("folder") || "";
 
-  const [data, setData] = useState({ current: null, breadcrumb: [], folders: [], files: [] });
+  const [data, setData] = useState({ current: null, breadcrumb: [], folders: [], files: [], me: null });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef(null);
@@ -40,6 +50,10 @@ export default function Drive() {
 
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkForm, setLinkForm] = useState({ name: "", external_url: "", media_type: "file" });
+
+  // Who the next upload / link / folder is for. Reset each time a form opens so
+  // yesterday's class is never carried into today's upload by accident.
+  const [audience, setAudience] = useState(EMPTY_AUDIENCE);
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pending, setPending] = useState([]);     // files queued in the upload modal
@@ -171,11 +185,17 @@ export default function Drive() {
       inputValidator: (v) => (!v?.trim() ? "Enter a name" : undefined),
     });
     if (!value?.trim()) return;
-    try { await createFolder(value.trim(), folderId || null); await load(); }
+    try {
+      // A folder starts private; its audience is set from the folder card, and
+      // anything dropped into it afterwards inherits that audience.
+      await createFolder(value.trim(), folderId || null, EMPTY_AUDIENCE);
+      await load();
+    }
     catch (e) { Swal.fire("Error", e.response?.data?.message || "Could not create folder.", "error"); }
   };
 
-  const openUpload = () => { setPending([]); setUploadOpen(true); };
+  const openUpload = () => { setPending([]); setAudience(EMPTY_AUDIENCE); setUploadOpen(true); };
+  const openLink = () => { setAudience(EMPTY_AUDIENCE); setLinkOpen(true); };
 
   // Queue files chosen via the browse button or drag-and-drop into the modal.
   const queueFiles = (fileList) => {
@@ -189,7 +209,7 @@ export default function Drive() {
     if (!pending.length) { Swal.fire("No files", "Choose at least one file to upload.", "warning"); return; }
     setBusy(true);
     try {
-      await uploadFiles(folderId || null, pending);
+      await uploadFiles(folderId || null, pending, {}, audience);
       setUploadOpen(false); setPending([]);
       await load();
       Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Uploaded", timer: 1400, showConfirmButton: false });
@@ -207,8 +227,8 @@ export default function Drive() {
     }
     setBusy(true);
     try {
-      await addLink(folderId || null, linkForm.name.trim(), linkForm.external_url.trim(), linkForm.media_type);
-      setLinkOpen(false); setLinkForm({ name: "", external_url: "", media_type: "file" });
+      await addLink(folderId || null, linkForm.name.trim(), linkForm.external_url.trim(), linkForm.media_type, {}, audience);
+      setLinkOpen(false); setLinkForm({ name: "", external_url: "", media_type: "file" }); setAudience(EMPTY_AUDIENCE);
       await load();
     } catch (e) {
       Swal.fire("Error", e.response?.data?.message || "Could not add link.", "error");
@@ -266,7 +286,7 @@ export default function Drive() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h2 className="text-base font-bold text-gray-800">My Drive</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Your private files & links — only you can see them.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Your files and links, plus anything shared with you.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={newFolder} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
@@ -275,7 +295,7 @@ export default function Drive() {
           <button onClick={openUpload} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-bold flex items-center gap-1.5">
             <Icon d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /> Upload
           </button>
-          <button onClick={() => setLinkOpen(true)} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
+          <button onClick={openLink} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
             <Icon d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5" /> Add link
           </button>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onPickFiles} />
@@ -330,19 +350,19 @@ export default function Drive() {
           <p className="text-sm text-gray-400">This folder is empty. Upload files, add a link, or create a folder.</p>
         </div>
       ) : view === "details" ? (
-        <DetailsView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+        <DetailsView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
       ) : view === "list" ? (
-        <ListView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+        <ListView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
       ) : (
-        <LargeView data={data} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+        <LargeView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
       )}
 
       {/* Upload modal */}
       {uploadOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setUploadOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-800 mb-1">Upload files</h3>
-            <p className="text-[11px] text-gray-500 mb-3">{data.current ? `Into "${data.current.name}"` : "Into Home"} · up to 50 MB each.</p>
+            <p className="text-[11px] text-gray-500 mb-3">{data.current ? `Into "${data.current.name}"` : "Into Home"} · up to 50 MB each · choose who can see them below.</p>
 
             {/* Dropzone */}
             <div
@@ -371,6 +391,12 @@ export default function Drive() {
               </div>
             )}
 
+            {/* Who it is for. Required by design rather than by validation: the
+                default is "Only me", so forgetting the field never leaks. */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <AudiencePicker value={audience} onChange={setAudience} />
+            </div>
+
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setUploadOpen(false)} disabled={busy} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-50">Cancel</button>
               <button onClick={doUpload} disabled={busy || pending.length === 0} className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50">
@@ -384,7 +410,7 @@ export default function Drive() {
       {/* Add-link modal */}
       {linkOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setLinkOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-800 mb-3">Add a link</h3>
             <label className="block text-[11px] font-semibold uppercase text-gray-500 mb-1">Name</label>
             <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-3" value={linkForm.name} onChange={(e) => setLinkForm((s) => ({ ...s, name: e.target.value }))} placeholder="e.g. Project video" />
@@ -396,6 +422,10 @@ export default function Drive() {
               <option value="image">Image</option>
               <option value="video">Video</option>
             </select>
+            <div className="pt-4 border-t border-gray-100 mb-4">
+              <AudiencePicker value={audience} onChange={setAudience} />
+            </div>
+
             <div className="flex justify-end gap-2">
               <button onClick={() => setLinkOpen(false)} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50">Cancel</button>
               <button onClick={saveLink} disabled={busy} className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50">Add link</button>
@@ -408,7 +438,7 @@ export default function Drive() {
 }
 
 /* ── Per-file action buttons (download for files, copy-link for links) ── */
-function FileActions({ f, openFile, downloadFile, copyLink, removeFile, compact }) {
+function FileActions({ f, downloadFile, copyLink, removeFile, canWrite: writable = true, compact }) {
   const cls = `p-1 ${compact ? "" : "bg-white/90 shadow-sm"} rounded text-gray-600 hover:text-teal-600`;
   return (
     <>
@@ -421,7 +451,9 @@ function FileActions({ f, openFile, downloadFile, copyLink, removeFile, compact 
           <Icon d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
         </button>
       )}
-      <button onClick={(e) => { e.stopPropagation(); removeFile(f); }} title="Delete" className={`p-1 ${compact ? "" : "bg-white/90 shadow-sm"} rounded text-red-500 hover:text-red-700`}>✕</button>
+      {writable && (
+        <button onClick={(e) => { e.stopPropagation(); removeFile(f); }} title="Delete" className={`p-1 ${compact ? "" : "bg-white/90 shadow-sm"} rounded text-red-500 hover:text-red-700`}>✕</button>
+      )}
     </>
   );
 }
@@ -457,7 +489,7 @@ function TransferButtons({ item, kind, dnd, inline }) {
 }
 
 /* ── Large icons (thumbnails) ── */
-function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
   return (
     <>
       {data.folders.length > 0 && (
@@ -480,12 +512,18 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
                   </div>
                 </div>
               </button>
-              <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
-                <TransferButtons item={f} kind="folder" dnd={dnd} inline />
-                <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }}
-                  title="Delete folder"
-                  className="px-1.5 py-0.5 rounded text-[11px] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">✕</button>
+              <div className="px-2 pb-1.5 flex items-center justify-between gap-1">
+                <OwnerBadge owner={f.owner} mine={isMine(f, me)} />
+                <AudienceChips item={f} />
               </div>
+              {canWrite(f, me) && (
+                <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
+                  <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                  <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }}
+                    title="Delete folder"
+                    className="px-1.5 py-0.5 rounded text-[11px] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">✕</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -493,7 +531,7 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
       {data.files.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {data.files.map((f) => (
-            <div key={`fi-${f.id}`} {...dnd.drag("file", f)}
+            <div key={`fi-${f.id}`} {...(canWrite(f, me) ? dnd.drag("file", f) : {})}
               className="group bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-teal-400 transition-colors">
               <button onClick={() => openFile(f)} className="block w-full text-left" title={f.name}>
                 <DriveThumb file={f} />
@@ -502,10 +540,17 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
                   <p className="text-[10px] text-gray-400">{kindLabel(f)}{f.size ? ` · ${fmtSize(f.size)}` : ""}</p>
                 </div>
               </button>
+              <div className="px-2 pb-1.5 flex items-center justify-between gap-1">
+                <OwnerBadge owner={f.owner} mine={isMine(f, me)} />
+                <AudienceChips item={f} />
+              </div>
               <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
-                <TransferButtons item={f} kind="file" dnd={dnd} inline />
+                {canWrite(f, me)
+                  ? <TransferButtons item={f} kind="file" dnd={dnd} inline />
+                  : <span className="text-[10px] text-gray-400">Shared with you</span>}
                 <span className="flex items-center gap-0.5">
-                  <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} compact />
+                  <FileActions f={f} downloadFile={downloadFile} copyLink={copyLink}
+                    removeFile={removeFile} canWrite={canWrite(f, me)} compact />
                 </span>
               </div>
             </div>
@@ -517,31 +562,38 @@ function LargeView({ data, goTo, openFile, downloadFile, copyLink, removeFile, r
 }
 
 /* ── List (compact rows) ── */
-function ListView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+function ListView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
       {data.folders.map((f) => (
-        <div key={`fo-${f.id}`} {...dnd.drag("folder", f)} {...dnd.drop(f.id)}
+        <div key={`fo-${f.id}`} {...(canWrite(f, me) ? dnd.drag("folder", f) : {})} {...dnd.drop(f.id)}
           className={`group flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${dnd.isOver(f.id) ? "bg-teal-50 ring-2 ring-inset ring-teal-300" : "hover:bg-gray-50"}`}
           onClick={() => goTo(f.id)}>
           <FolderGlyph className="w-5 h-5" />
           <span className="text-xs font-medium text-gray-800 flex-1 truncate">{f.name}</span>
-          <span className="text-[10px] text-gray-400 hidden sm:block">{f.files_count || 0} files</span>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-            <TransferButtons item={f} kind="folder" dnd={dnd} inline />
-            <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
-          </div>
+          <AudienceChips item={f} className="hidden md:inline-flex" />
+          <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="hidden sm:inline-flex w-28 justify-end" />
+          <span className="text-[10px] text-gray-400 hidden lg:block">{f.files_count || 0} files</span>
+          {canWrite(f, me) && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+              <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+              <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
+            </div>
+          )}
         </div>
       ))}
       {data.files.map((f) => (
-        <div key={`fi-${f.id}`} {...dnd.drag("file", f)}
+        <div key={`fi-${f.id}`} {...(canWrite(f, me) ? dnd.drag("file", f) : {})}
           className="group flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
           <FileGlyph file={f} className="w-5 h-5" />
           <span className="text-xs font-medium text-gray-800 flex-1 truncate" title={f.name}>{f.name}</span>
-          <span className="text-[10px] text-gray-400 hidden sm:block w-24 text-right">{f.size ? fmtSize(f.size) : kindLabel(f)}</span>
+          <AudienceChips item={f} className="hidden md:inline-flex" />
+          <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="hidden sm:inline-flex w-28 justify-end" />
+          <span className="text-[10px] text-gray-400 hidden lg:block w-20 text-right">{f.size ? fmtSize(f.size) : kindLabel(f)}</span>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-            <TransferButtons item={f} kind="file" dnd={dnd} inline />
-            <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} compact />
+            {canWrite(f, me) && <TransferButtons item={f} kind="file" dnd={dnd} inline />}
+            <FileActions f={f} downloadFile={downloadFile} copyLink={copyLink}
+              removeFile={removeFile} canWrite={canWrite(f, me)} compact />
           </div>
         </div>
       ))}
@@ -550,7 +602,7 @@ function ListView({ data, goTo, openFile, downloadFile, copyLink, removeFile, re
 }
 
 /* ── Details (table) ── */
-function DetailsView({ data, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+function DetailsView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <table className="w-full text-xs">
@@ -558,6 +610,8 @@ function DetailsView({ data, goTo, openFile, downloadFile, copyLink, removeFile,
           <tr>
             <th className="text-left px-3 py-2 font-semibold">Name</th>
             <th className="text-left px-3 py-2 font-semibold">Type</th>
+            <th className="text-left px-3 py-2 font-semibold hidden md:table-cell">Uploaded by</th>
+            <th className="text-left px-3 py-2 font-semibold hidden lg:table-cell">Shared with</th>
             <th className="text-right px-3 py-2 font-semibold">Size</th>
             <th className="text-left px-3 py-2 font-semibold hidden sm:table-cell">Modified</th>
             <th className="px-3 py-2"></th>
@@ -565,29 +619,36 @@ function DetailsView({ data, goTo, openFile, downloadFile, copyLink, removeFile,
         </thead>
         <tbody className="divide-y divide-gray-100">
           {data.folders.map((f) => (
-            <tr key={`fo-${f.id}`} {...dnd.drag("folder", f)} {...dnd.drop(f.id)}
+            <tr key={`fo-${f.id}`} {...(canWrite(f, me) ? dnd.drag("folder", f) : {})} {...dnd.drop(f.id)}
               className={`group cursor-pointer transition-colors ${dnd.isOver(f.id) ? "bg-teal-50" : "hover:bg-gray-50"}`}
               onClick={() => goTo(f.id)}>
               <td className="px-3 py-2"><div className="flex items-center gap-2"><FolderGlyph className="w-4 h-4" /><span className="font-medium text-gray-800 truncate">{f.name}</span></div></td>
               <td className="px-3 py-2 text-gray-500">Folder</td>
+              <td className="px-3 py-2 hidden md:table-cell"><OwnerBadge owner={f.owner} mine={isMine(f, me)} /></td>
+              <td className="px-3 py-2 hidden lg:table-cell"><AudienceChips item={f} /></td>
               <td className="px-3 py-2 text-right text-gray-400">—</td>
               <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{f.updated_at ? fmtDate(f.updated_at) : "—"}</td>
-              <td className="px-3 py-2"><div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
-                <TransferButtons item={f} kind="folder" dnd={dnd} inline />
-                <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600">✕</button>
-              </div></td>
+              <td className="px-3 py-2">{canWrite(f, me) && (
+                <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
+                  <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                  <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600">✕</button>
+                </div>
+              )}</td>
             </tr>
           ))}
           {data.files.map((f) => (
-            <tr key={`fi-${f.id}`} {...dnd.drag("file", f)}
+            <tr key={`fi-${f.id}`} {...(canWrite(f, me) ? dnd.drag("file", f) : {})}
               className="group hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
               <td className="px-3 py-2"><div className="flex items-center gap-2"><FileGlyph file={f} className="w-4 h-4" /><span className="font-medium text-gray-800 truncate" title={f.name}>{f.name}</span></div></td>
               <td className="px-3 py-2 text-gray-500">{kindLabel(f)}</td>
+              <td className="px-3 py-2 hidden md:table-cell"><OwnerBadge owner={f.owner} mine={isMine(f, me)} /></td>
+              <td className="px-3 py-2 hidden lg:table-cell"><AudienceChips item={f} /></td>
               <td className="px-3 py-2 text-right text-gray-500">{f.size ? fmtSize(f.size) : "—"}</td>
               <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{f.created_at ? fmtDate(f.created_at) : "—"}</td>
               <td className="px-3 py-2"><div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
-                <TransferButtons item={f} kind="file" dnd={dnd} inline />
-                <FileActions f={f} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} compact />
+                {canWrite(f, me) && <TransferButtons item={f} kind="file" dnd={dnd} inline />}
+                <FileActions f={f} downloadFile={downloadFile} copyLink={copyLink}
+                  removeFile={removeFile} canWrite={canWrite(f, me)} compact />
               </div></td>
             </tr>
           ))}

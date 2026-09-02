@@ -10,6 +10,7 @@ import { useAuth } from "../../admin/context/AuthContext";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
+import OnboardingWelcomeModal from "../../components/OnboardingWelcomeModal";
 
 /**
  * Turn whatever an applicant typed into a social box into an openable URL.
@@ -163,6 +164,9 @@ export default function ApplicationShow() {
   });
   const [existingOffer, setExistingOffer] = useState(null);
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  // The welcome-message prompt. Opens by itself the moment the candidate is
+  // hired, and can be reopened from the hired banner for a re-send.
+  const [showWelcomeCompose, setShowWelcomeCompose] = useState(false);
   const [offerMode, setOfferMode] = useState("form"); // "form" | "view"
   const [pendingResponsibilityFile, setPendingResponsibilityFile] = useState(null);
 
@@ -680,13 +684,18 @@ export default function ApplicationShow() {
         setData((prev) => ({ ...prev, status: "hired" }));
         setExistingOffer(res.data.data);
 
-        Swal.fire({
+        await Swal.fire({
           title: "Hired!",
-          text: `${data.full_name} has been successfully hired. A welcome email has been sent.`,
+          text: `${data.full_name} has been successfully hired. Next: send the welcome message.`,
           icon: "success",
-          timer: 2500,
+          timer: 2000,
           showConfirmButton: false,
         });
+
+        // HR is prompted rather than left to remember: the welcome message
+        // carries the orientation link AND the quiz link, and HR chooses the
+        // name and the language(s) it goes out in.
+        setShowWelcomeCompose(true);
       }
     } catch (error) {
       Swal.fire("Error", error.response?.data?.message || "Failed to record response", "error");
@@ -1978,6 +1987,26 @@ export default function ApplicationShow() {
                   </div>
                 </div>
 
+                {/* Onboarding welcome message — sent once at hire, re-sendable
+                    here. Carries the orientation link and the quiz link. */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-gray-800">Welcome message</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Orientation link and onboarding quiz, in the language(s) you choose.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowWelcomeCompose(true)}
+                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Compose &amp; send
+                  </button>
+                </div>
+
                 {/* Hiring Details */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
                   {/* Candidate Card */}
@@ -3056,6 +3085,14 @@ export default function ApplicationShow() {
             </div>
           </div>
         </div>
+      )}
+
+      {showWelcomeCompose && (
+        <OnboardingWelcomeModal
+          applicationId={id}
+          initialName={data.full_name}
+          onClose={() => setShowWelcomeCompose(false)}
+        />
       )}
     </div>
   );

@@ -9,6 +9,8 @@ import { fmtDate } from "../../utils/formErrors";
 import MediaThumb from "./MediaThumb";
 import MediaPreviewModal from "./MediaPreviewModal";
 import { releaseObjectUrls } from "./mediaPreview";
+import AudiencePicker, { OwnerBadge, AudienceChips } from "../../components/drive/AudiencePicker";
+import { EMPTY_AUDIENCE, audienceFromItem } from "../../components/drive/audience";
 
 /* Drive — institutional catalogue (Drive Module spec v3).
  *
@@ -86,6 +88,9 @@ export default function DriveCatalogue() {
   const [tax, setTax] = useState(null);
   const [items, setItems] = useState([]);
   const [counts, setCounts] = useState({});
+  // Who is looking. Comes back with the list so a card can tell "mine" from
+  // "shared with me" without a second request.
+  const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -114,6 +119,7 @@ export default function DriveCatalogue() {
       const res = await listCatalogue({ ...filters, category });
       setItems(res.data?.data?.items || []);
       setCounts(res.data?.data?.category_counts || {});
+      setMe(res.data?.data?.me || null);
     } catch {
       setItems([]); setCounts({});
     } finally {
@@ -231,6 +237,7 @@ export default function DriveCatalogue() {
                   tax={tax}
                   busy={busy}
                   dense={dense}
+                  me={me}
                   onOpen={() => openItem(item)}
                   onDownload={() => download(item)}
                   onEdit={() => setEditing(item)}
@@ -410,7 +417,10 @@ function FilterBar({ tax, filters, setFilter, activeCategory, showsEduLevel, act
   );
 }
 
-function ItemCard({ item, tax, busy, dense, onOpen, onDownload, onEdit, onDelete }) {
+function ItemCard({ item, tax, busy, dense, me, onOpen, onDownload, onEdit, onDelete }) {
+  // Reading someone else's material must not offer to change or delete it.
+  const writable = !me || me.is_drive_admin || Number(item.created_by) === Number(me.id);
+  const mine = !!me && Number(item.created_by) === Number(me.id);
   return (
     <div className={`bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col hover:shadow-md hover:border-teal-200 transition-all ${dense ? "p-2 gap-1.5" : "p-3 gap-2.5"}`}>
       {/* Real preview instead of a grey placeholder — this is what makes the
@@ -452,23 +462,33 @@ function ItemCard({ item, tax, busy, dense, onOpen, onDownload, onEdit, onDelete
         {item.is_link && (
           <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-md text-[10px] font-semibold">Link</span>
         )}
+        <AudienceChips item={item} />
       </div>
 
       {!dense && item.notes && <p className="text-[11px] text-gray-500 line-clamp-2">{item.notes}</p>}
 
-      <div className={`flex items-center justify-between border-t border-gray-100 mt-auto ${dense ? "pt-1.5" : "pt-2"}`}>
-        <span className="text-[10px] text-gray-400 truncate">
-          {dense
-            ? fmtDate(item.created_at)
-            : `${item.creator?.name || "—"} · ${fmtDate(item.created_at)}${item.size ? ` · ${fmtSize(item.size)}` : ""}`}
+      <div className={`flex items-center justify-between gap-1 border-t border-gray-100 mt-auto ${dense ? "pt-1.5" : "pt-2"}`}>
+        {/* Whose material this is, with their photo — the card is often the
+            only place a reader learns who posted it. */}
+        <span className="flex items-center gap-1.5 min-w-0">
+          <OwnerBadge owner={item.owner} mine={mine} />
+          {!dense && (
+            <span className="text-[10px] text-gray-400 truncate">
+              {`· ${fmtDate(item.created_at)}${item.size ? ` · ${fmtSize(item.size)}` : ""}`}
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
           <IconBtn title="Open" onClick={onOpen} d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" tone="text-teal-600 hover:bg-teal-50" />
           {!item.is_link && (
             <IconBtn title="Download" onClick={onDownload} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" tone="text-gray-500 hover:bg-gray-100" />
           )}
-          <IconBtn title="Edit details" onClick={onEdit} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" tone="text-blue-600 hover:bg-blue-50" />
-          <IconBtn title="Remove" onClick={onDelete} disabled={busy} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" tone="text-red-600 hover:bg-red-50" />
+          {writable && (
+            <>
+              <IconBtn title="Edit details" onClick={onEdit} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" tone="text-blue-600 hover:bg-blue-50" />
+              <IconBtn title="Remove" onClick={onDelete} disabled={busy} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" tone="text-red-600 hover:bg-red-50" />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -604,6 +624,9 @@ function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, category: defaultCategory || "" });
   const [files, setFiles] = useState([]);
   const [link, setLink] = useState({ name: "", external_url: "", media_type: "file" });
+  // Every upload states its audience, administrators included — a catalogue
+  // entry is no longer readable by everyone just because it is catalogued.
+  const [audience, setAudience] = useState(EMPTY_AUDIENCE);
   const [saving, setSaving] = useState(false);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -612,8 +635,8 @@ function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
   const submit = async () => {
     setSaving(true);
     try {
-      if (mode === "upload") await uploadFiles(null, files, form);
-      else await addLink(null, link.name, link.external_url, link.media_type, form);
+      if (mode === "upload") await uploadFiles(null, files, form, audience);
+      else await addLink(null, link.name, link.external_url, link.media_type, form, audience);
       await onSaved();
     } catch (e) {
       const errs = e.response?.data?.errors;
@@ -624,7 +647,7 @@ function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
   };
 
   return (
-    <Dialog title="Add to Drive" subtitle="Catalogue details apply to everything in this upload." onClose={onClose}>
+    <Dialog title="Add to Drive" subtitle="Catalogue details and audience apply to everything in this upload." onClose={onClose}>
       <div className="p-5 space-y-4">
         <div className="flex rounded-xl overflow-hidden border border-gray-200 text-xs w-fit">
           {["upload", "link"].map((m) => (
@@ -671,6 +694,10 @@ function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
         <div className="pt-2 border-t border-gray-100">
           <CatalogueFields tax={tax} form={form} set={set} />
         </div>
+
+        <div className="pt-4 border-t border-gray-100">
+          <AudiencePicker value={audience} onChange={setAudience} />
+        </div>
       </div>
 
       <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
@@ -691,12 +718,13 @@ function EditDialog({ tax, item, onClose, onSaved }) {
     file_type: item.file_type || "", edu_level: item.edu_level || "",
     status: item.status || "draft", notes: item.notes || "",
   });
+  const [audience, setAudience] = useState(() => audienceFromItem(item));
   const [saving, setSaving] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   const submit = async () => {
     setSaving(true);
-    try { await saveCatalogue(item.id, form); await onSaved(); }
+    try { await saveCatalogue(item.id, form, audience); await onSaved(); }
     catch (e) {
       const errs = e.response?.data?.errors;
       Swal.fire("Could not save", errs ? Object.values(errs).flat().join("\n") : "Something went wrong.", "error");
@@ -705,8 +733,11 @@ function EditDialog({ tax, item, onClose, onSaved }) {
 
   return (
     <Dialog title="Catalogue details" subtitle={item.name} onClose={onClose}>
-      <div className="p-5">
+      <div className="p-5 space-y-4">
         <CatalogueFields tax={tax} form={form} set={set} />
+        <div className="pt-4 border-t border-gray-100">
+          <AudiencePicker value={audience} onChange={setAudience} />
+        </div>
       </div>
       <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
         <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>

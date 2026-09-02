@@ -9,6 +9,30 @@ const BASE = "/drive";
 // bar, the upload form and the API validation can never disagree.
 export const getTaxonomy = () => get(`${BASE}/taxonomy`);
 
+// ── Audience ────────────────────────────────────────────────────────────────
+// Who the signed-in user may publish to. Served by the server rather than
+// derived here: a teacher is offered only the classes they actually teach, and
+// the same rule rejects anything else on save.
+export const getAudienceOptions = () => get(`${BASE}/audience-options`, { cache: false });
+
+/**
+ * Flatten an audience selection into the fields every write endpoint accepts.
+ *
+ * `visibility` is always sent — its absence is what tells the server to
+ * inherit the parent folder's audience, which is only what we want when the
+ * caller genuinely did not choose.
+ */
+export const audienceFields = (audience) => {
+  if (!audience || !audience.visibility) return {};
+  const out = { visibility: audience.visibility };
+  if (audience.visibility === "shared") {
+    out.share_class_ids = audience.classes || [];
+    out.share_department_ids = audience.departments || [];
+    out.share_user_ids = audience.users || [];
+  }
+  return out;
+};
+
 export const listCatalogue = (filters = {}) => {
   // Blank values would otherwise become "?category=" and fail the enum rule.
   const params = Object.fromEntries(
@@ -17,7 +41,8 @@ export const listCatalogue = (filters = {}) => {
   return get(`${BASE}/catalogue`, { params });
 };
 
-export const saveCatalogue = (id, fields) => put(`${BASE}/files/${id}/catalogue`, fields);
+export const saveCatalogue = (id, fields, audience) =>
+  put(`${BASE}/files/${id}/catalogue`, { ...fields, ...audienceFields(audience) });
 
 // ── Move / copy ─────────────────────────────────────────────────────────────
 // A null destination means the Home (root) level, which is a valid target.
@@ -27,16 +52,17 @@ export const copyFileTo   = (id, folderId) => post(`${BASE}/files/${id}/copy`, {
 export const copyFolderTo = (id, parentId) => post(`${BASE}/folders/${id}/copy`, { parent_id: parentId || null });
 
 export const listDrive    = (folderId) => get(BASE, { params: folderId ? { folder_id: folderId } : {} });
-export const createFolder = (name, parentId) => post(`${BASE}/folders`, { name, parent_id: parentId || null });
-export const addLink      = (folderId, name, url, mediaType, catalogue = {}) =>
+export const createFolder = (name, parentId, audience) =>
+  post(`${BASE}/folders`, { name, parent_id: parentId || null, ...audienceFields(audience) });
+export const addLink      = (folderId, name, url, mediaType, catalogue = {}, audience) =>
   post(`${BASE}/links`, {
     folder_id: folderId || null, name, external_url: url,
-    media_type: mediaType || "file", ...catalogue,
+    media_type: mediaType || "file", ...catalogue, ...audienceFields(audience),
   });
 export const deleteFile   = (id) => del(`${BASE}/files/${id}`);
 export const deleteFolder = (id) => del(`${BASE}/folders/${id}`);
 
-export const uploadFiles = (folderId, fileList, catalogue = {}) => {
+export const uploadFiles = (folderId, fileList, catalogue = {}, audience) => {
   const fd = new FormData();
   if (folderId) fd.append("folder_id", folderId);
   Array.from(fileList).forEach((f) => fd.append("files[]", f));
@@ -44,6 +70,13 @@ export const uploadFiles = (folderId, fileList, catalogue = {}) => {
   // fail the server's enum rules instead of reading as "not set".
   Object.entries(catalogue).forEach(([k, v]) => {
     if (v !== "" && v != null) fd.append(k, v);
+  });
+  // Audience: arrays go as repeated `field[]` entries, which is the only shape
+  // multipart can express. An empty selection sends nothing, and the server
+  // then stores the item as private rather than as a share nobody is in.
+  Object.entries(audienceFields(audience)).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach((x) => fd.append(`${k}[]`, x));
+    else if (v !== "" && v != null) fd.append(k, v);
   });
   // The axios instance defaults to Content-Type: application/json, which makes
   // axios JSON-stringify a FormData body (dropping the files). Setting it to

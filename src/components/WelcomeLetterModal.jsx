@@ -19,6 +19,7 @@ const LANGS = [
   { code: "en", label: "English" },
   { code: "fa", label: "دری" },
   { code: "ps", label: "پښتو" },
+  { code: "ar", label: "العربية" },
 ];
 
 export default function WelcomeLetterModal({

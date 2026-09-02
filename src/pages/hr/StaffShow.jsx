@@ -6,6 +6,8 @@ import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 import WelcomeLetterModal from '../../components/WelcomeLetterModal';
 import ExperienceLetterModal from '../../components/ExperienceLetterModal';
+import OnboardingWelcomeModal from '../../components/OnboardingWelcomeModal';
+import { getStaffOnboarding } from '../../api/onboarding';
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -225,6 +227,9 @@ export default function StaffShow() {
 
             {/* Lifecycle letters — welcome on day one, experience on exit */}
             <LettersSection staffId={data.id} staffName={name} canEdit={canUpdate} />
+
+            {/* Onboarding — welcome message sent, and quiz progress */}
+            <OnboardingSection staffId={data.id} staffName={name} />
 
             {/* Documents */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
@@ -537,6 +542,120 @@ function MiniStat({ label, value, tone = "text-gray-800" }) {
       <div className={`text-base font-bold ${tone}`}>{value}</div>
       <div className="text-[9px] text-gray-400 uppercase tracking-wide mt-0.5">{label}</div>
     </div>
+  );
+}
+
+/**
+ * Onboarding on the staff record: the welcome message HR sent (name,
+ * languages, when) and how far this person has got with the quiz.
+ *
+ * The section is what turns the quiz from "a link we emailed" into something
+ * HR can actually follow up — a failed attempt shows which section was missed.
+ */
+function OnboardingSection({ staffId, staffName }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [compose, setCompose] = useState(false);
+
+  // No synchronous setState here: `loading` starts true and is only cleared
+  // once the request settles, which keeps this callable straight from an
+  // effect without triggering a cascading render.
+  const load = useCallback(() => {
+    getStaffOnboarding(staffId)
+      .then((r) => setData(r.data?.data || null))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [staffId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const quiz = data?.quiz;
+  const messages = data?.messages || [];
+  const last = messages[0];
+
+  return (
+    <Section title="Onboarding" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z">
+      <div className="space-y-2.5">
+        {/* Welcome message */}
+        <div className="flex items-center gap-3 p-3.5 rounded-xl border border-teal-200 bg-teal-50">
+          <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800">Welcome message</p>
+            <p className="text-[10px] text-gray-500 truncate">
+              {last
+                ? `Sent ${fmtDate(last.sent_at || last.created_at)} · ${(last.languages || []).join(', ')}`
+                : 'Not sent yet'}
+            </p>
+          </div>
+          <button
+            onClick={() => setCompose(true)}
+            className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors flex-shrink-0"
+          >
+            {last ? 'Re-send' : 'Send'}
+          </button>
+        </div>
+
+        {/* Quiz */}
+        <div className={`p-3.5 rounded-xl border ${
+          quiz?.passed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              quiz?.passed ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+            }`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Onboarding quiz</p>
+              <p className="text-[10px] text-gray-500">
+                {loading
+                  ? 'Loading…'
+                  : !quiz || quiz.attempts === 0
+                  ? 'Not attempted yet'
+                  : `${quiz.attempts} attempt${quiz.attempts === 1 ? '' : 's'} · best ${quiz.best_percent}% · pass mark ${quiz.pass_mark}%`}
+              </p>
+            </div>
+            {quiz && (
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${
+                quiz.passed
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : quiz.attempts === 0
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {quiz.passed ? 'Passed' : quiz.attempts === 0 ? 'Pending' : 'Not passed'}
+              </span>
+            )}
+          </div>
+
+          {/* Where the gap is, from the most recent sitting. */}
+          {quiz?.history?.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {(quiz.history[quiz.history.length - 1].section_scores || []).map((sec) => (
+                <span key={sec.key} className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                  sec.percent === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-amber-700 border border-amber-200'
+                }`}>
+                  {sec.title} {sec.score}/{sec.total}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {compose && (
+        <OnboardingWelcomeModal
+          staffId={staffId}
+          initialName={staffName}
+          onClose={() => setCompose(false)}
+          onSent={load}
+        />
+      )}
+    </Section>
   );
 }
 

@@ -2333,6 +2333,18 @@ export default function Layout() {
             </>
           )}
 
+          {/* Onboarding — everyone has their own, so no permission gate. The
+              orientation link and the quiz live here as well as in the emailed
+              welcome message, so neither is one lost email away. */}
+          <MenuSection title="Me" />
+          <SidebarItem
+            icon={Icons.Support}
+            label="My Onboarding"
+            to="/onboarding"
+            active={isActive("/onboarding")}
+            onClick={closeSidebar}
+          />
+
           {hasPermission("settings.view") && (
             <>
               <MenuSection title="System" />

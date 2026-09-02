@@ -13,6 +13,7 @@ const LANGS = [
   { code: "ps", label: "پښتو", english: "Pashto" },
   { code: "fa", label: "دری", english: "Dari" },
   { code: "en", label: "English", english: "English" },
+  { code: "ar", label: "العربية", english: "Arabic" },
 ];
 
 export default function WelcomeLetterDownload({ userName = "" }) {

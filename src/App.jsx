@@ -46,6 +46,8 @@ const L = (fn) => {
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Login = lazy(() => import("./pages/Login"));
 const MyProfile = lazy(() => import("./pages/MyProfile"));
+const MyOnboarding = lazy(() => import("./pages/onboarding/MyOnboarding"));
+const OnboardingQuiz = lazy(() => import("./pages/onboarding/OnboardingQuiz"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatSettings = lazy(() => import("./pages/system/ChatSettings"));
@@ -403,6 +405,9 @@ function App() {
             <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
             <Route path="profile/:userId" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
+            {/* Onboarding — every signed-in user has their own; no permission gate. */}
+            <Route path="onboarding" element={<Suspense fallback={<PageLoader />}><MyOnboarding /></Suspense>} />
+            <Route path="onboarding/quiz" element={<Suspense fallback={<PageLoader />}><OnboardingQuiz /></Suspense>} />
             <Route path="notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="support" element={<Placeholder title="Support" />} />

@@ -6,10 +6,17 @@ import { TEAL, GOLD } from "../education/weeklyUi";
 
 
 const TYPE_LABEL = {
-  opening: "Opening", quran: "Quran recitation", poem: "Poem", qa: "Question & answer",
+  opening: "Opening", quran: "Quran recitation", poem: "Poem", naat: "Naat", qa: "Question & answer",
   article: "Article / talk", anthem: "Anthem", sport: "Sport / movement", social: "Social item",
   recognition: "Recognition", closing: "Closing", other: "Other",
 };
+
+/**
+ * Types a group normally performs rather than one child — an anthem or a naat
+ * is sung together. Only a default: the team panel can be opened on any item,
+ * and a group item can still be left as a solo one.
+ */
+const GROUP_TYPES = new Set(["anthem", "naat", "poem", "social", "sport", "qa"]);
 
 const Spinner = () => (
   <div className="flex justify-center py-16">
@@ -17,7 +24,11 @@ const Spinner = () => (
   </div>
 );
 
-const EMPTY_ITEM = { type: "other", title: "", duration_minutes: 2, assigned_student_id: "", assigned_role: "", notes: "" };
+const EMPTY_ITEM = {
+  type: "other", title: "", duration_minutes: 2, assigned_student_id: "", assigned_role: "", notes: "",
+  // [{ student_id, is_leader }] — empty means a single presenter.
+  members: [],
+};
 
 /**
  * Agenda Builder + day-before prep.
@@ -39,6 +50,9 @@ export default function AssemblyAgenda() {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(EMPTY_ITEM);
   const [editingId, setEditingId] = useState(null);
+  // Searching the whole school for group members, and whether the panel is open.
+  const [memberSearch, setMemberSearch] = useState("");
+  const [showGroup, setShowGroup] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +89,53 @@ export default function AssemblyAgenda() {
     return pool;
   }, [a, ref]);
 
+  /**
+   * Who a GROUP may be built from.
+   *
+   * Wider than roleCandidates on purpose. A class assembly still hands its
+   * ordinary roles to its own students, but a special program — a ترانه or a
+   * نعت — is put together from whoever can perform it, whatever class they sit
+   * in. The API applies the same per-teacher scope to every member, so this
+   * offers reach without granting it.
+   */
+  const groupCandidates = useMemo(() => {
+    const pool = ref?.students || [];
+    const q = memberSearch.trim().toLowerCase();
+    const base = q
+      ? pool.filter((s) => [s.name, s.class, s.code].some((v) => (v || "").toLowerCase().includes(q)))
+      : pool;
+    return base.slice(0, 40);
+  }, [ref, memberSearch]);
+
+  /* ── The group performing this item ───────────────────────────────────
+   * Members may come from any class; a leader is optional and there is at most
+   * one, which is enforced by construction rather than by validating a set of
+   * parallel booleans afterwards. */
+  const inGroup = (sid) => (draft.members || []).some((m) => m.student_id === sid);
+
+  const toggleGroupMember = (sid) =>
+    setDraft((d) => {
+      const members = inGroup(sid)
+        ? d.members.filter((m) => m.student_id !== sid)
+        : [...(d.members || []), { student_id: sid, is_leader: false }];
+      return { ...d, members };
+    });
+
+  const setGroupLeader = (sid) =>
+    setDraft((d) => ({
+      ...d,
+      members: (d.members || []).map((m) => ({
+        ...m,
+        // Tapping the current leader clears the role rather than re-setting it.
+        is_leader: m.student_id === sid ? !m.is_leader : false,
+      })),
+    }));
+
+  const nameOf = (sid) => {
+    const s = (ref?.students || []).find((x) => x.id === sid);
+    return s ? `${s.name}${s.class ? ` · ${s.class}` : ""}` : `#${sid}`;
+  };
+
   const saveItem = async () => {
     if (!draft.title.trim()) return Swal.fire("Title needed", "Name this activity.", "info");
     setBusy(true);
@@ -86,6 +147,10 @@ export default function AssemblyAgenda() {
         assigned_student_id: draft.assigned_student_id ? Number(draft.assigned_student_id) : null,
         assigned_role: draft.assigned_role?.trim() || null,
         notes: draft.notes?.trim() || null,
+        members: (draft.members || []).map((m) => ({
+          student_id: Number(m.student_id),
+          is_leader: Boolean(m.is_leader),
+        })),
       };
       const res = editingId
         ? await put(`/assemblies/${id}/items/${editingId}`, body)
@@ -101,6 +166,7 @@ export default function AssemblyAgenda() {
     setDraft({
       type: item.type, title: item.title, duration_minutes: item.duration_minutes,
       assigned_student_id: item.assigned_student_id || "", assigned_role: item.assigned_role || "",
+      members: (item.members || []).map((m) => ({ student_id: m.student_id, is_leader: Boolean(m.is_leader) })),
       notes: item.notes || "",
     });
     setEditingId(item.id);
@@ -247,6 +313,17 @@ export default function AssemblyAgenda() {
                   {item.assigned_role ? ` · ${item.assigned_role}` : ""}
                   {item.student ? ` · ${item.student}` : ""}
                 </div>
+                {/* A group item names who performs it right on the row —
+                    otherwise the only way to see the team is to open the
+                    editor, and the run sheet is read at a glance. */}
+                {item.members?.length > 0 && (
+                  <div className="text-[11px] mt-0.5" style={{ color: TEAL }}>
+                    {item.members.map((m) => (m.is_leader ? `★ ${m.name}` : m.name)).join(" · ")}
+                    <span className="text-[#8AA4A7]">
+                      {" — "}{item.members.length} performer{item.members.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                )}
                 {item.notes && <div className="text-[11px] text-[#8AA4A7] mt-0.5">{item.notes}</div>}
               </div>
 
@@ -354,6 +431,85 @@ export default function AssemblyAgenda() {
                   </p>
                 </div>
               </div>
+
+              {/* ── A group instead of one child ──
+                * An anthem or a naat is performed together, and the performers
+                * are picked from wherever they are rather than from the single
+                * class running the assembly. Opened by default for the types
+                * that are normally group items. */}
+              {(() => {
+                const open = showGroup || GROUP_TYPES.has(draft.type) || (draft.members || []).length > 0;
+                if (!open) {
+                  return (
+                    <button type="button" onClick={() => setShowGroup(true)}
+                      className="mt-3 text-[11px] font-semibold underline" style={{ color: TEAL }}>
+                      + Performed by a group instead of one student
+                    </button>
+                  );
+                }
+                const members = draft.members || [];
+                return (
+                  <div className="mt-3 rounded-xl border border-[#D0E0E0] p-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                      <label className="block text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider">
+                        Performing group <span className="normal-case font-normal text-[#8AA4A7]">— any class</span>
+                      </label>
+                      <span className="text-[10px]" style={{ color: members.length ? TEAL : "#8AA4A7" }}>
+                        {members.length
+                          ? `${members.length} member${members.length === 1 ? "" : "s"}${members.some((m) => m.is_leader) ? " · leader chosen" : " · tap ☆ for the leader"}`
+                          : "Nobody added yet"}
+                      </span>
+                    </div>
+
+                    {members.length > 0 && (
+                      <div className="rounded-lg border border-[#D0E0E0] divide-y divide-[#D0E0E0] mb-2">
+                        {members.map((m) => (
+                          <div key={m.student_id} className="flex items-center gap-2 px-2.5 py-1.5">
+                            <button type="button" onClick={() => setGroupLeader(m.student_id)}
+                              title={m.is_leader ? "Group leader — tap to clear" : "Make group leader"}
+                              className="text-sm leading-none shrink-0"
+                              style={{ color: m.is_leader ? GOLD : "#C3D0D0" }}>
+                              {m.is_leader ? "★" : "☆"}
+                            </button>
+                            <span className="text-[11px] text-[#0A3A3E] min-w-0 flex-1 truncate">{nameOf(m.student_id)}</span>
+                            {m.is_leader && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                                style={{ background: "#FFF8E7", color: "#8A6F10" }}>Leader</span>
+                            )}
+                            <button type="button" onClick={() => toggleGroupMember(m.student_id)}
+                              title="Remove" className="text-[#8AA4A7] hover:text-red-500 text-xs shrink-0">✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <input value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)}
+                      placeholder="Search any student by name or class…" className={field} />
+                    <div className="flex flex-wrap gap-1.5 mt-2 max-h-40 overflow-y-auto">
+                      {groupCandidates.map((s) => {
+                        const on = inGroup(s.id);
+                        return (
+                          <span key={s.id} onClick={() => toggleGroupMember(s.id)}
+                            className="px-2.5 py-1 rounded-full text-[11px] cursor-pointer border"
+                            style={{
+                              background: on ? TEAL : "#fff",
+                              color: on ? "#fff" : "#0A3A3E",
+                              borderColor: on ? TEAL : "#D0E0E0",
+                            }}>
+                            {s.name}{s.class ? ` (${s.class})` : ""} {on ? "✓" : "+"}
+                          </span>
+                        );
+                      })}
+                      {groupCandidates.length === 0 && (
+                        <span className="text-[10px] text-[#8AA4A7]">No student matches that search.</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-[#8AA4A7] mt-2">
+                      Leave this empty for an item one student presents on their own.
+                    </p>
+                  </div>
+                );
+              })()}
 
               <div className="mt-3">
                 <label className="block text-[10px] text-[#5A7A7E] mb-1">Notes (optional)</label>

@@ -1667,6 +1667,7 @@ export default function Layout() {
     { key: "my-children", label: "My Children", items: [
       { label: "Homework & Grades", path: "/my-children" },
       { label: "Attendance", path: "/student-management/attendance/my-children" },
+      { label: "Observations & Cards", path: "/my-children/observations" },
     ]},
   ];
 
@@ -2007,6 +2008,10 @@ export default function Layout() {
             <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
             <SubMenuItem label="Attendance" to="/student-management/attendance/my-children"
               active={isActive("/student-management/attendance/my-children")} onClick={closeSidebar} />
+            {/* Observations the school recorded, and the cards they earned —
+                the page the card notification links to. */}
+            <SubMenuItem label="Observations & Cards" to="/my-children/observations"
+              active={isActive("/my-children/observations")} onClick={closeSidebar} />
           </ParentMenu>
           )}
 

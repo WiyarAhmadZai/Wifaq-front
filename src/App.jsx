@@ -47,6 +47,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Login = lazy(() => import("./pages/Login"));
 const MyProfile = lazy(() => import("./pages/MyProfile"));
 const MyOnboarding = lazy(() => import("./pages/onboarding/MyOnboarding"));
+const MyChildrenObservations = lazy(() => import("./pages/parent/MyChildrenObservations"));
 const OnboardingQuiz = lazy(() => import("./pages/onboarding/OnboardingQuiz"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -437,6 +438,9 @@ function App() {
             {/* Parent's own questionnaire (reached from the bell notification) */}
             <Route path="my-questionnaire" element={<Suspense fallback={<PageLoader />}><MyQuestionnaire /></Suspense>} />
             <Route path="my-children" element={<Suspense fallback={<PageLoader />}><ParentGradebook /></Suspense>} />
+            {/* A family's own page: every observation and card for their own
+                children. Scoped on the server from the signed-in account. */}
+            <Route path="my-children/observations" element={<Suspense fallback={<PageLoader />}><MyChildrenObservations /></Suspense>} />
 
             {/* Planning — Annual / Monthly / Weekly plans */}
             <Route path="planning" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />

@@ -286,10 +286,21 @@ export default function CrudPage({
     }
   };
 
-  const handleOpenStatusModal = (item) => { setSelectedItem(item); setNewStatus(item[statusField] || ""); setShowStatusModal(true); };
+  const handleOpenStatusModal = (item) => {
+    const raw = item[statusField];
+    // A boolean status (is_active) has to be shown as the same string the
+    // <option> values carry, or the modal opens with nothing preselected and
+    // the current state looks unset.
+    const current = typeof raw === "boolean" ? (raw ? "1" : "0") : (raw ?? "");
+    setSelectedItem(item); setNewStatus(current); setShowStatusModal(true);
+  };
   const handleCloseStatusModal = () => { setShowStatusModal(false); setSelectedItem(null); setNewStatus(""); };
   const handleStatusUpdate = async () => {
-    if (!newStatus) { Swal.fire("Error", "Please select a status", "error"); return; }
+    // "" is "nothing chosen". `!newStatus` also caught "0", so turning a
+    // boolean status OFF was refused as if the user had picked nothing.
+    if (newStatus === "" || newStatus === null || newStatus === undefined) {
+      Swal.fire("Error", "Please select a status", "error"); return;
+    }
     setSavingStatus(true);
     try {
       await put(`${statusEndpoint}/${selectedItem[idField]}${statusSuffix}`, { [statusField]: newStatus });

@@ -25,6 +25,15 @@ export default function Broadcasts() {
       searchFields={["title", "body", "author"]}
       statusEndpoint="/broadcasts/status"
       statusField="is_active"
+      /* Turning a broadcast on or off without opening the editor. CrudPage only
+       * renders its status action when it is told what the choices ARE, so the
+       * button was missing purely because this list never said. Gated by
+       * broadcasts.update / broadcasts.manage like Edit is — same permission,
+       * because switching a message live is the same act of publishing it. */
+      statusOptions={[
+        { value: 1, label: "Active — show to everyone" },
+        { value: 0, label: "Off — hide from everyone" },
+      ]}
       listColumns={[
         {
           key: "title",
@@ -59,13 +68,24 @@ export default function Broadcasts() {
         {
           key: "is_active",
           label: "Status",
-          render: (v) => (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-              v ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-gray-50 text-gray-600 border-gray-200"
-            }`}>
+          // isStatus hands the badge the same opener the action button uses, so
+          // clicking the thing you want to change works as well as hunting for
+          // the icon at the end of the row.
+          isStatus: true,
+          render: (v, row, onClick) => (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClick?.(row); }}
+              disabled={!onClick}
+              title={onClick ? "Change status" : undefined}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-opacity ${
+                onClick ? "cursor-pointer hover:opacity-80" : "cursor-default"
+              } ${
+                v ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-gray-50 text-gray-600 border-gray-200"
+              }`}>
               {v ? "Active" : "Off"}
-            </span>
+            </button>
           ),
         },
       ]}

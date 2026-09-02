@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { get, post, put, peekCache } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
+import ObservationDetailModal from "../../components/education/ObservationDetailModal";
 import Swal from "sweetalert2";
 import { enqueue, flush, pendingCount, watchConnection } from "../../utils/offlineQueue";
 import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
@@ -95,6 +96,20 @@ export default function DailyObservation() {
   const [activeDim, setActiveDim] = useState("intellectual");
   const [saving, setSaving] = useState(false);
 
+  /* Optional photo evidence for the evaluation being written. One set per
+   * submit, not per dimension — a photo is of the moment, not of one of the
+   * four columns it gets filed under. */
+  const [photos, setPhotos] = useState([]);
+  const photoInputRef = useRef(null);
+
+  /* The observation opened in the detail modal, and what this user may do in
+   * the section. `can` comes from the server so a button never appears for
+   * something the endpoint will refuse. */
+  const [detail, setDetail] = useState(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [can, setCan] = useState(null);
+  const [emptyReason, setEmptyReason] = useState(null);
+
   useEffect(() => {
     const __cached = peekCache("/student-observations/my-classes");
     if (__cached) { const l = __cached?.data || []; setClasses(l); if (l.length) setActiveClass(l[0].id); setLoadingClasses(false); }
@@ -103,6 +118,10 @@ export default function DailyObservation() {
         const l = r.data?.data || [];
         setClasses(l);
         if (l.length) setActiveClass(l[0].id);
+        // Why the list is empty, so the screen can explain itself instead of
+        // looking broken to somebody who was just granted access.
+        setCan(r.data?.can || null);
+        setEmptyReason(l.length ? null : r.data?.empty_reason || null);
       })
       .catch(() => setClasses([]))
       .finally(() => setLoadingClasses(false));
@@ -212,7 +231,7 @@ export default function DailyObservation() {
   // Selecting a student clears any active date filter and reloads a clean history.
   const pick = (s) => {
     setSelected(s); setForms(blankForms()); setActiveDim("intellectual");
-    setAdding(false); setEditing(null); setFromDate(""); setToDate("");
+    setAdding(false); setEditing(null); setFromDate(""); setToDate(""); setPhotos([]);
     loadHistory(s.id, "", "");
     // Unfinished writing for THIS student, kept from a previous visit.
     const d = readDraft(draftKey("observation", user?.id, s.id));
@@ -248,7 +267,62 @@ export default function DailyObservation() {
 
   const cancelForm = () => {
     setAdding(false); setEditing(null); setForms(blankForms()); setActiveDim("intellectual");
+    setPhotos([]);
+    if (photoInputRef.current) photoInputRef.current.value = "";
     if (draftId) clearDraft(draftId);
+  };
+
+  /* Photos queued for the next submit. Capped and validated here as well as on
+   * the server, so an oversized file is refused before the upload starts. */
+  const MAX_PHOTOS = 4;
+  const MAX_PHOTO_MB = 8;
+  const queuePhotos = (fileList) => {
+    const picked = Array.from(fileList || []);
+    const tooBig = picked.filter((f) => f.size > MAX_PHOTO_MB * 1024 * 1024);
+    if (tooBig.length) {
+      Swal.fire("Photo too large", `Each photo must be under ${MAX_PHOTO_MB} MB.`, "warning");
+    }
+    const ok = picked.filter((f) => f.size <= MAX_PHOTO_MB * 1024 * 1024);
+    setPhotos((prev) => {
+      const next = [...prev, ...ok].slice(0, MAX_PHOTOS);
+      if (prev.length + ok.length > MAX_PHOTOS) {
+        Swal.fire("Too many photos", `Up to ${MAX_PHOTOS} photos per evaluation.`, "info");
+      }
+      return next;
+    });
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
+  const removePhoto = (i) => setPhotos((p) => p.filter((_, idx) => idx !== i));
+
+  /** Open the full record. The list row carries a summary; this fetches the rest. */
+  const openDetail = async (o) => {
+    setDetail({ ...o, loading: true });
+    try {
+      const r = await get(`/student-observations/${o.id}`, { cache: false });
+      setDetail(r.data?.data || o);
+    } catch {
+      // Fall back to what the row already has rather than an empty modal.
+      setDetail({ ...o, loading: false });
+    }
+  };
+
+  const removeObservation = async (o) => {
+    const ok = await Swal.fire({
+      title: "Delete this observation?",
+      text: "It is removed from the student's timeline. This cannot be undone from here.",
+      icon: "warning", showCancelButton: true, confirmButtonColor: "#dc2626",
+      confirmButtonText: "Delete",
+    });
+    if (!ok.isConfirmed) return;
+    setDetailBusy(true);
+    try {
+      await del(`/student-observations/${o.id}`);
+      setDetail(null);
+      if (selected) loadHistory(selected.id, fromDate, toDate);
+      Swal.fire({ icon: "success", title: "Deleted", timer: 1200, showConfirmButton: false, toast: true, position: "top-end" });
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not delete.", "error");
+    } finally { setDetailBusy(false); }
   };
   const clearDates = () => { setFromDate(""); setToDate(""); if (selected) loadHistory(selected.id, "", ""); };
 
@@ -295,16 +369,41 @@ export default function DailyObservation() {
 
     // Offline before we even try: hold it rather than fail in their face.
     if (!online) {
+      if (photos.length) {
+        // The offline queue holds JSON, not files. Say so rather than dropping
+        // the photos silently on the way through.
+        Swal.fire("Photos need a connection", "The notes will be held and sent when you are back online, but photos cannot be queued. Re-attach them afterwards.", "info");
+      }
       holdForLater(payload, observations.length);
       setSaving(false);
       return;
     }
 
     try {
-      const r = await post("/student-observations/batch", payload);
+      /* With photos the same endpoint takes multipart. Nested arrays have to be
+       * flattened into observations[0][field] keys — multipart has no notion of
+       * a nested object, and Laravel reassembles exactly this shape. */
+      let body = payload;
+      let config;
+      if (photos.length) {
+        const fd = new FormData();
+        fd.append("student_id", String(selected.id));
+        observations.forEach((o, i) => {
+          Object.entries(o).forEach(([k, v]) => {
+            if (v === null || v === undefined || v === "") return;
+            fd.append(`observations[${i}][${k}]`, typeof v === "boolean" ? (v ? "1" : "0") : v);
+          });
+        });
+        photos.forEach((f) => fd.append("photos[]", f));
+        body = fd;
+        config = { headers: { "Content-Type": "multipart/form-data" }, timeout: 0 };
+      }
+      const r = await post("/student-observations/batch", body, config);
       Swal.fire({ icon: "success", title: r.data?.message || "Recorded", timer: 1300, showConfirmButton: false, toast: true, position: "top-end" });
       if (draftId) clearDraft(draftId);
       setForms(blankForms()); setActiveDim("intellectual"); setAdding(false); setEditing(null);
+      setPhotos([]);
+      if (photoInputRef.current) photoInputRef.current.value = "";
       const bump = (x) => ({
         ...x,
         seen_today: true,
@@ -407,11 +506,31 @@ export default function DailyObservation() {
             )}
 
             {loadingClasses ? null : shownClasses.length === 0 ? (
-              <p className="text-[11px] px-1 pb-2" style={{ color: "#9a6a12" }}>
-                {activeTeacher
-                  ? `${activeTeacher.name} has no class yet — nobody has been given a subject to teach.`
-                  : "No classes available."}
-              </p>
+              /* An empty list is an answer, and which answer it is matters.
+               * "I gave someone access and they see nothing" is almost always
+               * a person with the permission who teaches no class — saying so
+               * turns a screen that looks broken into one that explains
+               * itself. */
+              <div className="rounded-xl p-3 mb-2" style={{ background: "#fbf7ec", border: "1px solid #ecd9a8" }}>
+                <p className="text-[11px] font-bold" style={{ color: "#9a6a12" }}>
+                  {activeTeacher
+                    ? `${activeTeacher.name} has no class yet`
+                    : emptyReason === "no_permission"
+                      ? "You do not have access to observations"
+                      : "No classes to show"}
+                </p>
+                <p className="text-[10px] mt-1 leading-relaxed" style={{ color: "#7a5410" }}>
+                  {activeTeacher
+                    ? "Nobody has been given a subject to teach in one of their classes yet."
+                    : emptyReason === "no_permission"
+                      ? "Ask an administrator for the “student-observations.view” permission."
+                      : emptyReason === "teacher_without_classes"
+                        ? "You have access to this section, but you are not linked to any class yet — no homeroom, subject or timetable entry. Once a class is assigned to you, its students appear here."
+                        : emptyReason === "not_a_teacher"
+                          ? "You have access to this section, but observations are scoped to the classes you teach and your account is not linked to a teacher record. Ask an administrator for the “student-observations.manage” permission to see every class."
+                          : "There is nothing to show here yet."}
+                </p>
+              </div>
             ) : (
               <select value={activeClass || ""} onChange={(e) => { setActiveClass(Number(e.target.value)); setSelected(null); }}
                 className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-white border focus:outline-none mb-2" style={{ borderColor: "#dbe8e8", color: TEAL }}>
@@ -595,9 +714,35 @@ export default function DailyObservation() {
                         </div>
                       )}
 
+                      {/* Optional photo evidence — attached to the evaluation as
+                        * a whole, not to one of the four dimensions, because a
+                        * photo is of the moment rather than of a column. */}
+                      {!editing && (
+                        <div className="w-full">
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <Lbl>Photos (optional)</Lbl>
+                            <span className="text-[10px] text-gray-400">up to 4 · 8 MB each</span>
+                          </div>
+                          <input ref={photoInputRef} type="file" accept="image/*" multiple capture="environment"
+                            onChange={(e) => queuePhotos(e.target.files)}
+                            className="w-full text-[11px] file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:text-[11px] file:font-bold" />
+                          {photos.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {photos.map((f, i) => (
+                                <span key={`${f.name}-${i}`} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200">
+                                  <span className="text-[10px] text-gray-600 max-w-[9rem] truncate" title={f.name}>{f.name}</span>
+                                  <button type="button" onClick={() => removePhoto(i)} className="text-red-400 hover:text-red-600 text-[10px] font-bold">✕</button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between pt-1">
                         <span className="text-[11px] text-gray-500">{filledDims.length} dimension{filledDims.length === 1 ? "" : "s"} ready</span>
-                        <button onClick={submit} disabled={saving || !filledDims.length} className="px-5 py-2 text-xs font-bold text-white rounded-xl disabled:opacity-50" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>{saving ? "Saving…" : editing ? "Save changes" : !online ? "Save on device" : `Record ${filledDims.length || ""}`.trim()}</button>
+                        <button onClick={submit} disabled={saving || !filledDims.length || (can && !can.create)}
+                          title={can && !can.create ? "You do not have permission to record observations" : undefined} className="px-5 py-2 text-xs font-bold text-white rounded-xl disabled:opacity-50" style={{ background: `linear-gradient(120deg, ${TEAL_LT}, ${TEAL})` }}>{saving ? "Saving…" : editing ? "Save changes" : !online ? "Save on device" : `Record ${filledDims.length || ""}`.trim()}</button>
                       </div>
                     </div>
                   </div>
@@ -628,7 +773,7 @@ export default function DailyObservation() {
                       {history.map((o) => {
                         const dim = DIMAP[o.dimension] || {}; const cat = CATMAP[o.category] || {};
                         return (
-                          <div key={o.id} className="relative pb-5 last:pb-0">
+                          <div key={o.id} className="relative pb-5 last:pb-0 group">
                             <span className="absolute -left-[27px] top-1 w-3 h-3 rounded-full border-2 border-white" style={{ background: dim.color }} />
                             <div className="flex items-center justify-between gap-2 mb-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -640,15 +785,30 @@ export default function DailyObservation() {
                                 {/* `editable` comes from the server and mirrors
                                   * exactly what the update endpoint allows, so
                                   * the button is never a route to a 403. */}
+                                {o.photo_count > 0 && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold" style={{ color: TEAL }} title={`${o.photo_count} photo${o.photo_count === 1 ? "" : "s"}`}>
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    {o.photo_count}
+                                  </span>
+                                )}
                                 {o.editable && (
-                                  <button onClick={() => startEdit(o)}
+                                  <button onClick={(e) => { e.stopPropagation(); startEdit(o); }}
                                     className="text-[10px] font-bold underline hover:no-underline"
                                     style={{ color: TEAL }}>Edit</button>
                                 )}
                                 <span className="text-[10px] text-gray-400">{o.observed_on}</span>
                               </span>
                             </div>
-                            <p className="text-xs text-gray-800 leading-relaxed">{o.description}</p>
+                            {/* The whole note opens the full record — every
+                              * bias-control field, the photos, and who wrote it. */}
+                            <button type="button" onClick={() => openDetail(o)}
+                              title="Open the full record"
+                              className="text-left w-full rounded-lg -mx-1 px-1 py-0.5 hover:bg-gray-50 transition-colors">
+                              <p className="text-xs text-gray-800 leading-relaxed">{o.description}</p>
+                              <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: TEAL }}>
+                                View full record →
+                              </span>
+                            </button>
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
                               {o.is_usual && <span>Usual: <b className="text-gray-700">{o.is_usual}</b></span>}
                               {o.change_vs_before && <span>Change: <b className="text-gray-700">{o.change_vs_before}</b></span>}
@@ -670,6 +830,18 @@ export default function DailyObservation() {
           )}
         </main>
       </div>
+
+      {/* The full record. Edit and Delete appear only when the server said this
+        * user may run them, so a button is never a route to a 403. */}
+      {detail && (
+        <ObservationDetailModal
+          observation={detail}
+          busy={detailBusy}
+          onClose={() => setDetail(null)}
+          onEdit={(o) => { setDetail(null); startEdit(o); }}
+          onDelete={removeObservation}
+        />
+      )}
     </div>
   );
 }

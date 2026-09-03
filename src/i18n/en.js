@@ -5517,4 +5517,13 @@ export default {
   "When a teacher records an observation about you, it appears here.": "When a teacher records an observation about you, it appears here.",
   "This page is for families": "This page is for families",
   "Your account does not have access to a family view. If you are a parent and expected to see your children here, ask the school office to link your account to your family record.": "Your account does not have access to a family view. If you are a parent and expected to see your children here, ask the school office to link your account to your family record.",
+  // ── Lesson plans: teacher filter, search, tab counts ──────────────
+  "All teachers": "All teachers",
+  "Search teacher name…": "Search teacher name…",
+  "No teacher matches that.": "No teacher matches that.",
+  "Clear teacher filter": "Clear teacher filter",
+  "Search by teacher, title, subject or class…": "Search by teacher, title, subject or class…",
+  "Per teacher": "Per teacher",
+  "Click to filter the queue to this teacher": "Click to filter the queue to this teacher",
+  "No plan matches these filters.": "No plan matches these filters.",
 };

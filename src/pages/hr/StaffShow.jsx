@@ -8,6 +8,7 @@ import WelcomeLetterModal from '../../components/WelcomeLetterModal';
 import ExperienceLetterModal from '../../components/ExperienceLetterModal';
 import OnboardingWelcomeModal from '../../components/OnboardingWelcomeModal';
 import { getStaffOnboarding } from '../../api/onboarding';
+import StaffGallery from './StaffGallery';
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -230,6 +231,14 @@ export default function StaffShow() {
 
             {/* Onboarding — welcome message sent, and quiz progress */}
             <OnboardingSection staffId={data.id} staffName={name} />
+
+            {/* Photos & memories — their time at WEN, not another list of
+                dates. Sits above Documents because it is the part anybody
+                opening a leaving or birthday profile is actually here for.
+                The section hides itself when the viewer may not see it. */}
+            <Section title="Photos & Memories" icon="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+              <StaffGallery staffId={data.id} staffName={name} />
+            </Section>
 
             {/* Documents */}
             <Section title="Documents" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">

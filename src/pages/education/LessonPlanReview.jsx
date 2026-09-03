@@ -4,24 +4,54 @@ import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { fmtDate } from "../../utils/formErrors";
 import { TEAL, PAPER, Hero, Spinner, StatusPill, DimensionDots } from "./lessonPlanUi";
+import TeacherMultiSelect from "../../components/education/TeacherMultiSelect";
 
 export default function LessonPlanReview() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [stats, setStats] = useState(null);
+  const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const [forbidden, setForbidden] = useState(false);
 
+  /* Filters. `search` is what the reviewer types; `q` is the debounced copy the
+   * request actually uses, so a five-letter name is one request rather than
+   * five. */
+  const [teacherIds, setTeacherIds] = useState([]);
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const load = useCallback(() => {
     setLoading(true);
-    const __cached = peekCache("/lesson-plans/review");
-    if (__cached) { setRows(__cached?.data || []); setStats(__cached?.stats || null); setLoading(false); }
-    get("/lesson-plans/review")
-      .then((r) => { setRows(r.data?.data || []); setStats(r.data?.stats || null); })
+    const params = {};
+    if (q) params.q = q;
+    if (teacherIds.length) params.teacher_ids = teacherIds;
+    // Only the unfiltered queue is worth reading from cache; a filtered view is
+    // cheap and must never show somebody else's result.
+    const filtered = Boolean(q) || teacherIds.length > 0;
+    const __cached = filtered ? null : peekCache("/lesson-plans/review", params);
+    if (__cached) {
+      setRows(__cached?.data || []);
+      setStats(__cached?.stats || null);
+      setTeachers(__cached?.teachers || []);
+      setLoading(false);
+    }
+    get("/lesson-plans/review", { params, cache: !filtered })
+      .then((r) => {
+        setRows(r.data?.data || []);
+        setStats(r.data?.stats || null);
+        setTeachers(r.data?.teachers || []);
+      })
       .catch((e) => { if (e.response?.status === 403) setForbidden(true); setRows([]); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [q, teacherIds]);
   useEffect(() => { load(); }, [load]);
 
   /**
@@ -82,8 +112,6 @@ export default function LessonPlanReview() {
     finally { setBusy(null); }
   };
 
-  if (loading) return <div style={{ background: PAPER, minHeight: "100vh" }}><Spinner /></div>;
-
   if (forbidden) return (
     <div style={{ background: PAPER, minHeight: "100vh" }}>
       <Hero title="Review Queue" />
@@ -104,9 +132,91 @@ export default function LessonPlanReview() {
           </div>
         )}
 
-        {rows.length === 0 ? (
+        {/* Filters. Search covers the plan title, subject, class and the
+          * teacher's name, so one box answers most of what a reviewer types. */}
+        <div className="rounded-2xl border bg-white p-3" style={{ borderColor: "#dbe8e8" }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[13rem]">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by teacher, title, subject or class…"
+                className="w-full ps-8 pe-3 py-2 rounded-xl text-[11px] border focus:outline-none"
+                style={{ borderColor: "#dbe8e8" }}
+              />
+              <svg className="w-3.5 h-3.5 absolute start-2.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              </svg>
+            </div>
+
+            <TeacherMultiSelect options={teachers} value={teacherIds} onChange={setTeacherIds} />
+
+            {teachers.length > 0 && (
+              <button onClick={() => setShowBreakdown((v) => !v)}
+                className="px-3 py-2 rounded-xl text-[11px] font-bold border"
+                style={showBreakdown ? { background: TEAL, color: "#fff", borderColor: TEAL } : { background: "#fff", color: TEAL, borderColor: "#dbe8e8" }}>
+                Per teacher
+              </button>
+            )}
+
+            {(search || teacherIds.length > 0) && (
+              <button onClick={() => { setSearch(""); setTeacherIds([]); }}
+                className="px-3 py-2 rounded-xl text-[11px] font-bold" style={{ background: "#E8F6F6", color: TEAL }}>
+                Clear
+              </button>
+            )}
+
+            {stats && (
+              <span className="text-[11px] text-gray-500 ms-auto">
+                Showing <b className="text-gray-700">{rows.length}</b> of {stats.awaiting}
+              </span>
+            )}
+          </div>
+
+          {/* Who has how much, and in what state — the question the picker's
+            * counts answer one name at a time, laid out for the whole team. */}
+          {showBreakdown && teachers.length > 0 && (
+            <div className="mt-3 pt-3 border-t overflow-x-auto" style={{ borderColor: "#eef4f4" }}>
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="text-[9px] uppercase tracking-wide text-gray-400">
+                    <th className="text-start py-1.5 font-bold">Teacher</th>
+                    <th className="text-end py-1.5 font-bold px-2">In review</th>
+                    <th className="text-end py-1.5 font-bold px-2">Approved</th>
+                    <th className="text-end py-1.5 font-bold px-2">Returned</th>
+                    <th className="text-end py-1.5 font-bold px-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teachers.map((t) => {
+                    const on = teacherIds.includes(t.id);
+                    return (
+                      <tr key={t.id}
+                        onClick={() => setTeacherIds(on ? teacherIds.filter((x) => x !== t.id) : [...teacherIds, t.id])}
+                        title="Click to filter the queue to this teacher"
+                        className={`cursor-pointer border-t ${on ? "bg-teal-50" : "hover:bg-gray-50"}`}
+                        style={{ borderColor: "#f2f7f7" }}>
+                        <td className="py-1.5 font-bold text-gray-700">{t.name}</td>
+                        <td className="py-1.5 px-2 text-end font-black" style={{ color: t.in_review ? "#9a6a12" : "#cbd5d5" }}>{t.in_review}</td>
+                        <td className="py-1.5 px-2 text-end font-black" style={{ color: t.approved ? "#2E7D5B" : "#cbd5d5" }}>{t.approved}</td>
+                        <td className="py-1.5 px-2 text-end font-black" style={{ color: t.returned ? "#C0473F" : "#cbd5d5" }}>{t.returned}</td>
+                        <td className="py-1.5 px-2 text-end text-gray-500">{t.total}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {loading ? <Spinner /> : rows.length === 0 ? (
           <div className="rounded-2xl border bg-white p-10 text-center" style={{ borderColor: "#dbe8e8" }}>
-            <p className="text-sm text-gray-400">Queue is clear — no plans waiting. 🎉</p>
+            <p className="text-sm text-gray-400">
+              {search || teacherIds.length > 0
+                ? "No plan matches these filters."
+                : "Queue is clear — no plans waiting. 🎉"}
+            </p>
           </div>
         ) : rows.map((p) => (
           <div key={p.id} className="rounded-2xl border bg-white p-4" style={{ borderColor: "#dbe8e8" }}>

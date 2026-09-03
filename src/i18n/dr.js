@@ -5516,4 +5516,13 @@ export default {
   "When a teacher records an observation about you, it appears here.": "وقتی استاد دربارهٔ شما ارزیابی ثبت کند، اینجا نمایش داده می‌شود.",
   "This page is for families": "این صفحه برای خانواده‌هاست",
   "Your account does not have access to a family view. If you are a parent and expected to see your children here, ask the school office to link your account to your family record.": "حساب شما به نمای خانواده دسترسی ندارد. اگر والد هستید و انتظار داشتید فرزندان خود را اینجا ببینید، از دفتر مکتب بخواهید حساب شما را به سابقهٔ خانواده وصل کند.",
+  // ── Lesson plans: teacher filter, search, tab counts ──────────────
+  "All teachers": "همهٔ استادان",
+  "Search teacher name…": "جستجوی نام استاد…",
+  "No teacher matches that.": "استادی مطابقت ندارد.",
+  "Clear teacher filter": "پاک کردن فیلتر استاد",
+  "Search by teacher, title, subject or class…": "جستجو بر اساس استاد، عنوان، مضمون یا صنف…",
+  "Per teacher": "به تفکیک استاد",
+  "Click to filter the queue to this teacher": "برای فیلتر صف به این استاد کلیک کنید",
+  "No plan matches these filters.": "هیچ پلانی با این فیلترها مطابقت ندارد.",
 };

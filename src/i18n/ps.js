@@ -5516,4 +5516,13 @@ export default {
   "When a teacher records an observation about you, it appears here.": "کله چې استاد ستاسې په اړه ارزونه ثبت کړي، دلته ښکاري.",
   "This page is for families": "دا پاڼه د کورنیو لپاره ده",
   "Your account does not have access to a family view. If you are a parent and expected to see your children here, ask the school office to link your account to your family record.": "ستاسې حساب د کورنۍ لید ته لاسرسی نه لري. که تاسې والد یاست او هیله مو درلوده چې دلته خپل اولادونه وګورئ، له ښوونځي دفتر څخه وغواړئ چې ستاسې حساب له کورنۍ ریکارډ سره وتړي.",
+  // ── Lesson plans: teacher filter, search, tab counts ──────────────
+  "All teachers": "ټول ښوونکي",
+  "Search teacher name…": "د ښوونکي نوم ولټوئ…",
+  "No teacher matches that.": "هیڅ ښوونکی سمون نه خوري.",
+  "Clear teacher filter": "د ښوونکي فلټر پاک کړئ",
+  "Search by teacher, title, subject or class…": "د ښوونکي، سرلیک، مضمون یا ټولګي له مخې ولټوئ…",
+  "Per teacher": "د هر ښوونکي لپاره",
+  "Click to filter the queue to this teacher": "د دې ښوونکي لپاره د کتار فلټر کولو لپاره کلیک وکړئ",
+  "No plan matches these filters.": "هیڅ پلان له دې فلټرونو سره سمون نه خوري.",
 };

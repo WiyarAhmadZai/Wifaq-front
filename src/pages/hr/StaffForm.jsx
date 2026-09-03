@@ -12,6 +12,36 @@ const STEPS = [
 ];
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+/**
+ * Server field name -> what the field is called on screen.
+ *
+ * The API namespaces the applicant's own details under `application.*`, which
+ * is a fact about the payload, not something HR should have to decode.
+ */
+const FIELD_LABELS = {
+  application_id: "Applicant",
+  father_name: "Father's name",
+  blood_type: "Blood type",
+  branch_id: "Branch",
+  department_id: "Department",
+  job_requisition_id: "Job requisition",
+  supervisor_id: "Supervisor",
+  role_title_en: "Role title",
+  contract_type: "Contract type",
+  "application.full_name": "Full name",
+  "application.email": "Email",
+  "application.contact_number": "Phone",
+  "application.current_address": "Current address",
+  "application.place_of_origin": "Place of origin",
+  "application.date_of_birth": "Date of birth",
+  "application.gender": "Gender",
+  "application.native_language": "Native language",
+  "application.education_level": "Education level",
+  "application.field_of_study": "Field of study",
+  "application.institution_name": "Institution",
+  "application.total_experience_years": "Years of experience",
+};
 const CONTRACT_LABELS = { full_time: "Full Time", part_time: "Part Time", contract: "Contract", temporary: "Temporary", internship: "Internship", FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
 
 const DOCUMENT_TYPES = { cv_resume: "CV/Resume", identity_document: "Identity Document", educational_document: "Educational Document", work_samples: "Work Samples" };
@@ -384,7 +414,28 @@ export default function StaffForm() {
       Swal.fire({ icon: "success", title: isEdit ? "Staff Updated!" : "Staff Registered!", timer: 2000, showConfirmButton: false });
       navigate("/hr/staff");
     } catch (error) {
-      Swal.fire("Error", error.response?.data?.message || "Failed to save staff", "error");
+      /* A 422 arrives as { errors: { "application.email": ["..."] } }, and this
+       * only ever read `message` — so every validation failure showed the same
+       * "Failed to save staff" and HR had no way to know which field the server
+       * objected to. Now it names them. */
+      const bag = error.response?.data?.errors;
+      if (bag && Object.keys(bag).length) {
+        const lines = Object.entries(bag).map(([field, msgs]) => {
+          const label = FIELD_LABELS[field] || field.replace(/^application\./, "").replace(/_/g, " ");
+          const msg = (Array.isArray(msgs) ? msgs[0] : msgs) || "is not valid";
+          // Laravel's message already names the field in its own words; the
+          // label is what HR sees on screen, so both are shown.
+          return `<li style="margin-bottom:4px"><b>${label}</b> — ${msg}</li>`;
+        });
+        Swal.fire({
+          icon: "error",
+          title: "Please correct these fields",
+          html: `<ul style="text-align:start;padding-inline-start:18px;font-size:13px">${lines.join("")}</ul>`,
+          confirmButtonColor: "#0d9488",
+        });
+      } else {
+        Swal.fire("Error", error.response?.data?.message || "Failed to save staff", "error");
+      }
     } finally { setSaving(false); }
   };
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
+import Select2 from "../../components/hr/Select2";
 import { get, post, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
@@ -162,6 +163,36 @@ export default function GradeSubjects() {
   useEffect(() => {
     if (viewMode === 'grid' && selectedGrade && selectedTerm && !isPrimary) fetchGrid();
   }, [viewMode, selectedGrade, selectedTerm, items]);
+
+  /**
+   * A teacher as the picker shows them.
+   *
+   * Everybody active appears, including the ones who cannot take this subject:
+   * a teacher at capacity, or a primary supervisor who teaches their own class
+   * all day. They used to be dropped from the list entirely, which on screen is
+   * indistinguishable from "this teacher does not exist" — you register a
+   * colleague, find them in the teacher list, and then cannot find them here.
+   * They are shown greyed out with the reason instead, and the server still
+   * refuses the assignment if one is somehow chosen.
+   */
+  const teacherOption = (t) => ({
+    value: String(t.id),
+    label: t.unavailable_reason
+      ? `${t.name} — ${t.unavailable_reason}`
+      : `${t.name} (${t.available_hours}h free)`,
+    isDisabled: Boolean(t.unavailable_reason),
+  });
+
+  /** Options for one cell, keeping whoever is already assigned selectable. */
+  const teacherOptions = (currentId, currentName) => {
+    const opts = teachers.map(teacherOption);
+    if (currentId && !teachers.some((t) => String(t.id) === String(currentId)) && currentName) {
+      // Assigned earlier and no longer offered (branch moved, went inactive):
+      // still shown, so opening the row does not silently clear it.
+      opts.unshift({ value: String(currentId), label: `${currentName} (current)` });
+    }
+    return opts;
+  };
 
   const setGridCell = (subjectId, classId, teacherId) => {
     setGridAssign(prev => ({ ...prev, [`${subjectId}-${classId}`]: teacherId || null }));
@@ -525,26 +556,21 @@ export default function GradeSubjects() {
                             <td className="sticky left-0 z-10 bg-white px-4 py-2 align-top">
                               <p className="text-sm font-semibold text-gray-800 leading-tight">{s.subject_name}</p>
                               <p className="text-[10px] text-gray-400">{s.subject_code}{s.weekly_hours ? ` · ${s.weekly_hours}h` : ''}</p>
-                              <select defaultValue="" onChange={e => { const v = e.target.value; if (v === '') return; applyRowToAll(s.subject_id, v === '__none__' ? '' : v); e.target.value = ''; }}
-                                className="mt-1.5 w-full px-1.5 py-1 border border-gray-200 rounded-lg text-[10px] bg-white outline-none text-gray-500 focus:ring-2 focus:ring-teal-500">
-                                <option value="">↳ set all classes…</option>
-                                <option value="__none__">(clear all)</option>
-                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                              </select>
+                              <div className="mt-1.5">
+                                <Select2 size="sm" value="" isClearable={false}
+                                  placeholder="↳ set all classes…"
+                                  options={[{ value: '__none__', label: '(clear all)' }, ...teachers.map(teacherOption)]}
+                                  onChange={(v) => { if (v) applyRowToAll(s.subject_id, v === '__none__' ? '' : v); }} />
+                              </div>
                             </td>
                             {gridClasses.map(c => {
                               const key = `${s.subject_id}-${c.id}`;
                               const val = gridAssign[key] || '';
                               return (
                                 <td key={c.id} className="px-2 py-2">
-                                  <select value={val} onChange={e => setGridCell(s.subject_id, c.id, e.target.value)}
-                                    className={`w-full px-2 py-1.5 border rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-teal-500 ${val ? 'border-teal-200 text-gray-800' : 'border-gray-200 text-gray-400'}`}>
-                                    <option value="">— none —</option>
-                                    {val && !teachers.some(t => t.id == val) && assignedNames[val] && (
-                                      <option value={val}>{assignedNames[val]} (current)</option>
-                                    )}
-                                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h)</option>)}
-                                  </select>
+                                  <Select2 size="sm" value={val} placeholder="— none —"
+                                    options={teacherOptions(val, assignedNames[val])}
+                                    onChange={(v) => setGridCell(s.subject_id, c.id, v || '')} />
                                 </td>
                               );
                             })}
@@ -640,27 +666,22 @@ export default function GradeSubjects() {
                                   <p className="text-xs font-bold text-gray-700">Assign a teacher for {item.subject_name} in each class</p>
                                   <div className="flex items-center gap-2">
                                     <span className="text-[10px] text-gray-400">Set all to:</span>
-                                    <select onChange={e => { applyTeacherToAll(e.target.value); e.target.value=''; }} defaultValue=""
-                                      className="px-2 py-1 border border-gray-200 rounded-lg text-[11px] bg-white outline-none focus:ring-2 focus:ring-teal-500">
-                                      <option value="">— pick —</option>
-                                      <option value="">(none)</option>
-                                      {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
+                                    <div className="min-w-[220px]">
+                                      <Select2 size="sm" value="" isClearable={false} placeholder="— pick —"
+                                        options={[{ value: '', label: '(none)' }, ...teachers.map(teacherOption)]}
+                                        onChange={(v) => applyTeacherToAll(v || '')} />
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                   {classRows.map(row => (
                                     <div key={row.school_class_id} className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
                                       <span className="text-xs font-semibold text-gray-700 w-24 truncate" title={row.class_name}>{row.class_name}</span>
-                                      <select value={row.teacher_id || ''} onChange={e => setClassTeacher(row.school_class_id, e.target.value)}
-                                        className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-teal-500">
-                                        <option value="">No teacher</option>
-                                        {/* keep currently-assigned teacher selectable even if now full */}
-                                        {row.teacher_id && !teachers.some(t => t.id == row.teacher_id) && (
-                                          <option value={row.teacher_id}>{row.teacher_name} (current)</option>
-                                        )}
-                                        {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h)</option>)}
-                                      </select>
+                                      <div className="flex-1 min-w-0">
+                                        <Select2 size="sm" value={row.teacher_id || ''} placeholder="No teacher"
+                                          options={teacherOptions(row.teacher_id, row.teacher_name)}
+                                          onChange={(v) => setClassTeacher(row.school_class_id, v || '')} />
+                                      </div>
                                     </div>
                                   ))}
                                 </div>

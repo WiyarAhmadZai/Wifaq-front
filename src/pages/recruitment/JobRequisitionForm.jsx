@@ -95,8 +95,10 @@ export default function JobRequisitionForm() {
 
   const fetchStaff = async () => {
     try {
-      const response = await get("/hr/staff/list");
-      const data = response.data?.data || response.data || [];
+      // The list endpoint paginates at 15; without this the dropdown offered
+      // only the fifteen most recently added employees.
+      const response = await get("/hr/staff/list?per_page=1000");
+      const data = response.data?.data?.data || response.data?.data || response.data || [];
       setStaff(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch staff", error);

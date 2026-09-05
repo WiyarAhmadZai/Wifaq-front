@@ -4,13 +4,11 @@ import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 import { DateField } from "../../components/hr/HrUI";
-const DEMO_STAFF = [
-  { id: 1, full_name: "Ahmad Rahimi", staff_code: "WS-2026-001" },
-  { id: 2, full_name: "Mohammad Karimi", staff_code: "WS-2026-002" },
-  { id: 3, full_name: "Fatima Noori", staff_code: "WS-2026-003" },
-  { id: 4, full_name: "Ali Ahmadi", staff_code: "WS-2026-004" },
-  { id: 5, full_name: "Zahra Hashimi", staff_code: "WS-2026-005" },
-];
+/* This form used to fall back to five invented colleagues whenever the staff
+ * request failed or came back empty. They were not harmless placeholders: they
+ * carried ids 1-5, so choosing "Ahmad Rahimi" filed a salary snapshot against
+ * whoever staff #1 actually is. The picker now shows the database and nothing
+ * else, and says plainly when the database has nothing to show. */
 
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
 
@@ -76,7 +74,8 @@ export default function SalarySnapshotForm() {
   const isEdit = Boolean(id);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [staffList, setStaffList] = useState(DEMO_STAFF);
+  const [staffList, setStaffList] = useState([]);
+  const [staffError, setStaffError] = useState('');
 
   const [form, setForm] = useState({
     staff_id: '',
@@ -99,10 +98,22 @@ export default function SalarySnapshotForm() {
 
   const fetchStaff = async () => {
     try {
-      const res = await get('/hr/staff/list');
-      const list = res.data?.data || res.data || [];
-      setStaffList(list.length ? list.map(s => ({ id: s.id, full_name: s.full_name_en || s.full_name, staff_code: s.staff_code })) : DEMO_STAFF);
-    } catch { setStaffList(DEMO_STAFF); }
+      // Every registered employee, not just the first page: the list endpoint
+      // paginates at 15, so the picker used to stop at whoever was hired most
+      // recently and silently omit the rest.
+      const res = await get('/hr/staff/list?per_page=1000');
+      const list = res.data?.data?.data || res.data?.data || res.data || [];
+      const rows = Array.isArray(list) ? list : [];
+      setStaffList(rows.map(s => ({
+        id: s.id,
+        full_name: s.full_name_en || s.full_name || s.application?.full_name || `Staff #${s.id}`,
+        staff_code: s.staff_code || s.employee_id || '—',
+      })));
+      setStaffError('');
+    } catch {
+      setStaffList([]);
+      setStaffError('Could not load the staff list. Reload the page to try again.');
+    }
   };
 
   const loadSnapshot = async () => {
@@ -202,6 +213,11 @@ export default function SalarySnapshotForm() {
                   getLabel={s => `${s.full_name} (${s.staff_code})`}
                   getValue={s => s.id}
                 />
+                {staffError
+                  ? <p className="text-[10px] text-red-600 mt-1">{staffError}</p>
+                  : staffList.length === 0 && (
+                      <p className="text-[10px] text-amber-600 mt-1">No staff registered yet.</p>
+                    )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

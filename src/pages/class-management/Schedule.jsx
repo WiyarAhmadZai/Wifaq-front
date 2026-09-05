@@ -279,6 +279,18 @@ export default function Schedule() {
       if (entry?.id) params.append('entry_id', entry.id);
       const res = await get(`/class-management/schedule/cell-options?${params.toString()}`);
       setEditorOptions(res.data);
+
+      // A period already on the timetable but saved without a teacher gets the
+      // assigned one suggested too. The auto-fill used to run only when the
+      // subject dropdown changed, so reopening such a cell showed "No teacher"
+      // even though Grade Subjects had someone assigned to it all along.
+      if (entry?.subject_id && !entry?.teacher_id) {
+        const subj = res.data?.subjects?.find(x => x.id == entry.subject_id);
+        const def = subj?.default_teacher_id
+          ? res.data?.teachers?.find(t => t.id == subj.default_teacher_id)
+          : null;
+        if (def && !def.is_busy) setEditorTeacherId(String(def.id));
+      }
     } catch {
       setEditorOptions(null);
       Swal.fire('Error', 'Failed to load options', 'error');
@@ -1045,7 +1057,7 @@ export default function Schedule() {
                           const isCurrent = editorCell?.entry?.teacher_id == t.id;
                           return (
                             <option key={`default-${t.id}`} value={t.id} disabled={t.is_busy && !isCurrent}>
-                              ⭐ {t.name}{t.is_busy && !isCurrent ? ' (busy)' : ''} — assigned to this subject
+                              ⭐ {t.name}{t.is_busy && !isCurrent ? ' (busy)' : ''}{t.is_other_branch ? ' (another branch)' : ''}{t.is_inactive ? ' (inactive)' : ''} — assigned to this subject
                             </option>
                           );
                         })()}
@@ -1055,7 +1067,7 @@ export default function Schedule() {
                             const isCurrent = editorCell?.entry?.teacher_id == t.id;
                             return (
                               <option key={t.id} value={t.id} disabled={t.is_busy && !isCurrent}>
-                                {t.name}{t.is_busy ? (isCurrent ? ' (current)' : ' — busy at this time') : ` — ${t.weekly_hours}h capacity`}
+                                {t.name}{t.is_other_branch ? ' (another branch)' : ''}{t.is_inactive ? ' (inactive)' : ''}{t.is_busy ? (isCurrent ? ' (current)' : ' — busy at this time') : ` — ${t.weekly_hours}h capacity`}
                               </option>
                             );
                           })}
@@ -1063,6 +1075,20 @@ export default function Schedule() {
                       {!subj.default_teacher_id && (
                         <p className="text-[10px] text-amber-600 mt-1">⚠ No default teacher assigned to this subject in Grade Subjects.</p>
                       )}
+                      {/* There IS an assigned teacher, but the field is empty —
+                          say which of the two reasons it is, instead of leaving
+                          "No teacher" to look like nobody was ever assigned. */}
+                      {subj.default_teacher_id && !editorTeacherId && (() => {
+                        const t = editorOptions.teachers.find(t => t.id == subj.default_teacher_id);
+                        const who = subj.default_teacher_name || `Teacher #${subj.default_teacher_id}`;
+                        return (
+                          <p className="text-[10px] text-amber-600 mt-1">
+                            ⚠ {who} is assigned to this subject in Grade Subjects but {t
+                              ? 'is already teaching at this day and period'
+                              : 'is not available for this class'} — choose someone else for this period.
+                          </p>
+                        );
+                      })()}
                       {editorTeacherId && editorTeacherId != subj.default_teacher_id && subj.default_teacher_id && (
                         <p className="text-[10px] text-amber-600 mt-1">ℹ This is an override — the default teacher for this subject is {subj.default_teacher_name}.</p>
                       )}

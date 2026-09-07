@@ -483,7 +483,7 @@ export default function Synthesis() {
       </div>
 
       {newOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setNewOpen(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 bg-teal-600">
               <h3 className="text-sm font-bold text-white">New student report</h3>

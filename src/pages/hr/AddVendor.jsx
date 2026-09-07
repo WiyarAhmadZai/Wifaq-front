@@ -226,7 +226,7 @@ export default function AddVendor() {
           from the create form. Lets you update ratings + payment terms + notes
           on an existing vendor without going through the multi-step form. */}
       {rateFor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRateFor(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Rate vendor & set terms</h3>

@@ -1065,7 +1065,7 @@ export default function MeetingShow() {
 
       {/* Propose Agenda Item Modal */}
       {showProposeAgenda && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowProposeAgenda(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 bg-gradient-to-r from-teal-500 to-teal-600">
               <h3 className="text-sm font-bold text-white">{isOrganizer ? "Add Agenda Item" : "Propose Agenda Item"}</h3>
@@ -1097,7 +1097,7 @@ export default function MeetingShow() {
 
       {/* Assign Task Modal */}
       {showAssignTask && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAssignTask(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600">
               <h3 className="text-sm font-bold text-white">Assign Task from Meeting</h3>

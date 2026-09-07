@@ -207,7 +207,7 @@ export default function AnnualReview() {
 
       {/* Convene modal */}
       {conveneOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setConveneOpen(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 bg-teal-600"><h3 className="text-sm font-bold text-white">Convene an Annual Review Panel</h3></div>
             <div className="p-5 space-y-3 overflow-y-auto">
@@ -237,7 +237,7 @@ function RecordModal({ decModal, form, setForm, openPanel, candidates, needsPlan
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const toggleMember = (id) => setForm((f) => ({ ...f, confirmed_members: f.confirmed_members.includes(id) ? f.confirmed_members.filter((x) => x !== id) : [...f.confirmed_members, id] }));
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={close}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-w-lg w-full max-h-[94vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 bg-teal-600"><h3 className="text-sm font-bold text-white">{decModal.amendOf ? "Amend decision" : "Record panel decision"}</h3></div>
         <div className="p-5 space-y-4 overflow-y-auto">

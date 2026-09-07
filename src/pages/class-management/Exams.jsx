@@ -1656,7 +1656,7 @@ export default function Exams() {
 
       {/* Day-Exams Modal (click a calendar day) */}
       {dayModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDayModal(null)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className={`px-5 py-4 bg-gradient-to-r ${activeColor.grad} flex items-center justify-between`}>
               <div>
@@ -1759,7 +1759,7 @@ export default function Exams() {
 
       {/* Auto-Generate Modal */}
       {showGenerate && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowGenerate(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className={`px-5 py-4 bg-gradient-to-r ${activeColor.grad}`}>
               <h3 className="text-sm font-bold text-white">Auto Generate {activeType.label} Exams</h3>
@@ -1875,7 +1875,7 @@ function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjec
     return subjects.filter((s) => subjectIdsForGrade.has(s.id));
   })();
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className={`px-5 py-4 bg-gradient-to-r ${colorClass.grad}`}>
           <h3 className="text-sm font-bold text-white">{title}</h3>

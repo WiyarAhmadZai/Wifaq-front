@@ -300,7 +300,7 @@ function AssignWorks({ canCreate, canUpdate, canDelete }) {
 
       {/* Create / Edit modal */}
       {modal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setModal(null)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 bg-teal-600">
               <h3 className="text-sm font-bold text-white">{modal.mode === "create" ? "Assign Daily Work" : "Edit Daily Work"}</h3>

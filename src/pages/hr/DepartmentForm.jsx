@@ -6,7 +6,7 @@ import {
   getDepartment,
   updateDepartment,
 } from "../../api/departments";
-import { peekCache } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 
 const Icons = {
   ArrowLeft: () => (
@@ -26,6 +26,10 @@ const EMPTY = {
   code: "",
   description: "",
   is_active: true,
+  // Which of the four verticals under Leadership this department answers to.
+  // Blank is allowed: departments that pre-date the structure are placed by HR
+  // over time, and an unplaced one shows up in the access audit until it is.
+  org_vertical_id: "",
 };
 
 export default function DepartmentForm() {
@@ -37,6 +41,13 @@ export default function DepartmentForm() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [verticals, setVerticals] = useState([]);
+
+  useEffect(() => {
+    get("/hr/departments/verticals")
+      .then((r) => setVerticals(r.data?.data || []))
+      .catch(() => setVerticals([]));
+  }, []);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -51,6 +62,7 @@ export default function DepartmentForm() {
           code: cDept?.code || "",
           description: cDept?.description || "",
           is_active: cDept?.is_active !== false,
+          org_vertical_id: cDept?.org_vertical_id ? String(cDept.org_vertical_id) : "",
         });
         setLoading(false);
       }
@@ -63,6 +75,7 @@ export default function DepartmentForm() {
           code: dept?.code || "",
           description: dept?.description || "",
           is_active: dept?.is_active !== false,
+          org_vertical_id: dept?.org_vertical_id ? String(dept.org_vertical_id) : "",
         });
       } catch (e) {
         Swal.fire("Error", "Failed to load department.", "error");
@@ -105,6 +118,7 @@ export default function DepartmentForm() {
         ...formData,
         code: formData.code?.trim() || null,
         description: formData.description?.trim() || null,
+        org_vertical_id: formData.org_vertical_id || null,
       };
       if (isEdit) {
         await updateDepartment(id, payload);
@@ -215,6 +229,28 @@ export default function DepartmentForm() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 placeholder="Short description of what this department covers"
               />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Vertical <span className="text-gray-400">(who this department answers to)</span>
+              </label>
+              <select
+                name="org_vertical_id"
+                value={formData.org_vertical_id}
+                onChange={onChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              >
+                <option value="">— not placed yet —</option>
+                {verticals.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}{v.lead_name ? ` — led by ${v.lead_name}` : " — no lead named"}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                The vertical's lead can manage everyone in the departments beneath it.
+              </p>
             </div>
 
             <div>

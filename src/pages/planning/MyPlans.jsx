@@ -28,6 +28,10 @@ export default function MyPlans() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  // Plans accumulate a year at a time and never go away — that is the
+  // point of duplicating one. Without a year to filter by, five years of
+  // them arrive as one pile and last year's is as prominent as this one's.
+  const [filterYear, setFilterYear] = useState("");
 
   const canCreate = hasPermission("planning.create") || hasPermission("planning.manage");
 
@@ -189,11 +193,16 @@ export default function MyPlans() {
     }
   };
 
+  // Only the years that actually have a plan, newest first: a fixed range
+  // would offer years nobody planned for and hide the one they did.
+  const years = [...new Set(plans.map((p) => p.period_year).filter(Boolean))].sort((x, y) => y - x);
+
   const filtered = plans.filter((p) => {
     const q = search.trim().toLowerCase();
     if (q && !`${p.title} ${p.period_year || ""}`.toLowerCase().includes(q)) return false;
     if (filterType && p.type !== filterType) return false;
     if (filterStatus && p.status !== filterStatus) return false;
+    if (filterYear && String(p.period_year || "") !== filterYear) return false;
     return true;
   });
 
@@ -243,6 +252,10 @@ export default function MyPlans() {
           <option value="">All states</option>
           {PLAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+          <option value="">All years</option>
+          {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+        </select>
       </div>
 
       {loading ? (
@@ -287,7 +300,17 @@ export default function MyPlans() {
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button onClick={(e) => { e.stopPropagation(); navigate(`/planning/plans/show/${p.id}`); }} className="text-teal-600 hover:text-teal-800 text-xs font-semibold px-2">View</button>
                       {(hasPermission("planning.update") || hasPermission("planning.manage")) && (
-                        <button onClick={(e) => handleEdit(e, p)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold px-2">Edit</button>
+                        p.status === "draft" || p.status === "submitted" ? (
+                          <button onClick={(e) => handleEdit(e, p)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold px-2">Edit</button>
+                        ) : (
+                          /* A finished year is deliberately read-only. Saying so
+                             beats an absent button, which reads as a bug or a
+                             missing permission rather than as the rule it is. */
+                          <span className="text-gray-400 text-xs font-semibold px-2 cursor-default"
+                            title="A plan that has been approved is kept as the record of that year. Duplicate it to plan the next one.">
+                            Locked
+                          </span>
+                        )
                       )}
                       {(hasPermission("planning.create") || hasPermission("planning.manage")) && (
                         <button onClick={(e) => handleDuplicate(e, p)} className="text-purple-600 hover:text-purple-800 text-xs font-semibold px-2" title="Copy this plan into a new year">Duplicate</button>

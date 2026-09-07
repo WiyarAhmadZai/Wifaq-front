@@ -133,6 +133,11 @@ export default function ApplicationShow() {
   const [activeTab, setActiveTab] = useState("overview");
   const [viewingDoc, setViewingDoc] = useState(null); // Document being viewed in modal
   const [documents, setDocuments] = useState([]); // Separate state for documents
+  /* What WEN already knows about this person: earlier applications, the
+   * candidate pools they sit in, and any staff record from a time they worked
+   * here. Three records that never used to be connected, so a returning
+   * colleague was screened as a stranger. */
+  const [history, setHistory] = useState(null);
 
   // Interview scheduling state for Shortlisted stage
   const [interviewData, setInterviewData] = useState({
@@ -220,6 +225,7 @@ export default function ApplicationShow() {
       const response = await get(`/recruitment/applications/${id}`);
       const appData = response.data?.data || response.data;
       setData(appData);
+      setHistory(response.data?.history || null);
       if (appData?.documents) {
         setDocuments(appData.documents);
       }
@@ -983,6 +989,87 @@ export default function ApplicationShow() {
         <TabButton tab="full-info" label="Full Application" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         <TabButton tab="documents" label={`Documents (${documents?.length || 0})`} icon="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </div>
+
+      {/* We have met this person before — say so before anyone starts
+          screening them from scratch. */}
+      {activeTab === "overview" && history?.has_history && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="px-6 py-3 border-b border-amber-200/70 flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-sm font-bold text-amber-900">WEN has met this applicant before</h3>
+          </div>
+          <div className="p-5 space-y-4">
+
+            {history.former_staff?.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider mb-2">Worked at WEN</p>
+                <div className="space-y-2">
+                  {history.former_staff.map(s => (
+                    <div key={s.id} className="bg-white rounded-xl border border-amber-200 px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-800">{s.role || 'Staff'} — {s.employee_id}</span>
+                        {s.branch && <span className="text-[11px] text-gray-500">{s.branch}</span>}
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{s.status}</span>
+                      </div>
+                      {s.termination_reason_label && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          Left: {s.termination_reason_label}{s.exit_date ? ` (${s.exit_date})` : ''}
+                        </p>
+                      )}
+                      {/* The whole point of recording the reason: whether this
+                          person can be taken back is answered before, not after,
+                          the interview. */}
+                      <p className={`text-xs font-semibold mt-1 ${s.rehire_eligible === true ? 'text-green-700' : s.rehire_eligible === false ? 'text-red-700' : 'text-gray-500'}`}>
+                        {s.rehire_eligible === true ? '✓ Eligible for rehire'
+                          : s.rehire_eligible === false ? '✕ Not eligible for rehire'
+                          : '• Rehire eligibility not decided'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {history.previous_applications?.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider mb-2">
+                  <span>Earlier applications</span> ({history.previous_applications.length})
+                </p>
+                <div className="space-y-1.5">
+                  {history.previous_applications.map(p => (
+                    <button key={p.id} type="button" onClick={() => navigate(`/recruitment/applications/show/${p.id}`)}
+                      className="w-full text-left bg-white rounded-xl border border-amber-200 px-4 py-2.5 hover:border-amber-400 transition-colors">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm text-gray-800">{p.position || 'Position not recorded'}</span>
+                        <span className="text-[11px] text-gray-500">{p.applied_at}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        <span className="capitalize">{String(p.status || '').replace(/_/g, ' ')}</span>
+                        {p.matched_on?.length > 0 && <> · same {p.matched_on.join(', ')}</>}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {history.candidate_pools?.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider mb-2">Already in the candidate registry</p>
+                <div className="flex flex-wrap gap-2">
+                  {history.candidate_pools.map((p, i) => (
+                    <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white border border-amber-200 text-gray-700">
+                      {p.pool}{p.category ? ` · ${p.category}` : ''}{p.rating ? ` · ${p.rating}★` : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* OVERVIEW TAB */}
       {activeTab === "overview" && (

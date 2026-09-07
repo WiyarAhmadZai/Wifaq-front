@@ -223,7 +223,7 @@ export default function Subjects() {
 
       {/* Status Modal */}
       {statusModal.open && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setStatusModal({ open: false, item: null, status: '' })}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Update Status</h3>

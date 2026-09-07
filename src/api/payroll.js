@@ -25,3 +25,19 @@ export const getPayslip = (id) => get(`/financial/payslips/${id}`);
 // `{ advance_recovery: n }` — 0 pays the salary in full, the cap pays nothing
 // and clears as much advance as possible. Gated on payroll.advance.
 export const setPayslipAdvance = (id, data) => post(`/financial/payslips/${id}/advance`, data);
+
+// ── Corrections to money already recorded ────────────────────────────────
+// All three need payroll.reverse (or payroll.manage).
+
+// Un-pay ONE payslip: the disbursement is reversed, the cash goes back on the
+// account it left, and the payslip returns to pending. The accrual, the staff
+// advance ledger and every other account are untouched — the salary is simply
+// unpaid again, not erased.
+export const reversePayslipPayment = (id, data = {}) => post(`/financial/payslips/${id}/reverse-payment`, data);
+
+// Same, for every paid payslip in a run — all-or-nothing.
+export const reverseRunPayments = (id, data = {}) => post(`${BASE}/${id}/reverse-payments`, data);
+
+// Move a run to the month it was meant for. Only the date moves: no amount and
+// no account changes. Refused while any payslip is still paid.
+export const changePayrollRunPeriod = (id, data) => put(`${BASE}/${id}/period`, data);

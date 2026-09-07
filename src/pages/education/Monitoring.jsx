@@ -230,7 +230,7 @@ export default function Monitoring() {
 
       {/* Fill follow-up modal */}
       {fillFor && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(5,37,40,.45)", backdropFilter: "blur(3px)" }} onClick={() => setFillFor(null)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(5,37,40,.45)", backdropFilter: "blur(3px)" }}>
           <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-lg w-full max-h-[94vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4" style={{ background: `linear-gradient(135deg, ${TEAL}, #063033)` }}>
               <h3 className="text-sm font-black text-white">Monthly follow-up · {fillFor.student}</h3>

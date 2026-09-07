@@ -326,7 +326,7 @@ export default function PlanShow() {
 
       {/* Share / manage-access modal */}
       {shareOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShareOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-800 mb-1">Share this plan</h3>
             <p className="text-[11px] text-gray-500 mb-3">Pick the people who should be able to see the whole plan. The owner, approver and admins always have access.</p>

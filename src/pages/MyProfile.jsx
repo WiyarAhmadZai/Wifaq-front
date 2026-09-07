@@ -527,7 +527,7 @@ function SelfProfileEditor({ data, onClose, onSave, saving }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 bg-teal-600 text-white rounded-t-2xl">
           <h3 className="text-sm font-bold">Edit My Story</h3>
@@ -994,7 +994,7 @@ function Field({ label, value, className = '' }) {
 
 function ModalShell({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-gray-800">{title}</h3>

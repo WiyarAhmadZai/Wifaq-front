@@ -1413,6 +1413,9 @@ export default function Layout() {
       // timeline; each row still opens its own module's detail page, so
       // nothing about meetings or events is duplicated.
       { label: "Meetings & Events", path: "/hr/meetings-events", permission: "meetings.view" },
+      // Sits beside Meetings on purpose: a committee's minutes ARE its
+      // meetings, tagged with the committee.
+      { label: "Committees", path: "/hr/planner/committees", permission: "committees.view" },
       { label: "Staff Tasks", path: "/hr/staff-task", permission: "staff-task.view" },
       { label: "Daily Tasks", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
@@ -1525,6 +1528,7 @@ export default function Layout() {
   const educationMenus = [
     { label: "Dashboard", path: "/education/dashboard", permission: "student-observations.view" },
     { label: "Daily Observation", path: "/education/observations", permission: "student-observations.view" },
+    { label: "Case Library", path: "/education/case-library", permission: "student-observations.view" },
     { label: "Students Under Watch", path: "/education/monitoring", permission: "student-monitoring.view" },
     { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
@@ -1841,6 +1845,18 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
+          {/* The staff handbook. Like Bugs, every role holds the view
+              permission — the colleague who does not yet know how the school
+              works is exactly who has to be able to open it. */}
+          {hasPermission("staff-faqs.view") && (
+            <SidebarItem
+              icon={Icons.Support}
+              label="Staff Handbook"
+              to="/handbook"
+              active={isActive("/handbook")}
+              onClick={closeSidebar}
+            />
+          )}
           {/* Bugs & Errors — everyone can report + track their own (bugs.view
               is granted to all roles). */}
           {hasPermission("bugs.view") && (

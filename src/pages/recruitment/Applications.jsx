@@ -624,6 +624,20 @@ export default function Applications() {
                                 &bull; unopened
                               </span>
                             )}
+                            {/* WEN has met this person before. Worth knowing at
+                                the list, not after someone has read the whole
+                                application as if it were a first contact. */}
+                            {item.is_former_staff ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700"
+                                title="This applicant has worked at WEN before — open to see the exit reason">
+                                former staff
+                              </span>
+                            ) : item.has_history ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700"
+                                title="This person has applied to WEN before">
+                                applied before
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       </div>

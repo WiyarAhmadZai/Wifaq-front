@@ -2,10 +2,146 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
-import { peekCache } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import { useAuth } from "../context/AuthContext";
 import Can from "../guards/Can";
 import UserFormModal from "../components/UserFormModal";
+
+
+/**
+ * Where today's accounts and WEN's structure disagree.
+ *
+ * The brief says several people hold more access than they need. Nobody can act
+ * on that sentence — so this turns it into a list of names, worst first, with
+ * the reason beside each one.
+ *
+ * It only reports. Revoking the wrong person's access is worse than leaving it,
+ * and which findings are real is a judgement for whoever reads this — so the
+ * panel hands them the facts and stops there.
+ */
+function AccessAudit() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+
+  const run = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await get("/access/audit");
+      setData(res.data?.data || null);
+      setOpen(true);
+    } catch (e) {
+      setError(e.response?.data?.message || "Could not run the audit.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const s = data?.summary;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+      <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-gray-800">Access audit</h2>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            Which accounts hold access beyond their vertical, and which are not placed in the structure at all.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {data && (
+            <button onClick={() => setOpen((o) => !o)} className="px-3 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+              {open ? "Hide" : "Show"}
+            </button>
+          )}
+          <button onClick={run} disabled={loading}
+            className="px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50">
+            {loading ? "Checking…" : data ? "Run again" : "Run audit"}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="px-5 pb-4 text-xs text-red-600">{error}</p>}
+
+      {data && open && (
+        <div className="px-5 pb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+            {[
+              { label: "Accounts", value: s.accounts, tone: "bg-gray-50 text-gray-700" },
+              { label: "With findings", value: s.with_findings, tone: "bg-amber-50 text-amber-700" },
+              { label: "Leadership", value: s.leadership, tone: "bg-purple-50 text-purple-700" },
+              { label: "Not placed", value: s.unplaced, tone: "bg-blue-50 text-blue-700" },
+              { label: "Direct grants", value: s.direct_grants, tone: "bg-red-50 text-red-700" },
+            ].map((c) => (
+              <div key={c.label} className={`rounded-xl px-3 py-2.5 ${c.tone}`}>
+                <p className="text-lg font-bold leading-none">{c.value}</p>
+                <p className="text-[10px] mt-1 opacity-80">{c.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[10px] text-gray-400 mb-2">
+            Generated {data.generated_at}. Worst first. Nothing here has been changed — this is a report.
+          </p>
+
+          <div className="overflow-x-auto border border-gray-100 rounded-xl">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="text-left px-3 py-2 font-semibold">Account</th>
+                  <th className="text-left px-3 py-2 font-semibold">Vertical</th>
+                  <th className="text-left px-3 py-2 font-semibold">Roles</th>
+                  <th className="text-right px-3 py-2 font-semibold">Perms</th>
+                  <th className="text-left px-3 py-2 font-semibold">What stands out</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.users.slice(0, 100).map((u) => (
+                  <tr key={u.id} className="border-t border-gray-100 align-top">
+                    <td className="px-3 py-2">
+                      <p className="font-semibold text-gray-800">{u.name}</p>
+                      <p className="text-[10px] text-gray-400">{u.email}{u.branch ? ` · ${u.branch}` : ""}</p>
+                    </td>
+                    <td className="px-3 py-2">
+                      {u.vertical
+                        ? <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[10px]">{u.vertical}</span>
+                        : <span className="text-[10px] text-amber-600">not placed</span>}
+                    </td>
+                    <td className="px-3 py-2">
+                      {u.roles.length
+                        ? u.roles.map((r) => (
+                            <span key={r} className="inline-block mr-1 mb-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px]">{r}</span>
+                          ))
+                        : <span className="text-[10px] text-gray-400">none</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-gray-700">
+                      {u.permission_count}
+                      {u.direct_permission_count > 0 && (
+                        <span className="block text-[10px] text-red-600">{u.direct_permission_count} direct</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {u.findings.length
+                        ? <ul className="space-y-0.5">{u.findings.map((f, i) => <li key={i} className="text-[11px] text-gray-600">• {f}</li>)}</ul>
+                        : <span className="text-[11px] text-green-700">Matches the structure</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {data.users.length > 100 && (
+            <p className="text-[10px] text-gray-400 mt-2">
+              Showing the first 100 of {data.users.length} accounts, worst first.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -63,6 +199,10 @@ export default function AdminUsers() {
           </button>
         </Can>
       </div>
+
+      <Can permission="users.view">
+        <AccessAudit />
+      </Can>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-2 flex-wrap">
         <input

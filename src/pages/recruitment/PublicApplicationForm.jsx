@@ -60,6 +60,7 @@ const L = {
     jd_none: "Please go back and select a position first.",
     jd_min_yrs: "{n}+ years", jd_n_positions: "{n} position(s)", jd_not_specified: "Not specified",
     full_name: "Full Name", contact_number: "Contact Number", email: "Email",
+    national_id: "Tazkira Number", ph_national_id: "Optional — helps us find your earlier application",
     dob: "Date of Birth", current_address: "Current Address", place_of_origin: "Place of Origin",
     gender: "Gender", male: "Male", female: "Female", native_language: "Native Language", ph_language: "e.g. Pashto, Dari, English",
     introduction: "Introduce Yourself",
@@ -151,6 +152,7 @@ const L = {
     jd_none: "مهرباني وکړئ بیرته لاړ شئ او لومړی یو بست وټاکئ.",
     jd_min_yrs: "{n}+ کاله", jd_n_positions: "{n} بستونه", jd_not_specified: "نه دی ټاکل شوی",
     full_name: "بشپړ نوم", contact_number: "د اړیکې شمېره", email: "ایمیل",
+    national_id: "د تذکرې شمېره", ph_national_id: "اختیاري — ستاسو پخوانی غوښتنلیک پیدا کوي",
     dob: "د زیږېدنې نېټه", current_address: "اوسنۍ پته", place_of_origin: "اصلي ځای",
     gender: "جنسیت", male: "نارینه", female: "ښځینه", native_language: "مورنۍ ژبه", ph_language: "لکه پښتو، دري، انګلیسي",
     introduction: "خپله پیژندنه",
@@ -242,6 +244,7 @@ const L = {
     jd_none: "لطفاً بازگردید و ابتدا یک بست را انتخاب کنید.",
     jd_min_yrs: "{n}+ سال", jd_n_positions: "{n} بست", jd_not_specified: "مشخص نشده",
     full_name: "نام کامل", contact_number: "شماره تماس", email: "ایمیل",
+    national_id: "شماره تذکره", ph_national_id: "اختیاری — درخواست قبلی شما را پیدا می‌کند",
     dob: "تاریخ تولد", current_address: "آدرس فعلی", place_of_origin: "محل اصلی",
     gender: "جنسیت", male: "مرد", female: "زن", native_language: "زبان مادری", ph_language: "مثلاً پشتو، دری، انگلیسی",
     introduction: "معرفی خود",
@@ -427,7 +430,7 @@ export default function PublicApplicationForm() {
   const [focusField, setFocusField] = useState(null);
 
   const [formData, setFormData] = useState({
-    job_posting_id: "", full_name: "", contact_number: "", email: "", date_of_birth: "",
+    job_posting_id: "", full_name: "", contact_number: "", email: "", national_id: "", date_of_birth: "",
     gender: "", native_language: "",
     current_address: "", place_of_origin: "", introduction: "", facebook: "", instagram: "",
     twitter_x: "", youtube: "", motivation: "", education_level: "", field_of_study: "",
@@ -838,6 +841,10 @@ export default function PublicApplicationForm() {
                 <div><Label required>{t("contact_number")}</Label><input type="text" name="contact_number" value={formData.contact_number} onChange={handleChange} placeholder={t("ph_phone")} dir="ltr" className={errors.contact_number ? inpError : inp} />{errors.contact_number && <p className="text-red-500 text-xs mt-1">{errors.contact_number}</p>}</div>
                 <div><Label required>{t("email")}</Label><input type="email" name="email" value={formData.email} onChange={handleChange} placeholder={t("ph_email")} dir="ltr" className={errors.email ? inpError : inp} />{errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}</div>
                 <div><Label required>{t("dob")}</Label><DateField name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={errors.date_of_birth ? inpError : inp} />{errors.date_of_birth && <p className="text-red-500 text-xs mt-1">{errors.date_of_birth}</p>}</div>
+                {/* Optional, so nobody who does not have it to hand is blocked
+                    from applying — but it is the one key that reliably matches
+                    someone to an earlier application or to a WEN staff record. */}
+                <div><Label>{t("national_id")}</Label><input type="text" name="national_id" value={formData.national_id} onChange={handleChange} placeholder={t("ph_national_id")} dir="ltr" className={inp} /></div>
                 {/* Optional, so no existing applicant is blocked and nobody is
                     forced to disclose. Recruitment filters on both. */}
                 <div><Label>{t("gender")}</Label>

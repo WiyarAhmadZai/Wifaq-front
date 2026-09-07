@@ -331,7 +331,7 @@ function DayDetailModal({ day, month, year, people, onClose }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
       <div
         className="w-full max-w-md max-h-[85vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}

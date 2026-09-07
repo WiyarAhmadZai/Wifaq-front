@@ -5,6 +5,7 @@ import {
   commitPayroll, payPayrollRun, payPayslip,
   updatePayrollRun, deletePayrollRun, updatePayslip,
   getPayslip, setPayslipAdvance,
+  reversePayslipPayment, reverseRunPayments, changePayrollRunPeriod,
 } from "../../api/payroll";
 import { getAccounts } from "../../api/financial";
 import { peekCache } from "../../api/axios";
@@ -98,16 +99,22 @@ export default function Payroll() {
   const canDelete  = hasPermission("payroll.delete") || canManage;
   const canAdvance = hasPermission("payroll.advance") || canManage;
   const canPrint   = hasPermission("payroll.print")   || canManage;
+  // Reversal: un-pay a payslip and put the cash back, and move a run to the
+  // month it was meant for. A grant of its own, because correcting money that
+  // has already gone out is delegated separately from paying it (create) or
+  // removing the payroll (delete).
+  const canReverse = hasPermission("payroll.reverse") || canManage;
 
-  // Deleting a run that has been paid out is NOT covered by payroll.delete.
-  // Money has left the bank, so undoing it takes a super-admin — the server
-  // enforces the same rule, this just stops the button being offered.
+  // Deleting a run that has been paid out is NOT covered by payroll.delete
+  // alone. Money has left the bank, so undoing it also needs the reversal
+  // grant — the server enforces the same rule, this just stops the button
+  // being offered.
   //   paid unknown (list rows carry no payslips) → treat as unpaid; the server
   //   still refuses and says why.
   const canDeleteRun = (run, paidCount) => {
     if (!canDelete) return false;
     const paid = paidCount ?? (run?.payslips || []).filter((s) => s.status === "paid").length;
-    return paid === 0 || isSuperAdmin;
+    return paid === 0 || canReverse || isSuperAdmin;
   };
   const [view, setView] = useState("builder");      // builder | run
   const [year, setYear] = useState(now.getFullYear());
@@ -256,10 +263,27 @@ export default function Payroll() {
 
   const commit = async () => {
     const ready = preview.rows.filter((r) => r.status === "ready" && !edits[r.staff_id]?.skip).length;
+    // The period selector opens on TODAY's month, and salaries are normally run
+    // for the month just worked. Committing the current or a future month is
+    // legitimate but rare, so it gets said out loud rather than slipping past
+    // in a sentence nobody reads — an unnoticed month here is a payroll that
+    // has to be reversed staff by staff afterwards.
+    const offMonth =
+      year > now.getFullYear() ||
+      (year === now.getFullYear() && month >= now.getMonth() + 1);
     const c = await Swal.fire({
-      title: "Commit payroll?",
-      html: `<p style="font-size:13px">This accrues salaries for <b>${ready}</b> staff for <b>${MONTHS[month-1]} ${year}</b> and posts the journal entries. Payslips can then be paid.</p>`,
-      icon: "question", showCancelButton: true, confirmButtonText: "Commit", confirmButtonColor: "#0d9488",
+      title: `Commit payroll for ${MONTHS[month-1]} ${year}?`,
+      html: `<p style="font-size:13px">This accrues salaries for <b>${ready}</b> staff for <b>${MONTHS[month-1]} ${year}</b> and posts the journal entries. Payslips can then be paid.</p>`
+        + (offMonth
+          ? `<p style="font-size:12px;color:#b45309;margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px">
+               <b>Check the month.</b> ${MONTHS[month-1]} ${year} is not a completed month — payroll is usually run for the month just worked.
+               Change the period above if you meant a different one.
+             </p>`
+          : ""),
+      icon: offMonth ? "warning" : "question",
+      showCancelButton: true,
+      confirmButtonText: `Commit ${MONTHS[month-1]} ${year}`,
+      confirmButtonColor: offMonth ? "#d97706" : "#0d9488",
     });
     if (!c.isConfirmed) return;
     setCommitting(true);
@@ -395,6 +419,115 @@ export default function Payroll() {
       Swal.fire("Deleted", "Payroll run deleted.", "success");
     } catch (e) {
       Swal.fire("Failed", e.response?.data?.message || "Could not delete the run.", "error");
+    } finally {
+      setBusyRunId(null);
+    }
+  };
+
+  // ── Reversal ───────────────────────────────────────────────────────────
+  // "Un-pay": the disbursement is reversed and the cash goes back on the
+  // account it left, while the accrual, the staff advance ledger and every
+  // other account stay exactly as they are. The salary is unpaid again, not
+  // erased — which is what a payment made in error actually means.
+
+  const askReversalReason = (title, html) =>
+    Swal.fire({
+      title, html,
+      icon: "warning",
+      input: "text",
+      inputPlaceholder: "Reason (e.g. wrong month) — optional",
+      inputAttributes: { maxlength: 500 },
+      showCancelButton: true,
+      confirmButtonText: "Reverse payment",
+      confirmButtonColor: "#d97706",
+    });
+
+  const reverseSlip = async (slip) => {
+    const c = await askReversalReason(
+      `Reverse payment of ${fmt(slip.net_pay)} AFN?`,
+      `<p style="font-size:13px">The payment is undone and <b>${fmt(slip.net_pay)} AFN</b> goes back onto
+         <b>${slip.paid_from_account?.account_name || "the account it was paid from"}</b>.
+         The payslip returns to <b>pending</b>, so it can be paid again.</p>
+       <p style="font-size:12px;color:#6b7280;margin-top:8px">The salary is still owed and still belongs to its month —
+         the advance ledger and every other account are untouched.</p>`,
+    );
+    if (!c.isConfirmed) return;
+    setBusyRunId(activeRun?.id ?? null);
+    try {
+      await reversePayslipPayment(slip.id, { reason: c.value || undefined });
+      await refreshActiveRun(activeRun.id);
+      await fetchRuns();
+      Swal.fire("Reversed", "The payment was undone and the cash is back on the account.", "success");
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not reverse the payment.", "error");
+    } finally {
+      setBusyRunId(null);
+    }
+  };
+
+  const reverseWholeRun = async (run, paidCount) => {
+    const c = await askReversalReason(
+      `Reverse all ${paidCount} payment(s)?`,
+      `<p style="font-size:13px">Every paid payslip in <b>${MONTHS[run.period_month - 1]} ${run.period_year}</b>
+         is un-paid and the cash goes back onto the accounts it left. All of them or none — nothing is left half-done.</p>
+       <p style="font-size:12px;color:#6b7280;margin-top:8px">The payroll itself stays: the salaries are still owed
+         and still belong to their month. Once reversed, the run can be corrected or deleted normally.</p>`,
+    );
+    if (!c.isConfirmed) return;
+    setBusyRunId(run.id);
+    try {
+      const r = await reverseRunPayments(run.id, { reason: c.value || undefined });
+      await refreshActiveRun(run.id);
+      await fetchRuns();
+      Swal.fire("Reversed", r.data?.message || "Payments reversed.", "success");
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not reverse the payments.", "error");
+    } finally {
+      setBusyRunId(null);
+    }
+  };
+
+  // Move a run to the month it was meant for. Nothing but the date changes, so
+  // no balance moves — but it is still a correction to recorded money, hence
+  // the same permission as reversal and a period the user has to pick twice.
+  const changeRunPeriod = async (run) => {
+    const current = `${MONTHS[run.period_month - 1]} ${run.period_year}`;
+    const years = [];
+    for (let y = now.getFullYear() + 1; y >= now.getFullYear() - 3; y--) years.push(y);
+    const c = await Swal.fire({
+      title: "Correct the payroll month",
+      html: `<p style="font-size:13px;margin-bottom:10px">This run is recorded as <b>${current}</b>.
+               Pick the month it was actually for — the accruals are re-dated and
+               <b>no amount changes</b>.</p>
+             <div style="display:flex;gap:8px;justify-content:center">
+               <select id="wen-pm" class="swal2-select" style="margin:0">
+                 ${MONTHS.map((m, i) => `<option value="${i + 1}" ${i + 1 === run.period_month ? "selected" : ""}>${m}</option>`).join("")}
+               </select>
+               <select id="wen-py" class="swal2-select" style="margin:0">
+                 ${years.map((y) => `<option value="${y}" ${y === run.period_year ? "selected" : ""}>${y}</option>`).join("")}
+               </select>
+             </div>
+             <p style="font-size:12px;color:#6b7280;margin-top:10px">Only possible while nothing in the run is paid.
+               Reverse the payments first if it has been.</p>`,
+      showCancelButton: true,
+      confirmButtonText: "Move run",
+      confirmButtonColor: "#0d9488",
+      preConfirm: () => ({
+        period_month: Number(document.getElementById("wen-pm").value),
+        period_year: Number(document.getElementById("wen-py").value),
+      }),
+    });
+    if (!c.isConfirmed) return;
+    const { period_month, period_year } = c.value;
+    if (period_month === run.period_month && period_year === run.period_year) return;
+    setBusyRunId(run.id);
+    try {
+      await changePayrollRunPeriod(run.id, { period_year, period_month });
+      await refreshActiveRun(run.id);
+      await fetchRuns();
+      Swal.fire("Moved", `Payroll is now recorded as ${MONTHS[period_month - 1]} ${period_year}. No amount changed.`, "success");
+    } catch (e) {
+      Swal.fire("Failed", e.response?.data?.message || "Could not move the run.", "error");
     } finally {
       setBusyRunId(null);
     }
@@ -569,6 +702,27 @@ export default function Payroll() {
                 Notes
               </button>
             )}
+            {/* Un-pay everything in the run. Offered before Delete, because it
+                is nearly always the right answer to a payroll paid in error:
+                the money comes back and the payroll survives. */}
+            {paidCount > 0 && canReverse && (
+              <button onClick={() => reverseWholeRun(activeRun, paidCount)}
+                disabled={busyRunId === activeRun.id}
+                title="Undo the payments and put the cash back on the accounts it left"
+                className="px-3 py-2 bg-white border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
+                {busyRunId === activeRun.id ? "Working…" : `Reverse payments (${paidCount})`}
+              </button>
+            )}
+            {/* Wrong month. Only offered while nothing is paid — the server
+                refuses otherwise and says to reverse the payments first. */}
+            {canReverse && paidCount === 0 && (
+              <button onClick={() => changeRunPeriod(activeRun)}
+                disabled={busyRunId === activeRun.id}
+                title="Move this run to the month it was meant for — no amount changes"
+                className="px-3 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
+                Change month
+              </button>
+            )}
             {/* Once anything in the run is paid the button is GONE, not
                 greyed — deleting paid payroll is a super-admin decision. */}
             {canDeleteRun(activeRun, paidCount) && (
@@ -582,10 +736,15 @@ export default function Payroll() {
           </div>
         </div>
 
-        {paidCount > 0 && !isSuperAdmin && (
-          <p className="mb-4 text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-            {paidCount} payslip(s) in this run have been paid, so it can no longer be deleted.
-            Only a super-admin can remove a payroll run once money has gone out.
+        {paidCount > 0 && (
+          <p className="mb-4 text-[11px] text-gray-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {paidCount} payslip(s) in this run have been paid.{" "}
+            {canReverse
+              ? "Paid for the wrong month, or the money never actually left? Reverse the payments — the cash goes back "
+                + "on the account it came from and the payslips return to pending, with the salaries still owed and "
+                + "no other account affected. The month can be corrected once nothing is paid."
+              : "Correcting that needs the payroll.reverse permission — ask an administrator to reverse the payments, "
+                + "which puts the cash back without erasing the payroll."}
           </p>
         )}
 
@@ -678,12 +837,23 @@ export default function Payroll() {
                               the whole payroll run is deleted. */}
                         </>
                       ) : (
-                        // Paid: locked for money changes. Editing or deleting
-                        // disbursed pay would leave the bank and the books
-                        // disagreeing — but the document is still printable.
-                        <span className="text-[10px] text-gray-400">
-                          {s.paid_from_account?.account_name || "paid"}
-                        </span>
+                        // Paid: locked for money changes — editing disbursed
+                        // pay would leave the bank and the books disagreeing.
+                        // It can still be UN-paid, which reverses the
+                        // disbursement properly instead of editing round it.
+                        <>
+                          <span className="text-[10px] text-gray-400">
+                            {s.paid_from_account?.account_name || "paid"}
+                          </span>
+                          {canReverse && (
+                            <button onClick={() => reverseSlip(s)}
+                              disabled={busyRunId != null}
+                              title={`Undo this payment — ${fmt(s.net_pay)} AFN goes back on ${s.paid_from_account?.account_name || "the account it left"}`}
+                              className="px-2 py-1 text-[10px] font-semibold text-amber-700 border border-amber-300 rounded hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                              Reverse
+                            </button>
+                          )}
+                        </>
                       )}
                       {canPrint && (
                         <button onClick={() => openPayslipDoc(s)} disabled={loadingDoc}

@@ -26,6 +26,8 @@ export default function MeetingForm() {
   const { user } = useAuth();
   const isEdit = Boolean(id);
 
+  const [committees, setCommittees] = useState([]);
+
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -35,6 +37,9 @@ export default function MeetingForm() {
     location: "",
     status: "scheduled",
     meeting_type: "routine",
+    // Which committee this meeting belongs to, if any. Tagging it here is
+    // what files the meeting under that committee.
+    committee_id: "",
     reminder_minutes_before: 180, // 3 hours — editable per meeting
     recurrence: "",            // "" | daily | weekly | monthly | yearly
     recurrence_until: "",      // YYYY-MM-DD
@@ -69,6 +74,14 @@ export default function MeetingForm() {
   // Content only — `status` is tracked separately (saving a draft flips it,
   // and that must not read as "the user changed something").
   const snapshotOf = () => JSON.stringify({ ...form, status: null, participants, agendaItems });
+
+  useEffect(() => {
+    // Active committees only: a meeting is never filed under one that
+    // has been wound up.
+    get("/committees?active_only=1")
+      .then((r) => setCommittees(r.data?.data || []))
+      .catch(() => setCommittees([]));
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -206,6 +219,7 @@ export default function MeetingForm() {
       location: d.location || "",
       status: d.status || "scheduled",
       meeting_type: d.meeting_type || "routine",
+      committee_id: d.committee_id ? String(d.committee_id) : "",
       reminder_minutes_before:
         d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
           ? 180
@@ -252,6 +266,7 @@ export default function MeetingForm() {
         location: d.location || "",
         status: d.status || "scheduled",
         meeting_type: d.meeting_type || "routine",
+        committee_id: d.committee_id ? String(d.committee_id) : "",
         reminder_minutes_before:
           d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
             ? 180
@@ -489,6 +504,18 @@ export default function MeetingForm() {
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Location</label>
               <input type="text" name="location" value={form.location} onChange={handle} placeholder="Room name or virtual link" className={ic("location")} />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Committee</label>
+              <select name="committee_id" value={form.committee_id} onChange={handle}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500">
+                <option value="">Not a committee meeting</option>
+                {committees.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Tagging it here files this meeting under that committee. The minutes stay right here.
+              </p>
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Meeting Type *</label>

@@ -438,7 +438,7 @@ export default function StaffTask() {
       )}
 
       {collabFor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setCollabFor(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Collaborate — transfer task</h3>

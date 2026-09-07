@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { post } from "../../api/axios";
+import { get, post } from "../../api/axios";
 
 const TEAL = "#0D5C63";
 const GOLD = "#C9A227";
@@ -53,14 +53,27 @@ export default function MeetingEventForm() {
     title: "", description: "", location: "",
     date: "", start_time: "09:00", end_time: "10:00",
     end_date: "", meeting_type: "routine",
+    // Which committee this meeting belongs to, if any. Meetings only — an
+    // event is not a committee's minutes. Pre-filled when the committee page
+    // sent us here, so nobody has to remember to tag it.
+    committee_id: searchParams.get("committee") || "",
   });
   // { before: File[], during: File[], after: File[] }
+  const [committees, setCommittees] = useState([]);
   const [staged, setStaged] = useState({ before: [] });
   const inputs = { before: useRef(null) };
   // Guest list: a name, and optionally what that person is taking on.
   const [guests, setGuests] = useState([]);
   const [guestName, setGuestName] = useState("");
   const guestRef = useRef(null);
+
+  useEffect(() => {
+    // Active committees only: a meeting is never filed under one that
+    // has been wound up.
+    get("/committees?active_only=1")
+      .then((r) => setCommittees(r.data?.data || []))
+      .catch(() => setCommittees([]));
+  }, []);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -110,6 +123,7 @@ export default function MeetingEventForm() {
           end_time: `${form.date} ${form.end_time}:00`,
           location: form.location.trim() || null,
           meeting_type: form.meeting_type,
+          committee_id: form.committee_id || null,
           status: "scheduled",
         });
         id = res.data?.data?.id ?? res.data?.id;
@@ -274,6 +288,21 @@ export default function MeetingEventForm() {
                   <option value="routine">Routine</option>
                   <option value="emergency">Emergency</option>
                 </select>
+              </div>
+              {/* Tagging the meeting here is the whole of "committee minutes":
+                  the agenda, attendance and decisions stay on the meeting, and
+                  the committee page simply reads back the ones tagged with it.
+                  There is no second record to keep in step. */}
+              <div className="sm:col-span-3">
+                <label className="block text-[11px] font-semibold mb-1" style={{ color: "#0A3A3E" }}>Committee</label>
+                <select value={form.committee_id} onChange={(e) => set("committee_id", e.target.value)}
+                  className={field} style={{ borderColor: BORDER }}>
+                  <option value="">Not a committee meeting</option>
+                  {committees.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Choose one and this meeting appears on that committee's page as its minutes.
+                </p>
               </div>
             </div>
           ) : (

@@ -26,13 +26,25 @@ export default function Staff() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
+  /* Somebody leaving is the one status change that has to say why: the reason
+   * decides whether they can be taken back, and nobody remembers it later.
+   * It is typed, not picked from a closed menu — the server only asks that
+   * something is written. The common answers arrive from the server as
+   * suggestions, so the usual four still cost one click. */
+  const [exitMeta, setExitMeta] = useState({ exit_statuses: ['terminated'], reasons: [] });
+  const [exitForm, setExitForm] = useState({ termination_reason: '', rehire_eligible: null, exit_date: '', exit_notes: '' });
+  const [statusError, setStatusError] = useState('');
+  // Once HR answers the rehire question themselves, a suggestion never
+  // overwrites it — their answer outranks the default every time.
+  const [rehireTouched, setRehireTouched] = useState(false);
+  const isExit = exitMeta.exit_statuses.includes(statusUpdate);
   const [transferData, setTransferData] = useState({ branch_id: '', department: '', role_title_en: '', contract_type: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
   // Staff row whose welcome letter is open (null = modal closed).
   const [letterStaff, setLetterStaff] = useState(null);
 
-  useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); }, []);
+  useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); fetchExitReasons(); }, []);
   useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
 
   const fetchBranches = async () => {
@@ -60,6 +72,17 @@ export default function Staff() {
       const res = await get('/hr/staff/position-titles/list');
       setPositionTitles(res.data || {});
     } catch { setPositionTitles({}); }
+  };
+
+  const fetchExitReasons = async () => {
+    try {
+      const res = await get('/hr/staff/exit-reasons');
+      const d = res.data?.data;
+      if (d?.reasons?.length) setExitMeta(d);
+    } catch {
+      // Keep the built-in fallback rather than an empty dropdown; the server
+      // still validates, so an out-of-date list is refused, not saved wrong.
+    }
   };
 
   const fetchItems = async (page = 1) => {
@@ -100,21 +123,58 @@ export default function Staff() {
   const openStatusModal = (staff) => {
     setSelectedStaff(staff);
     setStatusUpdate(staff.status || '');
+    setExitForm({
+      termination_reason: staff.termination_reason || '',
+      rehire_eligible: staff.rehire_eligible ?? null,
+      exit_date: staff.exit_date || '',
+      exit_notes: staff.exit_notes || '',
+    });
+    setStatusError('');
+    setRehireTouched(false);
     setShowStatusModal(true);
+  };
+
+  /**
+   * Whatever HR types is what gets recorded.
+   *
+   * If what they typed happens to be one of the suggested answers, the rehire
+   * question is pre-filled with WEN's usual response to it — but only until HR
+   * answers that question themselves, after which their answer stands.
+   */
+  const writeReason = (text) => {
+    const match = exitMeta.reasons.find(r => r.label.toLowerCase() === text.trim().toLowerCase());
+    setExitForm(f => ({
+      ...f,
+      termination_reason: text,
+      rehire_eligible: (!rehireTouched && match) ? (match.rehire_default ?? null) : f.rehire_eligible,
+    }));
+    setStatusError('');
   };
 
   const handleStatusUpdate = async () => {
     if (!statusUpdate) return;
-    setSaving(true);
-    try {
-      await put(`/hr/staff/update-status/${selectedStaff.id}`, { status: statusUpdate });
-      fetchItems();
-    } catch {
-      setItems(prev => prev.map(i => i.id === selectedStaff.id ? { ...i, status: statusUpdate } : i));
+    if (isExit && !exitForm.termination_reason) {
+      setStatusError('Choose why this person is leaving.');
+      return;
     }
-    Swal.fire({ icon: 'success', title: 'Status Updated!', timer: 1500, showConfirmButton: false });
-    setShowStatusModal(false);
-    setSaving(false);
+    setSaving(true);
+    setStatusError('');
+    try {
+      await put(`/hr/staff/update-status/${selectedStaff.id}`, {
+        status: statusUpdate,
+        ...(isExit ? exitForm : {}),
+      });
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Status Updated!', timer: 1500, showConfirmButton: false });
+      setShowStatusModal(false);
+    } catch (error) {
+      // The old code swallowed every failure and painted the new status
+      // locally anyway, so a rejected change looked exactly like a saved one.
+      const errs = error.response?.data?.errors;
+      setStatusError(errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Could not update the status.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openTransferModal = (staff) => {
@@ -382,7 +442,7 @@ export default function Staff() {
 
       {/* Status Update Modal */}
       {showStatusModal && selectedStaff && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowStatusModal(false)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Update Status</h3>
@@ -391,13 +451,60 @@ export default function Staff() {
             <div className="p-5">
               <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">New Status</p>
               <div className="flex gap-3">
-                {['active', 'inactive'].map(s => (
-                  <button key={s} type="button" onClick={() => setStatusUpdate(s)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${statusUpdate === s ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                    {s}
+                {['active', 'inactive', 'terminated'].map(s => (
+                  <button key={s} type="button" onClick={() => { setStatusUpdate(s); setStatusError(''); }}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${statusUpdate === s ? (s === 'terminated' ? 'bg-red-600 text-white border-red-600' : 'bg-teal-600 text-white border-teal-600') : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
+                    {s === 'terminated' ? 'Left WEN' : s}
                   </button>
                 ))}
               </div>
+
+              {isExit && (
+                <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Reason for leaving *</p>
+                    <input type="text" list="staff-exit-reasons" value={exitForm.termination_reason}
+                      onChange={e => writeReason(e.target.value)}
+                      placeholder="Write the reason…"
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500" />
+                    {/* Offered, not imposed: click one or ignore them and type. */}
+                    <datalist id="staff-exit-reasons">
+                      {exitMeta.reasons.map(r => <option key={r.value} value={r.label} />)}
+                    </datalist>
+                    <p className="text-[10px] text-gray-400 mt-1">Write it in your own words, or pick one of the usual answers.</p>
+                  </div>
+
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Can they be rehired?</p>
+                    <div className="flex gap-2">
+                      {[{ v: true, l: 'Yes' }, { v: false, l: 'No' }, { v: null, l: 'Not decided' }].map(o => (
+                        <button key={String(o.v)} type="button" onClick={() => { setRehireTouched(true); setExitForm(f => ({ ...f, rehire_eligible: o.v })); }}
+                          className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-all ${exitForm.rehire_eligible === o.v ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">Shown to recruitment if this person applies again.</p>
+                  </div>
+
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Last working day</p>
+                    <input type="date" value={exitForm.exit_date} onChange={e => setExitForm(f => ({ ...f, exit_date: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500" />
+                    <p className="text-[10px] text-gray-400 mt-1">Leave empty to use today.</p>
+                  </div>
+
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Notes</p>
+                    <textarea rows={2} value={exitForm.exit_notes} onChange={e => setExitForm(f => ({ ...f, exit_notes: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500" />
+                  </div>
+                </div>
+              )}
+
+              {statusError && (
+                <p className="mt-3 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{statusError}</p>
+              )}
             </div>
             <div className="px-5 py-4 bg-gray-50 flex justify-end gap-2 rounded-b-2xl">
               <button onClick={() => setShowStatusModal(false)}

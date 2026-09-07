@@ -359,7 +359,7 @@ export default function Drive() {
 
       {/* Upload modal */}
       {uploadOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setUploadOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-800 mb-1">Upload files</h3>
             <p className="text-[11px] text-gray-500 mb-3">{data.current ? `Into "${data.current.name}"` : "Into Home"} · up to 50 MB each · choose who can see them below.</p>
@@ -409,7 +409,7 @@ export default function Drive() {
 
       {/* Add-link modal */}
       {linkOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setLinkOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-800 mb-3">Add a link</h3>
             <label className="block text-[11px] font-semibold uppercase text-gray-500 mb-1">Name</label>

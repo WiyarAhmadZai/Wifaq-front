@@ -1792,7 +1792,9 @@ export default function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky lg:top-0 left-0 z-50 w-64 bg-teal-800 flex flex-col h-screen lg:h-screen overflow-y-auto transition-transform duration-300 ${
+        /* overflow-hidden, not auto: the menu inside scrolls, so the logo at
+           the top and the profile at the bottom stay where they are. */
+        className={`fixed lg:sticky lg:top-0 left-0 z-50 w-64 bg-teal-800 flex flex-col h-screen lg:h-screen overflow-hidden transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -1836,7 +1838,12 @@ export default function Layout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 space-y-1">
+        {/* min-h-0 is what makes this scrollable at all: a flex child defaults
+            to min-height:auto and refuses to shrink below its content, so
+            overflow-y never engages and the wheel falls through to the page.
+            overscroll-contain then keeps a scroll that started here from
+            continuing into the page once the menu reaches its end. */}
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-1">
           <MenuSection title="Main Menu" />
           <SidebarItem
             icon={Icons.Dashboard}

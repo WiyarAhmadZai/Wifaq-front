@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { useAuth } from '../admin/context/AuthContext';
 import { chatApi } from './chatApi';
-import { getEcho, disconnectEcho, isRealtimeLive } from './echo';
+import { ensureEcho, disconnectEcho, isRealtimeLive } from './echo';
 import { API_BASE_URL } from '../api/axios';
 
 const ChatContext = createContext(null);
@@ -79,12 +79,28 @@ export function ChatProvider({ children }) {
   }, [isAuthenticated, refreshConversations]);
 
   // ── Presence: keep last_seen fresh + join the presence roster ──────────────
+  /* The websocket client is fetched on demand — it is the largest dependency
+   * in the app and nothing before login needs it — so the connection arrives a
+   * moment after sign-in rather than on first read. Holding it in state is what
+   * lets the subscriptions below start the moment it does. */
+  const [echo, setEcho] = useState(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setEcho(null); return; }
+
+    let cancelled = false;
+    ensureEcho().then((instance) => {
+      if (!cancelled) setEcho(instance);
+    });
+
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (!isAuthenticated || !myId) return;
 
     chatApi.presenceOnline().catch(() => {});
 
-    const echo = getEcho();
     if (echo) {
       echo.join('chat')
         .here((members) => setOnlineIds(new Set(members.map((m) => m.id))))
@@ -123,12 +139,11 @@ export function ChatProvider({ children }) {
       window.removeEventListener('pagehide', onLeave);
       try { echo?.leave('chat'); } catch { /* ignore */ }
     };
-  }, [isAuthenticated, myId]);
+  }, [isAuthenticated, myId, echo]);
 
   // ── Personal channel: new-message notifications across all conversations ────
   useEffect(() => {
     if (!isAuthenticated || !myId) return;
-    const echo = getEcho();
     if (!echo) return;
 
     const channel = echo.private(`chat.user.${myId}`);
@@ -170,11 +185,10 @@ export function ChatProvider({ children }) {
     // `conversations`/`soundEnabled` are read via closures that are cheap to
     // rebind; re-subscribing on myId change only is intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, myId, soundEnabled]);
+  }, [isAuthenticated, myId, soundEnabled, echo]);
 
   // ── Active conversation channel: live thread + receipts + typing ───────────
   useEffect(() => {
-    const echo = getEcho();
     if (!echo || !activeId) return;
 
     const channel = echo.private(`chat.conversation.${activeId}`);
@@ -229,7 +243,7 @@ export function ChatProvider({ children }) {
       try { echo.leave(`chat.conversation.${activeId}`); } catch { /* ignore */ }
       activeChannelRef.current = null;
     };
-  }, [activeId, myId]);
+  }, [activeId, myId, echo]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const openConversation = useCallback(async (conversation) => {

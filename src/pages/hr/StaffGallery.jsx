@@ -29,7 +29,20 @@ const prettySize = (b) => {
 /** The raw endpoint is same-origin under /api, so a relative URL is enough. */
 const srcOf = (item) => item.url || `${API_BASE_URL}/staff-gallery/item/${item.id}/raw`;
 
-export default function StaffGallery({ staffId, staffName }) {
+/**
+ * A gallery of remembered moments, for a colleague or for a student.
+ *
+ * One component for both because they are the same screen with a different
+ * subject; the endpoint and the permission behind it are the only difference,
+ * and those come in as props. Two near-identical copies would drift.
+ *
+ * @param subject  "staff" | "student" — which gallery, and so which endpoint
+ * @param staffId  kept for the existing callers; `subjectId` is the new name
+ */
+export default function StaffGallery({ staffId, staffName, subject = "staff", subjectId, subjectName }) {
+  const who = subjectId ?? staffId;
+  const whoName = subjectName ?? staffName;
+  const endpoint = subject === "student" ? "/student-gallery" : "/staff-gallery";
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(true);
@@ -38,16 +51,22 @@ export default function StaffGallery({ staffId, staffName }) {
   const [maxMb, setMaxMb] = useState(50);
 
   const [uploading, setUploading] = useState(false);
+  /* Pasting a link is the way this scales: the photo already lives in WEN's
+   * Google Drive, so the school's own storage holds it and this system keeps
+   * only the address. Uploading still works for when there is nowhere else to
+   * put the file yet. */
+  const [mode, setMode] = useState("link");
+  const [linkUrl, setLinkUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [takenOn, setTakenOn] = useState("");
   const [lightbox, setLightbox] = useState(null);   // the item being viewed large
   const fileInput = useRef(null);
 
   const load = useCallback(async () => {
-    if (!staffId) return;
+    if (!who) return;
     setLoading(true);
     try {
-      const r = await get(`/staff-gallery/${staffId}`);
+      const r = await get(`${endpoint}/${who}`);
       setItems(r.data?.data || []);
       setCanCurate(Boolean(r.data?.can_curate));
       setCanDelete(Boolean(r.data?.can_delete));
@@ -60,7 +79,7 @@ export default function StaffGallery({ staffId, staffName }) {
       if (err.response?.status === 403) setAllowed(false);
       setItems([]);
     } finally { setLoading(false); }
-  }, [staffId]);
+  }, [who, endpoint]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -90,7 +109,7 @@ export default function StaffGallery({ staffId, staffName }) {
 
     setUploading(true);
     try {
-      await post(`/staff-gallery/${staffId}`, fd, {
+      await post(`${endpoint}/${who}`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setCaption(""); setTakenOn("");
@@ -100,6 +119,35 @@ export default function StaffGallery({ staffId, staffName }) {
     } catch (err) {
       const bag = err.response?.data?.errors;
       Swal.fire("Could not add", bag ? Object.values(bag)[0][0] : (err.response?.data?.message || "Upload failed."), "error");
+    } finally { setUploading(false); }
+  };
+
+  const addLink = async () => {
+    const url = linkUrl.trim();
+    if (!url) {
+      Swal.fire("Paste a link first", "Share the photo from Google Drive and paste the link here.", "info");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const res = await post(`${endpoint}/${who}`, {
+        link_url: url,
+        caption: caption.trim() || null,
+        taken_on: takenOn || null,
+      });
+      setLinkUrl(""); setCaption(""); setTakenOn("");
+      await load();
+
+      /* The link saved, but some kinds cannot be shown as a picture — a Drive
+       * FOLDER, or anything from Google Photos. Saying which and why beats a
+       * broken frame that reads as "the link field doesn't work". */
+      const note = res.data?.note;
+      if (note) Swal.fire("Saved, but no preview", note, "info");
+      else Swal.fire({ icon: "success", title: "Added to the gallery", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+    } catch (err) {
+      const bag = err.response?.data?.errors;
+      Swal.fire("Could not add", bag ? Object.values(bag)[0][0] : (err.response?.data?.message || "Failed."), "error");
     } finally { setUploading(false); }
   };
 
@@ -120,7 +168,7 @@ export default function StaffGallery({ staffId, staffName }) {
     });
     if (!form) return;
     try {
-      await put(`/staff-gallery/item/${item.id}`, form);
+      await put(`${endpoint}/item/${item.id}`, form);
       await load();
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Could not save.", "error");
@@ -138,7 +186,7 @@ export default function StaffGallery({ staffId, staffName }) {
     });
     if (!r.isConfirmed) return;
     try {
-      await del(`/staff-gallery/item/${item.id}`);
+      await del(`${endpoint}/item/${item.id}`);
       setLightbox(null);
       await load();
     } catch (err) {
@@ -163,7 +211,7 @@ export default function StaffGallery({ staffId, staffName }) {
       {canCurate && (
         <div className="rounded-2xl border border-dashed p-4" style={{ borderColor: "#CFE6E6", background: "#F8FCFC" }}>
           <p className="text-[11px] font-semibold text-gray-700 mb-2">
-            Add a memory{staffName ? ` of ${staffName}` : ""}
+            Add a memory{staffName ? ` of ${whoName}` : ""}
           </p>
           <div className="grid sm:grid-cols-2 gap-2 mb-2">
             <input value={caption} onChange={(e) => setCaption(e.target.value)}
@@ -176,18 +224,60 @@ export default function StaffGallery({ staffId, staffName }) {
               className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#9CCBCB] focus:outline-none"
               style={{ borderColor: "#D0E0E0" }} />
           </div>
-          <input ref={fileInput} type="file" multiple accept="image/*,video/*"
-            disabled={uploading}
-            onChange={(e) => upload(e.target.files)}
-            className="w-full text-xs file:mr-3 file:px-4 file:py-2 file:rounded-xl file:border-0
-                       file:text-xs file:font-semibold file:bg-teal-600 file:text-white file:cursor-pointer
-                       cursor-pointer px-3 py-2 border rounded-xl bg-white disabled:opacity-50"
-            style={{ borderColor: "#D0E0E0" }} />
-          <p className="text-[10px] text-gray-400 mt-1.5">
-            {uploading
-              ? "Uploading…"
-              : `Photos and short videos, up to ${maxMb} MB each. The caption and date apply to everything you pick now.`}
-          </p>
+          {/* Two ways in, with the link first on purpose. A gallery for every
+              colleague and every student would fill this server within a term;
+              the photos already sit in WEN's Google Drive, so pasting the link
+              keeps them there and stores nothing here. Uploading stays for the
+              times there is nowhere else to put the file yet. */}
+          <div className="flex gap-1.5 mb-2">
+            {[
+              { key: "link", label: "Paste a link" },
+              { key: "upload", label: "Upload a file" },
+            ].map((t) => (
+              <button key={t.key} type="button" onClick={() => setMode(t.key)}
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-colors ${
+                  mode === t.key ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {mode === "link" ? (
+            <>
+              <div className="flex gap-2">
+                <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addLink(); }}
+                  placeholder="https://drive.google.com/file/d/..."
+                  dir="ltr" disabled={uploading}
+                  className="flex-1 px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#9CCBCB] focus:outline-none disabled:opacity-50"
+                  style={{ borderColor: "#D0E0E0" }} />
+                <button type="button" onClick={addLink} disabled={uploading}
+                  className="px-4 py-2 bg-teal-600 text-white rounded-xl text-xs font-semibold hover:bg-teal-700 disabled:opacity-50">
+                  {uploading ? "Saving…" : "Add"}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1.5">
+                In Google Drive: right-click the photo, Share, "Anyone with the link", then Copy link and paste it here.
+                Nothing is stored on the school server.
+              </p>
+            </>
+          ) : (
+            <>
+              <input ref={fileInput} type="file" multiple accept="image/*,video/*"
+                disabled={uploading}
+                onChange={(e) => upload(e.target.files)}
+                className="w-full text-xs file:mr-3 file:px-4 file:py-2 file:rounded-xl file:border-0
+                           file:text-xs file:font-semibold file:bg-teal-600 file:text-white file:cursor-pointer
+                           cursor-pointer px-3 py-2 border rounded-xl bg-white disabled:opacity-50"
+                style={{ borderColor: "#D0E0E0" }} />
+              <p className="text-[10px] text-gray-400 mt-1.5">
+                {uploading
+                  ? "Uploading…"
+                  : `Photos and short videos, up to ${maxMb} MB each. This uses the school server's own storage — prefer a Drive link where you can.`}
+              </p>
+            </>
+          )}
         </div>
       )}
 

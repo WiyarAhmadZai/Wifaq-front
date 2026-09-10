@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
+import GenerateScheduleModal from "./GenerateScheduleModal";
 import { get, post, put, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const DAY_LABELS = {
   saturday: 'Sat', sunday: 'Sun', monday: 'Mon',
   tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu',
+  // Only rendered by schools that actually teach on Friday — the API returns
+  // the days in use, so everyone else still sees a six-column week.
+  friday: 'Fri',
 };
 const DAY_LABELS_FULL = {
   saturday: 'Saturday', sunday: 'Sunday', monday: 'Monday',
   tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday',
+  friday: 'Friday',
 };
 
 const CATEGORY_COLORS = {
@@ -183,20 +188,15 @@ export default function Schedule() {
     finally { setLoading(false); }
   };
 
-  const handleGenerate = async () => {
-    const confirm = await Swal.fire({
-      title: 'Generate Schedule?',
-      html: '<p class="text-sm text-gray-600">This will <strong>clear all existing schedules</strong> for this term and auto-generate new ones based on grade subjects and teacher assignments.</p>',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#0d9488',
-      confirmButtonText: 'Generate',
-    });
-    if (!confirm.isConfirmed) return;
-
+  const handleGenerate = async ({ holidays, periods_per_day }) => {
     setGenerating(true);
     try {
-      const res = await post('/class-management/schedule/generate', { academic_term_id: selectedTerm });
+      const res = await post('/class-management/schedule/generate', {
+        academic_term_id: selectedTerm,
+        holidays,
+        periods_per_day,
+      });
+      setGenerateOpen(false);
       const summary = res.data?.summary;
       let html = `<p class="text-sm font-semibold mb-2">${res.data?.message}</p>`;
       if (summary?.classes?.length) {
@@ -217,7 +217,20 @@ export default function Schedule() {
         setClasses(r.data?.classes || []);
       } catch {}
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to generate', 'error');
+      /* The generator refuses rather than half-scheduling, and it names the
+       * subject that will not fit — "5 periods needed but once-per-day rule
+       * caps at 4". Dropping that detail for a bare "Failed to generate"
+       * leaves the user with nothing to act on, so it is shown in full and
+       * the modal stays open to be adjusted. */
+      const data = error.response?.data;
+      const reasons = data?.errors;
+      let html = `<p class="text-sm">${data?.message || 'Failed to generate'}</p>`;
+      if (Array.isArray(reasons) && reasons.length) {
+        html += '<ul class="text-left text-xs mt-3 space-y-1 max-h-56 overflow-y-auto">'
+          + reasons.map((r) => `<li class="text-gray-700">• ${r}</li>`).join('')
+          + '</ul>';
+      }
+      Swal.fire({ icon: 'error', title: 'Could not generate', html, confirmButtonColor: '#0d9488' });
     } finally {
       setGenerating(false);
     }
@@ -257,6 +270,12 @@ export default function Schedule() {
   const [editorSubjectId, setEditorSubjectId] = useState('');
   const [editorTeacherId, setEditorTeacherId] = useState('');
   const [editorSaving, setEditorSaving] = useState(false);
+
+  /* Asked before anything is destroyed: which days the school is closed,
+   * how long a day runs, and when each teacher cannot teach. All three
+   * used to be assumed, and the assumption was wrong often enough that
+   * somebody re-did the timetable by hand every term. */
+  const [generateOpen, setGenerateOpen] = useState(false);
 
   const handleDragStart = (entry) => {
     setDragEntry(entry);
@@ -581,7 +600,7 @@ export default function Schedule() {
               Clear
             </button>
           )}
-          <button onClick={handleGenerate} disabled={!selectedTerm || generating}
+          <button onClick={() => setGenerateOpen(true)} disabled={!selectedTerm || generating}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50">
             {generating ? (
               <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Generating...</>
@@ -945,6 +964,13 @@ export default function Schedule() {
       )}
 
       {/* Cell Editor Modal */}
+      <GenerateScheduleModal
+        open={generateOpen}
+        generating={generating}
+        onClose={() => setGenerateOpen(false)}
+        onGenerate={handleGenerate}
+      />
+
       {editorOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">

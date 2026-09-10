@@ -7,12 +7,13 @@
 //
 // The instance is a singleton created on demand (after login) and torn down on
 // logout so a stale socket never lingers across sessions.
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
 import api, { API_BASE_URL } from '../api/axios';
 
-// laravel-echo's reverb/pusher broadcaster reads Pusher off the global.
-window.Pusher = Pusher;
+/* laravel-echo and pusher-js are imported inside ensureEcho() rather than
+ * here. Together they are the largest dependency in the app, and a static
+ * import put them in the bundle the browser downloads to draw the LOGIN page —
+ * where there is no session to open a socket for. They are now fetched the
+ * first time a signed-in page actually subscribes to something. */
 
 // Backend origin (strip the trailing /api from the configured API base).
 const ORIGIN = (API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
@@ -40,9 +41,27 @@ const REVERB_UNREACHABLE = isLoopback(REVERB.host) && !isLoopback(window.locatio
 let warnedUnreachable = false;
 
 let echoInstance = null;
+let connecting = null;      // the in-flight ensureEcho(), so it runs once
 
+/**
+ * The live connection, or null.
+ *
+ * Synchronous and safe to call at any time — it never loads anything. Before
+ * ensureEcho() has resolved it simply answers null, which every caller already
+ * handles because that is also the answer when Reverb is unconfigured.
+ */
 export function getEcho() {
+  return echoInstance;
+}
+
+/**
+ * Load the websocket client and connect, once.
+ *
+ * The import is the point: it keeps pusher-js out of the first page load.
+ */
+export async function ensureEcho() {
   if (echoInstance) return echoInstance;
+  if (connecting) return connecting;
 
   const token = localStorage.getItem('token');
   if (!token) return null; // not authenticated yet
@@ -55,7 +74,25 @@ export function getEcho() {
     return null;
   }
 
-  echoInstance = new Echo({
+  connecting = (async () => {
+    const [{ default: Echo }, { default: Pusher }] = await Promise.all([
+      import('laravel-echo'),
+      import('pusher-js'),
+    ]);
+
+    // laravel-echo's reverb/pusher broadcaster reads Pusher off the global.
+    window.Pusher = Pusher;
+
+    echoInstance = buildEcho(Echo);
+    connecting = null;
+    return echoInstance;
+  })();
+
+  return connecting;
+}
+
+function buildEcho(Echo) {
+  const instance = new Echo({
     broadcaster: 'reverb',
     key: REVERB.key,
     wsHost: REVERB.host,
@@ -80,7 +117,7 @@ export function getEcho() {
   // Surface connection state so a dead Reverb server is obvious in the console
   // instead of failing silently ("messages only show on refresh").
   try {
-    const conn = echoInstance.connector?.pusher?.connection;
+    const conn = instance.connector?.pusher?.connection;
     if (conn) {
       conn.bind('connected', () => console.info('[chat] Reverb connected'));
       conn.bind('disconnected', () => console.warn('[chat] Reverb disconnected'));
@@ -90,7 +127,7 @@ export function getEcho() {
     }
   } catch { /* ignore */ }
 
-  return echoInstance;
+  return instance;
 }
 
 // The current Reverb socket id, sent as `X-Socket-Id` on mutating chat requests
@@ -133,6 +170,8 @@ export function getSocketId() {
 }
 
 export function disconnectEcho() {
+  // Any load still in flight must not install itself after a logout.
+  connecting = null;
   if (echoInstance) {
     try {
       echoInstance.disconnect();

@@ -80,10 +80,15 @@ const TABS = [
   { key: "familydeep", label: "Home", sensitive: true },
   { key: "observations", label: "Observations" },
   { key: "portrait", label: "Portrait" },
+  // Photographs of the child. Its own permission (student-gallery.*), so a
+  // colleague who may read the profile does not automatically get the album.
+  { key: "gallery", label: "Gallery" },
   { key: "interview", label: "Interviewer", sensitive: true },
   { key: "updates", label: "Updates" },
   { key: "caredesk", label: "Care Desk" },
 ];
+
+import StaffGallery from "../hr/StaffGallery";
 
 export default function StudentProfile() {
   const navigate = useNavigate();
@@ -201,6 +206,13 @@ export default function StudentProfile() {
           {tab === "familydeep" && <LogSection {...ctx} title="Home Environment · وضعیت خانه" subtitle="Confidential — never shared with family" sensitive items={data.sensitive?.family_situation} path="/family-situation" dateKey="recorded_at" fields={FAMILY_FIELDS} />}
           {tab === "observations" && <Observations {...ctx} />}
           {tab === "portrait" && <Portrait {...ctx} />}
+          {/* The same gallery component the staff profile uses — one screen,
+              a different subject. The endpoint and the permission behind it
+              are the only difference, and both come from the prop. */}
+          {tab === "gallery" && (
+            <StaffGallery subject="student" subjectId={data?.student?.id}
+              subjectName={data?.student?.full_name} />
+          )}
           {tab === "interview" && <LogSection {...ctx} title="Interviewer Observations · مشاهدات مصاحبه" subtitle="Confidential — internal use only" sensitive items={data.sensitive?.interview_observation} path="/interview" dateKey="interviewed_at" fields={INTERVIEW_FIELDS} />}
           {tab === "updates" && <Updates {...ctx} />}
           {tab === "caredesk" && <CareDesk {...ctx} />}

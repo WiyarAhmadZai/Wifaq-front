@@ -43,6 +43,9 @@ const VALUE_TAGS = new Set(["TEXTAREA"]);
 /** Attributes that hold user-visible copy. */
 const ATTRS = ["placeholder", "title", "aria-label", "alt", "data-tooltip"];
 
+/** Built once. It used to be re-joined on every subtree walk. */
+const ATTR_SELECTOR = ATTRS.map((a) => `[${a}]`).join(",");
+
 // node → the English it was rendered with, so a second language switch still
 // knows what the source said.
 const textOrigins = new WeakMap();
@@ -53,6 +56,7 @@ let reverse = new Map();     // translation → english (previous language)
 let lang = "en";
 let observer = null;
 let applying = false;
+let scheduled = false;   // a flush is already queued for this task
 const pending = new Set();
 
 /** Split "  Save  " into ["  ", "Save", "  "] so spacing survives a swap. */
@@ -68,13 +72,35 @@ const parts = (raw) => {
  */
 const key = (core) => (/\s{2,}|\n/.test(core) ? core.replace(/\s+/g, " ") : core);
 
+let skipCache = null;   // element -> boolean, for the length of one pass
+
 const skip = (el) => {
+  if (!el) return false;
+
+  const cached = skipCache?.get(el);
+  if (cached !== undefined) return cached;
+
+  // Walk up only as far as the first ancestor whose answer is already known,
+  // then fill in everything on the way back down: each element on the path is
+  // asked once per pass instead of once per descendant.
+  const path = [];
+  let answer = false;
   for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
-    if (SKIP_TAGS.has(n.tagName)) return true;
-    if (n.hasAttribute?.("data-no-i18n")) return true;
-    if (n.isContentEditable) return true;
+    const known = skipCache?.get(n);
+    if (known !== undefined) { answer = known; break; }
+    path.push(n);
+    if (SKIP_TAGS.has(n.tagName) || n.hasAttribute?.("data-no-i18n") || n.isContentEditable) {
+      answer = true;
+      break;
+    }
   }
-  return false;
+
+  if (skipCache) {
+    // Everything below a skipped element is skipped too, so one value covers
+    // the whole path.
+    for (const n of path) skipCache.set(n, answer);
+  }
+  return answer;
 };
 
 /**
@@ -154,7 +180,7 @@ function walk(root) {
   if (root.nodeType === 1 && skip(root)) return;
 
   if (root.nodeType === 1) translateAttrs(root);
-  for (const el of root.querySelectorAll?.(ATTRS.map((a) => `[${a}]`).join(",")) || []) {
+  for (const el of root.querySelectorAll?.(ATTR_SELECTOR) || []) {
     // A textarea is skip()-ed for its text, so ask only about its ancestors.
     if (VALUE_TAGS.has(el.tagName) ? !skipAncestors(el) : !skip(el)) translateAttrs(el);
   }
@@ -175,19 +201,42 @@ function walk(root) {
 /** Run a pass with our own writes fenced off from the observer. */
 function run(roots) {
   applying = true;
+  skipCache = new Map();
   try {
     for (const r of roots) walk(r);
   } finally {
     // Discard the records our own writes just generated, otherwise the next
     // callback would re-process everything we touched.
     observer?.takeRecords();
+    skipCache = null;
     applying = false;
   }
 }
 
+/**
+ * Drop any pending node that sits inside another pending node.
+ *
+ * React commits a screen as a container followed by its children, so the queue
+ * routinely held a parent AND its descendants — and each was walked in full,
+ * translating the same text two or three times over. Walking the outermost one
+ * covers the rest.
+ */
+function outermost(nodes) {
+  if (nodes.length < 2) return nodes;
+
+  const set = new Set(nodes);
+  return nodes.filter((n) => {
+    for (let p = n.parentNode; p; p = p.parentNode) {
+      if (set.has(p)) return false;
+    }
+    return true;
+  });
+}
+
 function flush() {
+  scheduled = false;
   if (!pending.size) return;
-  const roots = [...pending];
+  const roots = outermost([...pending]);
   pending.clear();
   run(roots);
 }
@@ -205,9 +254,18 @@ function onMutations(records) {
       pending.add(r.target);
     }
   }
-  // Translate in the same microtask the mutation arrived in, so a newly
-  // rendered screen never flashes English first.
-  flush();
+  /* Translate once for the whole task rather than once per mutation batch.
+   *
+   * React commits a list in many small batches, and this callback fired for
+   * every one of them — each firing a full synchronous pass that blocked the
+   * main thread, which is what made a long page feel frozen and swallowed
+   * clicks. A microtask still runs before the browser paints, so a newly
+   * rendered screen STILL never flashes English; the difference is that the
+   * batches are coalesced into one pass. */
+  if (!scheduled) {
+    scheduled = true;
+    queueMicrotask(flush);
+  }
 }
 
 function startObserver() {

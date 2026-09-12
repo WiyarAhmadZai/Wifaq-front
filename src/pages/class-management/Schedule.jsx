@@ -333,8 +333,9 @@ export default function Schedule() {
     }
     setEditorSaving(true);
     try {
-      const isPrimary = editorOptions?.is_primary_grade;
-      const teacherId = isPrimary ? editorOptions?.class_supervisor_id : (editorTeacherId || null);
+      // Whoever was picked, in every grade. A primary class used to have the
+      // supervisor's id sent here regardless of the choice on screen.
+      const teacherId = editorTeacherId || null;
 
       if (editorCell?.entry?.id) {
         await put(`/class-management/schedule/entry/${editorCell.entry.id}`, {
@@ -997,17 +998,6 @@ export default function Schedule() {
               </div>
             ) : editorOptions ? (
               <div className="p-5 space-y-4">
-                {editorOptions.is_primary_grade && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-                    <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-[11px] text-amber-800">
-                      Primary grade — teacher is automatically the class supervisor.
-                    </p>
-                  </div>
-                )}
-
                 {/* Subject dropdown with hours used */}
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Subject *</label>
@@ -1068,7 +1058,7 @@ export default function Schedule() {
                 </div>
 
                 {/* Teacher dropdown */}
-                {editorSubjectId && !editorOptions.is_primary_grade && (() => {
+                {editorSubjectId && (() => {
                   const subj = editorOptions.subjects.find(s => s.id == editorSubjectId);
                   if (!subj) return null;
                   return (
@@ -1122,33 +1112,6 @@ export default function Schedule() {
                   );
                 })()}
 
-                {/* Primary grade: show supervisor as the auto-assigned teacher */}
-                {editorOptions.is_primary_grade && editorSubjectId && (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Teacher (Class Supervisor)</label>
-                    {(() => {
-                      const supervisorTeacher = editorOptions.teachers.find(t => t.id == editorOptions.class_supervisor_id);
-                      if (!supervisorTeacher) {
-                        return (
-                          <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
-                            <p className="text-xs text-amber-800">No supervisor assigned to this class</p>
-                          </div>
-                        );
-                      }
-                      const isBusy = supervisorTeacher.is_busy && editorCell?.entry?.teacher_id != supervisorTeacher.id;
-                      return (
-                        <div className={`p-3 rounded-xl border ${isBusy ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-200'}`}>
-                          <p className={`text-sm font-semibold ${isBusy ? 'text-red-700' : 'text-teal-800'}`}>
-                            {supervisorTeacher.name}
-                          </p>
-                          {isBusy && (
-                            <p className="text-[10px] text-red-600 mt-1">⚠ Supervisor is already busy at this time</p>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
               </div>
             ) : null}
 

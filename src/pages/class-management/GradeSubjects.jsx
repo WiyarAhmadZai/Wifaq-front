@@ -130,7 +130,6 @@ export default function GradeSubjects() {
   };
 
   const selectedGradeData = grades.find(g => g.id == selectedGrade);
-  const isPrimary = !!selectedGradeData?.is_primary;
 
   // ---- Fast grid mode ----
   const fetchGrid = async () => {
@@ -161,7 +160,7 @@ export default function GradeSubjects() {
   // Load (or reload) the grid whenever it's shown, the grade/term changes, or
   // the subject list changes (add / remove / bulk / copy).
   useEffect(() => {
-    if (viewMode === 'grid' && selectedGrade && selectedTerm && !isPrimary) fetchGrid();
+    if (viewMode === 'grid' && selectedGrade && selectedTerm) fetchGrid();
   }, [viewMode, selectedGrade, selectedTerm, items]);
 
   /**
@@ -441,25 +440,10 @@ export default function GradeSubjects() {
             </div>
           </div>
 
-          {/* Primary Grade Banner */}
-          {isPrimary && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm font-bold text-amber-900">Primary Grade — Teacher per Class</p>
-                <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                  In primary grades, the <strong>class supervisor</strong> teaches all subjects. Just list the subjects here — each class (e.g. Grade 1A, Grade 1B) will use its own supervisor as the teacher. So Ahmad can teach all subjects in Grade 1A while Ali teaches all subjects in Grade 1B.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Add Subject */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-1">Add Subject to {gradeName}</h3>
-            <p className="text-[11px] text-gray-400 mb-4">Add the subject first, then {isPrimary ? "each class uses its own supervisor" : "assign a teacher per class from the list below"}. Weekly hours come from the subject definition.</p>
+            <p className="text-[11px] text-gray-400 mb-4">Add the subject first, then assign a teacher per class from the list below. Weekly hours come from the subject definition.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <div>
                 <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Subject *</label>
@@ -490,7 +474,7 @@ export default function GradeSubjects() {
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-sm font-bold text-gray-800">Subjects for {gradeName}</h3>
               <div className="flex items-center gap-3">
-                {!isPrimary && (
+                {(
                   <div className="inline-flex rounded-xl border border-gray-200 p-0.5 bg-gray-50">
                     <button onClick={() => setViewMode('list')}
                       className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${viewMode === 'list' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -507,7 +491,7 @@ export default function GradeSubjects() {
               </div>
             </div>
 
-            {viewMode === 'grid' && !isPrimary ? (
+            {viewMode === 'grid' ? (
               loadingGrid ? (
                 <div className="text-center py-12">
                   <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
@@ -625,9 +609,7 @@ export default function GradeSubjects() {
                           <span className="text-xs text-gray-600">{item.category}</span>
                         </td>
                         <td className="px-4 py-3">
-                          {isPrimary ? (
-                            <span className="text-xs text-amber-700 italic">Class supervisor (all subjects)</span>
-                          ) : total === 0 ? (
+                          {total === 0 ? (
                             <span className="text-xs text-gray-400">No classes in this grade/term yet</span>
                           ) : (
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${assigned === 0 ? 'bg-gray-100 text-gray-500' : assigned < total ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
@@ -640,7 +622,7 @@ export default function GradeSubjects() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            {!isPrimary && total > 0 && (
+                            {total > 0 && (
                               <button onClick={() => toggleExpand(item)}
                                 className={`px-2.5 py-1.5 text-[10px] font-semibold rounded-lg transition-colors ${expanded ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-teal-600 text-white hover:bg-teal-700'}`}>
                                 {expanded ? 'Close' : 'Assign teachers'}
@@ -734,7 +716,7 @@ export default function GradeSubjects() {
                   ))}
                 </select>
               </div>
-              {!isPrimary && (
+              {(
                 <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl cursor-pointer">
                   <input type="checkbox" checked={copyIncludeTeachers} onChange={e => setCopyIncludeTeachers(e.target.checked)}
                     className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500" />

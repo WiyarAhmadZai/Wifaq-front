@@ -4,6 +4,9 @@ import Swal from "sweetalert2";
 import { get, post, put } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { textDirection, arabicTextStyle } from "../../utils/textDirection";
+import AudiencePicker, {
+  emptyAudience, describeAudience, audienceIsComplete, useAudienceOptions,
+} from "../../components/broadcasts/AudiencePicker";
 
 const TEAL = "#0D5C63";
 const TEAL_LT = "#14919B";
@@ -40,6 +43,10 @@ export default function BroadcastForm() {
   const [form, setForm] = useState({
     title: "", body: "", tone: "info", link_url: "", link_label: "", is_active: true,
   });
+  // Who it is for. Kept beside the form rather than in it: it is three fields
+  // that travel together and are validated as one.
+  const [audience, setAudience] = useState(emptyAudience());
+  const { options: audienceOptions, loading: audienceLoading } = useAudienceOptions();
 
   const load = useCallback(async () => {
     if (!editing) return;
@@ -50,6 +57,11 @@ export default function BroadcastForm() {
         title: b.title || "", body: b.body || "", tone: b.tone || "info",
         link_url: b.link_url || "", link_label: b.link_label || "",
         is_active: Boolean(b.is_active),
+      });
+      setAudience({
+        audience: b.audience || "all",
+        department_ids: b.department_ids || [],
+        user_ids: b.user_ids || [],
       });
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to load the broadcast.", "error");
@@ -64,14 +76,17 @@ export default function BroadcastForm() {
     if (!form.body.trim()) {
       return Swal.fire("Message needed", "Write what you want everyone to read.", "info");
     }
+    if (!audienceIsComplete(audience)) {
+      return Swal.fire("Who is it for?", "Pick at least one department or person, or send it to everyone.", "info");
+    }
 
-    // Publishing supersedes whatever is currently on screen for everyone —
-    // worth one confirmation, since it cannot be un-seen once people read it.
+    // Publishing interrupts people on their next visit — worth one
+    // confirmation that says exactly who, since it cannot be un-seen.
     if (!editing) {
+      const who = describeAudience(audience, audienceOptions);
       const ok = await Swal.fire({
-        title: "Send to everyone?",
-        html: "This replaces the current broadcast and shows to every user "
-            + "on their first visit today.",
+        title: "Publish this broadcast?",
+        html: `<span>It will be shown, once a day, to:</span> <b>${who}</b>`,
         icon: "question", showCancelButton: true, confirmButtonColor: TEAL,
         confirmButtonText: "Publish",
       });
@@ -87,6 +102,9 @@ export default function BroadcastForm() {
         link_url: form.link_url.trim() || null,
         link_label: form.link_label.trim() || null,
         is_active: form.is_active,
+        audience: audience.audience,
+        department_ids: audience.audience === "departments" ? audience.department_ids : [],
+        user_ids: audience.audience === "users" ? audience.user_ids : [],
       };
       if (editing) await put(`/broadcasts/edit/${id}`, body);
       else await post("/broadcasts/store", body);
@@ -133,7 +151,7 @@ export default function BroadcastForm() {
           </div>
           <button onClick={save} disabled={saving}
             className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold disabled:opacity-50">
-            {saving ? "Saving…" : editing ? "Save changes" : "Publish to everyone"}
+            {saving ? "Saving…" : editing ? "Save changes" : "Publish"}
           </button>
         </div>
       </div>
@@ -141,6 +159,12 @@ export default function BroadcastForm() {
       <div className="px-4 py-5 max-w-5xl mx-auto grid lg:grid-cols-2 gap-4 items-start">
         {/* ── Composer ── */}
         <div className="bg-white rounded-2xl border shadow-sm p-4 space-y-4" style={{ borderColor: BORDER }}>
+          <div>
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: "#0A3A3E" }}>Who is it for?</label>
+            <AudiencePicker value={audience} onChange={setAudience}
+              options={audienceOptions} loading={audienceLoading} />
+          </div>
+
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: "#0A3A3E" }}>Tone</label>
             <div className="flex gap-2 flex-wrap">
@@ -209,7 +233,7 @@ export default function BroadcastForm() {
             <button onClick={save} disabled={saving}
               className="px-5 py-2 text-xs font-semibold text-white rounded-xl disabled:opacity-50"
               style={{ background: TEAL }}>
-              {saving ? "Saving…" : editing ? "Save changes" : "Publish to everyone"}
+              {saving ? "Saving…" : editing ? "Save changes" : "Publish"}
             </button>
             <button onClick={() => navigate("/broadcasts")}
               className="px-4 py-2 text-xs font-semibold rounded-xl bg-white border"
@@ -222,7 +246,7 @@ export default function BroadcastForm() {
         {/* ── Live preview: exactly what lands on everyone's screen ── */}
         <div className="lg:sticky lg:top-4">
           <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: MUTED }}>
-            What everyone will see
+            What the audience will see
           </p>
           <div className="rounded-2xl overflow-hidden shadow-lg bg-white" style={{ border: `1px solid ${BORDER}` }}>
             <div style={{ height: 4, background: `linear-gradient(90deg, ${tone.accent}, ${GOLD})` }} />
@@ -284,8 +308,8 @@ export default function BroadcastForm() {
           </div>
 
           <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-            Publishing replaces the current broadcast. Each person sees it once on their first
-            visit of the day, and can dismiss it with the ✕.
+            Each person in the audience sees it once on their first visit of the day, and can
+            dismiss it with the ✕. Messages to different audiences can be live at the same time.
           </p>
         </div>
       </div>

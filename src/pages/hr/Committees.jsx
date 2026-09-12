@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { get, post, put, del } from "../../api/axios";
 import Select2 from "../../components/hr/Select2";
+import { useAuth } from "../../admin/context/AuthContext";
 
 /**
  * Committees — the parent committee, the cultural committee, and so on.
@@ -38,6 +39,13 @@ const SOURCE_STYLE = {
 
 export default function Committees() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { hasPermission, isSuperAdmin } = useAuth();
+  // Emailing members writes to people outside the screen, so it sits behind
+  // the same authority as editing the committee. The on/off switch itself is
+  // the super-admin's alone — the server refuses anyone else.
+  const canEmail = hasPermission("committees.update") || isSuperAdmin;
+  const [emailing, setEmailing] = useState(false);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -72,6 +80,68 @@ export default function Committees() {
       .then((r) => setOptions(r.data?.data || { staff: [], parent: [], student: [] }))
       .catch(() => {});
   }, []);
+
+  // The brief's "Open the committee in WEN" button lands here with ?open=ID.
+  useEffect(() => {
+    const id = Number(searchParams.get("open"));
+    if (id && openId !== id) openCommittee(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const refreshDetail = async (id) => {
+    const res = await get(`/committees/${id}`);
+    setDetail(res.data?.data || null);
+  };
+
+  // Super-admin only. The server enforces it too; this just keeps the switch
+  // off everyone else's screen.
+  const toggleEmails = async (c, on) => {
+    try {
+      await put(`/committees/${c.id}`, {
+        name: c.name, mandate: c.mandate, meeting_cadence: c.meeting_cadence,
+        lead_staff_id: c.lead_staff_id || null, is_active: c.is_active, email_enabled: on,
+      });
+      await load();
+      await refreshDetail(c.id);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not change the email setting.", "error");
+    }
+  };
+
+  // Send every serving member their own brief: the committee, their role, the
+  // next meeting and its agenda, THEIR open tasks, and the roll of members
+  // with each person's role (so everyone knows who holds what). Members with
+  // no address are named up front rather than silently skipped.
+  const emailMembers = async (c) => {
+    const members = detail?.members || [];
+    const reachable = members.filter((m) => m.has_email);
+    const missing = members.filter((m) => !m.has_email);
+    if (reachable.length === 0) {
+      Swal.fire("Nobody to email", "None of the serving members has an email address on record.", "info");
+      return;
+    }
+    const ok = await Swal.fire({
+      title: `Email ${reachable.length} member(s)?`,
+      html: `<p style="font-size:13px">Each person receives their own brief for <b>${c.name}</b>: their role, the next meeting and its agenda, their own open tasks, and the list of members with everyone's role.</p>`
+        + (missing.length
+          ? `<p style="font-size:12px;color:#b45309;margin-top:8px">No email address, will be skipped: ${missing.map((m) => m.name).join(", ")}</p>`
+          : ""),
+      icon: "question", showCancelButton: true,
+      confirmButtonText: "Send emails", confirmButtonColor: "#0d9488",
+    });
+    if (!ok.isConfirmed) return;
+    setEmailing(true);
+    try {
+      const res = await post(`/committees/${c.id}/email`);
+      const skipped = res.data?.skipped || [];
+      Swal.fire("Sent", `${res.data?.queued ?? 0} email(s) sent.`
+        + (skipped.length ? ` Skipped (no address): ${skipped.join(", ")}.` : ""), "success");
+    } catch (err) {
+      Swal.fire("Not sent", err.response?.data?.message || "Could not send the emails.", "error");
+    } finally {
+      setEmailing(false);
+    }
+  };
 
   const openCommittee = async (id) => {
     if (openId === id) {
@@ -261,10 +331,11 @@ export default function Committees() {
                                   <span className="text-[10px] text-gray-500">{m.role_in_committee}</span>
                                 )}
                               </div>
-                              {(m.joined_on || m.external_contact) && (
+                              {(m.joined_on || m.external_contact || !m.has_email) && (
                                 <p className="text-[10px] text-gray-400 mt-0.5">
                                   {m.joined_on && <><span>Since</span> {m.joined_on}</>}
                                   {m.external_contact && <> · {m.external_contact}</>}
+                                  {!m.has_email && <> · <span className="text-amber-600">No email address</span></>}
                                 </p>
                               )}
                             </div>
@@ -364,11 +435,36 @@ export default function Committees() {
                       )}
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-1 border-t border-gray-50">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-gray-50">
+                      <div className="flex flex-wrap items-center gap-3">
+                        {isSuperAdmin && (
+                          <label className="inline-flex items-center gap-2 text-[11px] text-gray-600 cursor-pointer select-none">
+                            <input type="checkbox" checked={!!detail.email_enabled}
+                              onChange={(e) => toggleEmails(c, e.target.checked)}
+                              className="w-3.5 h-3.5 accent-teal-600" />
+                            <span>Emails to members</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${detail.email_enabled ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                              {detail.email_enabled ? "On" : "Off"}
+                            </span>
+                          </label>
+                        )}
+                        {canEmail && detail.email_enabled && (
+                          <button onClick={() => emailMembers(c)} disabled={emailing || detail.members.length === 0}
+                            title="Each member gets their own brief: role, next meeting and agenda, their tasks, and everyone's responsibilities"
+                            className="text-[11px] font-semibold text-teal-700 hover:text-teal-800 disabled:opacity-40 disabled:cursor-not-allowed">
+                            {emailing ? "Sending…" : "Email members"}
+                          </button>
+                        )}
+                        {canEmail && !detail.email_enabled && (
+                          <span className="text-[11px] text-gray-400">Emails to members are switched off.</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
                       <button onClick={() => { setEditing({ ...c, lead_staff_id: c.lead_staff_id ? String(c.lead_staff_id) : "" }); setErrors({}); }}
                         className="text-[11px] font-semibold text-teal-700 hover:text-teal-800">Edit committee</button>
                       <button onClick={() => removeCommittee(c)}
                         className="text-[11px] font-semibold text-red-600 hover:text-red-700">Remove</button>
+                      </div>
                     </div>
                   </div>
                 )}

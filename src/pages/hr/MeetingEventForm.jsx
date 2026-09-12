@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { get, post } from "../../api/axios";
+import Select2 from "../../components/hr/Select2";
+import { listDepartments } from "../../api/departments";
 
 const TEAL = "#0D5C63";
 const GOLD = "#C9A227";
@@ -67,13 +69,55 @@ export default function MeetingEventForm() {
   const [guestName, setGuestName] = useState("");
   const guestRef = useRef(null);
 
+  // People who ARE in the system — staff with a login — picked one by one or
+  // a whole department at a time. Guests above are the people who are not.
+  // Stored as user ids (participants FK users, not staff), so staff with no
+  // linked account cannot be picked and are left out of the list.
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [departments, setDepartments] = useState([]);
+  const [filterDeptIds, setFilterDeptIds] = useState([]);
+  const [participants, setParticipants] = useState([]);   // [{ id: user_id, name }]
+  const [emailToo, setEmailToo] = useState(true);
+
   useEffect(() => {
     // Active committees only: a meeting is never filed under one that
     // has been wound up.
     get("/committees?active_only=1")
       .then((r) => setCommittees(r.data?.data || []))
       .catch(() => setCommittees([]));
+
+    // Same roster the meeting page uses, so the two never disagree about
+    // who can be invited. Failures leave the pickers empty rather than
+    // breaking the form — the person can still be added on the detail page.
+    get("/hr/staff/list?per_page=1000&status=active")
+      .then((res) => {
+        const raw = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+        const data = Array.isArray(raw) ? raw : [];
+        setUsers(data.filter((s) => s.user_id).map((s) => ({
+          id: s.user_id,
+          name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+          employee_id: s.employee_id || "",
+          department: s.department || s.department_relation?.name || "",
+          department_id: s.department_id || null,
+        })));
+      })
+      .catch(() => setUsers([]))
+      .finally(() => setUsersLoading(false));
+    listDepartments({ active_only: 1 })
+      .then((r) => { const d = r.data?.data?.data ?? r.data?.data ?? r.data ?? []; setDepartments(Array.isArray(d) ? d : []); })
+      .catch(() => setDepartments([]));
   }, []);
+
+  // Everyone in the picked departments, skipping anyone already listed.
+  const addParticipantsFromDepartments = () => {
+    const want = users.filter((u) => filterDeptIds.includes(u.department_id));
+    if (!want.length) return;
+    setParticipants((prev) => {
+      const have = new Set(prev.map((p) => p.id));
+      return [...prev, ...want.filter((u) => !have.has(u.id)).map((u) => ({ id: u.id, name: u.name }))];
+    });
+  };
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -125,6 +169,8 @@ export default function MeetingEventForm() {
           meeting_type: form.meeting_type,
           committee_id: form.committee_id || null,
           status: "scheduled",
+          participants: participants.map((p) => p.id),
+          notify_by_email: emailToo,
         });
         id = res.data?.data?.id ?? res.data?.id;
       } else {
@@ -135,6 +181,11 @@ export default function MeetingEventForm() {
           end_date: form.end_date || null,
           location: form.location.trim() || null,
           status: "upcoming",
+          // An event has roles rather than a flat participant list; everyone
+          // picked here joins as a participant and can be given a specific
+          // role on the event page afterwards.
+          roles: participants.map((p) => ({ user_id: p.id, role_name: "Participant" })),
+          notify_by_email: emailToo,
         });
         id = res.data?.data?.id ?? res.data?.id;
       }
@@ -317,9 +368,69 @@ export default function MeetingEventForm() {
           )}
 
           <p className="text-[10px]" style={{ color: "#8AA4A7" }}>
-            Participants, agenda, roles and checklists are added on the {isMeeting ? "meeting" : "event"} page
+            Agenda, roles and checklists are added on the {isMeeting ? "meeting" : "event"} page
             once it is saved.
           </p>
+        </div>
+
+        {/* ── People from the system: a department at a time, or one by one ── */}
+        <div className="bg-white rounded-2xl border shadow-sm p-4" style={{ borderColor: BORDER }}>
+          <h3 className="text-sm font-bold" style={{ color: "#0A3A3E" }}>
+            Participants {participants.length > 0 && <span style={{ color: MUTED }}>· {participants.length}</span>}
+          </h3>
+          <p className="text-[11px] mb-3" style={{ color: MUTED }}>
+            Staff registered in the system. Add a whole department, or search and pick people one by one — they are
+            notified when the {isMeeting ? "meeting" : "event"} is saved.
+          </p>
+
+          <div className="rounded-xl p-3 mb-3" style={{ background: "#F3FAFA", border: `1px solid ${BORDER}` }}>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: TEAL }}>Add a department</p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <Select2 isMulti size="sm" value={filterDeptIds}
+                  onChange={(v) => setFilterDeptIds(Array.isArray(v) ? v : [])}
+                  options={departments.map((d) => ({ value: d.id, label: d.name }))}
+                  placeholder={departments.length ? "Pick one or more departments…" : "No departments yet — add some in HR → Departments"} />
+              </div>
+              <button type="button" onClick={addParticipantsFromDepartments} disabled={!filterDeptIds.length}
+                className="px-3 py-2 text-white rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                style={{ background: TEAL }}>
+                Add all
+              </button>
+              {participants.length > 0 && (
+                <button type="button" onClick={() => setParticipants([])}
+                  className="px-3 py-2 bg-white border rounded-lg text-xs font-medium hover:text-red-600" style={{ borderColor: BORDER, color: MUTED }}>
+                  Clear all
+                </button>
+              )}
+            </div>
+            {filterDeptIds.length > 0 && (
+              <p className="text-[10px] mt-1.5" style={{ color: TEAL }}>
+                {users.filter((u) => filterDeptIds.includes(u.department_id)).length} staff match the selected department{filterDeptIds.length === 1 ? "" : "s"}
+              </p>
+            )}
+          </div>
+
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: MUTED }}>Specific people</p>
+          <Select2 isMulti value={participants.map((p) => p.id)}
+            onChange={(ids) => {
+              const arr = Array.isArray(ids) ? ids : [];
+              setParticipants(arr.map((id) => {
+                const u = users.find((x) => String(x.id) === String(id));
+                return { id, name: u?.name || `Staff #${id}` };
+              }));
+            }}
+            options={users.map((u) => ({
+              value: u.id,
+              label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+            }))}
+            placeholder={usersLoading ? "Loading staff…" : users.length ? "Search and pick individual staff…" : "No staff with a login account found"} />
+
+          <label className="mt-3 inline-flex items-center gap-2 text-[11px] cursor-pointer select-none" style={{ color: MUTED }}>
+            <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)}
+              className="w-3.5 h-3.5 accent-teal-600" />
+            <span>Also email the participants</span>
+          </label>
         </div>
 
         {/* ── Guests, and what each of them is taking on ── */}

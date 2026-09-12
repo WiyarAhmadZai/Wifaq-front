@@ -1,11 +1,11 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FiArrowLeft, FiMessageSquare } from 'react-icons/fi';
 import { useChat } from '../ChatContext';
 import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
 import ForwardModal from './ForwardModal';
-import { formatDateDivider, lastSeenLabel, roleLabel } from '../utils';
+import { formatDateDivider, lastSeenLabel, roleLabel, filesFromClipboard } from '../utils';
 
 export default function ChatWindow({ onBack }) {
   const {
@@ -57,6 +57,31 @@ export default function ChatWindow({ onBack }) {
     if (e.dataTransfer?.files?.length) setDroppedFiles(Array.from(e.dataTransfer.files));
   };
 
+  /* Ctrl+V anywhere while this chat is open — WhatsApp does not make you click
+   * into the box first. A paste that lands in some other input on the page
+   * (a form behind the drawer) is left alone; only the chat itself, or nothing
+   * focusable at all, counts. The composer's own textarea handles its paste
+   * directly, so it is skipped here to avoid attaching twice. */
+  const rootRef = useRef(null);
+  useEffect(() => {
+    if (!activeConversation) return undefined;
+    const onPaste = (e) => {
+      const t = e.target;
+      const inChat = rootRef.current?.contains(t);
+      const editable = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      // A form behind the drawer owns its own paste.
+      if (editable && !inChat) return;
+      // The composer's textarea attaches on its own — never attach twice.
+      if (editable && inChat && t.tagName === 'TEXTAREA') return;
+      const pasted = filesFromClipboard(e.clipboardData);
+      if (!pasted.length) return;
+      e.preventDefault();
+      setDroppedFiles(pasted);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [activeConversation]);
+
   if (!activeConversation) {
     return (
       <div className="hidden md:flex flex-col items-center justify-center h-full bg-gray-50 text-gray-400">
@@ -70,6 +95,7 @@ export default function ChatWindow({ onBack }) {
 
   return (
     <div
+      ref={rootRef}
       className="flex flex-col h-full bg-gray-50 relative"
       onDragOver={(e) => { e.preventDefault(); setDropActive(true); }}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setDropActive(false); }}

@@ -137,19 +137,21 @@ export default function GradeSubjects() {
     try {
       const __c = peekCache(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
       if (__c) {
+        const seeded = withSupervisorDefaults(__c?.classes, __c?.subjects, __c?.assignments);
         setGridClasses(__c?.classes || []);
         setGridSubjects(__c?.subjects || []);
-        setGridAssign(__c?.assignments || {});
+        setGridAssign(seeded.assign);
         setAssignedNames(__c?.assigned_teachers || {});
-        setGridDirty(false);
+        setGridDirty(seeded.suggested);
         setLoadingGrid(false);
       }
       const res = await get(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      const seeded = withSupervisorDefaults(res.data?.classes, res.data?.subjects, res.data?.assignments);
       setGridClasses(res.data?.classes || []);
       setGridSubjects(res.data?.subjects || []);
-      setGridAssign(res.data?.assignments || {});
+      setGridAssign(seeded.assign);
       setAssignedNames(res.data?.assigned_teachers || {});
-      setGridDirty(false);
+      setGridDirty(seeded.suggested);
     } catch {
       setGridClasses([]); setGridSubjects([]); setGridAssign({}); setAssignedNames({});
     } finally {
@@ -191,6 +193,27 @@ export default function GradeSubjects() {
       opts.unshift({ value: String(currentId), label: `${currentName} (current)` });
     }
     return opts;
+  };
+
+  /**
+   * Fill the untouched cells of the grid with each class's supervisor.
+   *
+   * "Untouched" is the key: a (subject, class) pair the server sent back is
+   * left alone, even when its teacher is null — somebody cleared that one on
+   * purpose. Only pairs with no row at all get the suggestion. Returns the map
+   * plus whether anything was suggested, so the Save button can light up.
+   */
+  const withSupervisorDefaults = (classes, subjects, assignments) => {
+    const next = { ...(assignments || {}) };
+    let suggested = false;
+    (subjects || []).forEach(s => (classes || []).forEach(c => {
+      const key = `${s.subject_id}-${c.id}`;
+      if (!c.supervisor_id) return;
+      if (Object.prototype.hasOwnProperty.call(next, key)) return;
+      next[key] = c.supervisor_id;
+      suggested = true;
+    }));
+    return { assign: next, suggested };
   };
 
   const setGridCell = (subjectId, classId, teacherId) => {
@@ -272,7 +295,13 @@ export default function GradeSubjects() {
     setLoadingClasses(true);
     try {
       const res = await get(`/class-management/grade-subjects/class-assignments?grade_id=${selectedGrade}&subject_id=${item.subject_id}&academic_term_id=${selectedTerm}`);
-      setClassRows(res.data?.data || []);
+      // Same suggestion as the grid: a class nobody has assigned for this
+      // subject opens showing its supervisor, ready to be changed or cleared.
+      setClassRows((res.data?.data || []).map(r => (
+        !r.has_assignment && r.supervisor_id
+          ? { ...r, teacher_id: r.supervisor_id, teacher_name: r.supervisor_name }
+          : r
+      )));
     } catch {
       setClassRows([]);
     } finally {
@@ -509,9 +538,12 @@ export default function GradeSubjects() {
               ) : (
                 <>
                   <div className="px-5 py-2.5 bg-teal-50/60 border-b border-teal-100 flex items-center justify-between gap-3 flex-wrap">
-                    <p className="text-[11px] text-teal-800">
-                      Pick a teacher in each cell, or use <strong>“set all classes”</strong> under a subject to fill its whole row. Then save once.
-                    </p>
+                    <div>
+                      <p className="text-[11px] text-teal-800">
+                        Pick a teacher in each cell, or use <strong>“set all classes”</strong> under a subject to fill its whole row. Then save once.
+                      </p>
+                      <p className="text-[10px] text-teal-700/80 mt-0.5">Classes with no teacher yet start with the class supervisor — change any of them, then save.</p>
+                    </div>
                     <div className="flex items-center gap-2">
                       {gridDirty && <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>}
                       <button onClick={saveGrid} disabled={savingGrid || !gridDirty}
@@ -645,7 +677,10 @@ export default function GradeSubjects() {
                             ) : (
                               <div className="space-y-3">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <p className="text-xs font-bold text-gray-700">Assign a teacher for {item.subject_name} in each class</p>
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-700">Assign a teacher for {item.subject_name} in each class</p>
+                                    <p className="text-[10px] text-gray-500 mt-0.5">Classes with no teacher yet start with the class supervisor — change any of them, then save.</p>
+                                  </div>
                                   <div className="flex items-center gap-2">
                                     <span className="text-[10px] text-gray-400">Set all to:</span>
                                     <div className="min-w-[220px]">

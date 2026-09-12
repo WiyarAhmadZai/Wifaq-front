@@ -116,3 +116,46 @@ export function lastMessagePreview(msg) {
   if (msg.type === 'file') return '📎 Attachment';
   return msg.body || '';
 }
+
+// ── Clipboard / drop helpers ─────────────────────────────────────────────────
+
+export const isImageFile = (f) => Boolean(f && f.type && f.type.startsWith('image/'));
+
+/**
+ * Files carried by a paste event.
+ *
+ * A screenshot on the clipboard arrives as a single `image/png` item with no
+ * file name; copying an image from another app can arrive the same way. Both
+ * are turned into real File objects here, named with a timestamp so two pastes
+ * in a row never collide. Plain text pastes return an empty list, so the
+ * textarea's default paste is left alone.
+ */
+export function filesFromClipboard(clipboardData) {
+  if (!clipboardData) return [];
+  const out = [];
+  const seen = new Set();
+  const items = Array.from(clipboardData.items || []);
+  for (const it of items) {
+    if (it.kind !== 'file') continue;
+    const f = it.getAsFile();
+    if (!f) continue;
+    const key = `${f.name}-${f.size}-${f.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(f);
+  }
+  // Some browsers only fill `files`.
+  for (const f of Array.from(clipboardData.files || [])) {
+    const key = `${f.name}-${f.size}-${f.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(f);
+  }
+  return out.map((f) => {
+    if (f.name && f.name !== 'image.png' && f.name !== 'image.jpg') return f;
+    const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    return new File([f], `screenshot-${stamp}.${ext}`, { type: f.type });
+  });
+}
+

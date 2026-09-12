@@ -71,11 +71,44 @@ header { font-size: 0.8125rem; }
 .text-2xl  { font-size: 1.25rem;   }
 .text-3xl  { font-size: 1.5rem;    }
 
+/* Phones get LARGER type than the desktop, not smaller.
+ *
+ * This block used to drop the root to 13px, which put body text at 11.4px and
+ * left the thousands of text-[10px] / text-[11px] labels at a literal 10–11px
+ * on a screen held at arm's length. The root now stays at the desktop 15px —
+ * so every rem-based padding and width lays out exactly as it does on a
+ * desktop, where it is known to fit — and only the TYPE is lifted. The
+ * pixel-literal micro sizes get a hard floor, since they never scale with the
+ * root at all. */
 @media (max-width: 768px) {
-  html { font-size: 13px; }
-  h1   { font-size: 1.25rem; }
-  h2   { font-size: 1.125rem; }
-  h3   { font-size: 1rem;    }
+  html { font-size: 15px; }
+  body { font-size: 0.9375rem; }          /* ~14px */
+
+  h1 { font-size: 1.375rem; }
+  h2 { font-size: 1.25rem;  }
+  h3 { font-size: 1.125rem; }
+  h4 { font-size: 1.0625rem; }
+  h5, h6 { font-size: 0.9375rem; }
+
+  p, label, button, table, th, td, nav, header { font-size: 0.9rem; }   /* ~13.5px */
+
+  /* 16px, not a rem: iOS Safari zooms the whole page when a focused field is
+     set below 16px, which on a phone reads as the screen jumping every time a
+     form is tapped. */
+  input, textarea, select { font-size: 16px; }
+
+  .text-xs   { font-size: 0.8rem;    }    /* 12px  */
+  .text-sm   { font-size: 0.9rem;    }    /* 13.5px */
+  .text-base { font-size: 0.9375rem; }    /* 14px  */
+  .text-lg   { font-size: 1.0625rem; }
+  .text-xl   { font-size: 1.1875rem; }
+
+  /* Floor for the pixel-literal utilities. 12px is the smallest that stays
+     readable on a phone; anything the UI wrote smaller is lifted to it, and
+     the 12–13px ones gain a hair so the hierarchy between them survives. */
+  .text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\] { font-size: 0.8rem; }
+  .text-\[12px\], .text-\[12\.5px\] { font-size: 0.85rem; }
+  .text-\[13px\] { font-size: 0.9rem; }
 }
 
 /* React Select Custom Styles */

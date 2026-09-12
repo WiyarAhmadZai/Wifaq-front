@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FiPaperclip, FiSend, FiX, FiImage, FiFile, FiCornerUpLeft, FiEdit2,
 } from 'react-icons/fi';
-import { formatSize } from '../utils';
+import { formatSize, filesFromClipboard, isImageFile } from '../utils';
+import ImageEditorModal from './ImageEditorModal';
 
 const ACCEPT = '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -12,7 +13,12 @@ export default function MessageComposer({
   const [text, setText] = useState('');
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
+  /* Images waiting in the WhatsApp-style preview. Every image — picked,
+   * dropped or pasted — goes through it before it is sent, so the sender sees
+   * it large, can crop or mark it up, and writes the caption there. */
+  const [editorFiles, setEditorFiles] = useState(null);
   const fileRef = useRef(null);
+  const imageRef = useRef(null);
   const typingRef = useRef(false);
   const typingTimer = useRef(null);
   const inputRef = useRef(null);
@@ -36,10 +42,15 @@ export default function MessageComposer({
     }
   }, [editing]);
 
-  // Accept files dropped on the parent window.
+  // Accept files dropped on — or pasted anywhere in — the parent window.
   useEffect(() => {
-    if (incomingFiles?.length) setFiles((prev) => [...prev, ...incomingFiles]);
+    if (incomingFiles?.length) addFiles(incomingFiles);
   }, [incomingFiles]);
+
+  // One object URL per queued file, released when the file leaves the strip.
+  // Creating them inside render leaked a blob per keystroke.
+  const previews = useMemo(() => files.map((f) => (isImageFile(f) ? URL.createObjectURL(f) : null)), [files]);
+  useEffect(() => () => previews.forEach((u) => u && URL.revokeObjectURL(u)), [previews]);
 
   const emitTyping = (typing) => {
     if (typing === typingRef.current) return;
@@ -54,9 +65,41 @@ export default function MessageComposer({
     typingTimer.current = setTimeout(() => emitTyping(false), 1500);
   };
 
+  /**
+   * Route new files: images open the preview/editor, everything else lands in
+   * the strip under the input. Cap matches the server (10 per message).
+   */
   const addFiles = (list) => {
     const arr = Array.from(list || []);
-    if (arr.length) setFiles((prev) => [...prev, ...arr].slice(0, 10));
+    if (!arr.length) return;
+    const images = arr.filter(isImageFile);
+    const docs = arr.filter((f) => !isImageFile(f));
+    if (docs.length) setFiles((prev) => [...prev, ...docs].slice(0, 10));
+    if (images.length) setEditorFiles((prev) => [...(prev || []), ...images].slice(0, 10));
+  };
+
+  /**
+   * Ctrl+V. A screenshot on the clipboard, or an image copied from another
+   * app, is attached here just as a picked file would be. Plain text is left
+   * to the textarea's own paste.
+   */
+  const onPaste = (e) => {
+    if (editing) return;
+    const pasted = filesFromClipboard(e.clipboardData);
+    if (!pasted.length) return;
+    e.preventDefault();
+    addFiles(pasted);
+  };
+
+  /** The editor's Send: images plus the caption written there. */
+  const sendFromEditor = async (edited, caption) => {
+    await onSend({ body: caption, attachments: edited, replyTo });
+    setEditorFiles(null);
+    // The caption took the place of whatever was in the box.
+    setText('');
+    emitTyping(false);
+    onCancelReply?.();
+    inputRef.current?.focus();
   };
 
   const removeFile = (idx) => setFiles((prev) => prev.filter((_, i) => i !== idx));
@@ -122,8 +165,8 @@ export default function MessageComposer({
           {files.map((f, i) => (
             <div key={i} className="relative flex-shrink-0 w-16">
               <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
-                {f.type?.startsWith('image/')
-                  ? <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                {previews[i]
+                  ? <img src={previews[i]} alt="" className="w-full h-full object-cover" />
                   : <FiFile className="w-6 h-6 text-gray-400" />}
               </div>
               <div className="text-[9px] text-gray-400 truncate mt-0.5">{formatSize(f.size)}</div>
@@ -141,19 +184,36 @@ export default function MessageComposer({
       {/* Input row */}
       <div className="flex items-end gap-2 px-3 py-2.5">
         {!editing && (
-          <button
-            onClick={() => fileRef.current?.click()}
-            title="Attach"
-            className="p-2 text-gray-400 hover:text-teal-600 transition-colors"
-          >
-            <FiPaperclip className="w-5 h-5" />
-          </button>
+          <>
+            <button
+              onClick={() => fileRef.current?.click()}
+              title="Attach a file"
+              className="p-2 text-gray-400 hover:text-teal-600 transition-colors"
+            >
+              <FiPaperclip className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => imageRef.current?.click()}
+              title="Send a photo"
+              className="p-2 text-gray-400 hover:text-teal-600 transition-colors -ms-2"
+            >
+              <FiImage className="w-5 h-5" />
+            </button>
+          </>
         )}
         <input
           ref={fileRef}
           type="file"
           multiple
           accept={ACCEPT}
+          className="hidden"
+          onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
+        />
+        <input
+          ref={imageRef}
+          type="file"
+          multiple
+          accept="image/*"
           className="hidden"
           onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
         />
@@ -164,6 +224,7 @@ export default function MessageComposer({
           value={text}
           onChange={handleChange}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           placeholder="Type a message"
           className="flex-1 resize-none max-h-28 px-4 py-2.5 bg-gray-50 rounded-2xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-200 transition-all"
         />
@@ -175,6 +236,15 @@ export default function MessageComposer({
           <FiSend className="w-4 h-4" />
         </button>
       </div>
+
+      {editorFiles?.length > 0 && (
+        <ImageEditorModal
+          files={editorFiles}
+          initialCaption={text}
+          onCancel={() => { setEditorFiles(null); inputRef.current?.focus(); }}
+          onSend={sendFromEditor}
+        />
+      )}
     </div>
   );
 }

@@ -159,13 +159,15 @@ export default function BroadcastComposer({ channel, attendanceIds, onClose, onS
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
-          <p className="text-[10px] text-gray-500">
+        {/* Stacked and centred on a phone — side by side the hint squeezed the
+            two buttons into the corner. */}
+        <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
+          <p className="text-[10px] text-gray-500 text-center sm:text-left">
             {isEmail
               ? "Sent from the school's email address."
               : "Opens a WhatsApp chat per parent with the message ready to send."}
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto justify-center">
             <button type="button" onClick={onClose} disabled={sending}
               className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
               Cancel

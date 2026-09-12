@@ -287,15 +287,28 @@ export function ChatProvider({ children }) {
   const sendMessage = useCallback(async ({ body, attachments = [], replyTo }) => {
     if (!activeId) return;
     const tempId = `tmp-${Date.now()}`;
+    /* The bubble shows the image straight away, from a local object URL, with
+     * an upload bar over it — otherwise a 4 MB photo is a blank bubble for a
+     * few seconds and the sender taps Send again. The URLs are released once
+     * the server copy replaces the optimistic one. */
+    const localAttachments = attachments.map((f, i) => ({
+      id: `${tempId}-${i}`,
+      kind: f.type?.startsWith('image/') ? 'image' : 'file',
+      mime_type: f.type,
+      original_name: f.name,
+      size: f.size,
+      _local_url: URL.createObjectURL(f),
+    }));
     const optimistic = {
       id: tempId, conversation_id: activeId, sender_id: myId, body,
       type: attachments.length ? (attachments[0].type?.startsWith('image/') ? 'image' : 'file') : 'text',
-      created_at: new Date().toISOString(), _pending: true,
+      created_at: new Date().toISOString(), _pending: true, _progress: attachments.length ? 0 : null,
       reply_to_id: replyTo?.id || null,
       reply_to: replyTo ? { id: replyTo.id, sender_id: replyTo.sender_id, body: replyTo.body, type: replyTo.type } : null,
-      attachments: [],
+      attachments: localAttachments,
     };
     setMessages((prev) => [...prev, optimistic]);
+    const releaseLocal = () => localAttachments.forEach((a) => URL.revokeObjectURL(a._local_url));
 
     try {
       let payload;
@@ -308,12 +321,21 @@ export function ChatProvider({ children }) {
         payload = { body };
         if (replyTo?.id) payload.reply_to_id = replyTo.id;
       }
-      const res = await chatApi.sendMessage(activeId, payload);
+      const onProgress = attachments.length
+        ? (ev) => {
+            const pct = ev.total ? Math.round((ev.loaded / ev.total) * 100) : null;
+            setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, _progress: pct } : m)));
+          }
+        : undefined;
+      const res = await chatApi.sendMessage(activeId, payload, onProgress);
       const saved = res.data?.data;
       setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
       setConversations((prev) => bumpConversation(prev, activeId, saved, 0));
+      releaseLocal();
     } catch (e) {
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, _failed: true, _pending: false } : m)));
+      // Keep the local preview on a failed send so the sender can see what
+      // did not go through.
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, _failed: true, _pending: false, _progress: null } : m)));
       throw e;
     }
   }, [activeId, myId]);

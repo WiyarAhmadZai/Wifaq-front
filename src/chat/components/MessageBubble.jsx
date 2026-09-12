@@ -19,21 +19,27 @@ function Ticks({ message }) {
   );
 }
 
-function AttachmentView({ att, outgoing, onPreview }) {
-  const url = fileUrl(att);
+function AttachmentView({ att, outgoing, onPreview, progress }) {
+  // A message still uploading shows the file from the sender's own disk.
+  const url = att._local_url || fileUrl(att);
   const isImage = att.kind === 'image' || (att.mime_type || '').startsWith('image/');
 
   if (isImage) {
     // Thumbnail in the bubble; clicking opens the in-app lightbox modal
     // (never a new browser tab).
     return (
-      <button type="button" onClick={() => onPreview(url, att.original_name)} className="block mt-1 group/img">
+      <button type="button" onClick={() => onPreview(url, att.original_name)} className="relative block mt-1 group/img">
         <img
           src={url}
           alt={att.original_name}
           loading="lazy"
-          className="rounded-lg max-h-60 max-w-full object-cover cursor-zoom-in transition-transform group-hover/img:brightness-95"
+          className={`rounded-lg max-h-60 max-w-full object-cover cursor-zoom-in transition-transform group-hover/img:brightness-95 ${progress != null ? 'opacity-70' : ''}`}
         />
+        {progress != null && (
+          <span className="absolute inset-x-2 bottom-2 h-1.5 rounded-full bg-black/30 overflow-hidden">
+            <span className="block h-full bg-white transition-all" style={{ width: `${progress}%` }} />
+          </span>
+        )}
       </button>
     );
   }
@@ -106,6 +112,7 @@ export default function MessageBubble({ message, outgoing, onReply, onForward, o
                   key={att.id}
                   att={att}
                   outgoing={outgoing}
+                  progress={message._pending ? message._progress : null}
                   onPreview={(url, name) => setPreview({ url, name })}
                 />
               ))}

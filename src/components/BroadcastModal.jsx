@@ -204,7 +204,7 @@ export default function BroadcastModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-[999] flex items-center justify-center p-4"
       role="dialog" aria-modal="true" aria-labelledby="broadcast-heading"
       style={{
         background: open ? "rgba(5,37,40,.55)" : "rgba(5,37,40,0)",
@@ -214,11 +214,14 @@ export default function BroadcastModal() {
       onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
     >
       <div
-        className="w-full sm:max-w-lg bg-white shadow-2xl overflow-hidden rounded-t-2xl sm:rounded-2xl"
+        className="w-full sm:max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden bg-white shadow-2xl rounded-2xl"
         style={{
           border: `1px solid ${BORDER}`,
-          // Slides up on a phone, scales in on a desktop — each matches how a
-          // sheet and a dialog are expected to behave on that form factor.
+          // Centred on every screen. It used to slide up as a bottom sheet on
+          // a phone, which read as a notification bar rather than the day's
+          // announcement — and anchored it under the thumb, where it was
+          // dismissed by reflex. The dialog now arrives the same way everywhere;
+          // max-h + scroll keeps a long message reachable on a short screen.
           transform: open && !closing ? "translateY(0) scale(1)" : "translateY(24px) scale(.97)",
           opacity: open && !closing ? 1 : 0,
           transition: "transform 260ms cubic-bezier(.22,1,.36,1), opacity 200ms ease",
@@ -322,7 +325,7 @@ export default function BroadcastModal() {
           </div>
         </div>
 
-        <div dir="ltr" className="px-4 py-3 flex items-center gap-2 flex-wrap"
+        <div dir="ltr" className="px-4 py-3 flex items-center gap-2 flex-wrap justify-center sm:justify-start"
           style={{ borderTop: `1px solid ${BORDER}`, background: "#FAFCFC" }}>
           {msg.link_url && (
             <button onClick={followLink}
@@ -338,7 +341,7 @@ export default function BroadcastModal() {
             style={{ borderColor: BORDER, color: "#5A7A7E" }}>
             Got it
           </button>
-          <span className="ml-auto text-[10px] text-gray-400">Shown once a day</span>
+          <span className="w-full text-center sm:w-auto sm:text-left sm:ml-auto text-[10px] text-gray-400">Shown once a day</span>
         </div>
       </div>
     </div>

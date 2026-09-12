@@ -38,6 +38,8 @@ export default function StaffTaskForm() {
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // "Also send an email" — the assigner's call, per task. Ticked by default.
+  const [emailToo, setEmailToo] = useState(true);
 
   useEffect(() => {
     fetchStaffList();
@@ -169,7 +171,7 @@ export default function StaffTaskForm() {
         Swal.fire({ icon: "success", title: "Task Updated!", timer: 1500, showConfirmButton: false });
       } else {
         const { staff_id: _ignored, ...rest } = form;
-        const submitData = { ...rest, staff_ids: selectedStaffList.map(s => s.id) };
+        const submitData = { ...rest, staff_ids: selectedStaffList.map(s => s.id), notify_by_email: emailToo };
         if (!submitData.deadline) delete submitData.deadline;
         await post("/hr/staff-tasks", submitData);
         Swal.fire({
@@ -371,6 +373,17 @@ export default function StaffTaskForm() {
           <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="Any additional notes..."
             className={inp} />
         </div>
+
+        {/* Email as well as the bell — only when assigning; an edit notifies nobody. */}
+        {!isEdit && (
+          <div className="p-3 bg-gray-50 rounded-xl">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">Also email the assigned staff a link to this task</span>
+            </label>
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="flex justify-end gap-3 pt-2">

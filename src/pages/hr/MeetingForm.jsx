@@ -47,6 +47,9 @@ export default function MeetingForm() {
 
   const [participants, setParticipants] = useState([]);
   const [agendaItems, setAgendaItems] = useState([{ ...emptyAgenda }]);
+  // "Also send an email" to the invitees. The organizer's call, per meeting;
+  // a draft emails nobody whatever this says.
+  const [emailToo, setEmailToo] = useState(true);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [departments, setDepartments] = useState([]);
@@ -338,6 +341,7 @@ export default function MeetingForm() {
     return {
       ...rest,
       status,
+      notify_by_email: emailToo,
       start_time: haveStart ? `${form.meeting_date} ${form.start_time}:00` : null,
       end_time:   haveEnd   ? `${form.meeting_date} ${form.end_time}:00`   : null,
       reminder_minutes_before: reminderMinutes,
@@ -835,6 +839,11 @@ export default function MeetingForm() {
             {(!isEdit || isDraft) && (
               <DraftStatus isDraft={isDraft} savedAt={savedAt} saving={savingDraft} noun="meeting" />
             )}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">Also email the participants a link to this meeting</span>
+            </label>
           </div>
 
           <div className="flex items-center gap-2">

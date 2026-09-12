@@ -51,8 +51,27 @@ export default function EventShow() {
   }, []);
 
   const changeStatus = async (newStatus) => {
+    // Cancelling is the one status change everyone involved is told about,
+    // so it is the one worth confirming — and worth offering the email for.
+    let notifyByEmail = false;
+    if (newStatus === "cancelled") {
+      const r = await Swal.fire({
+        title: "Cancel this event?",
+        text: "Everyone involved will be notified.",
+        icon: "warning",
+        input: "checkbox",
+        inputValue: 1,
+        inputPlaceholder: "Also email everyone involved",
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        confirmButtonText: "Cancel event",
+        cancelButtonText: "Keep it",
+      });
+      if (!r.isConfirmed) { setShowStatusMenu(false); return; }
+      notifyByEmail = Boolean(r.value);
+    }
     try {
-      await put(`/events/${id}`, { status: newStatus });
+      await put(`/events/${id}`, { status: newStatus, notify_by_email: notifyByEmail });
       setData((p) => ({ ...p, status: newStatus }));
       setShowStatusMenu(false);
       Swal.fire({ icon: "success", title: `Status changed to ${newStatus}`, timer: 1500, showConfirmButton: false });

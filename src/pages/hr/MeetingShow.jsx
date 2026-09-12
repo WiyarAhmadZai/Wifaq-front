@@ -238,7 +238,7 @@ export default function MeetingShow() {
   // Assign task modal state
   const [showAssignTask, setShowAssignTask] = useState(false);
   const [staffList, setStaffList] = useState([]);
-  const [taskForm, setTaskForm] = useState({ staff_id: "", task: "", task_type: "normal", start_date: "", deadline: "", notes: "" });
+  const [taskForm, setTaskForm] = useState({ staff_id: "", task: "", task_type: "normal", start_date: "", deadline: "", notes: "", notify_by_email: true });
   const [assigningTask, setAssigningTask] = useState(false);
 
   // Backend-driven gate flags. Populated from the meeting show response so
@@ -412,6 +412,7 @@ export default function MeetingShow() {
       start_date: new Date().toISOString().split("T")[0],
       deadline: "",
       notes: `Assigned during meeting: ${data?.title || ""}`,
+      notify_by_email: true,
     });
     setShowAssignTask(true);
   };
@@ -1139,6 +1140,11 @@ export default function MeetingShow() {
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Notes</label>
                 <textarea value={taskForm.notes} onChange={(e) => setTaskForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional context…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white resize-none" />
               </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={taskForm.notify_by_email} onChange={(e) => setTaskForm((p) => ({ ...p, notify_by_email: e.target.checked }))}
+                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                <span className="text-xs text-gray-700">Also email the assigned staff a link to this task</span>
+              </label>
             </div>
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={() => setShowAssignTask(false)} className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>

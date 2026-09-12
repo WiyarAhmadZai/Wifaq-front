@@ -33,6 +33,8 @@ export default function EventForm() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  // "Also send an email" to everyone involved. Per event; a draft emails nobody.
+  const [emailToo, setEmailToo] = useState(true);
 
   /* ── Nothing typed here gets thrown away ────────────────────────────────
    *
@@ -57,6 +59,7 @@ export default function EventForm() {
   const buildPayload = (status) => ({
     ...form,
     status,
+    notify_by_email: emailToo,
     roles: roles.map(({ userName, ...r }) => r),
     requirements: requirements.filter((r) => r.description.trim()),
   });
@@ -517,6 +520,11 @@ export default function EventForm() {
             {(!isEdit || isDraft) && (
               <DraftStatus isDraft={isDraft} savedAt={savedAt} saving={savingDraft} noun="event" />
             )}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">Also email everyone involved a link to this event</span>
+            </label>
           </div>
 
           <div className="flex items-center gap-2">

@@ -74,6 +74,12 @@ export default function GradeSubjects() {
 
   // Fast "grid" data-entry mode (subjects × classes matrix)
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+  // Whether the selected grade is a PRIMARY one (KG / Prep / Grade 1…), where
+  // the class supervisor teaches every subject. The server writes the
+  // supervisor onto every (class, subject) row of such a grade, so what comes
+  // back is already the default. Elsewhere each subject has its own teacher
+  // and the supervisor is only the homeroom — never offered as a default.
+  const [isPrimaryGrade, setIsPrimaryGrade] = useState(false);
   const [gridClasses, setGridClasses] = useState([]);
   const [gridSubjects, setGridSubjects] = useState([]);
   const [gridAssign, setGridAssign] = useState({}); // "subjectId-classId" -> teacher_id
@@ -137,7 +143,8 @@ export default function GradeSubjects() {
     try {
       const __c = peekCache(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
       if (__c) {
-        const seeded = withSupervisorDefaults(__c?.classes, __c?.subjects, __c?.assignments);
+        const seeded = withSupervisorDefaults(__c?.classes, __c?.subjects, __c?.assignments, __c?.is_primary);
+        setIsPrimaryGrade(!!__c?.is_primary);
         setGridClasses(__c?.classes || []);
         setGridSubjects(__c?.subjects || []);
         setGridAssign(seeded.assign);
@@ -146,7 +153,8 @@ export default function GradeSubjects() {
         setLoadingGrid(false);
       }
       const res = await get(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
-      const seeded = withSupervisorDefaults(res.data?.classes, res.data?.subjects, res.data?.assignments);
+      const seeded = withSupervisorDefaults(res.data?.classes, res.data?.subjects, res.data?.assignments, res.data?.is_primary);
+      setIsPrimaryGrade(!!res.data?.is_primary);
       setGridClasses(res.data?.classes || []);
       setGridSubjects(res.data?.subjects || []);
       setGridAssign(seeded.assign);
@@ -196,16 +204,20 @@ export default function GradeSubjects() {
   };
 
   /**
-   * Fill the untouched cells of the grid with each class's supervisor.
+   * Fill the untouched cells of the grid with each class's supervisor — in a
+   * PRIMARY grade only. There the supervisor teaches every subject and the
+   * server has normally written that onto the rows already; this covers a
+   * class that has no row yet (a supervisor picked a moment ago). In any other
+   * grade the supervisor is just the homeroom, each subject has its own
+   * teacher, and the cells are left exactly as the server sent them.
    *
-   * "Untouched" is the key: a (subject, class) pair the server sent back is
-   * left alone, even when its teacher is null — somebody cleared that one on
-   * purpose. Only pairs with no row at all get the suggestion. Returns the map
-   * plus whether anything was suggested, so the Save button can light up.
+   * "Untouched" is the key: a pair the server sent back is left alone. Returns
+   * the map plus whether anything was suggested, so Save can light up.
    */
-  const withSupervisorDefaults = (classes, subjects, assignments) => {
+  const withSupervisorDefaults = (classes, subjects, assignments, isPrimary) => {
     const next = { ...(assignments || {}) };
     let suggested = false;
+    if (!isPrimary) return { assign: next, suggested };
     (subjects || []).forEach(s => (classes || []).forEach(c => {
       const key = `${s.subject_id}-${c.id}`;
       if (!c.supervisor_id) return;
@@ -295,10 +307,13 @@ export default function GradeSubjects() {
     setLoadingClasses(true);
     try {
       const res = await get(`/class-management/grade-subjects/class-assignments?grade_id=${selectedGrade}&subject_id=${item.subject_id}&academic_term_id=${selectedTerm}`);
-      // Same suggestion as the grid: a class nobody has assigned for this
-      // subject opens showing its supervisor, ready to be changed or cleared.
+      const primary = !!res.data?.is_primary;
+      setIsPrimaryGrade(primary);
+      // Primary grade only: a class with no row yet opens on its supervisor,
+      // who teaches every subject there. In any other grade the rows are
+      // shown exactly as saved — the supervisor is not a subject teacher.
       setClassRows((res.data?.data || []).map(r => (
-        !r.has_assignment && r.supervisor_id
+        primary && !r.has_assignment && r.supervisor_id
           ? { ...r, teacher_id: r.supervisor_id, teacher_name: r.supervisor_name }
           : r
       )));
@@ -542,7 +557,9 @@ export default function GradeSubjects() {
                       <p className="text-[11px] text-teal-800">
                         Pick a teacher in each cell, or use <strong>“set all classes”</strong> under a subject to fill its whole row. Then save once.
                       </p>
-                      <p className="text-[10px] text-teal-700/80 mt-0.5">Classes with no teacher yet start with the class supervisor — change any of them, then save.</p>
+                      <p className="text-[10px] text-teal-700/80 mt-0.5">{isPrimaryGrade
+                        ? "Primary grade — the class supervisor teaches every subject, so each class is set to its supervisor. Change any of them, then save."
+                        : "Each subject has its own teacher here — pick one per class, then save."}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {gridDirty && <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>}
@@ -679,7 +696,9 @@ export default function GradeSubjects() {
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <div>
                                     <p className="text-xs font-bold text-gray-700">Assign a teacher for {item.subject_name} in each class</p>
-                                    <p className="text-[10px] text-gray-500 mt-0.5">Classes with no teacher yet start with the class supervisor — change any of them, then save.</p>
+                                    <p className="text-[10px] text-gray-500 mt-0.5">{isPrimaryGrade
+                                      ? "Primary grade — the class supervisor teaches every subject, so each class is set to its supervisor. Change any of them, then save."
+                                      : "Each subject has its own teacher here — pick one per class, then save."}</p>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <span className="text-[10px] text-gray-400">Set all to:</span>

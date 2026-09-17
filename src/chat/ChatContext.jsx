@@ -336,7 +336,7 @@ export function ChatProvider({ children }) {
     setActiveId((cur) => (cur === id ? null : cur));
   }, []);
 
-  const sendMessage = useCallback(async ({ body, attachments = [], replyTo }) => {
+  const sendMessage = useCallback(async ({ body, attachments = [], replyTo, notifyByEmail = false }) => {
     if (!activeId) return;
     const tempId = `tmp-${Date.now()}`;
     /* The bubble shows the image straight away, from a local object URL, with
@@ -368,10 +368,12 @@ export function ChatProvider({ children }) {
         payload = new FormData();
         if (body) payload.append('body', body);
         if (replyTo?.id) payload.append('reply_to_id', replyTo.id);
+        if (notifyByEmail) payload.append('notify_by_email', '1');
         attachments.forEach((f) => payload.append('attachments[]', f));
       } else {
         payload = { body };
         if (replyTo?.id) payload.reply_to_id = replyTo.id;
+        if (notifyByEmail) payload.notify_by_email = true;
       }
       const onProgress = attachments.length
         ? (ev) => {
@@ -443,26 +445,49 @@ export function ChatProvider({ children }) {
     if (!isAuthenticated || !myId) return;
 
     let stopped = false;
+    /* One poll at a time, and slower when the server is slow.
+     *
+     * A fixed 5-second interval with no guard meant that on a server taking
+     * longer than that to answer (the single-threaded dev server, or a busy
+     * host) every tick started a NEW request while the previous ones were
+     * still queued. They piled up until each hit the 15-second timeout, the
+     * whole app's requests sat behind them, clicks stopped responding, and
+     * after a long enough session the machine ran out of sockets. Now a tick
+     * is skipped while one is in flight, and after a slow or failed round
+     * the wait doubles (up to 30 s) — dropping back to 5 s as soon as a round
+     * completes quickly again. */
+    let inFlight = false;
+    let delay = 5000;
+    const BASE = 5000;
+    const MAX = 30000;
+    let timer = null;
 
     const tick = async () => {
       // Re-checked every tick: if Reverb comes up mid-session the polling
       // goes quiet on its own, and if it drops we resume without a reload.
-      if (stopped || isRealtimeLive() || document.hidden) return;
+      if (stopped) return;
+      // Nothing to do this round — but keep the clock running, so polling
+      // resumes by itself when the socket drops or the tab comes back.
+      if (isRealtimeLive() || document.hidden || inFlight) { schedule(); return; }
+      inFlight = true;
+      const started = Date.now();
+      let ok = true;
 
       try {
         const res = await chatApi.listConversations();
         if (stopped) return;
         setConversations(res.data?.data || []);
         if (typeof res.data?.unread_total === 'number') setUnreadTotal(res.data.unread_total);
-      } catch { /* offline or 401 — the next tick retries */ }
+      } catch { ok = false; /* offline or 401 — the next tick retries */ }
 
       const id = activeIdRef.current;
-      if (!id || !openRef.current) return;
+      if (!id || !openRef.current) { settle(started, ok); return; }
 
       try {
         const res = await chatApi.getMessages(id, { limit: 30 });
-        if (stopped || activeIdRef.current !== id) return;
+        if (stopped || activeIdRef.current !== id) { settle(started, ok); return; }
         const fresh = (res.data?.data || []).slice().reverse();
+        let appended = false;
 
         setMessages((prev) => {
           // Merge rather than replace: replacing would drop an optimistic
@@ -484,23 +509,40 @@ export function ChatProvider({ children }) {
             });
             return changed ? merged : prev;
           }
+          appended = true;
           return [...prev, ...added];
         });
 
-        // We are looking at the thread, so anything new is read.
-        chatApi.markRead(id).catch(() => {});
-      } catch { /* ignore */ }
+        // We are looking at the thread, so anything new is read. Only when
+        // something new arrived — a read receipt every 5 s for a thread that
+        // has not moved was a third request per tick for nothing.
+        if (appended) chatApi.markRead(id).catch(() => {});
+      } catch { ok = false; }
+      settle(started, ok);
     };
 
-    const conversationsTimer = setInterval(tick, 5000);
+    // Decide how long to wait before the next round: back off after a slow
+    // or failed one, return to the base rate after a quick one.
+    const settle = (started, ok) => {
+      inFlight = false;
+      const took = Date.now() - started;
+      delay = (!ok || took > BASE) ? Math.min(MAX, delay * 2) : BASE;
+      schedule();
+    };
+    const schedule = () => {
+      if (stopped) return;
+      clearTimeout(timer);
+      timer = setTimeout(tick, delay);
+    };
+
     // Catch up immediately when the tab comes back rather than waiting a tick.
-    const onVisible = () => { if (!document.hidden) tick(); };
+    const onVisible = () => { if (!document.hidden) { delay = BASE; tick(); } };
     document.addEventListener('visibilitychange', onVisible);
     tick();
 
     return () => {
       stopped = true;
-      clearInterval(conversationsTimer);
+      clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [isAuthenticated, myId]);

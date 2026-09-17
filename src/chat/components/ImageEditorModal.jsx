@@ -50,7 +50,7 @@ function drawStrokes(ctx, strokes, scale = 1) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const s of strokes) {
-    if (s.points.length === 0) continue;
+    if (!s?.points?.length) continue;
     ctx.strokeStyle = s.color;
     ctx.lineWidth = s.size * scale;
     ctx.beginPath();
@@ -95,16 +95,22 @@ export default function ImageEditorModal({ files, onCancel, onSend, initialCapti
   // Esc closes; Ctrl+Z undoes; the page behind must not scroll. Bound once —
   // `undo` is reached through a ref so the listener never goes stale.
   const undoRef = useRef(() => {});
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Escape') cancelRef.current();
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undoRef.current(); }
     };
     document.addEventListener('keydown', onKey);
+    // Bound once for the life of the modal. It used to re-run on every
+    // parent render (onCancel is a fresh function each time), and the second
+    // run captured "hidden" as the value to restore — so closing the editor
+    // left the page unable to scroll.
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [onCancel]);
+  }, []);
 
   const update = (patch) => setItems((prev) => prev.map((p, i) => (i === active ? { ...p, ...patch } : p)));
 
@@ -134,7 +140,11 @@ export default function ImageEditorModal({ files, onCancel, onSend, initialCapti
     ctx.translate(-geo.view.x, -geo.view.y);
     drawRotated(ctx, item.img, item.rotation, geo.rw, geo.rh);
     drawStrokes(ctx, item.strokes);
-    if (drawing.current) drawStrokes(ctx, [drawing.current]);
+    // `drawing.current` is a pen stroke ({ points }) OR a crop drag
+    // ({ origin }). Only the stroke can be painted; handing the crop drag
+    // to drawStrokes read `.points` on it and threw inside this effect —
+    // which unmounts the whole app to a white page.
+    if (drawing.current?.points) drawStrokes(ctx, [drawing.current]);
     ctx.restore();
 
     // Crop-in-progress: dim everything outside the dragged rectangle.

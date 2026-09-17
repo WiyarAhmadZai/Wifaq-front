@@ -19,6 +19,26 @@ function Ticks({ message }) {
   );
 }
 
+/**
+ * Turn any URL in a message into a link. Needed for shared locations, which
+ * travel as a maps URL so the receiver can open them in their maps app.
+ */
+function linkify(text, outgoing) {
+  const parts = String(text).split(/(https?:\/\/[^\s]+)/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => (/^https?:\/\//.test(part) ? (
+    <a
+      key={i}
+      href={part}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`underline break-all ${outgoing ? 'text-teal-50' : 'text-teal-700'}`}
+    >
+      {part.startsWith('https://maps.google.com/') ? 'Open in Maps' : part}
+    </a>
+  ) : part));
+}
+
 function AttachmentView({ att, outgoing, onPreview, progress }) {
   // A message still uploading shows the file from the sender's own disk.
   const url = att._local_url || fileUrl(att);
@@ -43,6 +63,33 @@ function AttachmentView({ att, outgoing, onPreview, progress }) {
       </button>
     );
   }
+  const mime = att.mime_type || '';
+  const isAudio = att.kind === 'audio' || mime.startsWith('audio/');
+  const isVideo = att.kind === 'video' || mime.startsWith('video/');
+
+  // Voice notes and audio files play in the bubble, WhatsApp-style.
+  if (isAudio) {
+    return (
+      <div className={`mt-1 p-2 rounded-lg ${outgoing ? 'bg-teal-500/40' : 'bg-gray-100'}`}>
+        <audio controls preload="metadata" src={url} className="w-64 max-w-full h-10" />
+        <div className={`mt-1 text-[10px] truncate ${outgoing ? 'text-teal-50' : 'text-gray-400'}`}>
+          {att.original_name} · {formatSize(att.size)}
+        </div>
+      </div>
+    );
+  }
+
+  if (isVideo) {
+    return (
+      <div className="mt-1">
+        <video controls preload="metadata" src={url} className="rounded-lg max-h-72 max-w-full bg-black" />
+        <div className={`mt-1 text-[10px] truncate ${outgoing ? 'text-teal-50' : 'text-gray-400'}`}>
+          {att.original_name} · {formatSize(att.size)}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <a
       href={url}
@@ -121,7 +168,7 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                   onPreview={(url, name) => setPreview({ url, name })}
                 />
               ))}
-              {message.body && <div className={message.attachments?.length ? 'mt-1' : ''}>{message.body}</div>}
+              {message.body && <div className={message.attachments?.length ? 'mt-1' : ''}>{linkify(message.body, outgoing)}</div>}
             </>
           )}
 

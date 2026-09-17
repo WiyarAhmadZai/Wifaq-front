@@ -28,7 +28,7 @@ export default function AdminUserShow() {
       setLoading(true);
       try {
         const __u = peekCache(`/access/users/${id}`);
-        const __r = peekCache("/access/roles?per_page=100");
+        const __r = peekCache("/access/roles?per_page=100&with_permissions=1");
         const __p = peekCache("/access/permissions");
         if (__u?.data) {
           const cd = __u.data;
@@ -41,7 +41,7 @@ export default function AdminUserShow() {
         if (__p) setAllPermissions(__p?.data || []);
         const [u, r, p] = await Promise.all([
           accessApi.showUser(id),
-          accessApi.listRoles({ per_page: 100 }),
+          accessApi.listRoles({ per_page: 100, with_permissions: 1 }),
           accessApi.listPermissions(),
         ]);
         const data = u.data?.data;
@@ -178,6 +178,24 @@ export default function AdminUserShow() {
                     const next = new Set(selectedRoles);
                     if (checked) next.delete(r.name); else next.add(r.name);
                     setSelectedRoles(next);
+
+                    // Unchecking a role takes its permissions with it — unless
+                    // another role that is still ticked also grants them. The
+                    // picker was seeded with the full effective set, so without
+                    // this the role's grants would stay ticked and be re-saved
+                    // as direct permissions, and removing the role changed nothing.
+                    if (checked) {
+                      const stillCovered = new Set(
+                        roles
+                          .filter((x) => next.has(x.name))
+                          .flatMap((x) => (x.permissions || []).map((p) => p.name)),
+                      );
+                      setDirectPermissions((prev) => {
+                        const out = new Set(prev);
+                        (r.permissions || []).forEach((p) => { if (!stillCovered.has(p.name)) out.delete(p.name); });
+                        return out;
+                      });
+                    }
                   }}
                   disabled={!canAssign}
                   className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"

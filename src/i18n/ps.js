@@ -5959,4 +5959,6 @@ export default {
   "Open in Maps": "په نقشه کې پرانیزئ",
   "Location access was denied.": "موقعیت ته لاسرسی رد شو.",
   "Location is not supported in this browser.": "موقعیت په دې براوزر کې نه ملاتړ کېږي.",
+  "(You)": "(تاسو)",
+  "Message yourself": "ځان ته پیغام ولېږئ",
 };

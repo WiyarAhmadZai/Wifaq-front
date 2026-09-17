@@ -5959,4 +5959,6 @@ export default {
   "Open in Maps": "در نقشه باز کنید",
   "Location access was denied.": "دسترسی به موقعیت رد شد.",
   "Location is not supported in this browser.": "موقعیت در این مرورگر پشتیبانی نمی‌شود.",
+  "(You)": "(شما)",
+  "Message yourself": "به خودتان پیام بفرستید",
 };

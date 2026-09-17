@@ -5960,4 +5960,6 @@ export default {
   "Open in Maps": "Open in Maps",
   "Location access was denied.": "Location access was denied.",
   "Location is not supported in this browser.": "Location is not supported in this browser.",
+  "(You)": "(You)",
+  "Message yourself": "Message yourself",
 };

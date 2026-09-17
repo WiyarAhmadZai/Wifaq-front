@@ -9,7 +9,7 @@ import apiCache, {
 
 // Create axios instance with base URL and timeout
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:7777/api',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
@@ -148,7 +148,7 @@ api.interceptors.response.use(
 export default api;
 
 // Export API base URL for constructing storage URLs
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7777';
 
 // Re-export cache controls so pages/AuthContext can clear or peek the cache.
 export { getEntry as getCachedEntry, invalidate as invalidateCache } from './cache';

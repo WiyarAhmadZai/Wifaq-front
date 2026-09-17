@@ -625,7 +625,17 @@ export default function CrudPage({
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Current Status</label>
                 <div className="px-3 py-2 rounded-xl bg-teal-50 text-teal-700 text-sm font-medium capitalize">
-                  {selectedItem?.[statusField]?.replace(/[-_]/g, " ")}
+                  {/* Prefer the option's own label — it is what the user chose
+                      from. The raw value is not always a string: a boolean
+                      status (is_active) arrives as true/false, and calling
+                      .replace on it crashed the whole page. */}
+                  {(() => {
+                    const raw = selectedItem?.[statusField];
+                    const asOption = typeof raw === "boolean" ? (raw ? "1" : "0") : raw;
+                    const match = statusOptions.find((o) => String(o.value) === String(asOption ?? ""));
+                    if (match) return match.label;
+                    return String(raw ?? "").replace(/[-_]/g, " ");
+                  })()}
                 </div>
               </div>
               <div>

@@ -63,7 +63,7 @@ function AttachmentView({ att, outgoing, onPreview, progress }) {
   );
 }
 
-export default function MessageBubble({ message, outgoing, onReply, onForward, onEdit, onDelete }) {
+export default function MessageBubble({ message, outgoing, showSender = false, onReply, onForward, onEdit, onDelete }) {
   const [menu, setMenu] = useState(false);
   const [preview, setPreview] = useState(null); // { url, name } for the lightbox
   const ref = useRef(null);
@@ -87,6 +87,11 @@ export default function MessageBubble({ message, outgoing, onReply, onForward, o
               : 'bg-white text-gray-800 rounded-bl-md border border-gray-100'
           } ${message._failed ? 'opacity-60 ring-1 ring-rose-300' : ''}`}
         >
+          {/* In a group, who said it — every incoming bubble is signed. */}
+          {showSender && !outgoing && !deleted && message.sender?.name && (
+            <div className="text-[11px] font-bold text-teal-700 mb-0.5 truncate">{message.sender.name}</div>
+          )}
+
           {/* Reply preview */}
           {message.reply_to && !deleted && (
             <div className={`mb-1 pl-2 border-l-2 rounded ${outgoing ? 'border-teal-200 bg-teal-500/30' : 'border-teal-400 bg-gray-50'} px-2 py-1`}>

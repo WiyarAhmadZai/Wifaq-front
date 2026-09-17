@@ -171,7 +171,15 @@ export default function StudentProfile() {
       <div className="px-4 -mt-12 mx-auto">
         {/* Identity card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 flex-wrap">
-          <div className="w-20 h-20 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center text-2xl font-black shrink-0">{initials || "?"}</div>
+          {s.photo_url ? (
+            <img src={s.photo_url} alt={s.full_name || "Student"}
+              className="w-20 h-20 rounded-2xl object-cover border border-teal-100 shrink-0"
+              // A photo that will not load must not leave an empty box where a
+              // face should be — drop back to the initials underneath.
+              onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }} />
+          ) : null}
+          <div className="w-20 h-20 rounded-2xl bg-teal-100 text-teal-700 items-center justify-center text-2xl font-black shrink-0"
+            style={{ display: s.photo_url ? "none" : "flex" }}>{initials || "?"}</div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-gray-800">{s.full_name}</h1>

@@ -6,7 +6,11 @@ import { useChat } from '../ChatContext';
 // when `unreadTotal` changes and re-runs the one-shot `bounce` keyframe), so no
 // effect/state is needed. Clicking opens the drawer; the user stays on the page.
 export default function MessagesButton() {
-  const { unreadTotal, openDrawer } = useChat();
+  const { unreadTotal, openDrawer, canUseChat } = useChat();
+
+  // A staff channel: an account without chat access gets no button at all,
+  // not a button that opens an empty drawer.
+  if (!canUseChat) return null;
 
   return (
     <button

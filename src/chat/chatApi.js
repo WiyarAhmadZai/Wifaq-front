@@ -13,8 +13,22 @@ function socketHeader(extra = {}) {
 export const chatApi = {
   // ── Conversations ──────────────────────────────────────────────────────────
   listConversations: (params = {}) => api.get('/chat/conversations', { params }),
-  startConversation: (userId) => api.post('/chat/conversations', { user_id: userId }),
+  // Direct thread with one person under a subject. Two colleagues may hold
+  // several threads; the subject is what tells them apart. No subject reopens
+  // the pair's untitled thread.
+  startConversation: (userId, subject) =>
+    api.post('/chat/conversations', { type: 'direct', user_id: userId, subject: subject || null }),
+  createGroup: ({ name, subject, description, memberIds }) =>
+    api.post('/chat/conversations', {
+      type: 'group', name, subject: subject || null, description: description || null, member_ids: memberIds,
+    }),
+  updateConversation: (id, data) => api.put(`/chat/conversations/${id}`, data),
   showConversation: (id) => api.get(`/chat/conversations/${id}`),
+  // Group membership.
+  addMembers: (id, userIds) => api.post(`/chat/conversations/${id}/members`, { user_ids: userIds }),
+  removeMember: (id, userId) => api.delete(`/chat/conversations/${id}/members/${userId}`),
+  setMemberRole: (id, userId, role) => api.put(`/chat/conversations/${id}/members/${userId}/role`, { role }),
+  leaveGroup: (id) => api.post(`/chat/conversations/${id}/leave`),
   getMessages: (id, params = {}) => api.get(`/chat/conversations/${id}/messages`, { params }),
   markRead: (id) => api.post(`/chat/conversations/${id}/read`, {}, { headers: socketHeader() }),
   markDelivered: (id) => api.post(`/chat/conversations/${id}/delivered`, {}, { headers: socketHeader() }),

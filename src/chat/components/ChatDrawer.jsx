@@ -8,7 +8,7 @@ import NewChatModal from './NewChatModal';
 // Slide-in messaging panel. Keeps the user on the current page — it overlays as
 // a right-hand drawer (WhatsApp-Web feel), split into conversation list + thread.
 export default function ChatDrawer() {
-  const { open, closeDrawer, activeId, closeConversation } = useChat();
+  const { open, closeDrawer, activeId, closeConversation, canUseChat } = useChat();
   const [showNew, setShowNew] = useState(false);
 
   // Ask for OS notification permission the first time the drawer opens.
@@ -25,6 +25,8 @@ export default function ChatDrawer() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, activeId, closeDrawer]);
+
+  if (!canUseChat) return null;
 
   return (
     <>

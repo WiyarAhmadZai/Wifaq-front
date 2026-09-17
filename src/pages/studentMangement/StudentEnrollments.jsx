@@ -4,6 +4,7 @@ import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
 import ListExportActions from "../../components/ListExportActions";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -321,9 +322,9 @@ export default function StudentEnrollments() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {(item.first_name || "?").charAt(0)}{(item.last_name || "").charAt(0)}
-                          </div>
+                          {/* Was initials-only, so a child with a registration
+                              photo on file still showed as two letters. */}
+                          <StudentAvatar student={item} size="md" rounded="rounded-xl" />
                           <p className="text-sm font-semibold text-gray-800">{item.first_name} {item.last_name}</p>
                         </div>
                       </td>

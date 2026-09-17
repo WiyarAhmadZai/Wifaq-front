@@ -27,9 +27,12 @@ export default function ForwardModal({ message, onClose }) {
     }
   };
 
+  // The backdrop does not close the dialog: a stray click outside, half-way
+  // through picking people, would throw the selection away. The ✕ is the only
+  // way out — the rule every form modal in the app follows.
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30 p-4">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800">Forward to…</h3>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><FiX /></button>

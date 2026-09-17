@@ -22,7 +22,10 @@ export default function ConversationList({ onNewChat }) {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return conversations;
-    return conversations.filter((c) => (c.title || '').toLowerCase().includes(term));
+    // Subject is searchable too — it is how two threads with the same person
+    // are told apart.
+    return conversations.filter((c) =>
+      (c.title || '').toLowerCase().includes(term) || (c.subject || '').toLowerCase().includes(term));
   }, [conversations, search]);
 
   return (
@@ -72,6 +75,7 @@ export default function ConversationList({ onNewChat }) {
           </div>
         ) : (
           filtered.map((c) => {
+            const isGroup = c.type === 'group';
             const other = c.counterpart;
             const online = other ? isOnline(other.id) : false;
             const active = c.id === activeId;
@@ -82,7 +86,9 @@ export default function ConversationList({ onNewChat }) {
                 onClick={() => openConversation(c)}
                 className={`group relative flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-50 transition-colors ${active ? 'bg-teal-50/70' : 'hover:bg-gray-50'}`}
               >
-                <Avatar user={other} size={48} online={online} showDot />
+                {isGroup
+                  ? <Avatar user={{ name: c.title }} size={48} linkable={false} group />
+                  : <Avatar user={other} size={48} online={online} showDot />}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-gray-800 truncate flex items-center gap-1.5">
@@ -108,9 +114,14 @@ export default function ConversationList({ onNewChat }) {
                       </span>
                     )}
                   </div>
-                  {other?.role && (
+                  {/* Subject on a direct thread; member count on a group. */}
+                  {c.subject ? (
+                    <span className="block text-[10px] font-semibold text-teal-700 truncate">{c.subject}</span>
+                  ) : isGroup ? (
+                    <span className="text-[10px] text-gray-400"><span>{c.member_count ?? ''}</span> <span>members</span></span>
+                  ) : other?.role ? (
                     <span className="text-[10px] text-gray-400">{roleLabel(other.role)}</span>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Row menu */}

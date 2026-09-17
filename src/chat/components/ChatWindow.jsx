@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { FiArrowLeft, FiMessageSquare } from 'react-icons/fi';
+import { FiArrowLeft, FiMessageSquare, FiInfo } from 'react-icons/fi';
 import { useChat } from '../ChatContext';
 import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
 import ForwardModal from './ForwardModal';
+import GroupInfoPanel from './GroupInfoPanel';
 import { formatDateDivider, lastSeenLabel, roleLabel, filesFromClipboard } from '../utils';
 
 export default function ChatWindow({ onBack }) {
@@ -18,12 +19,14 @@ export default function ChatWindow({ onBack }) {
   const [forwarding, setForwarding] = useState(null);
   const [dropActive, setDropActive] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState(null);
+  const [showInfo, setShowInfo] = useState(false);
 
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
   const prevHeightRef = useRef(0);
   const loadingOlderRef = useRef(false);
 
+  const isGroup = activeConversation?.type === 'group';
   const other = activeConversation?.counterpart;
   const online = other ? isOnline(other.id) : false;
   const typingNames = Object.values(typingPeers || {});
@@ -106,19 +109,34 @@ export default function ChatWindow({ onBack }) {
         <button onClick={onBack} className="md:hidden p-1 text-gray-500 hover:text-gray-700">
           <FiArrowLeft className="w-5 h-5" />
         </button>
-        <Avatar user={other} size={42} online={online} showDot />
-        <div className="flex-1 min-w-0">
+        {isGroup
+          ? <Avatar user={{ name: activeConversation.title }} size={42} linkable={false} group />
+          : <Avatar user={other} size={42} online={online} showDot />}
+        <button type="button" onClick={() => setShowInfo(true)} className="flex-1 min-w-0 text-left" title="Details">
           <div className="font-semibold text-gray-800 truncate">{activeConversation.title}</div>
+          {/* The subject is the thread's identity — it sits right under the
+            * name so two threads with the same person never look alike. */}
+          {activeConversation.subject && (
+            <div className="text-[11px] font-semibold text-teal-700 truncate">{activeConversation.subject}</div>
+          )}
           <div className="text-xs text-gray-400 truncate">
             {typingNames.length > 0 ? (
-              <span className="text-teal-600 font-medium">typing…</span>
+              <span className="text-teal-600 font-medium">
+                {isGroup ? `${typingNames.join(', ')} ` : ''}typing…
+              </span>
+            ) : isGroup ? (
+              <span><span>{activeConversation.member_count ?? (activeConversation.participants || []).length}</span> <span>members</span></span>
             ) : online ? (
               <span className="text-emerald-500">online</span>
             ) : (
               <span>{other?.role ? `${roleLabel(other.role)} · ` : ''}{lastSeenLabel(other?.last_seen_at)}</span>
             )}
           </div>
-        </div>
+        </button>
+        <button onClick={() => setShowInfo((v) => !v)} title="Details"
+          className="me-8 md:me-10 p-1.5 rounded-full text-gray-400 hover:text-teal-600 hover:bg-gray-100">
+          <FiInfo className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Messages */}
@@ -144,6 +162,7 @@ export default function ChatWindow({ onBack }) {
                     key={m.id}
                     message={m}
                     outgoing={m.sender_id === me?.id}
+                    showSender={isGroup}
                     onReply={setReplyTo}
                     onForward={setForwarding}
                     onEdit={setEditing}
@@ -179,6 +198,10 @@ export default function ChatWindow({ onBack }) {
 
       {forwarding && (
         <ForwardModal message={forwarding} onClose={() => setForwarding(null)} />
+      )}
+
+      {showInfo && (
+        <GroupInfoPanel conversation={activeConversation} onClose={() => setShowInfo(false)} />
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import { FiX, FiUser, FiBookOpen, FiTruck, FiUsers, FiDollarSign, FiAlertTriangle } from "react-icons/fi";
 import { get, put, post } from "../../api/axios";
+import { uploadFiles } from "../../api/drive";
 
 /**
  * All-in-one student editor. Opens as a modal (the user stays on the enrolled
@@ -40,6 +41,7 @@ const STUDENT_FIELDS = [
   "uniform_height", "uniform_shoulder", "uniform_sleeve", "tailor_note",
   "employee_parent_staff_id", "parental_consent",
   "transfer_case_status", "transfer_additional_notes",
+  "profile_image_id",
 ];
 
 const FAMILY_FIELDS = [
@@ -71,6 +73,31 @@ const TRANSFER_STATUS = [
   { v: "pending", l: "Pending" }, { v: "in_progress", l: "In progress" }, { v: "completed", l: "Completed" },
 ];
 
+const StudentAvatar = ({ student, size = "md" }) => {
+  const sizeClasses = {
+    sm: "w-8 h-8 text-xs",
+    md: "w-10 h-10 text-sm",
+    lg: "w-12 h-12 text-base",
+  };
+
+  if (student.profile_image?.url || student.profile_image?.external_url) {
+    return (
+      <img
+        src={student.profile_image.url || student.profile_image.external_url}
+        alt={`${student.first_name} ${student.last_name}`}
+        className={`${sizeClasses[size]} rounded-full object-cover border-2 border-teal-100`}
+      />
+    );
+  }
+
+  const initials = `${student.first_name?.[0] || ""}${student.last_name?.[0] || ""}`.toUpperCase();
+  return (
+    <div className={`${sizeClasses[size]} rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold border-2 border-teal-200`}>
+      {initials || "?"}
+    </div>
+  );
+};
+
 export default function StudentEditModal({ studentId, onClose, onSaved }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -88,6 +115,12 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   // Live fee preview returned by the server whenever a fee-driving field changes.
   const [feePreview, setFeePreview] = useState(null);
   const [feeBusy, setFeeBusy] = useState(false);
+  
+  // Profile image upload state
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
 
   // `onClose` / `onSaved` are inline arrows in the parent, so their identity
   // changes on every parent render (the auth context alone re-renders every
@@ -134,6 +167,11 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
         // Baseline for the "what changed?" diff done at save time.
         initialStudent.current = data;
         initialFamily.current = data.family || {};
+        
+        // Set profile image preview if exists
+        if (data.profile_image) {
+          setProfileImagePreview(data.profile_image.url || data.profile_image.external_url || null);
+        }
         setGrades(
           (gRes.data?.grades || []).map((g) => ({
             value: g.id,
@@ -182,6 +220,46 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
   }, [student.transport_route_id]);
 
   const setS = (key, value) => setStudent((prev) => ({ ...prev, [key]: value }));
+
+  const handleProfileImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      Swal.fire('Error', 'Please select an image file', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      Swal.fire('Error', 'Image size should be less than 5MB', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const response = await uploadFiles(null, [file], {}, { visibility: 'private' });
+      const uploadedFile = response.data?.data?.[0];
+      
+      if (uploadedFile?.id) {
+        setS("profile_image_id", uploadedFile.id);
+        setProfileImagePreview(uploadedFile.external_url || uploadedFile.path);
+        setProfileImage(file);
+      }
+    } catch (error) {
+      Swal.fire('Error', 'Failed to upload image', 'error');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeProfileImage = () => {
+    setS("profile_image_id", "");
+    setProfileImage(null);
+    setProfileImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   // Live fee preview. The server is the single source of truth for fee maths
   // (grade base fee → special status → discount), so we ask it whenever a
@@ -382,11 +460,14 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
       <div className="w-full max-w-5xl h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header — teal band, matches the rest of the app */}
         <div className="flex items-start justify-between gap-4 px-6 py-4 bg-[#0D5C63] flex-shrink-0">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-white truncate">{title}</h2>
-            <p className="text-[11px] text-teal-100 mt-0.5">
-              {student.student_id ? `${student.student_id} · ` : ""}Update every detail — student, fees, enrollment steps and family.
-            </p>
+          <div className="flex items-center gap-3 min-w-0">
+            <StudentAvatar student={student} size="lg" />
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-white truncate">{title}</h2>
+              <p className="text-[11px] text-teal-100 mt-0.5">
+                {student.student_id ? `${student.student_id} · ` : ""}Update every detail — student, fees, enrollment steps and family.
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -452,6 +533,71 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
                       <DateField label="Date of birth" value={student.date_of_birth} onChange={(v) => setS("date_of_birth", v)} />
                       <Select label="Gender" value={student.gender} options={GENDER} onChange={(v) => setS("gender", v)} />
                     </Grid>
+                    
+                    {/* Profile Image Upload */}
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">Profile Image</label>
+                      <div className="flex items-start gap-4">
+                        <div className="relative">
+                          {profileImagePreview ? (
+                            <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-teal-200">
+                              <img 
+                                src={profileImagePreview} 
+                                alt="Profile preview" 
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={removeProfileImage}
+                                className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
+                              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleProfileImageUpload}
+                            accept="image/*"
+                            className="hidden"
+                            id="edit-profile-image-upload"
+                          />
+                          <label
+                            htmlFor="edit-profile-image-upload"
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all
+                              ${uploadingImage 
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'}`}
+                          >
+                            {uploadingImage ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                Upload Image
+                              </>
+                            )}
+                          </label>
+                          <p className="text-[10px] text-gray-500 mt-1">
+                            Accepts JPG, PNG, GIF (max 5MB)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </Card>
 
                   <Card title="Placement">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { get, post, put, peekCache } from "../../api/axios";
+import { uploadFiles, fileRawBlob } from "../../api/drive";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -62,6 +63,7 @@ export default function StudentForm() {
     // the radio ON opens the amount input (defaults to 2000 AFN).
     apply_admission_fee: false,
     admission_fee: 2000,
+    profile_image_id: "",
   });
 
   const [families, setFamilies] = useState([]);
@@ -73,6 +75,11 @@ export default function StudentForm() {
   const [familySearch, setFamilySearch] = useState(prefilledFamilyLabel || "");
   const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
   const familyRef = useRef(null);
+
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -161,6 +168,7 @@ export default function StudentForm() {
     discount_percent: d.discount_percent || 0,
     foundation_help_requested: d.foundation_help_requested || false,
     foundation_help_requested_amount: d.foundation_help_requested_amount || "",
+    profile_image_id: d.profile_image_id || "",
   });
 
   const loadStudent = async () => {
@@ -194,7 +202,14 @@ export default function StudentForm() {
           discount_percent: d.discount_percent || 0,
           foundation_help_requested: d.foundation_help_requested || false,
           foundation_help_requested_amount: d.foundation_help_requested_amount || "",
+          profile_image_id: d.profile_image_id || "",
         });
+        if (d.profile_image) {
+          // `url` is built by the server (DriveFile::getUrlAttribute) — a
+          // signed link an <img> can fetch. `path` was used here before and is
+          // a key on the PRIVATE disk, so the preview was always broken.
+          setProfileImagePreview(d.profile_image.url || d.profile_image.external_url || null);
+        }
         if (d.family) {
           setFamilySearch(`${d.family.family_id} - ${d.family.father_name}`);
         }
@@ -235,6 +250,50 @@ export default function StudentForm() {
             f.father_name?.toLowerCase().includes(q) ||
             f.mother_name?.toLowerCase().includes(q));
   });
+
+  const handleProfileImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      Swal.fire('Error', 'Please select an image file', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      Swal.fire('Error', 'Image size should be less than 5MB', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('files[]', file);
+      formData.append('visibility', 'private');
+
+      const response = await uploadFiles(null, [file], {}, { visibility: 'private' });
+      const uploadedFile = response.data?.data?.[0];
+      
+      if (uploadedFile?.id) {
+        setForm((prev) => ({ ...prev, profile_image_id: uploadedFile.id }));
+        setProfileImagePreview(uploadedFile.url || uploadedFile.external_url || null);
+        setProfileImage(file);
+      }
+    } catch (error) {
+      Swal.fire('Error', 'Failed to upload image', 'error');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeProfileImage = () => {
+    setForm((prev) => ({ ...prev, profile_image_id: "" }));
+    setProfileImage(null);
+    setProfileImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const canNext = () => {
     if (step === 1) {
@@ -303,7 +362,10 @@ export default function StudentForm() {
           foundation_help_requested_amount: "",
           apply_admission_fee: false,
           admission_fee: 2000,
+          profile_image_id: "",
         });
+        setProfileImage(null);
+        setProfileImagePreview(null);
         setFamilySearch(savedFamilyLabel);
         setFeeBreakdown(null);
         setStep(1);
@@ -418,6 +480,71 @@ export default function StudentForm() {
                     </svg>
                   </div>
                   <h3 className="text-sm font-bold text-gray-800">Personal</h3>
+                </div>
+
+                {/* Profile Image Upload */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Profile Image</label>
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      {profileImagePreview ? (
+                        <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-teal-200">
+                          <img 
+                            src={profileImagePreview} 
+                            alt="Profile preview" 
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={removeProfileImage}
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleProfileImageUpload}
+                        accept="image/*"
+                        className="hidden"
+                        id="profile-image-upload"
+                      />
+                      <label
+                        htmlFor="profile-image-upload"
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all
+                          ${uploadingImage 
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'}`}
+                      >
+                        {uploadingImage ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Upload Image
+                          </>
+                        )}
+                      </label>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Accepts JPG, PNG, GIF (max 5MB)
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Family selector */}

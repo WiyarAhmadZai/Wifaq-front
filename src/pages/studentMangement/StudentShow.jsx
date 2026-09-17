@@ -163,7 +163,11 @@ export default function StudentShow() {
     (s.elicitation_sessions || []).length + (s.syntheses || []).length +
     (s.annual_review_decisions || []).length;
 
-  const photo = fileUrl((s.documents || []).find((d) => d.document_type === "doc_student_photo")?.file_url);
+  // The registration photo first (server-resolved `url`), then the uploaded
+  // "official photo" document as a fallback for records that predate it.
+  const photo = s.profile_image?.url
+    || s.profile_image?.external_url
+    || fileUrl((s.documents || []).find((d) => d.document_type === "doc_student_photo")?.file_url);
   const initials = `${s.first_name?.[0] || ""}${s.last_name?.[0] || ""}`.toUpperCase();
 
   return (

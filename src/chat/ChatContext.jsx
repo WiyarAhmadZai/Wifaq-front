@@ -39,8 +39,14 @@ function playChime() {
 }
 
 export function ChatProvider({ children }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, hasPermission, hasRole } = useAuth();
   const myId = user?.id;
+
+  /* The chat is a staff channel. Without `chat.access` nothing below runs: no
+   * conversation list, no websocket, no presence ping — a parent account
+   * simply has no chat, rather than a chat that 403s. */
+  const canUseChat = Boolean(isAuthenticated && (hasRole?.('super-admin') || hasPermission?.('chat.access')));
+  const canCreateGroups = Boolean(canUseChat && (hasRole?.('super-admin') || hasPermission?.('chat.groups.create')));
 
   const [open, setOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
@@ -71,12 +77,12 @@ export function ChatProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!canUseChat) return;
     refreshConversations();
     chatApi.getSettings()
       .then((r) => setSoundEnabled(r.data?.data?.sound_enabled ?? true))
       .catch(() => {});
-  }, [isAuthenticated, refreshConversations]);
+  }, [canUseChat, refreshConversations]);
 
   // ── Presence: keep last_seen fresh + join the presence roster ──────────────
   /* The websocket client is fetched on demand — it is the largest dependency
@@ -86,7 +92,7 @@ export function ChatProvider({ children }) {
   const [echo, setEcho] = useState(null);
 
   useEffect(() => {
-    if (!isAuthenticated) { setEcho(null); return; }
+    if (!canUseChat) { setEcho(null); return; }
 
     let cancelled = false;
     ensureEcho().then((instance) => {
@@ -94,10 +100,10 @@ export function ChatProvider({ children }) {
     });
 
     return () => { cancelled = true; };
-  }, [isAuthenticated]);
+  }, [canUseChat]);
 
   useEffect(() => {
-    if (!isAuthenticated || !myId) return;
+    if (!canUseChat || !myId) return;
 
     chatApi.presenceOnline().catch(() => {});
 
@@ -139,7 +145,7 @@ export function ChatProvider({ children }) {
       window.removeEventListener('pagehide', onLeave);
       try { echo?.leave('chat'); } catch { /* ignore */ }
     };
-  }, [isAuthenticated, myId, echo]);
+  }, [canUseChat, myId, echo]);
 
   // ── Personal channel: new-message notifications across all conversations ────
   useEffect(() => {
@@ -275,14 +281,60 @@ export function ChatProvider({ children }) {
     setHasMore(Boolean(res.data?.has_more));
   }, [activeId, messages, hasMore]);
 
-  const startChatWith = useCallback(async (userObj) => {
-    const res = await chatApi.startConversation(userObj.id);
+  const startChatWith = useCallback(async (userObj, subject) => {
+    const res = await chatApi.startConversation(userObj.id, subject);
     const conv = res.data?.data;
     if (!conv) return;
     setConversations((prev) => (prev.some((c) => c.id === conv.id) ? prev : [conv, ...prev]));
     await openConversation(conv);
     return conv;
   }, [openConversation]);
+
+  const createGroup = useCallback(async ({ name, subject, description, memberIds }) => {
+    const res = await chatApi.createGroup({ name, subject, description, memberIds });
+    const conv = res.data?.data;
+    if (!conv) return;
+    setConversations((prev) => [conv, ...prev]);
+    await openConversation(conv);
+    return conv;
+  }, [openConversation]);
+
+  /* Replace one conversation in the list with the server's fresh copy — every
+   * group/subject change comes back as a full ConversationResource. */
+  const replaceConversation = useCallback((conv) => {
+    if (!conv) return;
+    setConversations((prev) => prev.map((c) => (c.id === conv.id ? { ...c, ...conv } : c)));
+  }, []);
+
+  const updateConversation = useCallback(async (id, data) => {
+    const res = await chatApi.updateConversation(id, data);
+    replaceConversation(res.data?.data);
+    return res.data?.data;
+  }, [replaceConversation]);
+
+  const addMembers = useCallback(async (id, userIds) => {
+    const res = await chatApi.addMembers(id, userIds);
+    replaceConversation(res.data?.data);
+    return res.data?.data;
+  }, [replaceConversation]);
+
+  const removeMember = useCallback(async (id, userId) => {
+    const res = await chatApi.removeMember(id, userId);
+    replaceConversation(res.data?.data);
+    return res.data?.data;
+  }, [replaceConversation]);
+
+  const setMemberRole = useCallback(async (id, userId, role) => {
+    const res = await chatApi.setMemberRole(id, userId, role);
+    replaceConversation(res.data?.data);
+    return res.data?.data;
+  }, [replaceConversation]);
+
+  const leaveGroup = useCallback(async (id) => {
+    await chatApi.leaveGroup(id);
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    setActiveId((cur) => (cur === id ? null : cur));
+  }, []);
 
   const sendMessage = useCallback(async ({ body, attachments = [], replyTo }) => {
     if (!activeId) return;
@@ -481,11 +533,15 @@ export function ChatProvider({ children }) {
     setPinned, setArchived, setMuted,
     soundEnabled, setSoundEnabled,
     me: user,
+    // Access + groups.
+    canUseChat, canCreateGroups,
+    createGroup, updateConversation, addMembers, removeMember, setMemberRole, leaveGroup,
   }), [
     open, conversations, unreadTotal, onlineIds, activeId, activeConversation, messages,
     hasMore, loadOlder, loadingMessages, typingPeers, openConversation, startChatWith,
     sendMessage, sendTyping, editMessage, deleteMessage, setPinned, setArchived, setMuted,
     soundEnabled, refreshConversations, user,
+    canUseChat, canCreateGroups, createGroup, updateConversation, addMembers, removeMember, setMemberRole, leaveGroup,
   ]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

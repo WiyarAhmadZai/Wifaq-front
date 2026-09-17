@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
 import { fmtDate } from "../../utils/formErrors";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const steps = [
   {
@@ -734,9 +735,7 @@ export default function StudentEnrollmentForm() {
           {/* Student Banner */}
           <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-6">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-white text-xl font-bold">
-                {(s.first_name || "?").charAt(0)}{(s.last_name || "").charAt(0)}
-              </div>
+              <StudentAvatar student={s} size="lg" rounded="rounded-xl" className="!border-white/40" />
               <div className="flex-1">
                 <p className="text-teal-100 text-sm font-medium">Student</p>
                 <h2 className="text-2xl font-bold text-white">{s.first_name} {s.last_name}</h2>
@@ -1139,9 +1138,7 @@ export default function StudentEnrollmentForm() {
           <div ref={studentRef} className="p-5 relative">
             {studentLocked && selectedStudent ? (
               <div className="flex items-center gap-3 p-4 bg-teal-50 border-2 border-teal-200 rounded-xl">
-                <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-                  {(selectedStudent.first_name || "?").charAt(0)}{(selectedStudent.last_name || "").charAt(0)}
-                </div>
+                <StudentAvatar student={selectedStudent} size="lg" rounded="rounded-xl" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-800 truncate">
                     {selectedStudent.first_name} {selectedStudent.last_name}
@@ -1186,9 +1183,7 @@ export default function StudentEnrollmentForm() {
                           onClick={() => selectStudent(student)}
                           className="w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0 flex items-center gap-3"
                         >
-                          <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {(student.first_name || "?").charAt(0)}{(student.last_name || "").charAt(0)}
-                          </div>
+                          <StudentAvatar student={student} size="md" rounded="rounded-lg" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-800 truncate">
                               {student.first_name} {student.last_name}

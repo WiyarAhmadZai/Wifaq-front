@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { enqueue, flush, pendingCount, watchConnection } from "../../utils/offlineQueue";
 import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
 import { useAuth } from "../../admin/context/AuthContext";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 /* ── Brand tokens ── */
 const TEAL = "#0D5C63", TEAL_LT = "#14919B", GOLD = "#C9A227", PAPER = "#F4F8F8";
@@ -568,7 +569,7 @@ export default function DailyObservation() {
               return (
                 <button key={s.id} onClick={() => pick(s)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-l-2"
                   style={on ? { background: "#E8F6F6", borderColor: TEAL } : { background: "transparent", borderColor: "transparent" }}>
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(s.full_name)}</div>
+                  <StudentAvatar student={{ full_name: s.full_name, photo_url: s.photo_url }} size="md" rounded="rounded-lg" />
                   <div className="min-w-0 flex-1">
                     {/* The tally rides ALONGSIDE the name, not on a line of its
                         own below it — how many observations a student already

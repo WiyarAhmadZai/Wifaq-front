@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const TEAL = "#0D5C63", TEAL_LT = "#14919B", GOLD = "#C9A227", PAPER = "#F4F8F8";
 
@@ -24,7 +25,6 @@ const aLabel = (k) => ACTIONS.find((a) => a.k === k)?.l || k;
 
 const TONE = { planned: { bg: "#fbf0db", fg: "#9a6a12", label: "Planned" }, conducted: { bg: "#e6f3ec", fg: "#2E7D5B", label: "Conducted" } };
 const Pill = ({ s }) => { const t = TONE[s] || { bg: "#eef3f3", fg: "#5d7273", label: s }; return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: t.bg, color: t.fg }}>{t.label}</span>; };
-const initials = (n) => (n || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const Spinner = () => <div className="flex justify-center py-12"><div className="w-7 h-7 border-2 rounded-full animate-spin" style={{ borderColor: "#cfe4e4", borderTopColor: TEAL }} /></div>;
 const L = ({ children }) => <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">{children}</label>;
 
@@ -97,7 +97,7 @@ export default function Elicitation() {
               const on = selected?.id === s.id;
               return (
                 <button key={s.id} onClick={() => pick(s.id)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left border-l-2" style={on ? { background: "#E8F6F6", borderColor: TEAL } : { background: "transparent", borderColor: "transparent" }}>
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(s.student)}</div>
+                  <StudentAvatar student={{ full_name: s.student, photo_url: s.photo_url }} size="md" rounded="rounded-lg" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-gray-800 truncate">{s.student}</p>
                     <p className="text-[10px] text-gray-400">{s.conducted_on || s.scheduled_on || "no date"}{s.recommendation_action ? ` · ${aLabel(s.recommendation_action)}` : ""}</p>
@@ -123,7 +123,7 @@ export default function Elicitation() {
                 <button onClick={() => setSelected(null)} className="lg:hidden p-2 rounded-lg" style={{ background: "#E8F6F6", color: TEAL }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 </button>
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black text-white" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(selected.student)}</div>
+                <StudentAvatar student={{ full_name: selected.student, photo_url: selected.photo_url }} size="lg" rounded="rounded-xl" />
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-black text-gray-800 truncate">{selected.student}</h2>
                   <p className="text-[11px] text-gray-400">{selected.scheduled_on ? `Planned ${selected.scheduled_on}` : "No date"}{selected.conducted_on ? ` · Conducted ${selected.conducted_on}` : ""}{selected.convener ? ` · by ${selected.convener}` : ""}</p>

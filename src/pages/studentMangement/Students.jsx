@@ -5,39 +5,13 @@ import Swal from "sweetalert2";
 import CrudPage from "../../components/CrudPage";
 
 import { fmtDate } from "../../utils/formErrors";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
 ];
 
-const StudentAvatar = ({ student, size = "md" }) => {
-  const sizeClasses = {
-    sm: "w-8 h-8 text-xs",
-    md: "w-10 h-10 text-sm",
-    lg: "w-12 h-12 text-base",
-  };
-
-  // `url` comes from the server already resolved — signed for an uploaded
-  // file, the thumbnail for a hosted one. `path` used to be the fallback and
-  // is a private-disk key, which is why every avatar rendered broken.
-  if (student.profile_image?.url || student.profile_image?.external_url) {
-    return (
-      <img
-        src={student.profile_image.url || student.profile_image.external_url}
-        alt={`${student.first_name} ${student.last_name}`}
-        className={`${sizeClasses[size]} rounded-full object-cover border-2 border-teal-100`}
-      />
-    );
-  }
-
-  const initials = `${student.first_name?.[0] || ""}${student.last_name?.[0] || ""}`.toUpperCase();
-  return (
-    <div className={`${sizeClasses[size]} rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold border-2 border-teal-200`}>
-      {initials || "?"}
-    </div>
-  );
-};
 const SPECIAL_STATUS_OPTIONS = [
   { value: "none", label: "None" },
   { value: "orphan", label: "Orphan" },

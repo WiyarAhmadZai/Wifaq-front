@@ -242,7 +242,7 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
       
       if (uploadedFile?.id) {
         setS("profile_image_id", uploadedFile.id);
-        setProfileImagePreview(uploadedFile.external_url || uploadedFile.path);
+        setProfileImagePreview(uploadedFile.url || uploadedFile.external_url || null);
         setProfileImage(file);
       }
     } catch (error) {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const TEAL = "#0D5C63", TEAL_LT = "#14919B", GOLD = "#C9A227", PAPER = "#F4F8F8";
 
@@ -11,7 +12,6 @@ const CHANGE = [{ key: "better", label: "↑ Better" }, { key: "same", label: "=
 const CHANGE_TONE = { better: { bg: "#e6f3ec", fg: "#2E7D5B" }, same: { bg: "#eef3f3", fg: "#5d7273" }, worse: { bg: "#fde9e9", fg: "#b4322c" }, unclear: { bg: "#fbf0db", fg: "#9a6a12" } };
 const TONE = { assigned: { bg: "#fbf0db", fg: "#9a6a12", label: "Assigned" }, completed: { bg: "#e6f3ec", fg: "#2E7D5B", label: "Completed" } };
 
-const initials = (n) => (n || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const Spinner = () => <div className="flex justify-center py-16"><div className="w-7 h-7 border-2 rounded-full animate-spin" style={{ borderColor: "#cfe4e4", borderTopColor: TEAL }} /></div>;
 const Pill = ({ s }) => { const t = TONE[s] || { bg: "#eef3f3", fg: "#5d7273", label: s }; return <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: t.bg, color: t.fg }}>{t.label}</span>; };
 
@@ -80,7 +80,7 @@ export default function MonitoringRecords() {
         <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: GOLD }}>Education & Formation · Monitoring records</p>
         {student ? (
           <div className="flex items-center gap-3 mt-2">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black text-white flex-shrink-0" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(student.name)}</div>
+            <StudentAvatar student={{ full_name: student.name, photo_url: student.photo_url }} size="lg" rounded="rounded-xl" />
             <div className="min-w-0">
               <h1 className="text-base font-black text-white truncate">{student.name}</h1>
               <p className="text-[11px]" style={{ color: "#9ec3c3" }}>{student.class || "—"}{student.flagged_on ? ` · flagged ${student.flagged_on}` : ""}{student.flagged_by ? ` by ${student.flagged_by}` : ""}</p>

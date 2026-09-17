@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post } from "../../api/axios";
 import { toastSuccess, toastError } from "../../utils/toast";
 import { TEAL, TEAL_LT, PAPER, Hero } from "./lessonPlanUi";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const DIMS = [
   { key: "intellectual", ar: "ذهنی", label: "Intellectual", color: "#14919B" },
@@ -90,9 +91,7 @@ export default function QuickFourD() {
           {student ? (
             <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl" style={{ background: "#E8F6F6" }}>
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black text-white flex-none" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>
-                  {(student.first_name?.[0] || "?").toUpperCase()}
-                </div>
+                <StudentAvatar student={student} size="md" rounded="rounded-lg" />
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-gray-800 truncate">{student.first_name} {student.last_name}</p>
                   <p className="text-[11px] text-gray-500 truncate">{student.student_id} · {student.school_class?.class_name || "—"}</p>
@@ -114,9 +113,7 @@ export default function QuickFourD() {
                     : results.length === 0 ? <p className="p-3 text-center text-xs text-gray-400">No students found.</p>
                     : results.map((s) => (
                       <button key={s.id} onClick={() => pick(s)} className="w-full text-left px-3 py-2.5 hover:bg-teal-50 border-b last:border-0 flex items-center gap-2.5" style={{ borderColor: "#f0f4f4" }}>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-none" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>
-                          {(s.first_name?.[0] || "?").toUpperCase()}
-                        </div>
+                        <StudentAvatar student={s} size="sm" rounded="rounded-lg" />
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-gray-800 truncate">{s.first_name} {s.last_name}</p>
                           <p className="text-[10px] text-gray-400">{s.student_id} · {s.school_class?.class_name || "—"}</p>

@@ -922,6 +922,8 @@ export default {
   "Audience updated": "مخاطبین تازه شول",
   "Failed to update the audience.": "د مخاطبینو تازه کول ناکام شول.",
   "Also email the assigned staff a link to this task": "ټاکل شوي کارمند ته د دې دندې لینک هم ایمیل کړئ",
+  "Also email everyone this assigns a task, event or meeting to": "هغو ټولو ته هم ایمیل واستوئ چې دا تصویب ورته دنده، پېښه یا غونډه سپاري",
+  "Also email the people newly given access": "هغو کسانو ته هم ایمیل واستوئ چې نوې لاسرسی ورکړل شوی",
   "Also email the participants a link to this meeting": "ګډونوالو ته د دې غونډې لینک هم ایمیل کړئ",
   "Also email everyone involved a link to this event": "ټولو ښکېلو کسانو ته د دې پېښې لینک هم ایمیل کړئ",
   "Cancel this event?": "دا پېښه لغوه کړم؟",
@@ -5941,4 +5943,5 @@ export default {
   "Could not change role": "دنده بدله نه شوه",
   "Could not leave": "پرېښودل ونه شول",
   "Please try again.": "مهرباني وکړئ بیا هڅه وکړئ.",
+  "Could not load the staff list. Please try again.": "د کارکوونکو لیست ونه لوډ شو. مهرباني وکړئ بیا هڅه وکړئ.",
 };

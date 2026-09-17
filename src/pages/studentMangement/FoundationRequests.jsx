@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { get, peekCache } from "../../api/axios";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const STATUS_BADGE = {
   pending: "bg-amber-100 text-amber-700",
@@ -128,9 +129,7 @@ export default function FoundationRequests() {
                     onClick={() => navigate(`/student-management/foundation-requests/show/${item.id}`)}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold">
-                          {item.student?.first_name?.[0]}{item.student?.last_name?.[0]}
-                        </div>
+                        <StudentAvatar student={item.student} size="sm" />
                         <div>
                           <p className="text-xs font-semibold text-gray-800">
                             {item.student?.first_name} {item.student?.last_name}

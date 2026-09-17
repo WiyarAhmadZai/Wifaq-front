@@ -6,9 +6,9 @@ import { DimPill, Spinner, StudentName, cleanClass, cleanName, describeError, is
 import PrintSheet from "../../components/PrintSheet";
 import AwardCertificate from "./AwardCertificate";
 import { CERT_LANGS } from "./certificateI18n";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 
-const initials = (n) => cleanName(n).split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /**
  * Tarbiyati lead's end-of-week screen. Nominations grouped by student, most
@@ -244,10 +244,9 @@ export default function WeeklyReview() {
                   borderColor: g.awarded || leading ? "#E8D48B" : "#D0E0E0",
                 }}>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
-                    style={{ background: g.awarded || leading ? GOLD : TEAL }}>
-                    {initials(g.student)}
-                  </div>
+                  {/* The gold ring for an awarded child survives as the border. */}
+                  <StudentAvatar student={{ full_name: g.student, photo_url: g.photo_url }} size="lg"
+                    className={g.awarded || leading ? "!border-[#E8D48B]" : ""} />
                   <div className="min-w-0">
                     <StudentName name={g.student} className="text-sm font-bold text-[#0A3A3E] block" />
                     <div className="text-[11px] text-[#5A7A7E]">

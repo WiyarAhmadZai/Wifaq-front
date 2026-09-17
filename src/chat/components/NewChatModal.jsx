@@ -34,12 +34,15 @@ export default function NewChatModal({ onClose, onStarted }) {
   const [groupName, setGroupName] = useState('');
   const [groupSubject, setGroupSubject] = useState('');
   const [members, setMembers] = useState([]); // user objects
+  // A failed request used to be indistinguishable from "nobody matched".
+  const [loadError, setLoadError] = useState(false);
 
   const load = (term) => {
     setLoading(true);
+    setLoadError(false);
     chatApi.contacts({ search: term, per_page: 40 })
       .then((r) => setUsers(r.data?.data || []))
-      .catch(() => setUsers([]))
+      .catch(() => { setUsers([]); setLoadError(true); })
       .finally(() => setLoading(false));
   };
 
@@ -214,6 +217,8 @@ export default function NewChatModal({ onClose, onStarted }) {
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-4 border-teal-100 border-t-teal-500" />
                 </div>
+              ) : loadError ? (
+                <div className="p-8 text-center text-sm text-red-500">Could not load the staff list. Please try again.</div>
               ) : users.length === 0 ? (
                 <div className="p-8 text-center text-sm text-gray-400">No staff found.</div>
               ) : (

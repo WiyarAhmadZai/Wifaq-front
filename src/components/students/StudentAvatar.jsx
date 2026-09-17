@@ -29,9 +29,11 @@ export default function StudentAvatar({ student, size = "md", rounded = "rounded
 
   const dim = SIZES[size] || SIZES.md;
   const name = `${student?.first_name || ""} ${student?.last_name || ""}`.trim() || student?.full_name || "Student";
+  // Two letters either way: first+last when the row has them, otherwise the
+  // first two words of a full name (what the education screens send).
   const initials = (
     `${student?.first_name?.[0] || ""}${student?.last_name?.[0] || ""}`
-    || `${student?.full_name?.[0] || ""}`
+    || (student?.full_name || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("")
   ).toUpperCase();
 
   // `photo_url` is the shape the شناسنامه endpoint uses; the rest send the

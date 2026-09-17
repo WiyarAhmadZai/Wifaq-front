@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const TEAL = "#0D5C63", TEAL_LT = "#14919B", GOLD = "#C9A227", PAPER = "#F4F8F8";
 
@@ -102,7 +103,7 @@ export default function Monitoring() {
             <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: "#dbe8e8" }}>
               {followups.map((f, i) => (
                 <div key={f.id} className={`flex items-center gap-3 px-4 py-3 ${i ? "border-t" : ""}`} style={{ borderColor: "#eef4f4" }}>
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0" style={{ background: `linear-gradient(140deg, ${TEAL_LT}, ${TEAL})` }}>{initials(f.student)}</div>
+                  <StudentAvatar student={{ full_name: f.student, photo_url: f.photo_url }} size="md" rounded="rounded-lg" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-gray-800 truncate">{f.student}</p>
                     <p className="text-[10px] text-gray-400">{f.period}{f.pattern ? ` · ${f.pattern.slice(0, 50)}` : ""}</p>

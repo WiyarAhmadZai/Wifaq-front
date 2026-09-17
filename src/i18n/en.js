@@ -923,6 +923,8 @@ export default {
   "Audience updated": "Audience updated",
   "Failed to update the audience.": "Failed to update the audience.",
   "Also email the assigned staff a link to this task": "Also email the assigned staff a link to this task",
+  "Also email everyone this assigns a task, event or meeting to": "Also email everyone this assigns a task, event or meeting to",
+  "Also email the people newly given access": "Also email the people newly given access",
   "Also email the participants a link to this meeting": "Also email the participants a link to this meeting",
   "Also email everyone involved a link to this event": "Also email everyone involved a link to this event",
   "Cancel this event?": "Cancel this event?",
@@ -5942,4 +5944,5 @@ export default {
   "Could not change role": "Could not change role",
   "Could not leave": "Could not leave",
   "Please try again.": "Please try again.",
+  "Could not load the staff list. Please try again.": "Could not load the staff list. Please try again.",
 };

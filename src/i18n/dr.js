@@ -922,6 +922,8 @@ export default {
   "Audience updated": "مخاطبان به‌روز شد",
   "Failed to update the audience.": "به‌روزرسانی مخاطبان ناکام شد.",
   "Also email the assigned staff a link to this task": "همچنان به کارمند تعیین‌شده لینک این وظیفه را ایمیل کنید",
+  "Also email everyone this assigns a task, event or meeting to": "همچنان به همه کسانی که با این تصویب وظیفه، رویداد یا جلسه‌ای به آنها سپرده می‌شود ایمیل بفرستید",
+  "Also email the people newly given access": "همچنان به افرادی که تازه دسترسی داده شده‌اند ایمیل بفرستید",
   "Also email the participants a link to this meeting": "همچنان به اشتراک‌کنندگان لینک این جلسه را ایمیل کنید",
   "Also email everyone involved a link to this event": "همچنان به همه دخیل‌ها لینک این رویداد را ایمیل کنید",
   "Cancel this event?": "این رویداد لغو شود؟",
@@ -5941,4 +5943,5 @@ export default {
   "Could not change role": "نقش تغییر نکرد",
   "Could not leave": "ترک نشد",
   "Please try again.": "لطفاً دوباره تلاش کنید.",
+  "Could not load the staff list. Please try again.": "فهرست کارمندان بارگذاری نشد. لطفاً دوباره تلاش کنید.",
 };

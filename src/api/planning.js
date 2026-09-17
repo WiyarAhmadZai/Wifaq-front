@@ -46,8 +46,10 @@ export const deletePlan      = (id)          => del(`${BASE}/${id}`);
 export const submitPlan      = (id, note)    => post(`${BASE}/${id}/submit`, { note });
 // `confirmLargeSeries` re-posts after the approver accepted the volume warning
 // a big series triggers (addendum A 10.1).
-export const approvePlan     = (id, note, confirmLargeSeries = false) =>
-  post(`${BASE}/${id}/approve`, { note, confirm_large_series: confirmLargeSeries });
+// `notifyByEmail` is the approver's tick: everyone the cascade assigns a
+// task, event or meeting to also gets an email, not just a bell.
+export const approvePlan     = (id, note, confirmLargeSeries = false, notifyByEmail = false) =>
+  post(`${BASE}/${id}/approve`, { note, confirm_large_series: confirmLargeSeries, notify_by_email: notifyByEmail });
 export const rejectPlan      = (id, note)    => post(`${BASE}/${id}/reject`, { note });
 export const completePlan    = (id)          => post(`${BASE}/${id}/complete`, {});
 export const archivePlan     = (id)          => post(`${BASE}/${id}/archive`, {});
@@ -68,7 +70,8 @@ export const saveReflection  = (id, data)    => put(`${BASE}/${id}/reflection`, 
 
 // Per-plan sharing (admin grants whole-plan access to chosen users).
 export const getPlanAccess    = (id)             => get(`${BASE}/${id}/access`);
-export const updatePlanAccess = (id, userIds)    => put(`${BASE}/${id}/access`, { user_ids: userIds });
+export const updatePlanAccess = (id, userIds, notifyByEmail = false) =>
+  put(`${BASE}/${id}/access`, { user_ids: userIds, notify_by_email: notifyByEmail });
 
 // The approval inbox (submitted plans only).
 export const listAwaitingApproval = () => get(BASE, { params: { awaiting_approval: 1 } });

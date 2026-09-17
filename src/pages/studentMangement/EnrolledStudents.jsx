@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../admin/context/AuthContext";
 
 import { fmtDate } from "../../utils/formErrors";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -188,7 +189,16 @@ export default function EnrolledStudents() {
         filters={enrolledFilters}
         listColumns={[
           { key: "student_id", label: "Student ID" },
-          { key: "full_name", label: "Name", render: (_, item) => `${item.first_name} ${item.last_name}` },
+          {
+            key: "full_name",
+            label: "Name",
+            render: (_, item) => (
+              <div className="flex items-center gap-2">
+                <StudentAvatar student={item} size="sm" />
+                <span className="text-sm font-medium text-gray-800">{item.first_name} {item.last_name}</span>
+              </div>
+            ),
+          },
           // Third, right after the student's own name: the column always held
           // the father's name, but "Family" read as though it were a household
           // or a family record, so nobody could tell what the value was.

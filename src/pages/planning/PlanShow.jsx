@@ -30,6 +30,7 @@ export default function PlanShow() {
   const [shareUsers, setShareUsers] = useState([]);
   const [shareSelected, setShareSelected] = useState([]);
   const [shareSaving, setShareSaving] = useState(false);
+  const [shareEmailToo, setShareEmailToo] = useState(true);
 
   const load = async () => {
     setLoading(true);
@@ -91,12 +92,19 @@ export default function PlanShow() {
       showCancelButton: true,
       confirmButtonColor: "#0d9488",
       confirmButtonText: isAnnual ? "Approve" : "Approve & cascade",
+      // An annual approval creates nothing, so there is nobody to email yet;
+      // the tick appears only where people are actually about to be assigned.
+      ...(isAnnual ? {} : {
+        input: "checkbox",
+        inputValue: 1,
+        inputPlaceholder: "Also email everyone this assigns a task, event or meeting to",
+      }),
     });
     if (!c.isConfirmed) return;
 
     setBusy(true);
     try {
-      const r = await approvePlan(id, note);
+      const r = await approvePlan(id, note, false, !isAnnual && Boolean(c.value));
       await load();
       setNote("");
       announceApproval(r);
@@ -122,7 +130,7 @@ export default function PlanShow() {
   const saveShare = async () => {
     setShareSaving(true);
     try {
-      await updatePlanAccess(id, shareSelected);
+      await updatePlanAccess(id, shareSelected, shareEmailToo);
       setShareOpen(false);
       await load();
       Swal.fire({ icon: "success", title: "Access updated", timer: 1200, showConfirmButton: false });
@@ -337,6 +345,15 @@ export default function PlanShow() {
               options={shareUsers.map((u) => ({ value: u.id, label: u.email ? `${u.name} (${u.email})` : u.name }))}
               placeholder="Search people to give access…"
             />
+            {/* Email as well as the bell — the same tick the task, meeting and
+                event forms carry. Only the people newly added receive it. */}
+            <div className="p-3 bg-gray-50 rounded-xl mt-3">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={shareEmailToo} onChange={(e) => setShareEmailToo(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                <span className="text-xs text-gray-700">Also email the people newly given access</span>
+              </label>
+            </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShareOpen(false)} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50">Cancel</button>
               <button onClick={saveShare} disabled={shareSaving} className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50">{shareSaving ? "Saving…" : "Save access"}</button>

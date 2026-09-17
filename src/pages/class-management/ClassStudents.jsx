@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const STATUS = {
   active: "bg-teal-50 text-teal-700",
@@ -98,9 +99,7 @@ export default function ClassStudents() {
                     onClick={() => navigate(`/student-management/students/profile/${s.id}`)} title="Open شناسنامه">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                          {(s.full_name?.[0] || "?").toUpperCase()}
-                        </div>
+                        <StudentAvatar student={s} size="md" rounded="rounded-xl" />
                         <div>
                           <p className="text-sm font-semibold text-gray-800">{s.full_name}</p>
                           <p className="text-[11px] text-gray-400 font-mono">{s.student_id}</p>

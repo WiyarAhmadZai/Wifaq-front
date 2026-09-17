@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const TEAL = "#0D5C63";
 
@@ -30,7 +31,6 @@ const Spinner = () => (
   </div>
 );
 
-const initials = (n) => (n || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 function CardChip({ c }) {
   const s = CARD[c.color] || CARD.green;
@@ -222,9 +222,7 @@ export default function StudentCards() {
               <div key={s.id}
                 className={`bg-white rounded-2xl border shadow-sm p-4 ${String(s.id) === focusStudent ? "border-teal-400 ring-2 ring-teal-100" : "border-gray-100"}`}>
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: TEAL }}>
-                    {initials(s.name)}
-                  </div>
+                  <StudentAvatar student={{ full_name: s.name, profile_image: s.profile_image }} size="lg" rounded="rounded-xl" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div>

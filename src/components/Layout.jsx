@@ -1585,6 +1585,7 @@ export default function Layout() {
     { label: "Homework Queue", path: "/education/gradebook/homework", permission: "gradebook.view" },
     { label: "Assign Homework", path: "/education/gradebook/homework/new", permission: "gradebook.create" },
     { label: "Assessments", path: "/education/gradebook/assessments", permission: "gradebook.view" },
+    { label: "Weekly Assessments", path: "/education/gradebook/weekly", permission: "gradebook.create" },
     { label: "Term Exams", path: "/education/gradebook/term-exams", permission: "gradebook.create" },
     { label: "Promotion Board", path: "/education/gradebook/promotion", permission: "gradebook.view" },
     { label: "Analytics", path: "/education/gradebook/analytics", permission: "gradebook.analyze" },
@@ -2021,7 +2022,12 @@ export default function Layout() {
           )}
 
           {/* Parent portal — only for parent accounts. */}
-          {hasRole("parent") && (
+          {hasRole("student") && hasPermission("gradebook.view-own") && (
+            <ParentMenu icon={Icons.Dashboard} label="My Homework & Grades" isOpen={openMenu.includes("my-grades")} onClick={() => toggleMenu("my-grades")}>
+              <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
+            </ParentMenu>
+          )}
+          {hasRole("parent") && hasPermission("gradebook.view-own") && (
           <ParentMenu
             icon={Icons.Teacher}
             label="My Children"

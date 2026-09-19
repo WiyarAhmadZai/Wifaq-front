@@ -32,6 +32,8 @@ export const linkablePlans = (params) => get(`${BASE}/assessments/linkable-plans
 export const listAssessments = (params = {}) => get(`${BASE}/assessments`, { params });
 export const createAssessment = (data) => post(`${BASE}/assessments`, data);
 export const getAssessment = (id) => get(`${BASE}/assessments/${id}`);
+export const getQuestions = (id) => get(`${BASE}/assessments/${id}/questions`);
+export const saveQuestions = (id, data) => put(`${BASE}/assessments/${id}/questions`, data);
 
 // ── Grades (the marking backend) ────────────────────────────────────────
 export const saveGrade = (data) => post(`${BASE}/grades`, data);
@@ -77,8 +79,14 @@ export const parentHomeworkShow = (id) => get(`/parent/gradebook/homework/${id}`
 export const parentSubmitHomework = (id, formData) =>
   post(`/parent/gradebook/homework/${id}/submit`, formData, { headers: { "Content-Type": "multipart/form-data" } });
 export const parentFeed = (params = {}) => get(`/parent/gradebook/feed`, { params });
+export const parentPerformance = (params) => get(`/parent/gradebook/performance`, { params });
 
 // ── Admin panels (leadership) ───────────────────────────────────────────
 export const crossClassSummary = (params = {}) => get(`${BASE}/admin/cross-class-summary`, { params });
 export const homeworkCompliance = () => get(`${BASE}/admin/homework-compliance`);
 export const coaching = () => get(`${BASE}/admin/coaching`);
+
+// ── Weekly class test (questions / correct → %, 13 weeks) ──────────────────
+export const weeklyFormData = () => get(`${BASE}/weekly/form-data`);
+export const weeklySheet = (params) => get(`${BASE}/weekly/sheet`, { params });
+export const saveWeekly = (data) => post(`${BASE}/weekly/save`, data);

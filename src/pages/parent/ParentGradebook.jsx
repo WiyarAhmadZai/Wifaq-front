@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { parentChildren, parentHomework, parentSubmitHomework, parentFeed } from "../../api/gradebook";
+import { parentChildren, parentHomework, parentSubmitHomework, parentFeed, parentPerformance } from "../../api/gradebook";
 import { peekCache } from "../../api/axios";
 import {
   Page, Header, Card, Segmented, Select, Pill, Btn, Banner, Textarea,
@@ -33,6 +33,7 @@ export default function ParentGradebook() {
   const [tab, setTab] = useState("homework");
   const [homework, setHomework] = useState([]);
   const [feed, setFeed] = useState([]);
+  const [perf, setPerf] = useState(null);   // one child's term at a glance
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -50,6 +51,11 @@ export default function ParentGradebook() {
   }, []);
 
   useEffect(() => { load(); }, [childId]); // eslint-disable-line
+  useEffect(() => {
+    // Performance is per child; with "All my children" there is nothing to show.
+    if (!childId) { setPerf(null); return; }
+    parentPerformance({ child_id: childId }).then((r) => setPerf(r.data?.data || null)).catch(() => setPerf(null));
+  }, [childId]);
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(""), 4000); return () => clearTimeout(t); }, [msg]);
 
   function load() {
@@ -129,6 +135,7 @@ export default function ParentGradebook() {
             <Segmented value={tab} onChange={setTab} options={[
               { value: "homework", label: `Homework${homework.length ? ` (${homework.length})` : ""}` },
               { value: "grades", label: `Grades${feed.length ? ` (${feed.length})` : ""}` },
+              { value: "performance", label: "Performance" },
             ]} />
           </div>
 
@@ -224,8 +231,79 @@ export default function ParentGradebook() {
                   })}
                 </div>
           )}
+
+          {/* ── PERFORMANCE TAB ── term exams, weekly average & rank, promotion ── */}
+          {!busy && tab === "performance" && (
+            !childId
+              ? <EmptyState icon={ICON.clipboard} title="Pick one child" description="Performance is shown for one child at a time — choose a name above." />
+              : !perf
+                ? <LoadingRow />
+                : <Performance perf={perf} />
+          )}
         </>
       )}
     </Page>
+  );
+}
+
+/** One child's term: subject results, the weekly-test average with class rank, and the confirmed promotion decision. */
+function Performance({ perf }) {
+  const w = perf.weekly;
+  const DECISION = { promote: ["Promoted", "green"], graduate: ["Graduated", "green"], reexam: ["Re-exam", "amber"], repeat: ["Repeats the grade", "red"] };
+  const d = perf.decision ? DECISION[perf.decision] : null;
+  const bandTone = w?.band === "excellent" ? "green" : w?.band === "good" ? "amber" : "red";
+  const BAND = { excellent: "Excellent", good: "Good", support: "Needs support" };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex flex-wrap items-center gap-6">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-400">Weekly tests average</div>
+            <div className="text-2xl font-black text-gray-800">{w ? `${w.average}%` : "—"}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-400">Rank in class</div>
+            <div className="text-2xl font-black text-gray-800">{w?.rank ? <><span>{w.rank}</span><span className="text-sm text-gray-400"> / {w.class_size}</span></> : "—"}</div>
+          </div>
+          {w?.band && <Pill tone={bandTone}>{BAND[w.band]}</Pill>}
+          {d && <div className="ms-auto"><Pill tone={d[1]}>{d[0]}</Pill></div>}
+        </div>
+        {w && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {Object.entries(w.weeks).sort(([a], [b]) => a - b).map(([wk, x]) => (
+              <span key={wk} title={x.date || ""} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${x.pct >= 80 ? "bg-emerald-100 text-emerald-800" : x.pct >= 60 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-700"}`}>
+                W{wk} · {x.pct}%
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Term exams</div>
+        {perf.subjects.length === 0
+          ? <p className="text-sm text-gray-400">No term exam results yet.</p>
+          : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-[10px] uppercase tracking-wider text-gray-400">
+                <th className="text-left py-1">Subject</th><th className="text-right py-1">Midterm</th><th className="text-right py-1">Final</th><th className="text-right py-1">Total</th><th className="text-right py-1">Result</th>
+              </tr></thead>
+              <tbody>
+                {perf.subjects.map((s) => (
+                  <tr key={s.subject} className="border-t border-gray-100">
+                    <td className="py-2 font-medium text-gray-800">{s.subject}</td>
+                    <td className="py-2 text-right">{s.midterm ?? "—"}</td>
+                    <td className="py-2 text-right">{s.final ?? "—"}</td>
+                    <td className="py-2 text-right font-bold">{s.total ?? "—"}</td>
+                    <td className="py-2 text-right">{s.passed == null ? <span className="text-gray-300">—</span> : s.passed ? <Pill tone="green">Pass</Pill> : <Pill tone="red">Fail</Pill>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        <p className="mt-2 text-[11px] text-gray-400">A subject passes at {perf.pass_mark} out of 100.</p>
+      </Card>
+    </div>
   );
 }

@@ -54,6 +54,8 @@ export default function AssessmentDetail() {
           <span>{pending.length} to grade</span>
         </div>
         <div className="h-2 rounded-full bg-gray-100 overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
+        {/* The paper itself lives on its own screen: write, order and print the questions. */}
+        <div className="mt-3"><Btn tone="ghost" full onClick={() => navigate(`/education/gradebook/assessments/${id}/questions`)}>✎ Questions &amp; answer key</Btn></div>
         {pending.length > 0 && (
           <div className="mt-3"><Btn tone="primary" size="lg" full onClick={goGrade}>{graded > 0 ? `Continue grading (${pending.length} left) →` : "Start grading →"}</Btn></div>
         )}

@@ -141,6 +141,7 @@ export default function PromotionBoard() {
                   <tr>
                     <th className={thCls}>Student</th>
                     <th className={thCls}>Failed subjects</th>
+                    <th className={thCls}>Weekly average</th>
                     <th className={`${thCls} text-right`}>Decision</th>
                   </tr>
                 </thead>
@@ -160,6 +161,10 @@ export default function PromotionBoard() {
                           </div>
                         </td>
                         <td className={tdCls}>{failed.length ? <span className="text-red-600 text-xs">{failed.join(", ")}</span> : <span className="text-gray-300">—</span>}</td>
+                        {/* The term's weekly-test average — context for the decision, not part of it. */}
+                        <td className={tdCls}>{st.weekly_average != null
+                          ? <span className={`text-xs font-semibold ${st.weekly_average >= 80 ? "text-emerald-700" : st.weekly_average >= 60 ? "text-amber-700" : "text-red-600"}`}>{st.weekly_average}%</span>
+                          : <span className="text-gray-300">—</span>}</td>
                         <td className={`${tdCls} text-right`}><Pill tone={d.tone}>{d.label}</Pill></td>
                       </tr>
                     );

@@ -107,6 +107,8 @@ const RULES = [
   // the catch-all /education rule and demanded student-observations.view, so a
   // teacher holding gradebook.view was bounced to /403.
   { prefix: "/education/gradebook", permission: "gradebook.view" },
+  // Parent / student portal: own children or own self, gated by an explicit permission.
+  { prefix: "/my-children", permission: "gradebook.view-own" },
   { prefix: "/education", permission: "student-observations.view" },
 
   // HR
@@ -255,7 +257,6 @@ const PUBLIC_PATHS = new Set([
   // verifies Family.user_id ownership, so any authenticated user may open the
   // page; it just shows their own children. The sidebar link is gated by the
   // parent role so only parents see it.
-  "/my-children",
   // Parent portal — a parent's own children's attendance, and the target of
   // the absence notification. The backend route is
   // withoutMiddleware('path.permission') and resolves the caller's family, so

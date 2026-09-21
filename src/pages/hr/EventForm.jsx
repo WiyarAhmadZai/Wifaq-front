@@ -25,7 +25,7 @@ export default function EventForm() {
   const isEdit = Boolean(id);
   const roleRef = useRef(null);
 
-  const [form, setForm] = useState({ title: "", description: "", start_date: "", end_date: "", main_responsible_id: "", location: "", status: "upcoming" });
+  const [form, setForm] = useState({ title: "", description: "", start_date: "", end_date: "", main_responsible_id: "", location: "", status: "upcoming", recurrence: "", recurrence_until: "" });
   const [roles, setRoles] = useState([]);
   const [requirements, setRequirements] = useState([{ description: "", assigned_to_id: "" }]);
   const [users, setUsers] = useState([]);
@@ -210,7 +210,7 @@ export default function EventForm() {
     const __cached = peekCache(`/events/${id}`);
     if (__cached) {
       const d = __cached?.data || __cached;
-      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming" });
+      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming", recurrence: d.recurrence || "", recurrence_until: d.recurrence_until ? String(d.recurrence_until).split("T")[0] : "" });
       if (d.roles?.length) setRoles(d.roles.map((r) => ({ user_id: r.user_id, role_name: r.role_name, notes: r.notes || "", userName: r.user?.name || "" })));
       if (d.requirements?.length) setRequirements(d.requirements.map((r) => ({ description: r.description, assigned_to_id: r.assigned_to_id || "", is_completed: r.is_completed || false })));
       setLoading(false);
@@ -218,7 +218,7 @@ export default function EventForm() {
     try {
       const res = await get(`/events/${id}`);
       const d = res.data?.data || res.data;
-      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming" });
+      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming", recurrence: d.recurrence || "", recurrence_until: d.recurrence_until ? String(d.recurrence_until).split("T")[0] : "" });
       if (d.roles?.length) setRoles(d.roles.map((r) => ({ user_id: r.user_id, role_name: r.role_name, notes: r.notes || "", userName: r.user?.name || "" })));
       if (d.requirements?.length) setRequirements(d.requirements.map((r) => ({ description: r.description, assigned_to_id: r.assigned_to_id || "", is_completed: r.is_completed || false })));
     } catch { Swal.fire("Error", "Failed to load event", "error"); navigate("/hr/events"); }
@@ -326,6 +326,29 @@ export default function EventForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Date</label>
               <DateField name="end_date" value={form.end_date} onChange={handle} min={form.start_date} className={ic("end_date")} />
             </div>
+            {/* Repeat — the same series rule meetings have. Only offered while
+                creating: a series is generated once, and re-saving one
+                occurrence must not spawn another year of copies. */}
+            {!isEdit && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Repeat</label>
+                  <select name="recurrence" value={form.recurrence} onChange={handle} className={ic("recurrence")}>
+                    <option value="">Does not repeat</option>
+                    <option value="daily">Every day</option>
+                    <option value="weekly">Every week</option>
+                    <option value="monthly">Every month</option>
+                    <option value="yearly">Every year</option>
+                  </select>
+                </div>
+                {form.recurrence && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Repeat until <span className="text-amber-600">*</span></label>
+                    <DateField name="recurrence_until" value={form.recurrence_until} onChange={handle} min={form.start_date} className={ic("recurrence_until")} />
+                  </div>
+                )}
+              </>
+            )}
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Location</label>
               <input type="text" name="location" value={form.location} onChange={handle} placeholder="Main Hall, Auditorium..." className={ic("location")} />

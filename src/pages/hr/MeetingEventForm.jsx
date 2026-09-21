@@ -55,6 +55,8 @@ export default function MeetingEventForm() {
     title: "", description: "", location: "",
     date: "", start_time: "09:00", end_time: "10:00",
     end_date: "", meeting_type: "routine",
+    // Repeat rule. Empty = a one-off. Same vocabulary both modules use.
+    recurrence: "", recurrence_until: "",
     // Which committee this meeting belongs to, if any. Meetings only — an
     // event is not a committee's minutes. Pre-filled when the committee page
     // sent us here, so nobody has to remember to tag it.
@@ -153,6 +155,9 @@ export default function MeetingEventForm() {
   const save = async () => {
     if (!form.title.trim()) return Swal.fire("Title needed", "What is this called?", "info");
     if (!form.date) return Swal.fire("Date needed", "Which day is it on?", "info");
+    if (form.recurrence && !form.recurrence_until) {
+      return Swal.fire("Repeat until when?", "A repeating schedule needs a last date, or it would never stop.", "info");
+    }
 
     setSaving(true);
     try {
@@ -171,6 +176,8 @@ export default function MeetingEventForm() {
           status: "scheduled",
           participants: participants.map((p) => p.id),
           notify_by_email: emailToo,
+          recurrence: form.recurrence || null,
+          recurrence_until: form.recurrence ? form.recurrence_until || null : null,
         });
         id = res.data?.data?.id ?? res.data?.id;
       } else {
@@ -179,6 +186,8 @@ export default function MeetingEventForm() {
           description: form.description.trim() || null,
           start_date: form.date,
           end_date: form.end_date || null,
+          recurrence: form.recurrence || null,
+          recurrence_until: form.recurrence ? form.recurrence_until || null : null,
           location: form.location.trim() || null,
           status: "upcoming",
           // An event has roles rather than a flat participant list; everyone
@@ -237,6 +246,22 @@ export default function MeetingEventForm() {
       });
       navigate(`/hr/${parentType}/show/${id}`);
     } catch (err) {
+      const conflicts = err.response?.data?.conflicts;
+      if (Array.isArray(conflicts) && conflicts.length) {
+        // The server refused because someone is already booked. Name them and
+        // what they are on — "conflict" alone leaves the organiser guessing.
+        const slot = err.response.data.slot;
+        const rows = conflicts.map((c) =>
+          `<li><b>${c.user}</b> — ${c.kind} “${c.title}” (${c.starts})</li>`).join("");
+        return Swal.fire({
+          icon: "warning",
+          title: "Time conflict — not saved",
+          html: `${slot ? `<p style="margin-bottom:8px">Clashes on <b>${slot.starts}</b>:</p>` : ""}`
+              + `<ul style="text-align:left;font-size:13px;line-height:1.7">${rows}</ul>`
+              + `<p style="margin-top:10px;font-size:12px;color:#5A7A7E">Pick another time, or remove that person.</p>`,
+          confirmButtonColor: TEAL,
+        });
+      }
       Swal.fire("Error",
         err.response?.data?.message
         || Object.values(err.response?.data?.errors || {})[0]?.[0]
@@ -366,6 +391,38 @@ export default function MeetingEventForm() {
                 className={field} style={{ borderColor: BORDER }} />
             </div>
           )}
+
+          {/* Repeat — a weekly team meeting or a monthly parents' day is
+              scheduled once here and fans out into its occurrences. Every
+              occurrence is checked for clashes before any is saved. */}
+          <div className="grid sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[11px] font-semibold mb-1" style={{ color: "#0A3A3E" }}>
+                Repeat <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <select value={form.recurrence} onChange={(e) => set("recurrence", e.target.value)}
+                className={field} style={{ borderColor: BORDER }}>
+                <option value="">Does not repeat</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
+                <option value="monthly">Every month</option>
+                <option value="yearly">Every year</option>
+              </select>
+            </div>
+            {form.recurrence && (
+              <div>
+                <label className="block text-[11px] font-semibold mb-1" style={{ color: "#0A3A3E" }}>
+                  Repeat until <span style={{ color: GOLD }}>*</span>
+                </label>
+                <input type="date" value={form.recurrence_until} min={form.date}
+                  onChange={(e) => set("recurrence_until", e.target.value)}
+                  className={field} style={{ borderColor: BORDER }} />
+                <p className="text-[10px] mt-1" style={{ color: "#8AA4A7" }}>
+                  One entry per {form.recurrence === "daily" ? "day" : form.recurrence === "weekly" ? "week" : form.recurrence === "monthly" ? "month" : "year"} up to this date, each with the same people.
+                </p>
+              </div>
+            )}
+          </div>
 
           <p className="text-[10px]" style={{ color: "#8AA4A7" }}>
             Agenda, roles and checklists are added on the {isMeeting ? "meeting" : "event"} page

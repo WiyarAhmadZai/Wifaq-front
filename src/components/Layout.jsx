@@ -1417,6 +1417,9 @@ export default function Layout() {
       // meetings, tagged with the committee.
       { label: "Committees", path: "/hr/planner/committees", permission: "committees.view" },
       { label: "Staff Tasks", path: "/hr/staff-task", permission: "staff-task.view" },
+      // Operations Hub — Live Status: my week + clock, and the manager board.
+      { label: "My Check-in", path: "/hr/my-check-in", permission: "staff-task.view" },
+      { label: "Team Overview", path: "/hr/team-overview", permission: "staff-task.create" },
       { label: "Daily Tasks", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
     { label: "Visitor Log", path: "/hr/visitor-log", permission: "visitor-log.view" },
@@ -2021,26 +2024,29 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {/* Parent portal — only for parent accounts. */}
-          {hasRole("student") && hasPermission("gradebook.view-own") && (
-            <ParentMenu icon={Icons.Dashboard} label="My Homework & Grades" isOpen={openMenu.includes("my-grades")} onClick={() => toggleMenu("my-grades")}>
-              <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
-            </ParentMenu>
-          )}
-          {hasRole("parent") && hasPermission("gradebook.view-own") && (
+          {/* Family portal — ONE block for both parents and students.
+              It used to be two: "My Homework & Grades" for students and
+              "My Children" for parents. They point at the same page (the
+              gradebook scopes itself: a parent sees their children, a student
+              sees only themself), and any account passing both role checks —
+              super-admin does — got the pair stacked as a duplicate. The label
+              follows the role; the parent-only rows appear only for parents. */}
+          {(hasRole("parent") || hasRole("student")) && hasPermission("gradebook.view-own") && (
           <ParentMenu
             icon={Icons.Teacher}
-            label="My Children"
+            label={hasRole("parent") ? "My Children" : "My Homework & Grades"}
             isOpen={openMenu.includes("my-children")}
             onClick={() => toggleMenu("my-children")}
           >
             <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
+            {hasRole("parent") && (<>
             <SubMenuItem label="Attendance" to="/student-management/attendance/my-children"
               active={isActive("/student-management/attendance/my-children")} onClick={closeSidebar} />
             {/* Observations the school recorded, and the cards they earned —
                 the page the card notification links to. */}
             <SubMenuItem label="Observations & Cards" to="/my-children/observations"
               active={isActive("/my-children/observations")} onClick={closeSidebar} />
+            </>)}
           </ParentMenu>
           )}
 

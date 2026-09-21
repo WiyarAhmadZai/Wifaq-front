@@ -23,6 +23,8 @@ export default function StaffTaskForm() {
     staff_id: "",       // used in edit mode
     task: "",
     task_type: "normal",
+    estimate_value: "",
+    estimate_unit: "hours",
     start_date: new Date().toISOString().split("T")[0],
     deadline: "",
     notes: "",
@@ -171,7 +173,10 @@ export default function StaffTaskForm() {
         Swal.fire({ icon: "success", title: "Task Updated!", timer: 1500, showConfirmButton: false });
       } else {
         const { staff_id: _ignored, ...rest } = form;
-        const submitData = { ...rest, staff_ids: selectedStaffList.map(s => s.id), notify_by_email: emailToo };
+        const { estimate_value, estimate_unit, ...body } = rest;
+        const perUnit = { minutes: 1, hours: 60, days: 480 }[estimate_unit] || 60; // a working day is 8h
+        const estimated_minutes = Number(estimate_value) > 0 ? Math.round(Number(estimate_value) * perUnit) : null;
+        const submitData = { ...body, staff_ids: selectedStaffList.map(s => s.id), notify_by_email: emailToo, ...(estimated_minutes ? { estimated_minutes } : {}) };
         if (!submitData.deadline) delete submitData.deadline;
         await post("/hr/staff-tasks", submitData);
         Swal.fire({
@@ -356,6 +361,22 @@ export default function StaffTaskForm() {
             </label>
             <DateField name="deadline" value={form.deadline} onChange={handleChange} className={inp} />
           </div>
+        </div>
+
+        {/* Estimated time — workload planning; shows as a countdown once the clock starts. */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Estimated time to complete <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <div className="flex gap-2">
+            <input type="number" min="0" step="0.5" name="estimate_value" value={form.estimate_value} onChange={handleChange} placeholder="3" className={inp} />
+            <select name="estimate_unit" value={form.estimate_unit} onChange={handleChange} className={`${inp} w-32 shrink-0`}>
+              <option value="minutes">Minutes</option>
+              <option value="hours">Hours</option>
+              <option value="days">Days</option>
+            </select>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">Used for workload planning and shown next to the clock once the colleague starts the task.</p>
         </div>
 
         {/* Task Description */}

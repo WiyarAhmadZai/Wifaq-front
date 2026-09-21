@@ -368,9 +368,13 @@ export default function StaffTaskForm() {
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Estimated time to complete <span className="text-gray-400 font-normal">(optional)</span>
           </label>
+          {/* `inp` carries w-full. On the select, `w-32` lost to it (Tailwind
+              emits w-full later), so the select went 100% wide and the number
+              box collapsed. Flex-basis beats width inside a flex row, so the
+              select is pinned to 8rem and the number takes the rest. */}
           <div className="flex gap-2">
-            <input type="number" min="0" step="0.5" name="estimate_value" value={form.estimate_value} onChange={handleChange} placeholder="3" className={inp} />
-            <select name="estimate_unit" value={form.estimate_unit} onChange={handleChange} className={`${inp} w-32 shrink-0`}>
+            <input type="number" min="0" step="0.5" name="estimate_value" value={form.estimate_value} onChange={handleChange} placeholder="3" className={`${inp} flex-1 min-w-0`} />
+            <select name="estimate_unit" value={form.estimate_unit} onChange={handleChange} className={`${inp} basis-32 grow-0 shrink-0`}>
               <option value="minutes">Minutes</option>
               <option value="hours">Hours</option>
               <option value="days">Days</option>

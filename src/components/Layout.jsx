@@ -314,13 +314,13 @@ const SubMenuItem = ({ label, to, active, onClick }) => (
   <Link
     to={to}
     onClick={onClick}
-    className={`flex items-center px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
+    className={`flex items-center px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs text-left ${
       active
         ? "bg-teal-700 text-white"
         : "text-teal-200 hover:bg-teal-800 hover:text-white"
     }`}
   >
-    <span>{label}</span>
+    <span className="leading-snug break-words">{label}</span>
   </Link>
 );
 
@@ -328,17 +328,17 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
   <div>
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-sm ${
+      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg transition-colors text-sm text-left ${
         isOpen
           ? "bg-teal-700 text-white"
           : "text-teal-100 hover:bg-teal-800 hover:text-white"
       }`}
     >
-      <div className="flex items-center gap-2">
-        <Icon />
-        <span className="font-medium">{label}</span>
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="shrink-0 flex"><Icon /></span>
+        <span className="font-medium leading-snug break-words">{label}</span>
       </div>
-      <div className={`transition-transform ${isOpen ? "rotate-180" : ""}`}>
+      <div className={`shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}>
         <Icons.ChevronDown />
       </div>
     </button>

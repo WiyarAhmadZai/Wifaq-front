@@ -12,6 +12,7 @@ import useSmartBack from "../../hooks/useSmartBack";
 import { useAuth } from "../../admin/context/AuthContext";
 import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
 import { RestoreDraftBanner, DraftStatus } from "../../components/hr/DraftBar";
+import RichTextField from "../../components/RichTextField";
 
 const emptyAgenda = { title: "", description: "", assigned_to_id: "", duration_min: "" };
 
@@ -648,7 +649,8 @@ export default function MeetingForm() {
             )}
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
-              <textarea name="description" value={form.description} onChange={handle} rows={2} placeholder="Brief description of the meeting..." className={`${ic("description")} resize-none`} />
+              <RichTextField name="description" value={form.description} rows={3} placeholder="Brief description of the meeting..."
+                onChange={(html) => handle({ target: { name: "description", value: html } })} />
             </div>
           </div>
         </div>

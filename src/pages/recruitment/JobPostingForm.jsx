@@ -7,6 +7,7 @@ import { handleValidationErrors } from "../../utils/formErrors";
 import Select from "react-select";
 
 import { fmtDate } from "../../utils/formErrors";
+import RichTextField from "../../components/RichTextField";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
@@ -369,15 +370,10 @@ export default function JobPostingForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Description *
               </label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                required
-                rows={4}
+              <RichTextField name="description" value={formData.description} required rows={6}
                 placeholder="Enter detailed job description including responsibilities and expectations..."
-                className={inputClass("description")}
-              />
+                onChange={(html) => handleChange({ target: { name: "description", value: html } })}
+                className={errors.description ? "border-red-400" : ""} />
               {err("description") && <p className="text-red-500 text-[10px] mt-1">{err("description")}</p>}
             </div>
           </div>

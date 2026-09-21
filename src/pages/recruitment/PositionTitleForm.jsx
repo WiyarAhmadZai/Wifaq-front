@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import useSmartBack from "../../hooks/useSmartBack";
 import Swal from "sweetalert2";
 import { peekCache } from "../../api/axios";
+import RichTextField from "../../components/RichTextField";
 import {
   createPositionTitle,
   getPositionTitle,
@@ -232,12 +233,11 @@ export default function PositionTitleForm() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Description
               </label>
-              <textarea
+              <RichTextField
                 name="description"
                 value={formData.description}
-                onChange={onChange}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                onChange={(html) => onChange({ target: { name: "description", value: html } })}
+                rows={4}
                 placeholder="Short description of the role"
               />
             </div>

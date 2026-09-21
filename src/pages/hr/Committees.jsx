@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { get, post, put, del } from "../../api/axios";
 import Select2 from "../../components/hr/Select2";
 import { useAuth } from "../../admin/context/AuthContext";
+import RichTextField from "../../components/RichTextField";
 
 /**
  * Committees — the parent committee, the cultural committee, and so on.
@@ -491,8 +492,8 @@ export default function Committees() {
 
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Mandate</label>
-                <textarea rows={4} value={editing.mandate || ""} onChange={(e) => setEditing((f) => ({ ...f, mandate: e.target.value }))}
-                  placeholder="What this committee is for, and what it may decide." className={inp} />
+                <RichTextField rows={4} value={editing.mandate || ""} onChange={(html) => setEditing((f) => ({ ...f, mandate: html }))}
+                  placeholder="What this committee is for, and what it may decide." />
                 <p className="text-[10px] text-gray-400 mt-1">The most useful thing to write down, and the first one forgotten.</p>
               </div>
 

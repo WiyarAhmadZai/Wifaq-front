@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post } from "../api/axios";
 import { useAuth } from "../admin/context/AuthContext";
 import { textDirection, arabicTextStyle } from "../utils/textDirection";
+import { RichTextView } from "./RichTextField";
 
 /* Brand tokens — the same ones the rest of the system uses. */
 const TEAL = "#0D5C63";
@@ -319,10 +320,8 @@ export default function BroadcastModal() {
             </h2>
           )}
           {/* Line breaks are the author's paragraphing — keep them. */}
-          <div dir={bodyDir} className="text-sm leading-relaxed whitespace-pre-wrap"
-            style={{ color: "#334A4C", ...arabicTextStyle(bodyDir) }}>
-            {msg.body}
-          </div>
+          <RichTextView html={msg.body} dir={bodyDir} className="text-sm leading-relaxed"
+            style={{ color: "#334A4C", ...arabicTextStyle(bodyDir) }} />
         </div>
 
         <div dir="ltr" className="px-4 py-3 flex items-center gap-2 flex-wrap justify-center sm:justify-start"

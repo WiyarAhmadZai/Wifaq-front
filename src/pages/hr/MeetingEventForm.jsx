@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { get, post } from "../../api/axios";
 import Select2 from "../../components/hr/Select2";
 import { listDepartments } from "../../api/departments";
+import RichTextField from "../../components/RichTextField";
 
 const TEAL = "#0D5C63";
 const GOLD = "#C9A227";
@@ -324,9 +325,8 @@ export default function MeetingEventForm() {
 
           <div>
             <label className="block text-[11px] font-semibold mb-1" style={{ color: "#0A3A3E" }}>Description</label>
-            <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3}
-              placeholder="What is it for? Anything people should know beforehand."
-              className={field} style={{ borderColor: BORDER }} dir="auto" />
+            <RichTextField value={form.description} onChange={(html) => set("description", html)} rows={3}
+              placeholder="What is it for? Anything people should know beforehand." />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">

@@ -11,6 +11,7 @@ import MediaPreviewModal from "./MediaPreviewModal";
 import { releaseObjectUrls } from "./mediaPreview";
 import AudiencePicker, { OwnerBadge, AudienceChips } from "../../components/drive/AudiencePicker";
 import { EMPTY_AUDIENCE, audienceFromItem } from "../../components/drive/audience";
+import RichTextField from "../../components/RichTextField";
 
 /* Drive — institutional catalogue (Drive Module spec v3).
  *
@@ -590,8 +591,8 @@ function CatalogueFields({ tax, form, set }) {
         </div>
         <div className="sm:col-span-2">
           <label className={lbl}>Notes</label>
-          <textarea value={form.notes} onChange={(e) => set({ notes: e.target.value })} rows={2}
-            placeholder="Usage restrictions, source, version history…" className={inp} />
+          <RichTextField value={form.notes} onChange={(html) => set({ notes: html })} rows={3}
+            placeholder="Usage restrictions, source, version history…" />
         </div>
       </div>
     </>

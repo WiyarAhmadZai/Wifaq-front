@@ -9,6 +9,7 @@ import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
+import RichTextField from "../../components/RichTextField";
 
 const EMPLOYMENT_TYPES = [
   { value: "", label: "Select Employment Type" },
@@ -438,14 +439,14 @@ export default function JobRequisitionForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Justification *
               </label>
-              <textarea
+              <RichTextField
                 name="justification"
                 value={formData.justification}
-                onChange={handleChange}
+                onChange={(html) => handleChange({ target: { name: "justification", value: html } })}
                 required
-                rows={4}
+                rows={5}
                 placeholder="Explain why this position is needed (e.g., Student enrollment increased by 20%, existing staff workload...)"
-                className={inputClass("justification")}
+                className={err("justification") ? "border-red-400" : ""}
               />
               {err("justification") && <p className="text-red-500 text-[10px] mt-1">{err("justification")}</p>}
             </div>

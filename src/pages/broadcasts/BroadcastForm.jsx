@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { get, post, put } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { textDirection, arabicTextStyle } from "../../utils/textDirection";
+import RichTextField, { RichTextView } from "../../components/RichTextField";
 import AudiencePicker, {
   emptyAudience, describeAudience, audienceIsComplete, useAudienceOptions,
 } from "../../components/broadcasts/AudiencePicker";
@@ -195,9 +196,8 @@ export default function BroadcastForm() {
             <label className="block text-[11px] font-semibold mb-1" style={{ color: "#0A3A3E" }}>
               Message <span style={{ color: GOLD }}>*</span>
             </label>
-            <textarea value={form.body} onChange={(e) => set("body", e.target.value)} rows={7}
-              placeholder="Write it the way you would say it to the room. Line breaks are kept."
-              className={field} style={{ borderColor: BORDER }} dir="auto" />
+            <RichTextField value={form.body} onChange={(html) => set("body", html)} rows={7}
+              placeholder="Write it the way you would say it to the room." />
             <div className="flex justify-between mt-1">
               <p className="text-[10px] text-gray-400">Line breaks are preserved.</p>
               <p className="text-[10px]" style={{ color: form.body.length > 5000 ? "#B83230" : "#8AA4A7" }}>
@@ -288,10 +288,10 @@ export default function BroadcastForm() {
                   {form.title}
                 </h2>
               )}
-              <div dir={previewBodyDir} className="text-sm leading-relaxed whitespace-pre-wrap"
-                style={{ color: form.body ? "#334A4C" : "#C3D0D0", ...arabicTextStyle(previewBodyDir) }}>
-                {form.body || "Your message appears here…"}
-              </div>
+              {form.body
+                ? <RichTextView html={form.body} dir={previewBodyDir} className="text-sm leading-relaxed"
+                    style={{ color: "#334A4C", ...arabicTextStyle(previewBodyDir) }} />
+                : <div className="text-sm" style={{ color: "#C3D0D0" }}>Your message appears here…</div>}
             </div>
 
             <div dir="ltr" className="px-4 py-3 flex items-center gap-2 flex-wrap"

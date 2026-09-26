@@ -258,3 +258,12 @@ header { font-size: 0.8125rem; }
    extra leading Naskh needs (same call as arabicTextStyle()). An explicit font
    chosen in the toolbar sits on an inner span and still wins. */
 .rich-text [dir="rtl"] { font-family: "Vazirmatn", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif; line-height: 1.8; }
+
+/* A formatted message inside an outgoing (teal) chat bubble. The link colour
+   and the quote rule are both brand teal, which is invisible on a teal
+   background, so both are lifted here. A colour the sender chose deliberately
+   still wins — those sit on an inline style. */
+.rich-text-inverted a { color: #D7F0F0; }
+.rich-text-inverted blockquote { border-inline-start-color: #E8D9A0; color: inherit; opacity: .92; }
+/* Messages are short: headings should not open a gap above the first line. */
+.rich-text-chat h2, .rich-text-chat h3 { margin-top: 0; }

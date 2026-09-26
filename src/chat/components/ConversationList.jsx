@@ -5,6 +5,8 @@ import {
 import { useChat } from '../ChatContext';
 import Avatar from './Avatar';
 import { formatListTime, lastMessagePreview, roleLabel } from '../utils';
+import { TagChip } from './TagPicker';
+import { TAGS } from '../tags';
 
 export default function ConversationList({ onNewChat }) {
   const {
@@ -13,11 +15,16 @@ export default function ConversationList({ onNewChat }) {
   } = useChat();
   const [search, setSearch] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  /* Which category the inbox is narrowed to, or null for everything. The
+   * server does the filtering, because a thread qualifies when ANY of its
+   * messages carries the tag — including one several replies back, which is
+   * exactly the message somebody filtering for "urgent" is looking for. */
+  const [tagFilter, setTagFilter] = useState(null);
   const [menuFor, setMenuFor] = useState(null);
 
   useEffect(() => {
-    refreshConversations({ archived: showArchived });
-  }, [showArchived, refreshConversations]);
+    refreshConversations({ archived: showArchived, ...(tagFilter ? { tag: tagFilter } : {}) });
+  }, [showArchived, tagFilter, refreshConversations]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -65,13 +72,46 @@ export default function ConversationList({ onNewChat }) {
             Archived
           </button>
         </div>
+
+        {/* Category chips. Horizontally scrollable rather than wrapped, so the
+            list keeps its height whatever the screen width — the messages are
+            what the panel is for. */}
+        <div className="flex gap-1.5 mt-2 overflow-x-auto pb-0.5 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+          <button
+            onClick={() => setTagFilter(null)}
+            className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+              tagFilter === null ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            All
+          </button>
+          {TAGS.map((t) => {
+            const on = tagFilter === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTagFilter(on ? null : t.key)}
+                title={t.hint}
+                className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors"
+                style={on
+                  ? { color: t.fg, background: t.bg, borderColor: t.fg }
+                  : { color: '#6B7280', background: '#fff', borderColor: '#E5E7EB' }}
+              >
+                <span className="leading-none">{t.icon}</span>
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="p-8 text-center text-sm text-gray-400">
-            {showArchived ? 'No archived chats.' : 'No conversations yet. Start a new chat.'}
+            {tagFilter
+              ? 'No conversations in this category.'
+              : showArchived ? 'No archived chats.' : 'No conversations yet. Start a new chat.'}
           </div>
         ) : (
           filtered.map((c) => {
@@ -114,7 +154,15 @@ export default function ConversationList({ onNewChat }) {
                       </span>
                     )}
                   </div>
-                  {/* Subject on a direct thread; member count on a group. */}
+                  {/* Subject on a direct thread; member count on a group —
+                      with the last message's tag beside it, which is what lets
+                      a full inbox be triaged without opening anything. */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {/* The icon alone. The six labels are already spelled out
+                        in the filter chips above, and repeating them on every
+                        row crowded the subject line for no new information —
+                        the tooltip still names it. */}
+                    <TagChip tag={c.last_message?.tag || tagFilter} size="xs" iconOnly />
                   {c.subject ? (
                     <span className="block text-[10px] font-semibold text-teal-700 truncate">{c.subject}</span>
                   ) : isGroup ? (
@@ -122,6 +170,7 @@ export default function ConversationList({ onNewChat }) {
                   ) : other?.role ? (
                     <span className="text-[10px] text-gray-400">{roleLabel(other.role)}</span>
                   ) : null}
+                  </div>
                 </div>
 
                 {/* Row menu */}

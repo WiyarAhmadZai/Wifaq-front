@@ -45,6 +45,10 @@ export function previewKind(item) {
     return embedUrl(item.external_url) ? "embed" : "link";
   }
 
+  // A document is written in Drive, not uploaded to it: there is nothing to
+  // preview or stream, so it is its own kind and opens in the editor.
+  if (item?.media_type === "doc") return "doc";
+
   const mime = (item?.mime || "").toLowerCase();
   const name = (item?.name || "").toLowerCase();
 

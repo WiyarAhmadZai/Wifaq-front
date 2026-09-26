@@ -8,6 +8,7 @@ import { useAuth } from '../admin/context/AuthContext';
 import { chatApi } from './chatApi';
 import { ensureEcho, disconnectEcho, isRealtimeLive } from './echo';
 import { API_BASE_URL } from '../api/axios';
+import { richTextToPlain } from '../utils/richText';
 
 const ChatContext = createContext(null);
 const ORIGIN = (API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
@@ -68,9 +69,16 @@ export function ChatProvider({ children }) {
   useEffect(() => { openRef.current = open; }, [open]);
 
   // ── Bootstrapping: settings + conversation list ────────────────────────────
-  const refreshConversations = useCallback(async (params = {}) => {
+  /* The filters the list is currently showing — archived, and which category
+   * chip is pressed. Remembered so a refresh triggered from somewhere else
+   * (a message arriving in a thread we have not loaded) reloads the SAME view
+   * rather than silently resetting it to everything while the chips still
+   * show a selection. */
+  const listParams = useRef({});
+  const refreshConversations = useCallback(async (params) => {
+    if (params) listParams.current = params;
     try {
-      const res = await chatApi.listConversations(params);
+      const res = await chatApi.listConversations(listParams.current);
       setConversations(res.data?.data || []);
       if (typeof res.data?.unread_total === 'number') setUnreadTotal(res.data.unread_total);
     } catch { /* ignore */ }
@@ -83,6 +91,7 @@ export function ChatProvider({ children }) {
       .then((r) => setSoundEnabled(r.data?.data?.sound_enabled ?? true))
       .catch(() => {});
   }, [canUseChat, refreshConversations]);
+
 
   // ── Presence: keep last_seen fresh + join the presence roster ──────────────
   /* The websocket client is fetched on demand — it is the largest dependency
@@ -272,6 +281,25 @@ export function ChatProvider({ children }) {
     }
   }, []);
 
+  /* ?chat=<id> — where the "Reply in WEN" button in an email lands. The email
+   * used to link to the home page and leave the reader to find the thread
+   * themselves, which made the button close to useless; now the link carries
+   * the conversation and this opens it. The parameter is then wiped from the
+   * address bar, or every later refresh would reopen the drawer. */
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (!canUseChat || deepLinked.current) return;
+    const id = Number(new URLSearchParams(window.location.search).get('chat'));
+    if (!id) return;
+    deepLinked.current = true;
+    setOpen(true);
+    openConversation(id);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('chat');
+    url.searchParams.delete('from');
+    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+  }, [canUseChat, openConversation]);
+
   const loadOlder = useCallback(async () => {
     if (!activeId || !messages.length || !hasMore) return;
     const oldest = messages[0];
@@ -336,7 +364,7 @@ export function ChatProvider({ children }) {
     setActiveId((cur) => (cur === id ? null : cur));
   }, []);
 
-  const sendMessage = useCallback(async ({ body, attachments = [], replyTo, notifyByEmail = false }) => {
+  const sendMessage = useCallback(async ({ body, attachments = [], replyTo, notifyByEmail = false, tag = null }) => {
     if (!activeId) return;
     const tempId = `tmp-${Date.now()}`;
     /* The bubble shows the image straight away, from a local object URL, with
@@ -352,7 +380,7 @@ export function ChatProvider({ children }) {
       _local_url: URL.createObjectURL(f),
     }));
     const optimistic = {
-      id: tempId, conversation_id: activeId, sender_id: myId, body,
+      id: tempId, conversation_id: activeId, sender_id: myId, body, tag,
       type: attachments.length ? (attachments[0].type?.startsWith('image/') ? 'image' : 'file') : 'text',
       created_at: new Date().toISOString(), _pending: true, _progress: attachments.length ? 0 : null,
       reply_to_id: replyTo?.id || null,
@@ -369,11 +397,13 @@ export function ChatProvider({ children }) {
         if (body) payload.append('body', body);
         if (replyTo?.id) payload.append('reply_to_id', replyTo.id);
         if (notifyByEmail) payload.append('notify_by_email', '1');
+        if (tag) payload.append('tag', tag);
         attachments.forEach((f) => payload.append('attachments[]', f));
       } else {
         payload = { body };
         if (replyTo?.id) payload.reply_to_id = replyTo.id;
         if (notifyByEmail) payload.notify_by_email = true;
+        if (tag) payload.tag = tag;
       }
       const onProgress = attachments.length
         ? (ev) => {
@@ -623,7 +653,7 @@ function maybeNotify(message) {
     if (!document.hidden) return;
     const body = message.type === 'image' ? '📷 Photo'
       : message.type === 'file' ? '📎 Attachment'
-      : (message.body || 'New message');
+      : (richTextToPlain(message.body) || 'New message');
     const n = new Notification(message.sender?.name || 'New message', { body, tag: `chat-${message.conversation_id}` });
     n.onclick = () => { window.focus(); n.close(); };
   } catch { /* ignore */ }

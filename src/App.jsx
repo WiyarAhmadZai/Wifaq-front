@@ -157,6 +157,8 @@ const GradebookDashboard = lazy(() => import("./pages/education/GradebookDashboa
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const Drive = lazy(() => import("./pages/drive/DriveHome"));
+const Mailbox = lazy(() => import("./chat/components/MailboxPage"));
+const DriveDocument = lazy(() => import("./pages/drive/DriveDocument"));
 const Questionnaires = lazy(() => import("./pages/questionnaire/Questionnaires"));
 const QuestionnaireForm = lazy(() => import("./pages/questionnaire/QuestionnaireForm"));
 const QuestionnaireResponses = lazy(() => import("./pages/questionnaire/QuestionnaireResponses"));
@@ -405,6 +407,11 @@ function App() {
             <Route path="/questionnaire" element={<Suspense fallback={<PageLoader />}><PublicQuestionnaire /></Suspense>} />
             <Route path="/parent-questionnaire" element={<Navigate to="/questionnaire" replace />} />
 
+            {/* Messages as a page of its own — what the drawer's "open in a
+                separate window" button opens. Outside the Layout on purpose:
+                a window opened for mail carries no system navigation. */}
+            <Route path="/mailbox" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><Mailbox /></Suspense></ProtectedRoute>} />
+
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="departments" element={<Navigate to="/hr/departments" replace />} />
@@ -435,6 +442,9 @@ function App() {
 
             {/* Drive — private per-user file manager */}
             <Route path="drive" element={<Suspense fallback={<PageLoader />}><Drive /></Suspense>} />
+            {/* A document written in Drive. Under /drive so it inherits the
+                same path permission as the module it belongs to. */}
+            <Route path="drive/documents/:id" element={<Suspense fallback={<PageLoader />}><DriveDocument /></Suspense>} />
 
             {/* Questionnaires — weekly parent evaluations */}
             <Route path="questionnaires" element={<Suspense fallback={<PageLoader />}><Questionnaires /></Suspense>} />

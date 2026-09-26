@@ -18,6 +18,8 @@ const TILE = {
   embed: { bg: "bg-cyan-50", fg: "text-cyan-600", d: "M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5m6.5-6.5l1.5-1.5a4 4 0 115.656 5.656l-3 3a4 4 0 01-5.656 0" },
   link: { bg: "bg-cyan-50", fg: "text-cyan-600", d: "M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5m6.5-6.5l1.5-1.5a4 4 0 115.656 5.656l-3 3a4 4 0 01-5.656 0" },
   file: { bg: "bg-gray-100", fg: "text-gray-500", d: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+  // Written here rather than uploaded — brand teal, and a lined page.
+  doc: { bg: "bg-teal-50", fg: "text-teal-700", d: "M9 12h6m-6 4h6m-6-8h2m2 13H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
 };
 
 export default function MediaThumb({ item, onClick }) {

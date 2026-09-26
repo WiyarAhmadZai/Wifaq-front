@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { sanitizeHtml, isRichText } from "../utils/richText";
+import { sanitizeHtml, isRichText, decodeEntities } from "../utils/richText";
 import { translate } from "../i18n/I18nContext";
 
 /**
@@ -26,7 +26,10 @@ const GOLD = "#C9A227";
 export function RichTextView({ html, className = "", style, dir = "auto" }) {
   if (!html) return null;
   if (!isRichText(html)) {
-    return <div dir={dir} className={`whitespace-pre-wrap ${className}`} style={style}>{html}</div>;
+    /* No markup, so it is printed as text — but it may still carry entities
+       from before spaces were normalised, and printing those verbatim is how
+       a message came to end in a visible "&nbsp;". */
+    return <div dir={dir} className={`whitespace-pre-wrap ${className}`} style={style}>{decodeEntities(html)}</div>;
   }
   return (
     <div dir={dir} className={`rich-text ${className}`} style={style}
@@ -162,12 +165,19 @@ function ColourPicker({ icon, title, colours, current, onPick, noneLabel, rememb
 
 export default function RichTextField({
   value, onChange, placeholder = "", rows = 4, dir = "auto", required = false, className = "", id, name,
+  /* Chat's variant: the box has to sit in a row of icons and stay one line
+     tall until someone writes more, and its toolbar opens on demand from the
+     composer's own "Aa" button rather than standing permanently above a
+     one-line message. Forms pass none of this and are unaffected. */
+  compact = false, showToolbar, onKeyDown, onPasteFiles, autoFocus = false,
 }) {
   const box = useRef(null);
   const saved = useRef(null);                 // selection kept across native pickers
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState({});    // which toolbar states apply at the caret
-  const minH = `${Math.max(3, rows) * 1.6}rem`;
+  const minH = compact ? "1.5rem" : `${Math.max(3, rows) * 1.6}rem`;
+  // Undefined means "always on", which is every form in the system.
+  const toolbarOpen = showToolbar === undefined ? true : showToolbar;
 
   /* Push the prop into the editor only when it actually differs from what is
      on screen — writing innerHTML on every keystroke would throw the caret
@@ -293,10 +303,13 @@ export default function RichTextField({
   const empty = !value;
 
   return (
-    <div className={`rounded-xl border bg-white overflow-visible transition-shadow ${className}`}
-      style={{ borderColor: focused ? TEAL : "#D0E0E0", boxShadow: focused ? "0 0 0 2px #9CCBCB" : "none" }}>
+    <div className={`overflow-visible transition-shadow ${compact ? "rounded-2xl" : "rounded-xl border bg-white"} ${className}`}
+      style={compact
+        ? { background: focused ? "#FFFFFF" : "#F7F9F9", boxShadow: focused ? "0 0 0 2px #9CCBCB" : "none" }
+        : { borderColor: focused ? TEAL : "#D0E0E0", boxShadow: focused ? "0 0 0 2px #9CCBCB" : "none" }}>
       {/* Toolbar */}
-      <div className="flex items-center flex-wrap gap-1 px-2 py-1 border-b rounded-t-xl"
+      {toolbarOpen && (
+      <div className={`flex items-center flex-wrap gap-1 px-2 py-1 border-b ${compact ? "rounded-t-2xl" : "rounded-t-xl"}`}
         style={{ borderColor: "#EEF4F4", background: "#FAFCFC" }}>
         <select className={SELECT} style={{ borderColor: "#D0E0E0", maxWidth: "9.5rem" }} title="Font"
           defaultValue="" onMouseDown={rememberSelection} onFocus={rememberSelection}
@@ -331,6 +344,7 @@ export default function RichTextField({
           </div>
         ))}
       </div>
+      )}
 
       {/* Editor */}
       <div className="relative">
@@ -338,15 +352,22 @@ export default function RichTextField({
           <div className="absolute inset-0 px-3 py-2 text-sm text-gray-400 pointer-events-none" dir={dir}>{placeholder}</div>
         )}
         <div ref={box} id={id} data-name={name} contentEditable suppressContentEditableWarning
+          autoFocus={autoFocus}
           dir={dir} role="textbox" aria-multiline="true" aria-required={required || undefined}
           onInput={emit} onBlur={() => { setFocused(false); emit(); }} onFocus={() => setFocused(true)}
           onKeyDown={(e) => {
             // Ctrl+Shift+L / R: writing direction, the shortcut Word and Windows use.
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "L" || e.key === "R" || e.key === "l" || e.key === "r")) {
               e.preventDefault(); setDirection(e.key.toLowerCase() === "l" ? "ltr" : "rtl"); emit();
+              return;
             }
+            onKeyDown?.(e);           // chat sends on Enter
           }}
           onPaste={(e) => {
+            /* A screenshot or a copied file goes to the host first — in chat
+               that means it is sent as an attachment rather than dropped on
+               the floor, which is what pasting into a plain box used to do. */
+            if (onPasteFiles?.(e)) { emit(); return; }
             // Paste as sanitised HTML or plain text — never Word's <o:p> soup.
             e.preventDefault();
             const html = e.clipboardData.getData("text/html");
@@ -354,8 +375,8 @@ export default function RichTextField({
             document.execCommand("insertHTML", false, html ? sanitizeHtml(html) : text.replace(/\n/g, "<br>"));
             emit();
           }}
-          className="rich-text px-3 py-2 text-sm outline-none overflow-y-auto rounded-b-xl"
-          style={{ minHeight: minH, maxHeight: "60vh", color: "#0A3A3E" }} />
+          className={`rich-text outline-none overflow-y-auto text-sm ${compact ? "px-4 py-2.5" : "px-3 py-2 rounded-b-xl"}`}
+          style={{ minHeight: minH, maxHeight: compact ? "9rem" : "60vh", color: "#0A3A3E" }} />
       </div>
     </div>
   );

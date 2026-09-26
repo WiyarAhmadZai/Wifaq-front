@@ -59,6 +59,18 @@ export const addLink      = (folderId, name, url, mediaType, catalogue = {}, aud
     folder_id: folderId || null, name, external_url: url,
     media_type: mediaType || "file", ...catalogue, ...audienceFields(audience),
   });
+// ── Documents ───────────────────────────────────────────────────────────────
+// A document written in Drive rather than uploaded to it. It is an ordinary
+// Drive file row underneath, so it lives in folders, carries an audience and
+// is moved, copied and deleted by the endpoints above — only its contents are
+// text in a column instead of bytes on disk.
+export const createDocument = (folderId, name, content, audience) =>
+  post(`${BASE}/documents`, {
+    folder_id: folderId || null, name, content: content || "", ...audienceFields(audience),
+  });
+export const getDocument  = (id) => get(`${BASE}/documents/${id}`, { cache: false });
+export const saveDocument = (id, fields) => put(`${BASE}/documents/${id}`, fields);
+
 export const deleteFile   = (id) => del(`${BASE}/files/${id}`);
 export const deleteFolder = (id) => del(`${BASE}/folders/${id}`);
 

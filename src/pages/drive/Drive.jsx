@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
-  listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder,
+  listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder, createDocument,
   fileRawBlob, fileDownloadBlob,
   moveFile, moveFolder, copyFileTo, copyFolderTo,
 } from "../../api/drive";
@@ -19,7 +19,13 @@ const fmtSize = (n) => {
   return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
 };
 
-const kindLabel = (f) => f.is_link ? "Link" : (f.media_type === "image" ? "Image" : f.media_type === "video" ? "Video" : "File");
+const kindLabel = (f) => f.is_link ? "Link"
+  : f.media_type === "doc" ? "Document"
+  : f.media_type === "image" ? "Image"
+  : f.media_type === "video" ? "Video" : "File";
+
+/** A document is written in Drive; everything else was uploaded to it. */
+const isDoc = (f) => f.media_type === "doc";
 
 /* Reading is not writing.
  *
@@ -38,6 +44,7 @@ const VIEWS = [
 
 export default function Drive() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const folderId = searchParams.get("folder") || "";
 
   const [data, setData] = useState({ current: null, breadcrumb: [], folders: [], files: [], me: null });
@@ -194,6 +201,28 @@ export default function Drive() {
     catch (e) { Swal.fire("Error", e.response?.data?.message || "Could not create folder.", "error"); }
   };
 
+  /* A new document is created empty and opened straight away — asking for a
+     name first and THEN showing a blank page is one dialog more than the job
+     needs. It can be renamed in the editor's title box at any time. */
+  const newDocument = async () => {
+    const { value } = await Swal.fire({
+      title: "New document", input: "text", inputPlaceholder: "Document name",
+      inputValue: "Untitled document",
+      showCancelButton: true, confirmButtonText: "Create", confirmButtonColor: "#0d9488",
+    });
+    if (value === undefined) return;                 // cancelled
+    try {
+      const res = await createDocument(folderId || null, (value || "").trim() || "Untitled document", "", EMPTY_AUDIENCE);
+      const created = res.data?.data;
+      if (created?.id) openDocument(created);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not create the document.", "error");
+    }
+  };
+
+  const openDocument = (f) =>
+    navigate(`/drive/documents/${f.id}${folderId ? `?folder=${folderId}` : ""}`);
+
   const openUpload = () => { setPending([]); setAudience(EMPTY_AUDIENCE); setUploadOpen(true); };
   const openLink = () => { setAudience(EMPTY_AUDIENCE); setLinkOpen(true); };
 
@@ -248,6 +277,8 @@ export default function Drive() {
 
   // Open: a link opens its URL; an uploaded file is streamed (auth blob) into a new tab.
   const openFile = async (f) => {
+    // A document has no bytes to stream — it opens in the editor.
+    if (isDoc(f)) { openDocument(f); return; }
     if (f.is_link) { window.open(f.external_url, "_blank", "noopener"); return; }
     try {
       const res = await fileRawBlob(f.id);
@@ -291,6 +322,9 @@ export default function Drive() {
         <div className="flex flex-wrap gap-2">
           <button onClick={newFolder} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
             <Icon d="M3 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /> New folder
+          </button>
+          <button onClick={newDocument} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
+            <Icon d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> New document
           </button>
           <button onClick={openUpload} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-bold flex items-center gap-1.5">
             <Icon d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /> Upload
@@ -347,7 +381,7 @@ export default function Drive() {
         <div className="text-center py-12"><div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" /></div>
       ) : isEmpty ? (
         <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
-          <p className="text-sm text-gray-400">This folder is empty. Upload files, add a link, or create a folder.</p>
+          <p className="text-sm text-gray-400">This folder is empty. Write a document, upload files, add a link, or create a folder.</p>
         </div>
       ) : view === "details" ? (
         <DetailsView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
@@ -442,7 +476,12 @@ function FileActions({ f, downloadFile, copyLink, removeFile, canWrite: writable
   const cls = `p-1 ${compact ? "" : "bg-white/90 shadow-sm"} rounded text-gray-600 hover:text-teal-600`;
   return (
     <>
-      {f.is_link ? (
+      {isDoc(f) ? (
+        /* Nothing to download: a document is opened and edited, and the row
+           itself already opens it. Printing from the editor is how it becomes
+           a file. */
+        null
+      ) : f.is_link ? (
         <button onClick={(e) => { e.stopPropagation(); copyLink(f); }} title="Copy link" className={cls}>
           <Icon d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
         </button>
@@ -664,8 +703,15 @@ function FolderGlyph({ className = "w-6 h-6" }) {
 }
 
 function FileGlyph({ file, className = "w-6 h-6" }) {
-  const color = file.media_type === "image" ? "text-emerald-400" : file.media_type === "video" ? "text-purple-400" : file.is_link ? "text-sky-400" : "text-gray-300";
-  const d = file.media_type === "image"
+  // A document is written here, not uploaded — brand teal tells it apart from
+  // the uploads at a glance, and it keeps its own lined-page glyph.
+  const color = file.media_type === "doc" ? "text-teal-600"
+    : file.media_type === "image" ? "text-emerald-400"
+    : file.media_type === "video" ? "text-purple-400"
+    : file.is_link ? "text-sky-400" : "text-gray-300";
+  const d = file.media_type === "doc"
+    ? "M9 12h6m-6 4h6m-6-8h2m2 13H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+    : file.media_type === "image"
     ? "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
     : file.media_type === "video"
       ? "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 6h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"

@@ -5,6 +5,9 @@ import {
 } from 'react-icons/fi';
 import { formatTime, formatSize, fileUrl } from '../utils';
 import ImageLightbox from './ImageLightbox';
+import { RichTextView } from '../../components/RichTextField';
+import { isRichText, richTextToPlain, decodeEntities } from '../../utils/richText';
+import { TagChip } from './TagPicker';
 
 // Double-tick receipt: grey = delivered, teal = seen. Single = sent only.
 function Ticks({ message }) {
@@ -145,14 +148,20 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
               <div className={`text-[10px] font-semibold ${outgoing ? 'text-teal-50' : 'text-teal-600'}`}>
                 {message.reply_to.sender_id === message.sender_id ? 'You' : 'Reply'}
               </div>
-              <div className={`text-[11px] truncate ${outgoing ? 'text-teal-50' : 'text-gray-500'}`}>
-                {message.reply_to.body || 'Attachment'}
+              <div dir="auto" className={`text-[11px] truncate ${outgoing ? 'text-teal-50' : 'text-gray-500'}`}>
+                {richTextToPlain(message.reply_to.body) || 'Attachment'}
               </div>
             </div>
           )}
 
           {message.forwarded_from_id && !deleted && (
             <div className={`text-[10px] italic mb-0.5 ${outgoing ? 'text-teal-100' : 'text-gray-400'}`}>Forwarded</div>
+          )}
+
+          {/* What the sender said this message is. Shown on the bubble as well
+              as in the list, so the classification survives being opened. */}
+          {message.tag && !deleted && (
+            <div className="mb-1"><TagChip tag={message.tag} size="xs" /></div>
           )}
 
           {deleted ? (
@@ -168,7 +177,19 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                   onPreview={(url, name) => setPreview({ url, name })}
                 />
               ))}
-              {message.body && <div className={message.attachments?.length ? 'mt-1' : ''}>{linkify(message.body, outgoing)}</div>}
+              {message.body && (
+                /* Formatted messages render as markup; anything written before
+                 * chat had formatting is still plain text, and linkify keeps
+                 * turning its shared map links into links. dir="auto" is what
+                 * lets a Pashto message and an English one both read correctly
+                 * in the same thread. */
+                <div dir="auto" className={message.attachments?.length ? 'mt-1' : ''}>
+                  {isRichText(message.body)
+                    ? <RichTextView html={message.body} dir="auto"
+                        className={`rich-text-chat ${outgoing ? 'rich-text-inverted' : ''}`} />
+                    : linkify(decodeEntities(message.body), outgoing)}
+                </div>
+              )}
             </>
           )}
 
@@ -196,7 +217,7 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                 <MenuItem icon={<FiCornerUpLeft />} label="Reply" onClick={() => { onReply(message); setMenu(false); }} />
                 <MenuItem icon={<FiCornerUpRight />} label="Forward" onClick={() => { onForward(message); setMenu(false); }} />
                 {message.body && (
-                  <MenuItem icon={<FiCopy />} label="Copy" onClick={() => { navigator.clipboard?.writeText(message.body); setMenu(false); }} />
+                  <MenuItem icon={<FiCopy />} label="Copy" onClick={() => { navigator.clipboard?.writeText(richTextToPlain(message.body)); setMenu(false); }} />
                 )}
                 {outgoing && message.body && (
                   <MenuItem icon={<FiEdit2 />} label="Edit" onClick={() => { onEdit(message); setMenu(false); }} />

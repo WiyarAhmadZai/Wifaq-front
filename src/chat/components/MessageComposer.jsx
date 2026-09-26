@@ -3,9 +3,24 @@ import {
   FiPaperclip, FiSend, FiX, FiImage, FiFile, FiCornerUpLeft, FiEdit2, FiMic, FiSquare, FiMail,
   FiFileText, FiMusic, FiVideo, FiCamera, FiMapPin,
 } from 'react-icons/fi';
+import { useAuth } from '../../admin/context/AuthContext';
 import { formatSize, filesFromClipboard, isImageFile } from '../utils';
+import TagPicker from './TagPicker';
+import { suggestTag } from '../tags';
+import RichTextField from '../../components/RichTextField';
+import { richTextToPlain } from '../../utils/richText';
 import ImageEditorModal from './ImageEditorModal';
 import CameraCapture from './CameraCapture';
+
+/* The message box is the same rich-text editor the forms use, in its compact
+ * shape: one line tall until you write more, and the formatting toolbar kept
+ * out of the way behind the "Aa" button. Pashto, Dari and English can share a
+ * message — each paragraph carries its own direction, so an RTL line and an
+ * LTR line sit correctly side by side instead of one of them reading
+ * backwards. The editable div is addressed by id because focus has to be
+ * restored from half a dozen places in here. */
+const INPUT_ID = 'wen-chat-input';
+const focusEditor = () => document.getElementById(INPUT_ID)?.focus();
 
 /* What the paperclip offers — mirrors the server's mimes rule. Anything a
  * WhatsApp user would expect to send: pictures, documents, audio, video. */
@@ -33,7 +48,13 @@ const voiceMime = () =>
 export default function MessageComposer({
   onSend, sendTyping, replyTo, onCancelReply, editing, onSaveEdit, onCancelEdit, incomingFiles,
 }) {
+  const { roles } = useAuth();
   const [text, setText] = useState('');
+  const [showTools, setShowTools] = useState(false);
+  /* What kind of message this is. Null until the sender picks one — the
+   * suggestion below lights the button up but never chooses for them. */
+  const [tag, setTag] = useState(null);
+  const [touchedTag, setTouchedTag] = useState(false);
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
   // "Notify via email" — per message, off unless the sender switches it on.
@@ -58,16 +79,14 @@ export default function MessageComposer({
   const [micError, setMicError] = useState('');
   const typingRef = useRef(false);
   const typingTimer = useRef(null);
-  const inputRef = useRef(null);
 
   // Auto-focus the input when a conversation opens (the composer remounts per
   // conversation via ChatWindow's key), so the user can type immediately.
   // Double rAF fires after the drawer/thread has laid out; the setTimeout is a
-  // belt-and-suspenders fallback. (The textarea also sets autoFocus.)
+  // belt-and-suspenders fallback. (The editor also sets autoFocus.)
   useEffect(() => {
-    const focus = () => inputRef.current?.focus();
-    const raf = requestAnimationFrame(() => requestAnimationFrame(focus));
-    const t = setTimeout(focus, 250);
+    const raf = requestAnimationFrame(() => requestAnimationFrame(focusEditor));
+    const t = setTimeout(focusEditor, 250);
     return () => { cancelAnimationFrame(raf); clearTimeout(t); };
   }, []);
 
@@ -75,7 +94,7 @@ export default function MessageComposer({
   useEffect(() => {
     if (editing) {
       setText(editing.body || '');
-      inputRef.current?.focus();
+      focusEditor();
     }
   }, [editing]);
 
@@ -95,8 +114,18 @@ export default function MessageComposer({
     sendTyping?.(typing);
   };
 
-  const handleChange = (e) => {
-    setText(e.target.value);
+  /* A guess from the words and the sender's role, offered as a hint beside
+   * the picker. It stops being offered the moment the sender touches the
+   * picker themselves — theirs is the decision, ours is a shortcut. */
+  const suggested = useMemo(
+    () => (touchedTag || tag ? null : suggestTag(text, roles)),
+    [text, roles, tag, touchedTag],
+  );
+
+  const chooseTag = (next) => { setTouchedTag(true); setTag(next); };
+
+  const handleChange = (html) => {
+    setText(html);
     emitTyping(true);
     clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => emitTyping(false), 1500);
@@ -117,31 +146,43 @@ export default function MessageComposer({
 
   /**
    * Ctrl+V. A screenshot on the clipboard, or an image copied from another
-   * app, is attached here just as a picked file would be. Plain text is left
-   * to the textarea's own paste.
+   * app, is attached here just as a picked file would be.
+   *
+   * Returns true when the paste WAS files and we consumed it; the editor then
+   * leaves the clipboard alone. Anything else — text, or HTML copied from a
+   * page — falls through to the editor, which sanitises it.
    */
-  const onPaste = (e) => {
-    if (editing) return;
+  const onPasteFiles = (e) => {
+    if (editing) return false;
     const pasted = filesFromClipboard(e.clipboardData);
-    if (!pasted.length) return;
+    if (!pasted.length) return false;
     e.preventDefault();
     addFiles(pasted);
+    return true;
   };
 
   /** The editor's Send: images plus the caption written there. */
   const sendFromEditor = async (edited, caption) => {
-    await onSend({ body: caption, attachments: edited, replyTo, notifyByEmail: emailToo });
+    await onSend({ body: caption, attachments: edited, replyTo, notifyByEmail: emailToo, tag });
     setEditorFiles(null);
     // The caption took the place of whatever was in the box.
     setText('');
     emitTyping(false);
     onCancelReply?.();
-    inputRef.current?.focus();
+    focusEditor();
   };
 
   const removeFile = (idx) => setFiles((prev) => prev.filter((_, i) => i !== idx));
 
-  const reset = () => { setText(''); setFiles([]); emitTyping(false); clearTimeout(typingTimer.current); };
+  const reset = () => {
+    setText(''); setFiles([]); emitTyping(false); clearTimeout(typingTimer.current);
+    // The next message is a new message: it gets its own tag, or none.
+    setTag(null); setTouchedTag(false);
+    // The editor is uncontrolled while focused — clear it by hand, or the sent
+    // message stays on screen in the box.
+    const el = document.getElementById(INPUT_ID);
+    if (el) el.innerHTML = '';
+  };
 
   useEffect(() => {
     if (!recording) return undefined;
@@ -174,7 +215,7 @@ export default function MessageComposer({
         }
         setRecording(false);
         setRecSeconds(0);
-        inputRef.current?.focus();
+        focusEditor();
       };
       recorderRef.current = rec;
       streamRef.current = stream;
@@ -237,7 +278,7 @@ export default function MessageComposer({
   };
 
   const submit = async () => {
-    const body = text.trim();
+    const body = text.trim();      // RichTextField already reports '' when blank
     if (editing) {
       if (body && body !== editing.body) await onSaveEdit(editing.id, body);
       else onCancelEdit();
@@ -247,15 +288,16 @@ export default function MessageComposer({
     if (!body && files.length === 0) return;
     setSending(true);
     try {
-      await onSend({ body, attachments: files, replyTo, notifyByEmail: emailToo });
+      await onSend({ body, attachments: files, replyTo, notifyByEmail: emailToo, tag });
       reset();
     } finally {
       setSending(false);
-      inputRef.current?.focus();
+      focusEditor();
     }
   };
 
   const onKeyDown = (e) => {
+    // Enter sends; Shift+Enter is a new line, as everywhere else in chat.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -276,8 +318,8 @@ export default function MessageComposer({
             <div className="text-[11px] font-semibold text-teal-600">
               {editing ? 'Editing message' : 'Replying to'}
             </div>
-            <div className="text-xs text-gray-500 truncate">
-              {(editing || replyTo)?.body || 'Attachment'}
+            <div className="text-xs text-gray-500 truncate" dir="auto">
+              {richTextToPlain((editing || replyTo)?.body) || 'Attachment'}
             </div>
           </div>
           <button
@@ -354,6 +396,19 @@ export default function MessageComposer({
             {/* Notify via email — a toggle, not a checkbox, so it sits in the
                 icon row. Filled teal when armed so the sender can see at a
                 glance that the next message will also go to the inbox. */}
+            {/* Formatting. Folded away by default so a one-line reply still
+                looks like a chat box, not a word processor. */}
+            <button
+              type="button"
+              onClick={() => { setShowTools((v) => !v); focusEditor(); }}
+              aria-pressed={showTools}
+              title={showTools ? 'Hide formatting' : 'Formatting, colours and text direction'}
+              className={`p-2 rounded-lg transition-colors -ms-2 font-semibold text-sm leading-none w-9 h-9 ${
+                showTools ? 'text-white bg-teal-600 hover:bg-teal-700' : 'text-gray-400 hover:text-teal-600'
+              }`}
+            >
+              Aa
+            </button>
             <button
               type="button"
               onClick={() => setEmailToo((v) => !v)}
@@ -392,17 +447,23 @@ export default function MessageComposer({
             </span>
           </div>
         ) : (
-        <textarea
-          ref={inputRef}
+        <RichTextField
+          id={INPUT_ID}
+          compact
           autoFocus
-          rows={1}
+          showToolbar={showTools}
           value={text}
           onChange={handleChange}
           onKeyDown={onKeyDown}
-          onPaste={onPaste}
+          onPasteFiles={onPasteFiles}
           placeholder="Type a message"
-          className="flex-1 resize-none max-h-28 px-4 py-2.5 bg-gray-50 rounded-2xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-200 transition-all"
+          className="flex-1 min-w-0"
         />
+        )}
+        {/* What kind of message this is — beside Send, where the sender is
+            already looking when they decide to send it. */}
+        {!editing && !recording && (
+          <TagPicker value={tag} onChange={chooseTag} suggested={suggested} />
         )}
         {recording ? (
           <button
@@ -446,7 +507,7 @@ export default function MessageComposer({
         <ImageEditorModal
           files={editorFiles}
           initialCaption={text}
-          onCancel={() => { setEditorFiles(null); inputRef.current?.focus(); }}
+          onCancel={() => { setEditorFiles(null); focusEditor(); }}
           onSend={sendFromEditor}
         />
       )}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   getTaxonomy, listCatalogue, saveCatalogue,
@@ -85,6 +85,7 @@ function useColumns() {
 
 export default function DriveCatalogue() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [tax, setTax] = useState(null);
   const [items, setItems] = useState([]);
@@ -167,9 +168,15 @@ export default function DriveCatalogue() {
 
   // Preview in place. Images and video play inline, PDFs frame, and external
   // links embed where the provider allows it — no more blind jump to a new tab.
-  const openItem = (item) => setPreview(item);
+  const openItem = (item) => {
+    // A document has no bytes to preview — it opens in the editor, read-only
+    // for anyone it was only shared with.
+    if (item.media_type === "doc") { navigate(`/drive/documents/${item.id}`); return; }
+    setPreview(item);
+  };
 
   const download = async (item) => {
+    if (item.media_type === "doc") { navigate(`/drive/documents/${item.id}`); return; }
     if (item.is_link) { window.open(item.external_url, "_blank", "noopener"); return; }
     try {
       const res = await fileDownloadBlob(item.id);

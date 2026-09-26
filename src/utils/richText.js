@@ -59,10 +59,45 @@ function cleanStyle(raw) {
   return kept.join(";");
 }
 
+/**
+ * Turn the non-breaking spaces a contentEditable leaves behind into ordinary
+ * ones.
+ *
+ * Typing a space at the end of a line makes every browser insert U+00A0
+ * instead of a plain space — otherwise the caret would sit on a space the
+ * layout has already collapsed. That is an editing artefact, not something
+ * the writer asked for, and serialising it back out writes the literal text
+ * `&nbsp;`. In a message with no other markup nothing downstream treats the
+ * result as HTML, so the reader is shown the five characters `&nbsp;` at the
+ * end of their sentence. Normalising here means it is never stored.
+ */
+const normalizeSpaces = (node) => {
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const t = walker.currentNode;
+    if (t.nodeValue.includes("\u00A0")) t.nodeValue = t.nodeValue.replace(/\u00A0/g, " ");
+  }
+};
+
+/**
+ * Entities back to the characters they stand for, for the places that show a
+ * body as PLAIN TEXT — a list row, a bubble with no markup in it. React
+ * escapes whatever it renders, so a decoded "<script>" is still printed, not
+ * run.
+ */
+export function decodeEntities(text) {
+  const s = String(text ?? "");
+  if (!s.includes("&")) return s;
+  const box = document.createElement("textarea");
+  box.innerHTML = s;
+  return box.value;
+}
+
 export function sanitizeHtml(html) {
   if (!html) return "";
   const box = document.createElement("div");
   box.innerHTML = html;
+  normalizeSpaces(box);
 
   const walk = (node) => {
     [...node.childNodes].forEach((child) => {
@@ -125,8 +160,10 @@ export const isRichText = (v) => /<\/?[a-z][\s\S]*>/i.test(String(v || ""));
 /** Plain text for places that cannot show HTML: table cells, email subjects. */
 export function richTextToPlain(html) {
   if (!html) return "";
-  if (!isRichText(html)) return String(html);
+  // Not markup, but it may still carry entities — messages written before
+  // normalizeSpaces existed end in a literal `&nbsp;`.
+  if (!isRichText(html)) return decodeEntities(html).replace(/\u00A0/g, " ").trim();
   const box = document.createElement("div");
   box.innerHTML = html.replace(/<\/(p|div|li|h[1-6]|blockquote)>/gi, "$&\n").replace(/<br\s*\/?>/gi, "\n");
-  return (box.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+  return (box.textContent || "").replace(/\u00A0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }

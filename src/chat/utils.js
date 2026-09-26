@@ -1,5 +1,6 @@
 // Small presentational helpers shared across chat components.
 import { API_BASE_URL } from '../api/axios';
+import { richTextToPlain } from '../utils/richText';
 
 const ORIGIN = (API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 
@@ -114,7 +115,8 @@ export function lastMessagePreview(msg) {
   if (msg.is_deleted) return 'This message was deleted';
   if (msg.type === 'image') return '📷 Photo';
   if (msg.type === 'file') return '📎 Attachment';
-  return msg.body || '';
+  // A formatted message must not show its tags in the list.
+  return richTextToPlain(msg.body).replace(/\s+/g, ' ').trim() || '';
 }
 
 // ── Clipboard / drop helpers ─────────────────────────────────────────────────

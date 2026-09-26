@@ -8,7 +8,7 @@ import ForwardModal from './ForwardModal';
 import GroupInfoPanel from './GroupInfoPanel';
 import { formatDateDivider, lastSeenLabel, roleLabel, filesFromClipboard } from '../utils';
 
-export default function ChatWindow({ onBack }) {
+export default function ChatWindow({ onBack, controlsWidth = 1 }) {
   const {
     activeConversation, messages, loadingMessages, hasMore, loadOlder,
     isOnline, typingPeers, sendMessage, sendTyping, editMessage, deleteMessage, me,
@@ -133,8 +133,13 @@ export default function ChatWindow({ onBack }) {
             )}
           </div>
         </button>
+        {/* The drawer floats its window controls over this row; the margin is
+            what keeps this button clear of them. The standalone /mailbox page
+            has no floating controls, so it passes controlsWidth={0}. */}
         <button onClick={() => setShowInfo((v) => !v)} title="Details"
-          className="me-8 md:me-10 p-1.5 rounded-full text-gray-400 hover:text-teal-600 hover:bg-gray-100">
+          className={`p-1.5 rounded-full text-gray-400 hover:text-teal-600 hover:bg-gray-100 ${
+            controlsWidth ? 'me-8 md:me-24' : ''
+          }`}>
           <FiInfo className="w-5 h-5" />
         </button>
       </div>

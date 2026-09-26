@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import wifaqLogo from "../../assets/wifaq-logo.png";
 
 /**
  * The student ID card, drawn onto a canvas.
@@ -85,7 +86,7 @@ export async function drawCard(card, opts = {}) {
   const ctx = canvas.getContext("2d");
 
   const [logo, photo, qr] = await Promise.all([
-    opts.logo !== undefined ? Promise.resolve(opts.logo) : loadImage("/wifaq-logo.png"),
+    opts.logo !== undefined ? Promise.resolve(opts.logo) : loadImage(wifaqLogo),
     loadImage(card.photo_url),
     card.scan_url
       ? QRCode.toDataURL(card.scan_url, {

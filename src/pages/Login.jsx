@@ -4,6 +4,7 @@ import { post, clearApiCache } from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../admin/context/AuthContext';
 import LanguageSwitcher from "../i18n/LanguageSwitcher";
+import wifaqLogo from "../assets/wifaq-logo.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -83,7 +84,7 @@ export default function Login() {
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-teal-600 px-6 py-4 text-center">
             <div className="w-16 h-16 bg-white rounded-xl mx-auto mb-3 flex items-center justify-center p-1.5">
-              <img src="/wifaq-logo.png" alt="Wifaq School" className="w-full h-full object-contain" />
+              <img src={wifaqLogo} alt="Wifaq School" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-lg font-bold text-white">Wifaq School</h1>
             <p className="text-teal-100 text-xs mt-0.5">Admin Portal</p>

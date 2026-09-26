@@ -3,6 +3,7 @@ import { FiDownloadCloud } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { get } from "../../api/axios";
 import { drawCard, cardFileName, canvasToBlob, saveBlob } from "./cardCanvas";
+import wifaqLogo from "../../assets/wifaq-logo.png";
 
 /**
  * Every student's ID card, in one ZIP, in one click.
@@ -118,6 +119,6 @@ function loadLogo() {
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = "/wifaq-logo.png";
+    img.src = wifaqLogo;
   });
 }

@@ -24,6 +24,7 @@ import { get, put, post } from "../api/axios";
 import Swal from "sweetalert2";
 
 import { fmtDate } from "../utils/formErrors";
+import wifaqLogo from "../assets/wifaq-logo.png";
 
 const Icons = {
   Dashboard: () => (
@@ -1808,7 +1809,7 @@ export default function Layout() {
             {/* White, not teal: the mark is itself teal, and teal on teal is
                 an empty square. object-contain so the cube is never cropped. */}
             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden">
-              <img src="/wifaq-logo.png" alt="Wifaq School"
+              <img src={wifaqLogo} alt="Wifaq School"
                 className="w-full h-full object-contain p-[2px]" />
             </div>
             <div>

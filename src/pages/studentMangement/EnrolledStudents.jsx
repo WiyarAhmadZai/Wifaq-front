@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import CrudPage from "../../components/CrudPage";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
 import StudentEditModal from "./StudentEditModal";
+import StudentIdCard from "./StudentIdCard";
+import BulkCardsButton from "./BulkCardsButton";
 import FamilyContactButton from "./FamilyContactButton";
 import Swal from "sweetalert2";
-import { FiEdit2 } from "react-icons/fi";
+import { FiEdit2, FiCreditCard } from "react-icons/fi";
 import { generateUniformInvoice } from "../../api/financial";
 import { get, peekCache } from "../../api/axios";
 import { useNavigate } from "react-router-dom";
@@ -88,6 +90,8 @@ export default function EnrolledStudents() {
   const canInvoice = hasPermission("fee-invoices.create") || hasPermission("fee-invoices.manage");
   const [transferStudent, setTransferStudent] = useState(null);
   const [editStudentId, setEditStudentId] = useState(null);
+  // Which student's ID card is open. The modal fetches, draws and prints it.
+  const [cardStudentId, setCardStudentId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   // Stable identities: the edit modal keys its data load off these props, so a
   // fresh arrow on every render would restart the load mid-edit.
@@ -231,6 +235,7 @@ export default function EnrolledStudents() {
           { key: "status", label: "Status", render: statusBadge },
           fatherPhoneColumn,
         ]}
+        extraHeaderButtons={canUpdate ? <BulkCardsButton /> : null}
         showRoute="/student-management/students/show"
         searchable={true}
         searchFields={["first_name", "last_name", "student_id"]}
@@ -239,6 +244,16 @@ export default function EnrolledStudents() {
             {/* Contact the family — WhatsApp or Call */}
             <FamilyContactButton family={item.family} />
             {transferAction(item)}
+            {/* Print the ID card — with the QR code that opens this student
+                in WEN for whoever scans it, as far as their own account allows. */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setCardStudentId(item.id); }}
+              title="Print ID card"
+              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+            >
+              <FiCreditCard className="w-3.5 h-3.5" />
+            </button>
             {/* Edit EVERYTHING (phase 1 + phase 2 + family) in a modal */}
             {canUpdate && (
               <button
@@ -261,6 +276,10 @@ export default function EnrolledStudents() {
           onSaved={bumpRefreshKey}
           readOnly={!canUpdate}
         />
+      )}
+
+      {cardStudentId && (
+        <StudentIdCard studentId={cardStudentId} onClose={() => setCardStudentId(null)} />
       )}
 
       {editStudentId && (

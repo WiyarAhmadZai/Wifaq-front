@@ -159,6 +159,7 @@ const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
 const Drive = lazy(() => import("./pages/drive/DriveHome"));
 const Mailbox = lazy(() => import("./chat/components/MailboxPage"));
 const DriveDocument = lazy(() => import("./pages/drive/DriveDocument"));
+const StudentScan = lazy(() => import("./pages/studentMangement/StudentScan"));
 const Questionnaires = lazy(() => import("./pages/questionnaire/Questionnaires"));
 const QuestionnaireForm = lazy(() => import("./pages/questionnaire/QuestionnaireForm"));
 const QuestionnaireResponses = lazy(() => import("./pages/questionnaire/QuestionnaireResponses"));
@@ -406,6 +407,13 @@ function App() {
             {/* Public weekly questionnaire — shareable link, no login required */}
             <Route path="/questionnaire" element={<Suspense fallback={<PageLoader />}><PublicQuestionnaire /></Suspense>} />
             <Route path="/parent-questionnaire" element={<Navigate to="/questionnaire" replace />} />
+
+            {/* Where a scanned student ID card lands. Deliberately short, so
+                the printed QR code stays coarse enough to read off plastic, and
+                outside the app shell because it is opened on a phone by someone
+                who may still need to sign in. It grants nothing by itself — the
+                server decides what the scanner may see. */}
+            <Route path="/s/:token" element={<Suspense fallback={<PageLoader />}><StudentScan /></Suspense>} />
 
             {/* Messages as a page of its own — what the drawer's "open in a
                 separate window" button opens. Outside the Layout on purpose:

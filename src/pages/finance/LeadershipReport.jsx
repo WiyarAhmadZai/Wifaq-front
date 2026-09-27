@@ -10,7 +10,7 @@ const fmtK = (n) => {
   return fmt(v);
 };
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const SCHOOL = { name: "Wifaq School", logo: "/wiyarkpu.jpg" };
+const SCHOOL = { name: "Raqim", logo: "/wiyarkpu.jpg" };
 
 const PRINT_CSS = `
 @media print {

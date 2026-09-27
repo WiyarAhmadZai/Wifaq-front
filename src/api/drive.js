@@ -64,9 +64,9 @@ export const addLink      = (folderId, name, url, mediaType, catalogue = {}, aud
 // Drive file row underneath, so it lives in folders, carries an audience and
 // is moved, copied and deleted by the endpoints above — only its contents are
 // text in a column instead of bytes on disk.
-export const createDocument = (folderId, name, content, audience) =>
+export const createDocument = (folderId, name, content, audience, catalogue = {}) =>
   post(`${BASE}/documents`, {
-    folder_id: folderId || null, name, content: content || "", ...audienceFields(audience),
+    folder_id: folderId || null, name, content: content || "", ...catalogue, ...audienceFields(audience),
   });
 export const getDocument  = (id) => get(`${BASE}/documents/${id}`, { cache: false });
 export const saveDocument = (id, fields) => put(`${BASE}/documents/${id}`, fields);

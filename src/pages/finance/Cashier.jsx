@@ -859,7 +859,7 @@ function amountToWords(num) {
 }
 
 const SCHOOL = {
-  name: "Wifaq School",
+  name: "Raqim",
   tagline: "Education with Excellence",
   address: "Kabul, Afghanistan",
   phone: "+93 700 000 000",

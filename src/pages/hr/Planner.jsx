@@ -36,11 +36,11 @@ export const plannerColumns = [
 ];
 
 const DEMO = [
-  { id: 1, type: "meeting", name: "Ahmad Karimi", date: "2026-03-18", day: "Wednesday", time: "10:00", description: "Weekly staff coordination meeting", event_type: "Internal", target_audience: "All Staff", location: "Conference Room A", branch: "Wifaq School", attendance: "mandatory", notes: "Bring weekly reports" },
-  { id: 2, type: "event", name: "Fatima Ahmadi", date: "2026-03-20", day: "Friday", time: "08:00", description: "Spring semester parent-teacher conference", event_type: "Academic", target_audience: "Parents & Teachers", location: "Main Hall", branch: "Wifaq School", attendance: "mandatory", notes: "Refreshments arranged" },
+  { id: 1, type: "meeting", name: "Ahmad Karimi", date: "2026-03-18", day: "Wednesday", time: "10:00", description: "Weekly staff coordination meeting", event_type: "Internal", target_audience: "All Staff", location: "Conference Room A", branch: "Raqim", attendance: "mandatory", notes: "Bring weekly reports" },
+  { id: 2, type: "event", name: "Fatima Ahmadi", date: "2026-03-20", day: "Friday", time: "08:00", description: "Spring semester parent-teacher conference", event_type: "Academic", target_audience: "Parents & Teachers", location: "Main Hall", branch: "Raqim", attendance: "mandatory", notes: "Refreshments arranged" },
   { id: 3, type: "task", name: "Noor Rahman", date: "2026-03-17", day: "Tuesday", time: "14:00", description: "Complete grade 8 exam papers review", event_type: "", target_audience: "", location: "Staff Room", branch: "Wifaq Learning Studio", attendance: "optional", notes: "Deadline: March 19" },
   { id: 4, type: "meeting", name: "Maryam Sultani", date: "2026-03-19", day: "Thursday", time: "11:30", description: "Budget planning for Q2 supplies", event_type: "Finance", target_audience: "Admin Team", location: "Director Office", branch: "WISAL Academy", attendance: "mandatory", notes: "" },
-  { id: 5, type: "event", name: "Khalid Noori", date: "2026-03-22", day: "Sunday", time: "09:00", description: "Science fair exhibition for grades 6-9", event_type: "Academic", target_audience: "Students & Parents", location: "School Yard", branch: "Wifaq School", attendance: "optional", notes: "Setup starts at 7:00 AM" },
+  { id: 5, type: "event", name: "Khalid Noori", date: "2026-03-22", day: "Sunday", time: "09:00", description: "Science fair exhibition for grades 6-9", event_type: "Academic", target_audience: "Students & Parents", location: "School Yard", branch: "Raqim", attendance: "optional", notes: "Setup starts at 7:00 AM" },
 ];
 
 const typeStyle = { task: "bg-teal-50 text-teal-700", meeting: "bg-teal-50 text-teal-700", event: "bg-teal-50 text-teal-700" };

@@ -52,6 +52,7 @@ const OnboardingQuiz = lazy(() => import("./pages/onboarding/OnboardingQuiz"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatSettings = lazy(() => import("./pages/system/ChatSettings"));
+const Backups = lazy(() => import("./pages/system/Backups"));
 const Bugs = lazy(() => import("./pages/system/Bugs"));
 
 // DOB module — student / teacher / staff birthdays
@@ -861,6 +862,11 @@ function App() {
             <Route path="admin/chat-settings" element={
               <Protected role="super-admin">
                 <Suspense fallback={<PageLoader />}><ChatSettings /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/backups" element={
+              <Protected role="super-admin">
+                <Suspense fallback={<PageLoader />}><Backups /></Suspense>
               </Protected>
             } />
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FiArrowRight, FiLock, FiLogIn, FiUser } from "react-icons/fi";
+import { FiArrowRight, FiCheckCircle, FiLock, FiUser } from "react-icons/fi";
 import { get } from "../../api/axios";
+import LanguageSwitcher from "../../i18n/LanguageSwitcher";
 
 /**
  * Where a scanned student card lands: /s/<token>.
@@ -18,9 +19,11 @@ import { get } from "../../api/axios";
  *             sections they are entitled to for their own children
  *   none    — a refusal, with the student's name and nothing else
  *
- * Not signed in is not a failure: the card is meant to be scanned by staff and
- * parents who have accounts, so we send them to sign in and come straight back
- * here afterwards.
+ * Not signed in is not a failure either. Whoever scans a card without an
+ * account — a guard, a shopkeeper, another school — only wants to know the card
+ * is genuine, so they get a verification card with exactly what is printed on
+ * the plastic (name, father's name, student number, class) and a way to sign
+ * in if they are staff or a parent after all.
  */
 
 const TEAL = "#0D5C63";
@@ -28,18 +31,18 @@ const TEAL = "#0D5C63";
 export default function StudentScan() {
   const { token } = useParams();
   const navigate = useNavigate();
-  /* Whether anyone is signed in is knowable before the first render, so it is
-     the starting state rather than something an effect discovers. */
-  const [state, setState] = useState(() =>
-    localStorage.getItem("token") ? { loading: true } : { loading: false, needsLogin: true });
+  const [state, setState] = useState({ loading: true });
 
   useEffect(() => {
-    // Nobody signed in: the sign-in prompt is already on screen.
-    if (!localStorage.getItem("token")) return undefined;
+    // Nobody signed in: the public check, which only confirms the card.
+    const signedIn = !!localStorage.getItem("token");
+    const url = signedIn ? `/student-card/scan/${token}` : `/public/student-card/verify/${token}`;
 
     let alive = true;
-    get(`/student-card/scan/${token}`, { cache: false })
-      .then((res) => alive && setState({ loading: false, data: res.data?.data }))
+    get(url, { cache: false })
+      .then((res) => alive && setState(signedIn
+        ? { loading: false, data: res.data?.data }
+        : { loading: false, verified: res.data?.data }))
       .catch((e) => alive && setState({
         loading: false,
         error: e.response?.status === 404
@@ -65,17 +68,24 @@ export default function StudentScan() {
     );
   }
 
-  if (state.needsLogin) {
+  if (state.verified) {
+    const v = state.verified;
     return (
       <Shell>
-        <FiLogIn className="w-9 h-9" style={{ color: TEAL }} />
-        <p className="text-sm text-gray-600 text-center max-w-xs">
-          Sign in to open this student. You will come back here straight away.
-        </p>
+        <FiCheckCircle className="w-10 h-10 text-emerald-500" />
+        <p className="text-base font-extrabold text-emerald-700">Verified Wifaq student</p>
+
+        <dl className="w-full divide-y rounded-xl border text-sm" style={{ borderColor: "#E3EDED" }}>
+          <Row label="Name" value={v.full_name} />
+          <Row label="Father's Name" value={v.father_name} />
+          <Row label="Student ID" value={v.student_id} />
+          <Row label="Class" value={v.class} />
+        </dl>
+
+        <p className="text-xs text-gray-400">Staff or parent?</p>
         <Link
           to={`/login?redirect=${encodeURIComponent(`/s/${token}`)}`}
-          className="px-5 py-2 rounded-xl text-white text-sm font-bold"
-          style={{ background: TEAL }}>
+          className="-mt-2 text-sm font-semibold hover:underline" style={{ color: TEAL }}>
           Sign in
         </Link>
       </Shell>
@@ -135,15 +145,27 @@ export default function StudentScan() {
   );
 }
 
+function Row({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-2.5">
+      <dt className="text-gray-500">{label}</dt>
+      <dd className="font-bold text-gray-800 text-end" dir="auto" data-no-i18n>{value || "—"}</dd>
+    </div>
+  );
+}
+
 function Shell({ children }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 bg-gray-50">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border p-8 flex flex-col items-center gap-4"
         style={{ borderColor: "#E3EDED" }}>
-        <div className="flex items-center gap-1.5 mb-1">
-          <span style={{ color: TEAL, fontWeight: 800, letterSpacing: "0.5px" }}>WIFAQ</span>
-          <FiArrowRight className="w-3 h-3 text-gray-300" />
-          <span className="text-xs text-gray-400">Student card</span>
+        <div className="w-full flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5">
+            <span style={{ color: TEAL, fontWeight: 800, letterSpacing: "0.5px" }}>WIFAQ</span>
+            <FiArrowRight className="w-3 h-3 text-gray-300" />
+            <span className="text-xs text-gray-400">Student card</span>
+          </div>
+          <LanguageSwitcher compact />
         </div>
         {children}
       </div>

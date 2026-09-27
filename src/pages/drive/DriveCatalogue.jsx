@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   getTaxonomy, listCatalogue, saveCatalogue,
-  uploadFiles, addLink, deleteFile, fileDownloadBlob,
+  uploadFiles, addLink, createDocument, deleteFile, fileDownloadBlob,
 } from "../../api/drive";
 import { fmtDate } from "../../utils/formErrors";
 import MediaThumb from "./MediaThumb";
@@ -628,23 +628,28 @@ function Dialog({ title, subtitle, children, onClose }) {
 }
 
 function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
-  const [mode, setMode] = useState("upload");     // upload | link
+  const [mode, setMode] = useState("upload");     // upload | link | write
   const [form, setForm] = useState({ ...EMPTY_FORM, category: defaultCategory || "" });
   const [files, setFiles] = useState([]);
   const [link, setLink] = useState({ name: "", external_url: "", media_type: "file" });
+  // A document written here needs no attachment at all: its text is the item.
+  const [doc, setDoc] = useState({ name: "", content: "" });
   // Every upload states its audience, administrators included — a catalogue
   // entry is no longer readable by everyone just because it is catalogued.
   const [audience, setAudience] = useState(EMPTY_AUDIENCE);
   const [saving, setSaving] = useState(false);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
-  const canSave = mode === "upload" ? files.length > 0 : link.name && link.external_url;
+  const canSave = mode === "upload" ? files.length > 0
+    : mode === "link" ? link.name && link.external_url
+    : (doc.name.trim() || form.title.trim());
 
   const submit = async () => {
     setSaving(true);
     try {
       if (mode === "upload") await uploadFiles(null, files, form, audience);
-      else await addLink(null, link.name, link.external_url, link.media_type, form, audience);
+      else if (mode === "link") await addLink(null, link.name, link.external_url, link.media_type, form, audience);
+      else await createDocument(null, doc.name.trim() || form.title.trim(), doc.content, audience, form);
       await onSaved();
     } catch (e) {
       const errs = e.response?.data?.errors;
@@ -658,10 +663,10 @@ function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
     <Dialog title="Add to Drive" subtitle="Catalogue details and audience apply to everything in this upload." onClose={onClose}>
       <div className="p-5 space-y-4">
         <div className="flex rounded-xl overflow-hidden border border-gray-200 text-xs w-fit">
-          {["upload", "link"].map((m) => (
+          {["upload", "link", "write"].map((m) => (
             <button key={m} onClick={() => setMode(m)}
               className={`px-4 py-2 font-semibold ${mode === m ? "bg-teal-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
-              {m === "upload" ? "Upload files" : "Add a link"}
+              {m === "upload" ? "Upload files" : m === "link" ? "Add a link" : "Write a document"}
             </button>
           ))}
         </div>
@@ -676,6 +681,19 @@ function AddDialog({ tax, defaultCategory, onClose, onSaved }) {
                 {files.length} files — each keeps its own file name as its title.
               </p>
             )}
+          </div>
+        ) : mode === "write" ? (
+          <div className="space-y-3">
+            <div>
+              <label className={lbl}>Document name</label>
+              <input value={doc.name} onChange={(e) => setDoc((d) => ({ ...d, name: e.target.value }))}
+                placeholder="Untitled document" className={inp} />
+            </div>
+            <div>
+              <label className={lbl}>Content</label>
+              <RichTextField value={doc.content} onChange={(html) => setDoc((d) => ({ ...d, content: html }))}
+                rows={10} placeholder="Start writing…" />
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

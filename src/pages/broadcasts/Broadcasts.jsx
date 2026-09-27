@@ -3,6 +3,8 @@ import Swal from "sweetalert2";
 import CrudPage from "../../components/CrudPage";
 import { put } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
+import { RichTextView } from "../../components/RichTextField";
+import { richTextToPlain } from "../../utils/richText";
 import AudiencePicker, {
   emptyAudience, audienceIsComplete, useAudienceOptions,
 } from "../../components/broadcasts/AudiencePicker";
@@ -28,6 +30,9 @@ export default function Broadcasts() {
   const [draft, setDraft] = useState(emptyAudience());
   const [saving, setSaving] = useState(false);
   const { options, loading: optionsLoading } = useAudienceOptions();
+  // The message open in full. The list row already carries the whole body, so
+  // opening it needs no second request.
+  const [viewing, setViewing] = useState(null);
 
   const openRetarget = (item, refresh) => {
     setDraft({
@@ -86,9 +91,10 @@ export default function Broadcasts() {
           key: "title",
           label: "Message",
           render: (val, row) => (
-            <div className="min-w-0">
+            <button type="button" onClick={(e) => { e.stopPropagation(); setViewing(row); }}
+              className="min-w-0 text-start group" title="Read the full message">
               <div className="flex items-center gap-2">
-                <bdi dir="auto" className="font-semibold text-[#0A3A3E]">{val || "(no title)"}</bdi>
+                <bdi dir="auto" className="font-semibold text-[#0A3A3E] group-hover:underline">{val || "(no title)"}</bdi>
                 {row.is_current && (
                   <span className="px-2 py-0.5 rounded-full text-[9px] font-black border whitespace-nowrap"
                     style={{ background: GOLD_LT, color: GOLD_DEEP, borderColor: GOLD_SOFT }}>
@@ -96,8 +102,9 @@ export default function Broadcasts() {
                   </span>
                 )}
               </div>
-              <bdi dir="auto" className="block text-[11px] text-[#8AA4A7] truncate max-w-md">{row.body}</bdi>
-            </div>
+              {/* The body is rich-text HTML; the preview shows its words, not its tags. */}
+              <bdi dir="auto" className="block text-[11px] text-[#8AA4A7] truncate max-w-md">{richTextToPlain(row.body)}</bdi>
+            </button>
           ),
         },
         { key: "author", label: "Published by", render: (v) => <bdi dir="auto">{v || "—"}</bdi> },
@@ -150,7 +157,18 @@ export default function Broadcasts() {
           ),
         },
       ]}
-      rowActions={canRetarget ? (item, refresh) => (
+      rowActions={(item, refresh) => (
+        <>
+        <button type="button" onClick={() => setViewing(item)}
+          className="p-1.5 rounded-lg transition-colors hover:bg-teal-50" style={{ color: TEAL }}
+          title="Read the full message">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        </button>
+        {canRetarget && (
         <button type="button" onClick={() => openRetarget(item, refresh)}
           className="p-1.5 rounded-lg transition-colors hover:bg-amber-50" style={{ color: GOLD_DEEP }}
           title="Change audience">
@@ -159,8 +177,49 @@ export default function Broadcasts() {
               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
         </button>
-      ) : null}
+        )}
+        </>
+      )}
     />
+
+    {/* One broadcast, in full — the list only has room for a line of it. */}
+    {viewing && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        onClick={(e) => { if (e.target === e.currentTarget) setViewing(null); }}>
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3"
+            style={{ background: GOLD_LT }}>
+            <div className="min-w-0">
+              <bdi dir="auto" className="block text-base font-bold" style={{ color: "#0A3A3E" }}>
+                {viewing.title || "(no title)"}
+              </bdi>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                <bdi dir="auto">{viewing.author || "—"}</bdi> · {(viewing.published_at || "").slice(0, 16)}
+                {" · "}<bdi dir="auto">{viewing.audience_label || "Everyone"}</bdi>
+              </p>
+            </div>
+            <button type="button" onClick={() => setViewing(null)}
+              className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+          </div>
+          <div className="p-5 overflow-y-auto">
+            <RichTextView html={viewing.body} className="text-sm text-gray-700 leading-relaxed" />
+            {viewing.link_url && (
+              <a href={viewing.link_url} target={viewing.link_url.startsWith("/") ? undefined : "_blank"} rel="noreferrer"
+                className="inline-block mt-4 px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: TEAL }}>
+                <bdi dir="auto">{viewing.link_label || viewing.link_url}</bdi>
+              </a>
+            )}
+          </div>
+          <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-2">
+            <span className="text-[11px] text-gray-500">Seen by {viewing.reads_count || 0}</span>
+            <button type="button" onClick={() => setViewing(null)}
+              className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Change who a message is for, without opening the editor. */}
     {retarget && (

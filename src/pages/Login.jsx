@@ -84,9 +84,9 @@ export default function Login() {
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-teal-600 px-6 py-4 text-center">
             <div className="w-16 h-16 bg-white rounded-xl mx-auto mb-3 flex items-center justify-center p-1.5">
-              <img src={wifaqLogo} alt="Wifaq School" className="w-full h-full object-contain" />
+              <img src={wifaqLogo} alt="Raqim" className="w-full h-full object-contain" />
             </div>
-            <h1 className="text-lg font-bold text-white">Wifaq School</h1>
+            <h1 className="text-lg font-bold text-white">Raqim</h1>
             <p className="text-teal-100 text-xs mt-0.5">Admin Portal</p>
           </div>
 
@@ -186,7 +186,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-gray-500 text-xs mt-4">
-          © 2026 Wifaq School. All rights reserved.
+          © 2026 Raqim. All rights reserved.
         </p>
       </div>
     </div>

@@ -1507,6 +1507,7 @@ export default function Layout() {
     { label: "Trash", path: "/admin/trash", permission: "trash.view" },
     // No `permission` → visible to super-admins only (matches the route guard).
     { label: "Chat Settings", path: "/admin/chat-settings" },
+    { label: "Backups", path: "/admin/backups" },
   ];
 
   const branchesMenus = [
@@ -1809,11 +1810,11 @@ export default function Layout() {
             {/* White, not teal: the mark is itself teal, and teal on teal is
                 an empty square. object-contain so the cube is never cropped. */}
             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden">
-              <img src={wifaqLogo} alt="Wifaq School"
+              <img src={wifaqLogo} alt="Raqim"
                 className="w-full h-full object-contain p-[2px]" />
             </div>
             <div>
-              <h1 className="text-white font-bold text-sm">Wifaq School</h1>
+              <h1 className="text-white font-bold text-sm">Raqim</h1>
               <p className="text-teal-300 text-[10px] uppercase tracking-wider">
                 {portalLabel}
               </p>

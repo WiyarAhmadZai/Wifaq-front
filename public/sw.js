@@ -19,8 +19,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || data.message || "",
-      icon: "/wifaq-logo.png",
-      badge: "/wifaq-logo.png",
+      icon: "/favicon.png",
+      badge: "/favicon.png",
       tag: data.tag || undefined,
       renotify: true,
       data: { link: data.link || "/" },

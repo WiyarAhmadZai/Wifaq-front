@@ -1242,6 +1242,47 @@ const LEAD_PRESETS = [
   { value: 1440, label: "1 day" },
 ];
 
+/**
+ * How I hear about the tasks I assigned: every change by email as it
+ * happens, a daily or weekly roundup, or the bell only.
+ */
+function TaskUpdateEmails() {
+  const [value, setValue] = useState(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    get("/notifications/task-emails", { cache: false })
+      .then((r) => setValue(r.data?.data?.task_update_emails || "instant"))
+      .catch(() => setValue("instant"));
+  }, []);
+  const change = async (v) => {
+    const prev = value;
+    setValue(v); setSaving(true);
+    try {
+      await put("/notifications/task-emails", { task_update_emails: v });
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Saved", timer: 1200, showConfirmButton: false });
+    } catch {
+      setValue(prev);
+      Swal.fire("Error", "Could not save.", "error");
+    } finally { setSaving(false); }
+  };
+  if (!value) return null;
+  const OPTIONS = [["instant", "Right away"], ["daily", "Once a day"], ["weekly", "Once a week"], ["off", "Don't email me"]];
+  return (
+    <div className="px-5 py-3 border-b border-gray-100 bg-teal-50/40">
+      <p className="text-[11px] font-semibold text-gray-700">Updates on tasks I assigned</p>
+      <p className="text-[10px] text-gray-500 mb-2">When someone starts, finishes, cancels or is blocked on a task you gave them. The bell always shows it; this is about email.</p>
+      <div className="flex flex-wrap gap-1.5">
+        {OPTIONS.map(([k, label]) => (
+          <button key={k} type="button" disabled={saving} onClick={() => k !== value && change(k)}
+            className={`px-3 py-1.5 rounded-lg border text-[11px] font-medium ${value === k ? "bg-teal-600 border-teal-600 text-white" : "bg-white border-gray-200 text-gray-600 hover:border-teal-400"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RemindersModal({ onClose }) {
   const [mine, setMine] = useState([]);
   const [available, setAvailable] = useState({ meetings: [], events: [], staff_tasks: [] });
@@ -1346,6 +1387,8 @@ function RemindersModal({ onClose }) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
+
+        <TaskUpdateEmails />
 
         <div className="px-5 py-4 border-b border-gray-100 max-h-[28vh] overflow-y-auto">
           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">

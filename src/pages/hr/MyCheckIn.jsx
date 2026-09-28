@@ -8,8 +8,9 @@ import { PageHeader, EmptyState, Spinner } from "../../components/hr/HrUI";
  * My Check-in — the Operations Hub task workspace (spec §2.2, §2.3, §2.6).
  *
  * Left: the Inbox — everything assigned to me with no day chosen yet.
- * Right: this week, day by day. A task is planned by picking a day on it;
- * "Inbox" sends it back. Each task carries a live clock (one runs at a time)
+ * Right: the week, day by day. A task is planned by dragging it onto a day
+ * (or, on a phone, picking the day on it), and given a time if it has one;
+ * dragging it back to the Inbox un-plans it. The arrows move between weeks. Each task carries a live clock (one runs at a time)
  * and the last check-in. The check-in form answers "where are things right
  * now?" — Done closes the task, Blocked alerts whoever assigned it.
  */
@@ -34,11 +35,14 @@ export default function MyCheckIn() {
   const [checkIn, setCheckIn] = useState(null);   // task being checked in
   const [tick, setTick] = useState(0);            // re-render the running clock
   const [loadedAt, setLoadedAt] = useState(0);
+  const [week, setWeek] = useState(null);         // any date inside the week shown; null = this week
+  const [dragId, setDragId] = useState(null);     // task being dragged
+  const [overZone, setOverZone] = useState(null); // "inbox" or a date, while something hovers it
 
-  const load = useCallback(() => get("/hr/staff-tasks/my-board", { cache: false })
+  const load = useCallback(() => get("/hr/staff-tasks/my-board", { cache: false, params: week ? { week } : {} })
     .then((r) => { setBoard(r.data); setLoadedAt(Date.now()); })
     .catch(() => Swal.fire("Error", "Could not load your board.", "error"))
-    .finally(() => setLoading(false)), []);
+    .finally(() => setLoading(false)), [week]);
 
   useEffect(() => { load(); }, [load]);
   // Tick once a minute while a clock runs; `tick` holds "now" so render stays pure.
@@ -64,7 +68,31 @@ export default function MyCheckIn() {
     return { ...b, inbox: row.planned_date ? strip(b.inbox) : [...strip(b.inbox), row], planned, running: row.timer_running ? row : (b.running?.id === row.id ? null : b.running) };
   });
 
-  const plan = (task, date) => put(`/hr/staff-tasks/${task.id}/plan`, { planned_date: date }).then((r) => patch(r.data.data)).catch(() => Swal.fire("Error", "Could not move the task.", "error"));
+  const plan = (task, date, time = null) => put(`/hr/staff-tasks/${task.id}/plan`, { planned_date: date, planned_time: date ? time : null })
+    .then((r) => patch(r.data.data))
+    .catch((e) => Swal.fire("Error", e.response?.data?.message || "Could not move the task.", "error"));
+
+  /* Drag and drop. The card carries its id; a zone is the Inbox or a day. */
+  const findTask = (id) => board && [...board.inbox, ...Object.values(board.planned).flat()].find((t) => String(t.id) === String(id));
+  const zone = (key) => ({
+    onDragOver: (e) => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOverZone(key); } },
+    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverZone((z) => (z === key ? null : z)); },
+    onDrop: (e) => {
+      e.preventDefault();
+      const t = findTask(e.dataTransfer.getData("text/plain") || dragId);
+      setOverZone(null); setDragId(null);
+      if (!t) return;
+      const date = key === "inbox" ? null : key;
+      if ((t.planned_date || null) === date) return;
+      plan(t, date, date ? t.planned_time : null);
+    },
+  });
+  const drag = { dragId, start: (t) => setDragId(t.id), end: () => { setDragId(null); setOverZone(null); } };
+  const shiftWeek = (days) => {
+    const d = new Date((board?.week_start || today()) + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    setWeek(d.toISOString().slice(0, 10));
+  };
   const timer = (task, action) => post(`/hr/staff-tasks/${task.id}/timer/${action}`).then((r) => { patch(r.data.data); if (action === "start") load(); }).catch(() => Swal.fire("Error", "Could not update the timer.", "error"));
 
   if (loading) return <div className="flex justify-center py-24"><Spinner /></div>;
@@ -94,34 +122,42 @@ export default function MyCheckIn() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 items-start">
         {/* Inbox */}
-        <section className="rounded-2xl border border-amber-200 bg-white overflow-hidden">
+        <section {...zone("inbox")} className={`rounded-2xl border bg-white overflow-hidden transition ${overZone === "inbox" ? "border-amber-400 ring-2 ring-amber-200" : "border-amber-200"}`}>
           <header className="px-4 py-3 bg-amber-50 text-amber-900 font-semibold text-sm flex justify-between">
             <span>Inbox</span><span className="font-normal text-xs">{board.inbox.length} <span>items</span></span>
           </header>
+          <p className="px-4 pt-2 text-[11px] text-gray-400">Drag a task onto a day to plan it.</p>
           <div className="p-3 space-y-2 min-h-[200px]">
             {board.inbox.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Nothing waiting — everything has a day.</p>}
-            {board.inbox.map((t) => <TaskCard key={t.id} t={t} days={days} onPlan={plan} onTimer={timer} onCheckIn={setCheckIn} />)}
+            {board.inbox.map((t) => <TaskCard key={t.id} t={t} days={days} drag={drag} onPlan={plan} onTimer={timer} onCheckIn={setCheckIn} />)}
           </div>
         </section>
 
         {/* Week plan */}
         <section className="rounded-2xl border border-teal-200 bg-white overflow-hidden">
-          <header className="px-4 py-3 bg-teal-50 text-teal-800 font-semibold text-sm flex justify-between">
-            <span>My week plan</span><span className="font-normal text-xs">{board.week_start} → {board.week_end}</span>
+          <header className="px-4 py-3 bg-teal-50 text-teal-800 font-semibold text-sm flex items-center justify-between gap-2">
+            <span>My week plan</span>
+            <span className="flex items-center gap-1 font-normal text-xs">
+              <button onClick={() => shiftWeek(-7)} className="px-2 py-0.5 rounded-md hover:bg-teal-100" title="Previous week" aria-label="Previous week">‹</button>
+              <span data-no-i18n>{board.week_start} → {board.week_end}</span>
+              <button onClick={() => shiftWeek(7)} className="px-2 py-0.5 rounded-md hover:bg-teal-100" title="Next week" aria-label="Next week">›</button>
+              {week && <button onClick={() => setWeek(null)} className="ms-1 px-2 py-0.5 rounded-md border border-teal-200 hover:bg-teal-100">This week</button>}
+            </span>
           </header>
           {days.map((d) => {
-            const list = board.planned[d] || [];
+            // Timed tasks first, in time order; untimed ones after.
+            const list = [...(board.planned[d] || [])].sort((a, b) => (a.planned_time || "99") .localeCompare(b.planned_time || "99"));
             const isToday = d === today();
             return (
-              <div key={d} className={`flex border-t border-gray-100 min-h-[68px] ${isToday ? "bg-amber-50/40" : ""}`}>
+              <div key={d} {...zone(d)} className={`flex border-t border-gray-100 min-h-[68px] transition ${overZone === d ? "bg-teal-50 ring-2 ring-inset ring-teal-300" : isToday ? "bg-amber-50/40" : ""}`}>
                 <div className="w-24 shrink-0 px-3 py-2 border-e border-gray-100 bg-gray-50/60">
                   <div className="text-sm font-semibold text-gray-800">{dayName(d)} {dayNum(d)}</div>
                   {isToday && <div className="text-[10px] text-amber-700 font-semibold">Today</div>}
                   {list.length > 0 && <div className="text-[10px] text-gray-400 mt-0.5">⏱ {hm(list.reduce((s, t) => s + (t.estimated_minutes || 0), 0))}</div>}
                 </div>
                 <div className="flex-1 p-2 flex flex-wrap gap-2 content-start">
-                  {list.length === 0 && <span className="text-[11px] text-gray-300 self-center px-2">Nothing planned</span>}
-                  {list.map((t) => <TaskCard key={t.id} t={t} days={days} compact onPlan={plan} onTimer={timer} onCheckIn={setCheckIn} />)}
+                  {list.length === 0 && <span className="text-[11px] text-gray-300 self-center px-2">{dragId ? "Drop here" : "Nothing planned"}</span>}
+                  {list.map((t) => <TaskCard key={t.id} t={t} days={days} compact drag={drag} onPlan={plan} onTimer={timer} onCheckIn={setCheckIn} />)}
                 </div>
               </div>
             );
@@ -138,16 +174,23 @@ export default function MyCheckIn() {
   );
 }
 
-function TaskCard({ t, days, compact = false, onPlan, onTimer, onCheckIn }) {
+function TaskCard({ t, days, compact = false, drag, onPlan, onTimer, onCheckIn }) {
   const live = LIVE[t.live_status] || LIVE.not_started;
   const over = t.estimated_minutes && t.elapsed_minutes > t.estimated_minutes;
   return (
-    <div className={`rounded-xl border border-gray-200 border-s-4 ${PRIORITY[t.task_type] || ""} bg-white p-2.5 ${compact ? "min-w-[220px] max-w-full" : ""} ${t.stale && t.status !== "pending" ? "ring-1 ring-red-200" : ""}`}>
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.setData("text/plain", String(t.id)); e.dataTransfer.effectAllowed = "move"; drag?.start(t); }}
+      onDragEnd={() => drag?.end()}
+      title="Drag onto a day"
+      className={`rounded-xl border border-gray-200 border-s-4 ${PRIORITY[t.task_type] || ""} bg-white p-2.5 cursor-grab active:cursor-grabbing ${drag?.dragId === t.id ? "opacity-40" : ""} ${compact ? "min-w-[220px] max-w-full" : ""} ${t.stale && t.status !== "pending" ? "ring-1 ring-red-200" : ""}`}>
       <div className="flex items-start gap-2">
         <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${live.dot}`} title={live.label} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-gray-800 leading-snug">{t.task}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
+            {t.planned_time && <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold" data-no-i18n>🕘 {t.planned_time}</span>}
+            {t.recurrence && <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700" title="Repeating task">🔁</span>}
             {t.deadline && <span className={t.overdue ? "text-red-600 font-semibold" : ""}>⏰ {t.deadline}</span>}
             {t.estimated_minutes ? <span className={`px-1.5 py-0.5 rounded ${over ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-700"}`}>⏱ {hm(t.elapsed_minutes)} / {hm(t.estimated_minutes)}</span> : t.elapsed_minutes > 0 ? <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">⏱ {hm(t.elapsed_minutes)}</span> : null}
             {t.assigned_by && <span>{t.assigned_by}</span>}
@@ -160,6 +203,12 @@ function TaskCard({ t, days, compact = false, onPlan, onTimer, onCheckIn }) {
           <option value="">Inbox</option>
           {days.map((d) => <option key={d} value={d}>{dayName(d)} {dayNum(d)}</option>)}
         </select>
+        {/* A time on the day, once it has one. Cleared = "some time that day". */}
+        {t.planned_date && (
+          <input type="time" defaultValue={t.planned_time || ""} title="Time"
+            onBlur={(e) => { const v = e.target.value || null; if (v !== (t.planned_time || null)) onPlan(t, t.planned_date, v); }}
+            className="text-[11px] border border-gray-200 rounded-md px-1 py-0.5 bg-white w-[88px]" />
+        )}
         {t.timer_running
           ? <button onClick={() => onTimer(t, "pause")} className="text-[11px] px-2 py-1 rounded-md bg-teal-600 text-white">⏸ Pause</button>
           : <button onClick={() => onTimer(t, "start")} className="text-[11px] px-2 py-1 rounded-md border border-teal-600 text-teal-700 hover:bg-teal-50">▶ Start</button>}

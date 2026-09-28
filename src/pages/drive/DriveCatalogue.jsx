@@ -178,6 +178,12 @@ export default function DriveCatalogue() {
   const download = async (item) => {
     if (item.media_type === "doc") { navigate(`/drive/documents/${item.id}`); return; }
     if (item.is_link) { window.open(item.external_url, "_blank", "noopener"); return; }
+    // The signed link downloads natively — no trip through JavaScript.
+    if (item.download_url) {
+      const a = document.createElement("a");
+      a.href = item.download_url; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+      return;
+    }
     try {
       const res = await fileDownloadBlob(item.id);
       const url = URL.createObjectURL(res.data);

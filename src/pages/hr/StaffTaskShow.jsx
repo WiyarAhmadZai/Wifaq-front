@@ -4,6 +4,9 @@ import { get, del, put, API_BASE_URL, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+import { SendReminderButton } from "../../components/hr/Reminders";
+import { useAuth } from "../../admin/context/AuthContext";
+import { RateWorkButton } from "../../components/hr/StaffRatings";
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
@@ -60,6 +63,7 @@ const getStatusBadge = (status) => {
     pending: 'bg-amber-100 text-amber-800 border-amber-200',
     in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
     completed: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    cancelled: 'bg-gray-100 text-gray-500 border-gray-300',
   };
   return styles[status] || 'bg-gray-100 text-gray-800 border-gray-200';
 };
@@ -69,6 +73,7 @@ const getStatusLabel = (status) => {
     pending: 'Pending',
     in_progress: 'In Progress',
     completed: 'Completed',
+    cancelled: 'Cancelled',
   };
   return labels[status] || status;
 };
@@ -78,6 +83,7 @@ const getStatusIcon = (status) => {
     pending: '⏳',
     in_progress: '🔄',
     completed: '✅',
+    cancelled: '⛔',
   };
   return icons[status] || '⏳';
 };
@@ -126,6 +132,7 @@ const TimelineItem = ({ icon: Icon, label, value, color = 'teal' }) => (
 
 export default function StaffTaskShow() {
   const { id } = useParams();
+  const { user: authUser, isSuperAdmin, hasRole } = useAuth();
   const navigate = useNavigate();
   const { canUpdate, canDelete } = useResourcePermissions("staff-task");
   const [data, setData] = useState(null);
@@ -152,11 +159,14 @@ export default function StaffTaskShow() {
     }
   };
 
+  // The assigner nudges; admins and HR may too (mirrors StaffTaskController::remind).
+  const canRemind = !!data && (Number(authUser?.id) === Number(data.assigned_by) || isSuperAdmin || hasRole('admin') || hasRole('hr-manager'));
+
   const handleStatusUpdate = async () => {
     const { value: newStatus } = await Swal.fire({
       title: 'Update Status',
       input: 'select',
-      inputOptions: { pending: 'Pending', in_progress: 'In Progress', completed: 'Completed' },
+      inputOptions: { pending: 'Pending', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' },
       inputValue: data.status,
       showCancelButton: true,
       confirmButtonColor: '#0d9488',
@@ -233,7 +243,9 @@ export default function StaffTaskShow() {
             <p className="text-xs text-gray-500">View complete task information</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {/* Nudge the assignee — the server allows it for whoever assigned the task, and admins. */}
+          {!['completed', 'cancelled'].includes(data.status) && canRemind && <SendReminderButton endpoint={`/hr/staff-tasks/${id}/remind`} />}
           {canUpdate && (
             <button
               onClick={handleStatusUpdate}
@@ -281,6 +293,9 @@ export default function StaffTaskShow() {
               )}
             </div>
           </div>
+
+          {/* Stars on the five standards — offered to the assignee's superiors. */}
+          <RateWorkButton type="staff_task" id={Number(id)} title={data.task} />
 
           {/* Task Details */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">

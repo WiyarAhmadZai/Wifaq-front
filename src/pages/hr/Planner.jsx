@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { get, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import { richTextToPlain } from "../../utils/richText";
 
 export const plannerFields = [
   { name: 'type', label: 'Type', type: 'select', required: true, options: [
@@ -220,7 +221,7 @@ export default function Planner() {
                     </td>
                     {/* Description */}
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-700 max-w-xs truncate">{item.description}</p>
+                      <p className="text-sm text-gray-700 max-w-xs truncate">{richTextToPlain(item.description)}</p>
                       {item.target_audience && <p className="text-[11px] text-gray-400">{item.target_audience}</p>}
                     </td>
                     {/* Date & Time */}

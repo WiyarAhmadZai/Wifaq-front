@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import {
-  FiDatabase, FiDownload, FiTrash2, FiClock, FiCheckCircle, FiAlertTriangle, FiHardDrive,
+  FiDatabase, FiDownload, FiTrash2, FiClock, FiCheckCircle, FiAlertTriangle, FiHardDrive, FiMail, FiXCircle,
 } from "react-icons/fi";
 import { get, post, put, del } from "../../api/axios";
 
@@ -274,6 +274,112 @@ export default function Backups() {
           </ul>
         )}
       </section>
+
+      {/* 4 — Can this server actually send email and run its schedule? */}
+      <SystemCheck />
     </div>
+  );
+}
+
+/**
+ * Everything that decides whether emails and reminders really go out, read
+ * on the server itself: mail settings, the queue, whether the cron behind the
+ * scheduler is alive, recent failures, and people whose address can never
+ * receive mail. Plus a test send that reports the mail server's exact answer.
+ */
+function SystemCheck() {
+  const [h, setH] = useState(null);
+  const [to, setTo] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const [showFake, setShowFake] = useState(false);
+
+  const load = useCallback(() => get("/system/backups/health", { cache: false }).then((r) => setH(r.data?.data)).catch(() => setH(false)), []);
+  useEffect(() => { load(); }, [load]);
+
+  const test = async () => {
+    if (!to.trim()) return;
+    setSending(true); setResult(null);
+    try {
+      const r = await post("/system/backups/test-email", { to: to.trim() });
+      setResult({ ok: true, text: r.data?.message });
+    } catch (e) {
+      setResult({ ok: false, text: e.response?.data?.message || "Could not send." });
+    } finally { setSending(false); load(); }
+  };
+
+  if (h === false) return null;
+  if (!h) return null;
+
+  const Row = ({ ok, label, children }) => (
+    <div className="flex items-start gap-2 py-2">
+      {ok ? <FiCheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" /> : <FiXCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />}
+      <div className="min-w-0">
+        <div className="text-xs font-semibold text-gray-800">{label}</div>
+        <div className="text-[11px] text-gray-500">{children}</div>
+      </div>
+    </div>
+  );
+  const m = h.mail;
+  const mailOk = m.mailer === "smtp" ? !!(m.host && m.port && m.username_set && m.password_set && m.from) : m.mailer !== "log" && m.mailer !== "array";
+
+  return (
+    <section className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-6">
+      <header className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+        <FiMail className="w-4 h-4 text-gray-400" />
+        <div>
+          <h2 className="text-sm font-bold text-gray-800">System check — email and reminders</h2>
+          <p className="text-[11px] text-gray-500 mt-0.5">If emails do not arrive, the red line below says why.</p>
+        </div>
+      </header>
+      <div className="px-5 divide-y divide-gray-100">
+        <Row ok={mailOk} label="Mail settings">
+          <span data-no-i18n>{m.mailer}{m.host ? ` · ${m.host}:${m.port}` : ""} · {m.from || "—"}</span>
+          {!mailOk && <span className="block text-red-600">Mail settings are incomplete in the server .env (MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS).</span>}
+        </Row>
+        <Row ok={h.scheduler.alive} label="Scheduler (cron)">
+          {h.scheduler.alive
+            ? <span>Running.</span>
+            : <span className="text-red-600">Not running. Reminders, queued emails and automatic backups need a cron job on the server that runs “php artisan schedule:run” every minute.</span>}
+          {h.scheduler.last_run && <span className="block" data-no-i18n>{new Date(h.scheduler.last_run).toLocaleString("en-GB")}</span>}
+        </Row>
+        <Row ok={!(h.queue.pending > 20) && !(h.queue.failed > 0)} label="Email queue">
+          <span data-no-i18n>{h.queue.connection}{h.queue.pending != null ? ` · ${h.queue.pending} waiting` : ""} · {h.queue.failed ?? 0} failed</span>
+          {h.queue.pending > 20 && <span className="block text-red-600">Emails are piling up — the scheduler is not sending them.</span>}
+        </Row>
+        <Row ok={h.users.fake_email === 0 && h.users.no_email === 0} label="People's email addresses">
+          <span><span data-no-i18n>{h.users.fake_email}</span> <span>have a placeholder address that can never receive mail</span>, <span data-no-i18n>{h.users.no_email}</span> <span>have none.</span></span>
+          {h.users.fake_email > 0 && (
+            <button onClick={() => setShowFake((v) => !v)} className="block mt-1 text-teal-700 font-semibold hover:underline">{showFake ? "Hide the list" : "Show who"}</button>
+          )}
+          {showFake && (
+            <ul className="mt-1 max-h-40 overflow-auto text-[11px] text-gray-600" data-no-i18n>
+              {h.users.fake_list.map((u) => <li key={u.id}>{u.name} — {u.email}</li>)}
+            </ul>
+          )}
+        </Row>
+        {h.recent_failures.length > 0 && (
+          <Row ok={false} label="Recent send failures">
+            <ul className="space-y-1 mt-1 font-mono text-[10px] text-red-700 break-all" data-no-i18n>
+              {h.recent_failures.map((l, i) => <li key={i}>{l}</li>)}
+            </ul>
+          </Row>
+        )}
+      </div>
+      <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
+        <label className="block text-[11px] font-semibold text-gray-700 mb-1.5">Send a test email</label>
+        <div className="flex flex-wrap gap-2">
+          <input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@gmail.com" dir="ltr"
+            className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-xs bg-white" />
+          <button onClick={test} disabled={sending || !to.trim()}
+            className="px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold disabled:opacity-50">
+            {sending ? "Sending…" : "Send test"}
+          </button>
+        </div>
+        {result && (
+          <p className={`mt-2 text-[11px] ${result.ok ? "text-emerald-700" : "text-red-600 break-all"}`} data-no-i18n={result.ok ? undefined : true}>{result.text}</p>
+        )}
+      </div>
+    </section>
   );
 }

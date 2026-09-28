@@ -14,7 +14,25 @@ import { fileRawBlob } from "../../api/drive";
 // the same file share a single request.
 const objectUrls = new Map();
 
-export function fileObjectUrl(id) {
+/**
+ * Something an <img>, <video> or new tab can load for this file.
+ *
+ * Every uploaded file arrives with `url` — a signed link the browser fetches
+ * directly, with no bearer token and so no CORS. Prefer it: pulling the bytes
+ * through axios as a blob failed outright in production (net::ERR_FAILED), a
+ * video had to download completely before it could start, and it could never
+ * seek. The authenticated blob remains only as the fallback for a row that
+ * somehow has no url.
+ */
+export function fileObjectUrl(item) {
+  if (item && typeof item === "object") {
+    if (item.url && !item.is_link) return Promise.resolve(item.url);
+    return blobUrl(item.id);
+  }
+  return blobUrl(item);
+}
+
+function blobUrl(id) {
   if (!objectUrls.has(id)) {
     objectUrls.set(
       id,

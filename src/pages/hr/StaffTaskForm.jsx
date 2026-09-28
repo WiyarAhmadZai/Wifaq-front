@@ -4,6 +4,7 @@ import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
+import { AutoRemindPicker } from "../../components/hr/Reminders";
 const TASK_TYPES = [
   { value: "urgent", label: "Urgent", color: "bg-red-100 text-red-700" },
   { value: "high", label: "High", color: "bg-orange-100 text-orange-700" },
@@ -28,6 +29,11 @@ export default function StaffTaskForm() {
     start_date: new Date().toISOString().split("T")[0],
     deadline: "",
     notes: "",
+    // No date: the task waits in the assignee's Inbox and they pick the day.
+    no_date: false,
+    recurrence: "",
+    recurrence_until: "",
+    auto_reminders: [],
   });
 
   const [staffList, setStaffList] = useState([]);
@@ -87,6 +93,10 @@ export default function StaffTaskForm() {
         start_date: d.start_date?.split("T")[0] || "",
         deadline: d.deadline?.split("T")[0] || "",
         notes: d.notes || "",
+        no_date: !d.start_date,
+        recurrence: d.recurrence || "",
+        recurrence_until: d.recurrence_until?.split("T")[0] || "",
+        auto_reminders: [],
       });
       if (d.staff) {
         setSelectedStaff({
@@ -109,6 +119,10 @@ export default function StaffTaskForm() {
         start_date: d.start_date?.split("T")[0] || "",
         deadline: d.deadline?.split("T")[0] || "",
         notes: d.notes || "",
+        no_date: !d.start_date,
+        recurrence: d.recurrence || "",
+        recurrence_until: d.recurrence_until?.split("T")[0] || "",
+        auto_reminders: [],
       });
       if (d.staff) {
         setSelectedStaff({
@@ -167,13 +181,19 @@ export default function StaffTaskForm() {
     setSaving(true);
     try {
       if (isEdit) {
-        const submitData = { ...form };
+        const { no_date, auto_reminders: _r, estimate_value: _v, estimate_unit: _u, ...submitData } = form;
+        if (no_date) submitData.start_date = null;
         if (!submitData.deadline) delete submitData.deadline;
+        if (!submitData.recurrence) { submitData.recurrence = null; submitData.recurrence_until = null; }
         await put(`/hr/staff-tasks/${id}`, submitData);
         Swal.fire({ icon: "success", title: "Task Updated!", timer: 1500, showConfirmButton: false });
       } else {
-        const { staff_id: _ignored, ...rest } = form;
+        const { staff_id: _ignored, no_date, ...rest } = form;
         const { estimate_value, estimate_unit, ...body } = rest;
+        if (no_date) { body.start_date = null; body.recurrence = ""; }
+        if (!body.recurrence) { delete body.recurrence; delete body.recurrence_until; }
+        if (!body.recurrence_until) delete body.recurrence_until;
+        if (!body.auto_reminders?.length) delete body.auto_reminders;
         const perUnit = { minutes: 1, hours: 60, days: 480 }[estimate_unit] || 60; // a working day is 8h
         const estimated_minutes = Number(estimate_value) > 0 ? Math.round(Number(estimate_value) * perUnit) : null;
         const submitData = { ...body, staff_ids: selectedStaffList.map(s => s.id), notify_by_email: emailToo, ...(estimated_minutes ? { estimated_minutes } : {}) };
@@ -348,10 +368,20 @@ export default function StaffTaskForm() {
             </div>
           </div>
 
-          {/* Start Date */}
+          {/* Start Date — or none: the assignee chooses the day on My Check-in. */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-            <DateField name="start_date" value={form.start_date} onChange={handleChange} required className={inp} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Start Date</label>
+              <label className="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" checked={form.no_date}
+                  onChange={(e) => setForm((prev) => ({ ...prev, no_date: e.target.checked, ...(e.target.checked ? { recurrence: "" } : {}) }))}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                <span>No date — they choose</span>
+              </label>
+            </div>
+            {form.no_date
+              ? <p className="px-3.5 py-2.5 rounded-xl border border-dashed border-amber-300 bg-amber-50 text-[11px] text-amber-800">It goes to their Inbox. They drag it onto a day (and time) on My Check-in.</p>
+              : <DateField name="start_date" value={form.start_date} onChange={handleChange} className={inp} />}
           </div>
 
           {/* Deadline */}
@@ -362,6 +392,29 @@ export default function StaffTaskForm() {
             <DateField name="deadline" value={form.deadline} onChange={handleChange} className={inp} />
           </div>
         </div>
+
+        {/* Repeat — a copy of the task arrives on each day of the series. */}
+        {!form.no_date && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Repeat</label>
+              <select name="recurrence" value={form.recurrence} onChange={handleChange} className={inp}>
+                <option value="">Does not repeat</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
+                <option value="monthly">Every month</option>
+              </select>
+            </div>
+            {form.recurrence && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Repeat until <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <DateField name="recurrence_until" value={form.recurrence_until} onChange={handleChange} className={inp} />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Estimated time — workload planning; shows as a countdown once the clock starts. */}
         <div>
@@ -398,6 +451,12 @@ export default function StaffTaskForm() {
           <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="Any additional notes..."
             className={inp} />
         </div>
+
+        {/* Reminders for the assignee, counted back from the deadline (or the day they plan it for). */}
+        {!isEdit && (
+          <AutoRemindPicker value={form.auto_reminders} onChange={(v) => setForm((prev) => ({ ...prev, auto_reminders: v }))}
+            hint="Counted back from the deadline — or, with no deadline, from the day they plan it for." />
+        )}
 
         {/* Email as well as the bell — only when assigning; an edit notifies nobody. */}
         {!isEdit && (

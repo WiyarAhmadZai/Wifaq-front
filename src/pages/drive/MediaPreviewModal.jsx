@@ -31,7 +31,7 @@ export default function MediaPreviewModal({ item, onClose, onDownload }) {
   useEffect(() => {
     if (!item || item.is_link) return;
     let alive = true;
-    fileObjectUrl(item.id)
+    fileObjectUrl(item)
       .then((url) => alive && setSrc(url))
       .catch(() => alive && setError("Could not load this file."));
     return () => {

@@ -11,6 +11,7 @@ import { useAuth } from "../../admin/context/AuthContext";
 import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
 import { RestoreDraftBanner, DraftStatus } from "../../components/hr/DraftBar";
 import RichTextField from "../../components/RichTextField";
+import { AutoRemindPicker } from "../../components/hr/Reminders";
 
 // Fires the server autosave this long after the last keystroke, once the
 // event already exists as a draft. Short enough that little is ever at risk,
@@ -36,6 +37,8 @@ export default function EventForm() {
   const [loading, setLoading] = useState(false);
   // "Also send an email" to everyone involved. Per event; a draft emails nobody.
   const [emailToo, setEmailToo] = useState(true);
+  // A week / a day / an hour before the event — for everyone involved.
+  const [autoReminders, setAutoReminders] = useState([]);
 
   /* ── Nothing typed here gets thrown away ────────────────────────────────
    *
@@ -61,6 +64,7 @@ export default function EventForm() {
     ...form,
     status,
     notify_by_email: emailToo,
+    ...(autoReminders.length ? { auto_reminders: autoReminders } : {}),
     roles: roles.map(({ userName, ...r }) => r),
     requirements: requirements.filter((r) => r.description.trim()),
   });
@@ -350,6 +354,9 @@ export default function EventForm() {
                 )}
               </>
             )}
+            <div className="sm:col-span-2">
+              <AutoRemindPicker value={autoReminders} onChange={setAutoReminders} />
+            </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Location</label>
               <input type="text" name="location" value={form.location} onChange={handle} placeholder="Main Hall, Auditorium..." className={ic("location")} />

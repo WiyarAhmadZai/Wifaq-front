@@ -167,3 +167,17 @@ export function richTextToPlain(html) {
   box.innerHTML = html.replace(/<\/(p|div|li|h[1-6]|blockquote)>/gi, "$&\n").replace(/<br\s*\/?>/gi, "\n");
   return (box.textContent || "").replace(/\u00A0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+/**
+ * A pasted or typed list → one clean item per line. Leading bullets and
+ * numbering ("-", "*", "•", "1.", "2)", "۱.") are stripped, blank lines and
+ * lines that were only a bullet are dropped, and each item is capped at the
+ * 200 characters an agenda title holds.
+ */
+export function linesToItems(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*(?:[-*•·▪◦–—]+|[0-9۰-۹٠-٩]+[.)\-:]|[a-zA-Z][.)])\s*/u, "").trim())
+    .filter(Boolean)
+    .map((l) => l.slice(0, 200));
+}

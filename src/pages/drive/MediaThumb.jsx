@@ -47,13 +47,13 @@ export default function MediaThumb({ item, onClick }) {
   useEffect(() => {
     if (!visible || !wantsImage) return;
     let alive = true;
-    fileObjectUrl(item.id)
+    fileObjectUrl(item)
       .then((url) => alive && setSrc(url))
       .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
     };
-  }, [visible, wantsImage, item.id]);
+  }, [visible, wantsImage, item]);
 
   const tile = TILE[kind] || TILE.file;
   const showMedia = wantsImage && src && !failed;

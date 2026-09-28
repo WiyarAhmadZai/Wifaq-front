@@ -10,6 +10,9 @@ import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import { DateField } from "../../components/hr/HrUI";
 import ChecklistPanel from "../../components/hr/ChecklistPanel";
 import AttachmentPanel from "../../components/hr/AttachmentPanel";
+import { RichTextView } from "../../components/RichTextField";
+import { SendReminderButton } from "../../components/hr/Reminders";
+import { linesToItems } from "../../utils/richText";
 const statusConf = {
   scheduled: { label: "Scheduled", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
   in_progress: { label: "In Progress", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
@@ -234,6 +237,9 @@ export default function MeetingShow() {
   const [showProposeAgenda, setShowProposeAgenda] = useState(false);
   const [proposeForm, setProposeForm] = useState({ title: "", description: "", duration_min: 15 });
   const [proposing, setProposing] = useState(false);
+  // "Several at once": a pasted or typed list, one topic per line.
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState("");
 
   // Assign task modal state
   const [showAssignTask, setShowAssignTask] = useState(false);
@@ -261,9 +267,16 @@ export default function MeetingShow() {
     const __cached = peekCache(`/meetings/${id}`);
     if (__cached) {
       setData(__cached?.data || __cached);
+      if (__cached?.permissions) setPerms((p) => ({ ...p, ...__cached.permissions }));
       setLoading(false);
     }
-    return get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data));
+    // The gate flags travel beside `data`, not inside it. They were never read,
+    // so every server-gated button — add agenda, notes, assign task — stayed
+    // hidden for everyone.
+    return get(`/meetings/${id}`).then((r) => {
+      setData(r.data?.data || r.data);
+      if (r.data?.permissions) setPerms((p) => ({ ...p, ...r.data.permissions }));
+    });
   }, [id]);
 
   useEffect(() => {
@@ -368,6 +381,24 @@ export default function MeetingShow() {
   const canProposeAgenda = perms.can_add_agenda;
 
   const submitProposeAgenda = async () => {
+    if (bulkMode) {
+      const items = linesToItems(bulkText);
+      if (!items.length) { Swal.fire("Missing", "Write at least one topic — one per line.", "warning"); return; }
+      setProposing(true);
+      try {
+        const res = await post(`/meetings/${id}/agenda-items/bulk`, { items, duration_min: proposeForm.duration_min || null });
+        const added = res.data?.data || [];
+        setData((p) => ({ ...p, agenda_items: [...(p.agenda_items || []), ...added] }));
+        setShowProposeAgenda(false);
+        setBulkText("");
+        Swal.fire({ icon: "success", title: `${added.length} agenda items added`, timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+      } catch (err) {
+        Swal.fire("Error", err.response?.data?.message || "Failed to add", "error");
+      } finally {
+        setProposing(false);
+      }
+      return;
+    }
     if (!proposeForm.title.trim()) {
       Swal.fire("Missing", "Please enter a topic", "warning"); return;
     }
@@ -525,6 +556,9 @@ export default function MeetingShow() {
             <h1 className="text-sm font-bold text-white">Meeting Details</h1>
             <p className="text-xs text-teal-100 mt-0.5">#{String(data.id).padStart(4, "0")}</p>
           </div>
+          {(isOrganizer || perms.can_manage) && data.status === "scheduled" && !perms.is_locked && (
+            <SendReminderButton endpoint={`/meetings/${id}/remind`} />
+          )}
           {canUpdate && (
             <button onClick={handleContinue} className="px-3 py-1.5 bg-white text-teal-700 hover:bg-teal-50 text-xs font-bold rounded-xl">Continue →</button>
           )}
@@ -545,6 +579,12 @@ export default function MeetingShow() {
           )}
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
+        {data.organizer?.name && (
+          <p className="text-[11px] text-teal-100 mt-0.5">
+            <span>Created by</span> <b className="text-white" data-no-i18n>{data.organizer.name}</b>
+            {data.created_at && <span data-no-i18n> · {fmtDate(data.created_at)}</span>}
+          </p>
+        )}
         <div className="flex items-center gap-2 mt-2">
           {isDraft ? (
             /* An unfinished draft has one sensible action: go and finish it. */
@@ -725,7 +765,7 @@ export default function MeetingShow() {
             {data.description && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Description</h3>
-                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{data.description}</p>
+                <RichTextView html={data.description} className="text-xs text-gray-700 leading-relaxed" />
               </div>
             )}
 
@@ -1017,14 +1057,26 @@ export default function MeetingShow() {
 
           {/* Sidebar */}
           <div className="space-y-4">
-            {/* Participants */}
+            {/* People — the organiser, everyone invited, and anyone presenting an
+                agenda topic. The list used to hold invitees only, so a meeting
+                whose organiser invited nobody read "Participants (0)" with no
+                hint of who was actually involved. */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
               <div className="px-5 py-3 border-b border-gray-100">
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Participants ({(data.participants || []).length})</h3>
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider"><span>Participants</span> (<span data-no-i18n>{(data.participants || []).length}</span>)</h3>
               </div>
               <div className="p-3">
+                {data.organizer && (
+                  <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg bg-teal-50/60">
+                    <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                      {(data.organizer.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </div>
+                    <p className="flex-1 min-w-0 text-[11px] font-medium text-gray-800 truncate" data-no-i18n>{data.organizer.name}</p>
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-teal-600 text-white">Organizer</span>
+                  </div>
+                )}
                 {(data.participants || []).length === 0 ? (
-                  <p className="text-xs text-gray-400 italic px-2 py-2">No participants</p>
+                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-2 mt-1">Nobody else was invited to this meeting.{canUpdate && !perms.is_locked ? " Use Edit to add participants." : ""}</p>
                 ) : (
                   <div className="space-y-1">
                     {data.participants.map((p) => (
@@ -1033,7 +1085,7 @@ export default function MeetingShow() {
                           {(p.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-medium text-gray-800 truncate">{p.name}</p>
+                          <p className="text-[11px] font-medium text-gray-800 truncate" data-no-i18n>{p.name}</p>
                           {p.pivot?.status === "declined" && p.pivot?.response_reason && (
                             <p className="text-[10px] text-red-600 truncate" title={p.pivot.response_reason}>✗ {p.pivot.response_reason}</p>
                           )}
@@ -1073,6 +1125,21 @@ export default function MeetingShow() {
               <p className="text-[11px] text-white/80 mt-0.5">Your proposal will be visible to the organizer and participants</p>
             </div>
             <div className="p-5 space-y-3">
+              <div className="flex rounded-xl overflow-hidden border border-gray-200 text-[11px] w-fit">
+                {[[false, "One topic"], [true, "Several at once"]].map(([m, label]) => (
+                  <button key={label} type="button" onClick={() => setBulkMode(m)}
+                    className={`px-3 py-1.5 font-semibold ${bulkMode === m ? "bg-teal-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>{label}</button>
+                ))}
+              </div>
+              {bulkMode ? (
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Topics — one per line</label>
+                  <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} rows={8} dir="auto"
+                    placeholder="Paste a bullet list, or type one topic per line"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                  <p className="text-[10px] text-gray-400 mt-1"><span>Bullets and numbers are removed.</span> <span data-no-i18n>{linesToItems(bulkText).length}</span> <span>topics</span></p>
+                </div>
+              ) : (<>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Topic *</label>
                 <input type="text" value={proposeForm.title} onChange={(e) => setProposeForm((p) => ({ ...p, title: e.target.value }))} placeholder="e.g. Budget review for Q2" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
@@ -1081,6 +1148,7 @@ export default function MeetingShow() {
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
                 <textarea value={proposeForm.description} onChange={(e) => setProposeForm((p) => ({ ...p, description: e.target.value }))} rows={3} placeholder="Why is this important to discuss…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white resize-none" />
               </div>
+              </>)}
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Estimated Duration (minutes)</label>
                 <input type="number" min="1" max="180" value={proposeForm.duration_min} onChange={(e) => setProposeForm((p) => ({ ...p, duration_min: parseInt(e.target.value) || 15 }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />

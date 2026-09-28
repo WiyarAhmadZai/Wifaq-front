@@ -8,6 +8,8 @@ import { useResourcePermissions } from "../../admin/utils/useResourcePermissions
 import { fmtDate } from "../../utils/formErrors";
 import ChecklistPanel from "../../components/hr/ChecklistPanel";
 import AttachmentPanel from "../../components/hr/AttachmentPanel";
+import { RichTextView } from "../../components/RichTextField";
+import { SendReminderButton } from "../../components/hr/Reminders";
 
 const statusConf = {
   upcoming: { label: "Upcoming", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
@@ -114,6 +116,9 @@ export default function EventShow() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div className="flex-1"><h1 className="text-sm font-bold text-white">Event Details</h1></div>
+          {canUpdate && ["upcoming", "ongoing"].includes(data.status) && (
+            <SendReminderButton endpoint={`/events/${id}/remind`} />
+          )}
           {canUpdate && (
             <button onClick={() => navigate(`/hr/events/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
           )}
@@ -175,7 +180,7 @@ export default function EventShow() {
             {data.description && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Description</h3>
-                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{data.description}</p>
+                <RichTextView html={data.description} className="text-xs text-gray-700 leading-relaxed" />
               </div>
             )}
 
@@ -298,6 +303,8 @@ export default function EventShow() {
             <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
               <h3 className="text-xs font-bold mb-3">Event Info</h3>
               <div className="space-y-2 text-xs">
+                {/* The creator was loaded with the event but never shown. */}
+                <div className="flex justify-between gap-2"><span className="text-teal-200">Created by</span><span className="font-medium truncate" data-no-i18n>{data.creator?.name || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Status</span><span className="font-medium capitalize">{data.status}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Start</span><span className="font-medium">{formatDate(data.start_date)}</span></div>
                 {isMultiDay && <div className="flex justify-between"><span className="text-teal-200">End</span><span className="font-medium">{formatDate(data.end_date)}</span></div>}

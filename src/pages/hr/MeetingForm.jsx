@@ -13,6 +13,8 @@ import { useAuth } from "../../admin/context/AuthContext";
 import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
 import { RestoreDraftBanner, DraftStatus } from "../../components/hr/DraftBar";
 import RichTextField from "../../components/RichTextField";
+import { AutoRemindPicker } from "../../components/hr/Reminders";
+import { linesToItems } from "../../utils/richText";
 
 const emptyAgenda = { title: "", description: "", assigned_to_id: "", duration_min: "" };
 
@@ -51,6 +53,8 @@ export default function MeetingForm() {
   // "Also send an email" to the invitees. The organizer's call, per meeting;
   // a draft emails nobody whatever this says.
   const [emailToo, setEmailToo] = useState(true);
+  // A week / a day / an hour before — for everyone invited.
+  const [autoReminders, setAutoReminders] = useState([]);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [departments, setDepartments] = useState([]);
@@ -169,20 +173,21 @@ export default function MeetingForm() {
       const data = Array.isArray(raw) ? raw : [];
       // Participants are stored as users (FK to users.id), so we use user_id
       // here — staff.id and users.id are not the same thing. Staff without a
-      // linked user account cannot be invited.
-      const withUser = data
-        .filter((s) => s.user_id)
-        .map((s) => ({
-          id: s.user_id,
-          staff_id: s.id,
-          name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
-          employee_id: s.employee_id || "",
-          department: s.department || s.department_relation?.name || "",
-          department_id: s.department_id || null,
-        }));
-      if (data.length > 0 && withUser.length === 0) {
+      // linked user account cannot be invited — but they are LISTED, marked
+      // and unpickable, rather than silently missing: a name that is not in
+      // the list reads as "the system lost them", not "they have no login".
+      const withUser = data.map((s) => ({
+        id: s.user_id || `staff-${s.id}`,
+        no_account: !s.user_id,
+        staff_id: s.id,
+        name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+        employee_id: s.employee_id || "",
+        department: s.department || s.department_relation?.name || "",
+        department_id: s.department_id || null,
+      }));
+      if (data.length > 0 && withUser.every((u) => u.no_account)) {
         console.warn(
-          `MeetingForm: ${data.length} active staff were returned but none have a linked user account. Run migrate:fresh --seed to relink them.`
+          `MeetingForm: ${data.length} active staff were returned but none have a linked user account. Link them to accounts in Users & Access.`
         );
       }
       setUsers(withUser);
@@ -197,7 +202,13 @@ export default function MeetingForm() {
   // Bulk-add every active staff in the picked departments (skips already-added).
   const addParticipantsFromDepartments = () => {
     if (!filterDeptIds.length) return;
-    const want = users.filter((u) => filterDeptIds.includes(u.department_id));
+    const inDept = users.filter((u) => filterDeptIds.includes(u.department_id));
+    const want = inDept.filter((u) => !u.no_account);
+    const skipped = inDept.length - want.length;
+    if (skipped > 0) {
+      Swal.fire({ toast: true, position: "top-end", icon: "info", timer: 3500, showConfirmButton: false,
+        title: "Some staff in these departments have no login account and could not be invited." });
+    }
     if (!want.length) return;
     setParticipants((prev) => {
       const existing = new Set(prev.map((p) => p.id));
@@ -310,6 +321,23 @@ export default function MeetingForm() {
     setAgendaItems((p) => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   };
   const addAgendaItem = () => setAgendaItems((p) => [...p, { ...emptyAgenda }]);
+  /* Paste or type a whole list — one topic per line, bullets and numbers are
+     stripped. Replaces the lone empty row a new meeting starts with. */
+  const pasteAgenda = async () => {
+    const { value } = await Swal.fire({
+      title: "Add several topics",
+      input: "textarea",
+      inputPlaceholder: "One topic per line — paste a bullet list here",
+      inputAttributes: { rows: 8, dir: "auto" },
+      showCancelButton: true,
+      confirmButtonText: "Add to agenda",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#0d9488",
+    });
+    const titles = linesToItems(value);
+    if (!titles.length) return;
+    setAgendaItems((p) => [...p.filter((a) => a.title.trim()), ...titles.map((title) => ({ ...emptyAgenda, title }))]);
+  };
   const removeAgendaItem = (i) => { if (agendaItems.length > 1) setAgendaItems((p) => p.filter((_, idx) => idx !== i)); };
   const moveAgenda = (i, dir) => {
     const j = i + dir;
@@ -343,6 +371,7 @@ export default function MeetingForm() {
       ...rest,
       status,
       notify_by_email: emailToo,
+      ...(autoReminders.length ? { auto_reminders: autoReminders } : {}),
       start_time: haveStart ? `${form.meeting_date} ${form.start_time}:00` : null,
       end_time:   haveEnd   ? `${form.meeting_date} ${form.end_time}:00`   : null,
       reminder_minutes_before: reminderMinutes,
@@ -415,6 +444,21 @@ export default function MeetingForm() {
       errs.end_time = "End time must be after start time";
     }
     if (Object.keys(errs).length) { setErrors(errs); return; }
+
+    // Publishing with nobody invited is almost always a slip — the meeting
+    // then shows "Participants (0)" and nobody is told about it.
+    if (participants.length === 0) {
+      const ok = await Swal.fire({
+        icon: "warning",
+        title: "Nobody is invited",
+        text: "No participants are selected, so nobody will be notified about this meeting. Save it anyway?",
+        showCancelButton: true,
+        confirmButtonText: "Save anyway",
+        cancelButtonText: "Add participants",
+        confirmButtonColor: "#0d9488",
+      });
+      if (!ok.isConfirmed) return;
+    }
 
     setSaving(true);
     // Publishing a draft schedules it; anything else keeps the status it has.
@@ -596,6 +640,10 @@ export default function MeetingForm() {
               </div>
             )}
 
+            <div className="sm:col-span-2">
+              <AutoRemindPicker value={autoReminders} onChange={setAutoReminders} />
+            </div>
+
             {/* Recurrence — only when this is a routine meeting */}
             {form.meeting_type === "routine" && (
               <>
@@ -728,9 +776,12 @@ export default function MeetingForm() {
                 }}
                 options={users.map((u) => ({
                   value: u.id,
-                  label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+                  label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}${u.no_account ? " — no login account" : ""}`,
+                  // Listed so nobody looks missing; not pickable, because an
+                  // invitation needs an account to land in.
+                  isDisabled: u.no_account,
                 }))}
-                placeholder={usersLoading ? "Loading staff…" : users.length ? "Search and pick individual staff…" : "No staff available (run migrate:fresh --seed to link users)"}
+                placeholder={usersLoading ? "Loading staff…" : users.length ? "Search and pick individual staff…" : "No staff available"}
               />
               {participants.length === 0 && (
                 <p className="text-xs text-gray-400 italic mt-2">No participants added yet</p>
@@ -751,11 +802,17 @@ export default function MeetingForm() {
                 <p className="text-[10px] text-teal-600">{agendaItems.filter((a) => a.title).length} item{agendaItems.filter((a) => a.title).length !== 1 ? "s" : ""} · {totalDuration > 0 ? `${totalDuration} min total` : "no duration set"}</p>
               </div>
             </div>
-            <button type="button" onClick={addAgendaItem}
-              className="px-2.5 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-[10px] font-medium flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Add Item
-            </button>
+            <span className="flex items-center gap-1.5">
+              <button type="button" onClick={pasteAgenda}
+                className="px-2.5 py-1 bg-white border border-teal-300 text-teal-700 rounded-lg hover:bg-teal-50 text-[10px] font-medium">
+                Paste a list
+              </button>
+              <button type="button" onClick={addAgendaItem}
+                className="px-2.5 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-[10px] font-medium flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Item
+              </button>
+            </span>
           </div>
           <div className="p-5 space-y-3">
             {agendaItems.map((item, i) => (
@@ -777,7 +834,7 @@ export default function MeetingForm() {
                       size="sm"
                       value={item.assigned_to_id}
                       onChange={(v) => handleAgendaChange(i, "assigned_to_id", v)}
-                      options={users.map((u) => ({ value: u.id, label: u.name }))}
+                      options={users.map((u) => ({ value: u.id, label: `${u.name}${u.no_account ? " — no login account" : ""}`, isDisabled: u.no_account }))}
                       placeholder={usersLoading ? "Loading…" : users.length ? "Search staff…" : "No staff"}
                     />
                   </div>

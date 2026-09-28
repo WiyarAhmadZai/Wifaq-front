@@ -3,13 +3,15 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder, createDocument,
-  fileRawBlob, fileDownloadBlob,
+  fileDownloadBlob,
   moveFile, moveFolder, copyFileTo, copyFolderTo,
 } from "../../api/drive";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 import AudiencePicker, { OwnerBadge, AudienceChips } from "../../components/drive/AudiencePicker";
 import { EMPTY_AUDIENCE } from "../../components/drive/audience";
+import MediaPreviewModal from "./MediaPreviewModal";
+import { fileObjectUrl, previewKind } from "./mediaPreview";
 
 const fmtSize = (n) => {
   if (!n) return "";
@@ -56,6 +58,8 @@ export default function Drive() {
   const changeView = (m) => { setView(m); localStorage.setItem("driveView", m); };
 
   const [linkOpen, setLinkOpen] = useState(false);
+  // The file shown in the in-page viewer (image, video, audio, PDF).
+  const [preview, setPreview] = useState(null);
   const [linkForm, setLinkForm] = useState({ name: "", external_url: "", media_type: "file" });
 
   // Who the next upload / link / folder is for. Reset each time a form opens so
@@ -275,21 +279,29 @@ export default function Drive() {
     try { await deleteFile(f.id); await load(); } catch (e) { Swal.fire("Error", e.response?.data?.message || "Failed.", "error"); }
   };
 
-  // Open: a link opens its URL; an uploaded file is streamed (auth blob) into a new tab.
+  /* Open. Media plays right here in the viewer; anything the browser cannot
+   * show (Word, Excel…) goes to its signed link, which the browser opens or
+   * saves by itself. Nothing is pulled through JavaScript first — that blob
+   * route is what failed with net::ERR_FAILED in production. */
   const openFile = async (f) => {
     // A document has no bytes to stream — it opens in the editor.
     if (isDoc(f)) { openDocument(f); return; }
     if (f.is_link) { window.open(f.external_url, "_blank", "noopener"); return; }
-    try {
-      const res = await fileRawBlob(f.id);
-      const url = URL.createObjectURL(res.data);
-      window.open(url, "_blank", "noopener");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch { Swal.fire("Error", "Could not open the file.", "error"); }
+    if (["image", "video", "audio", "pdf"].includes(previewKind(f))) { setPreview(f); return; }
+    // Word, Excel and the rest cannot be shown in a browser anyway — saving
+    // them is what "open" means. Via downloadFile so the copy keeps its real
+    // name: a blob opened in a tab saves as the blob's id ("27c8c2df-….docx").
+    downloadFile(f);
   };
 
   // Download: ONLY for uploaded files — actually saves the file to disk.
   const downloadFile = async (f) => {
+    // The signed link downloads natively, with the browser's own progress bar.
+    if (f.download_url) {
+      const a = document.createElement("a");
+      a.href = f.download_url; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+      return;
+    }
     try {
       const res = await fileDownloadBlob(f.id);
       const url = URL.createObjectURL(res.data);
@@ -313,6 +325,9 @@ export default function Drive() {
 
   return (
     <div className="px-4 py-4">
+      {preview && (
+        <MediaPreviewModal key={preview.id} item={preview} onClose={() => setPreview(null)} onDownload={downloadFile} />
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
@@ -551,9 +566,9 @@ function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFil
                   </div>
                 </div>
               </button>
-              <div className="px-2 pb-1.5 flex items-center justify-between gap-1">
-                <OwnerBadge owner={f.owner} mine={isMine(f, me)} />
-                <AudienceChips item={f} />
+              <div className="px-2.5 pb-2 space-y-1.5 min-w-0">
+                <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="max-w-full" />
+                <AudienceChips item={f} compact />
               </div>
               {canWrite(f, me) && (
                 <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
@@ -572,16 +587,18 @@ function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFil
           {data.files.map((f) => (
             <div key={`fi-${f.id}`} {...(canWrite(f, me) ? dnd.drag("file", f) : {})}
               className="group bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-teal-400 transition-colors">
-              <button onClick={() => openFile(f)} className="block w-full text-left" title={f.name}>
+              <button onClick={() => openFile(f)} className="block w-full text-start" title={f.name}>
                 <DriveThumb file={f} />
-                <div className="p-2">
-                  <p className="text-xs font-medium text-gray-800 truncate">{f.name}</p>
-                  <p className="text-[10px] text-gray-400">{kindLabel(f)}{f.size ? ` · ${fmtSize(f.size)}` : ""}</p>
+                <div className="px-2.5 pt-2">
+                  <p className="text-xs font-semibold text-gray-800 truncate" dir="auto">{f.name}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{kindLabel(f)}{f.size ? ` · ${fmtSize(f.size)}` : ""}</p>
                 </div>
               </button>
-              <div className="px-2 pb-1.5 flex items-center justify-between gap-1">
-                <OwnerBadge owner={f.owner} mine={isMine(f, me)} />
-                <AudienceChips item={f} />
+              {/* Owner and audience on their own lines: side by side in a
+                  narrow card, both wrapped into tall stacks of chips. */}
+              <div className="px-2.5 pt-1.5 pb-2 space-y-1.5 min-w-0">
+                <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="max-w-full" />
+                <AudienceChips item={f} compact />
               </div>
               <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
                 {canWrite(f, me)
@@ -721,25 +738,43 @@ function FileGlyph({ file, className = "w-6 h-6" }) {
   return <svg className={`${className} ${color} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={d} /></svg>;
 }
 
-// Thumbnail for the large view: external image links render directly; private
-// uploaded images are fetched as an authenticated blob. Else a type icon.
-function DriveThumb({ file }) {
-  const [blobUrl, setBlobUrl] = useState(null);
-  useEffect(() => {
-    let url = null, cancelled = false;
-    if (!file.is_link && file.media_type === "image") {
-      fileRawBlob(file.id)
-        .then((res) => { if (!cancelled) { url = URL.createObjectURL(res.data); setBlobUrl(url); } })
-        .catch(() => {});
-    }
-    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
-  }, [file.id, file.is_link, file.media_type]);
+// Thumbnail for the large view. Images show the picture and videos their
+// first frame, both straight from the file's signed link; everything else a
+// type icon on a tinted tile.
+const THUMB_TINT = { image: "bg-teal-50", video: "bg-rose-50", audio: "bg-amber-50", pdf: "bg-red-50", doc: "bg-teal-50" };
 
-  const src = file.is_link && file.media_type === "image" ? file.external_url : blobUrl;
-  if (src) {
-    return <div className="h-28 bg-gray-50 flex items-center justify-center overflow-hidden"><img src={src} alt={file.name} className="h-full w-full object-cover" /></div>;
+function DriveThumb({ file }) {
+  const kind = previewKind(file);
+  const [loaded, setLoaded] = useState(null);
+  const [failed, setFailed] = useState(false);
+  // An external picture is its own address; an upload's address is resolved below.
+  const src = file.is_link ? (file.media_type === "image" ? file.external_url : null) : loaded;
+
+  useEffect(() => {
+    if (file.is_link || !["image", "video"].includes(kind)) return undefined;
+    let alive = true;
+    fileObjectUrl(file).then((u) => alive && setLoaded(u)).catch(() => alive && setFailed(true));
+    return () => { alive = false; };
+  }, [file, kind]);
+
+  const box = `relative h-28 flex items-center justify-center overflow-hidden ${THUMB_TINT[kind] || "bg-gray-50"}`;
+  if (src && !failed && kind === "video") {
+    return (
+      <div className={`${box} bg-black`}>
+        <video src={`${src}#t=0.5`} preload="metadata" muted playsInline onError={() => setFailed(true)}
+          className="h-full w-full object-cover pointer-events-none" />
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-black/55 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white ms-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+        </span>
+      </div>
+    );
   }
-  return <div className="h-28 bg-gray-50 flex items-center justify-center"><FileGlyph file={file} className="w-10 h-10" /></div>;
+  if (src && !failed) {
+    return <div className={box}><img src={src} alt={file.name} loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" /></div>;
+  }
+  return <div className={box}><FileGlyph file={file} className="w-10 h-10" /></div>;
 }
 
 function Icon({ d, className = "w-3.5 h-3.5" }) {

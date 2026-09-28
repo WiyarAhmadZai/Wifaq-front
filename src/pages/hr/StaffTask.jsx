@@ -8,9 +8,9 @@ import { useResourcePermissions } from '../../admin/utils/useResourcePermissions
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
-const statusStyle = { pending: "bg-yellow-50 text-yellow-700", in_progress: "bg-teal-50 text-teal-700", completed: "bg-teal-50 text-teal-700" };
-const statusDot = { pending: "bg-yellow-500", in_progress: "bg-teal-500", completed: "bg-teal-600" };
-const statusLabel = { pending: "Pending", in_progress: "In Progress", completed: "Completed" };
+const statusStyle = { pending: "bg-yellow-50 text-yellow-700", in_progress: "bg-teal-50 text-teal-700", completed: "bg-teal-50 text-teal-700", cancelled: "bg-gray-100 text-gray-500 line-through" };
+const statusDot = { pending: "bg-yellow-500", in_progress: "bg-teal-500", completed: "bg-teal-600", cancelled: "bg-gray-400" };
+const statusLabel = { pending: "Pending", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled" };
 const qualityStyle = { excellent: "bg-teal-50 text-teal-700", good: "bg-teal-50 text-teal-600", average: "bg-yellow-50 text-yellow-700", poor: "bg-red-50 text-red-700" };
 const taskTypeStyle = { urgent: "bg-red-100 text-red-700", high: "bg-orange-100 text-orange-700", normal: "bg-blue-100 text-blue-700", low: "bg-gray-100 text-gray-600" };
 
@@ -168,7 +168,7 @@ export default function StaffTask() {
     const { value: newStatus } = await Swal.fire({
       title: 'Update Status',
       input: 'select',
-      inputOptions: { pending: 'Pending', in_progress: 'In Progress', completed: 'Completed' },
+      inputOptions: { pending: 'Pending', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' },
       inputValue: item.status,
       showCancelButton: true,
       confirmButtonColor: '#0d9488',

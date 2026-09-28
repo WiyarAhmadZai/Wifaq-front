@@ -263,36 +263,38 @@ export function OwnerBadge({ owner, mine, className = "" }) {
 }
 
 /** Chips naming the audience: "7-B", "Academic", "+2 people". */
-export function AudienceChips({ item, className = "" }) {
+export function AudienceChips({ item, className = "", compact = false }) {
   const rows = item?.audience || [];
   const visibility = item?.visibility || "private";
 
   if (visibility === "public") {
     return (
-      <span className={`px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 text-[10px] font-semibold ${className}`}>
+      <span className={`px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 text-[10px] font-semibold whitespace-nowrap ${className}`}>
         Everyone
       </span>
     );
   }
   if (visibility === "private") {
     return (
-      <span className={`px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-semibold ${className}`}>
+      <span className={`px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-semibold whitespace-nowrap ${className}`}>
         Only me
       </span>
     );
   }
 
   // Named targets read better than a count, so the first two are spelled out
-  // and only the remainder collapses.
-  const named = rows.slice(0, 2);
+  // and only the remainder collapses. A card is too narrow for that: there it
+  // is one chip, cut short with an ellipsis, plus the count — always one line.
+  const named = rows.slice(0, compact ? 1 : 2);
   const rest = rows.length - named.length;
 
   return (
-    <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
+    <span className={`inline-flex items-center gap-1 ${compact ? "flex-nowrap max-w-full min-w-0" : "flex-wrap"} ${className}`}
+      title={compact ? rows.map((r) => r.label).join(", ") : undefined}>
       {named.map((r) => (
         <span
           key={`${r.type}-${r.id}`}
-          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${compact ? "truncate min-w-0" : ""} ${
             r.type === "class"
               ? "bg-emerald-50 text-emerald-700"
               : r.type === "department"
@@ -304,7 +306,7 @@ export function AudienceChips({ item, className = "" }) {
         </span>
       ))}
       {rest > 0 && (
-        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-semibold">
+        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-semibold whitespace-nowrap shrink-0">
           +{rest} more
         </span>
       )}

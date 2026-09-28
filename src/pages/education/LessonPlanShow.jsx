@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import { TEAL, TEAL_LT, GOLD, PAPER, DIMENSIONS, DAY_LABEL, Hero, Spinner, StatusPill, DimensionDots } from "./lessonPlanUi";
+import { RateWorkButton } from "../../components/hr/StaffRatings";
 
 const REVIEW_ACTION = {
   approved: { label: "Approved", bg: "#e6f3ec", fg: "#2E7D5B", icon: "✓" },
@@ -178,6 +179,9 @@ export default function LessonPlanShow() {
             <Block label="Support requested">{ref.support_request}</Block>
           </div>
         )}
+
+        {/* Stars on the five standards — shown to the teacher's superiors (and to the teacher once rated). */}
+        <RateWorkButton type="lesson_plan" id={Number(id)} title={plan.title || plan.topic || ""} />
 
         {/* Review history */}
         {reviews.length > 0 && (

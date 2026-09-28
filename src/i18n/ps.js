@@ -6267,4 +6267,7 @@ export default {
   "Add participants": "ګډونوال ورزیات کړئ",
   "Some staff in these departments have no login account and could not be invited.": "په دې څانګو کې ځینې کارکوونکي د ننوتلو حساب نه لري او رابلل کېدای نه شول.",
   "No staff available": "کارکوونکی نشته",
+  "Email sent": "ایمیل ولېږل شو",
+  "Emailed — but some people have no real email address": "ایمیل ولېږل شو — خو ځینې کسان ریښتینې ایمیل پته نه لري",
+  "Not emailed — no real email address": "ایمیل ونه لېږل شو — ریښتینې ایمیل پته نشته",
 };

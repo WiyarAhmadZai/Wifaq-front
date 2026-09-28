@@ -9,6 +9,7 @@ import { chatApi } from './chatApi';
 import { ensureEcho, disconnectEcho, isRealtimeLive } from './echo';
 import { API_BASE_URL } from '../api/axios';
 import { richTextToPlain } from '../utils/richText';
+import Swal from 'sweetalert2';
 
 const ChatContext = createContext(null);
 const ORIGIN = (API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
@@ -416,6 +417,21 @@ export function ChatProvider({ children }) {
       setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
       setConversations((prev) => bumpConversation(prev, activeId, saved, 0));
       releaseLocal();
+      // "Notify via email" used to fail silently when a member had no real
+      // address. The server now says who it went to and who it could not reach.
+      const report = res.data?.email;
+      if (report) {
+        const sent = report.sent || [];
+        const missing = report.no_address || [];
+        Swal.fire({
+          toast: true, position: 'top-end', timer: missing.length ? 6000 : 2500, showConfirmButton: false,
+          icon: missing.length ? 'warning' : 'success',
+          title: missing.length
+            ? (sent.length ? 'Emailed — but some people have no real email address' : 'Not emailed — no real email address')
+            : 'Email sent',
+          text: [...sent.map((n) => `✓ ${n}`), ...missing.map((n) => `✗ ${n}`)].join('   '),
+        });
+      }
     } catch (e) {
       // Keep the local preview on a failed send so the sender can see what
       // did not go through.

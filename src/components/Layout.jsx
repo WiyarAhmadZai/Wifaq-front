@@ -1191,8 +1191,9 @@ function NotificationBell() {
                           </span>
                         )}
                       </div>
-                      {/* RSVP buttons — only on actionable, not-yet-passed invites */}
-                      {n.data?.type === "meeting_invite" && n.data?.action !== "cancelled"
+                      {/* RSVP buttons — only on actionable, not-yet-passed invites.
+                          An admin's "fyi" copy is information: they were not invited. */}
+                      {n.data?.type === "meeting_invite" && !["cancelled", "fyi"].includes(n.data?.action)
                         && (!n.data?.start_time || new Date(n.data.start_time) >= new Date()) && (
                         responded[n.id] ? (
                           <p className={`mt-2 text-[10px] font-bold ${responded[n.id] === "accepted" ? "text-emerald-600" : "text-red-600"}`}>

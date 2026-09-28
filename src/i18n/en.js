@@ -6268,4 +6268,7 @@ export default {
   "Add participants": "Add participants",
   "Some staff in these departments have no login account and could not be invited.": "Some staff in these departments have no login account and could not be invited.",
   "No staff available": "No staff available",
+  "Email sent": "Email sent",
+  "Emailed — but some people have no real email address": "Emailed — but some people have no real email address",
+  "Not emailed — no real email address": "Not emailed — no real email address",
 };

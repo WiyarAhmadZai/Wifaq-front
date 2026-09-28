@@ -4,6 +4,7 @@ import { get, del, put, post, API_BASE_URL, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { fmtDate } from "../../utils/formErrors";
 import Select2 from '../../components/hr/Select2';
+import StaffTaskCalendar from "../../components/hr/StaffTaskCalendar";
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -21,6 +22,8 @@ export default function StaffTask() {
   // namespace is intentionally NOT honored here, so edit/delete/rating
   // require the explicit staff-task.{update,delete} permission.
   const { canCreate, canUpdate, canDelete } = useResourcePermissions('staff-task');
+  // Whose task calendar is open in the pop-up.
+  const [calendarFor, setCalendarFor] = useState(null);
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -209,6 +212,22 @@ export default function StaffTask() {
 
   return (
     <div className="px-4 py-5 space-y-5">
+      {calendarFor && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setCalendarFor(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-gray-400">Task calendar</div>
+                <div className="font-semibold text-gray-800" data-no-i18n>{calendarFor.name}</div>
+              </div>
+              <button onClick={() => setCalendarFor(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
+            <div className="p-4">
+              <StaffTaskCalendar staffId={calendarFor.id} deniedText="Only admins, HR and this person's supervisor can see their task calendar." />
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -305,7 +324,13 @@ export default function StaffTask() {
                           </div>
                         )}
                         <div>
-                          <p className="text-sm font-semibold text-gray-800">{getStaffName(item)}</p>
+                          <p className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">{getStaffName(item)}
+                            {item.staff_id && (
+                              <button type="button" title="See this person's task calendar"
+                                onClick={(e) => { e.stopPropagation(); setCalendarFor({ id: item.staff_id, name: getStaffName(item) }); }}
+                                className="px-1.5 py-0.5 rounded-md border border-teal-200 text-teal-700 text-[10px] font-semibold hover:bg-teal-50">📅</button>
+                            )}
+                          </p>
                           <p className="text-[11px] text-gray-400">by {item.assigner?.name || "Admin"}</p>
                         </div>
                       </div>

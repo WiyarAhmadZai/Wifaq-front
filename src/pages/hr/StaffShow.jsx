@@ -10,6 +10,7 @@ import OnboardingWelcomeModal from '../../components/OnboardingWelcomeModal';
 import { getStaffOnboarding } from '../../api/onboarding';
 import StaffGallery from './StaffGallery';
 import { StaffEvaluation } from '../../components/hr/StaffRatings';
+import StaffTaskCalendar from '../../components/hr/StaffTaskCalendar';
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -240,6 +241,15 @@ export default function StaffShow() {
             <Section title="Photos & Memories" icon="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
               <StaffGallery staffId={data.id} staffName={name} />
             </Section>
+
+            {/* Task calendar — what they work on which day, and how far each task
+                has got. The server shows it to admins/HR, the person's
+                supervisors and the person; for anyone else it renders nothing. */}
+            <div id="task-calendar">
+              <Section title="Task calendar" icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                <StaffTaskCalendar staffId={data.id} />
+              </Section>
+            </div>
 
             {/* Evaluation — star ratings on the five standards, by week, month and
                 year. Hides itself for viewers who may not see them. */}

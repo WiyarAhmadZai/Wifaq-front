@@ -1420,6 +1420,7 @@ export default function Layout() {
       { label: "Committees", path: "/hr/planner/committees", permission: "committees.view" },
       { label: "Staff Tasks", path: "/hr/staff-task", permission: "staff-task.view" },
       // Operations Hub — Live Status: my week + clock, and the manager board.
+      { label: "My Tasks", path: "/hr/my-tasks", permission: "staff-task.view" },
       { label: "My Check-in", path: "/hr/my-check-in", permission: "staff-task.view" },
       { label: "Team Overview", path: "/hr/team-overview", permission: "staff-task.create" },
       { label: "Daily Tasks", path: "/hr/daily-works", permission: "daily-works.view" },

@@ -178,6 +178,7 @@ export default function Meetings() {
               { key: "all", label: "All" },
               { key: "routine", label: "Routine" },
               { key: "emergency", label: "Emergency" },
+              { key: "appointment", label: "Appointment" },
             ].map((t) => (
               <button key={t.key} onClick={() => setTypeFilter(t.key)}
                 className={`px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-colors ${typeFilter === t.key ? (t.key === "emergency" ? "bg-red-600 text-white" : "bg-teal-600 text-white") : "bg-gray-50 border border-gray-200 text-gray-600 hover:border-gray-300"}`}>

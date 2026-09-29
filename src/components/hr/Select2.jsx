@@ -71,12 +71,14 @@ export default function Select2({
       zIndex: 9999,
     }),
     menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-    option: (base, { isSelected, isFocused }) => ({
+    // A disabled option (isDisabled on the option) reads as greyed out, not
+    // as one more choice that silently refuses the click.
+    option: (base, { isSelected, isFocused, isDisabled }) => ({
       ...base,
-      backgroundColor: isSelected ? "#155c57" : isFocused ? "#ecf2f1" : "white",
-      color: isSelected ? "white" : "#1f2937",
+      backgroundColor: isSelected ? "#155c57" : isFocused && !isDisabled ? "#ecf2f1" : "white",
+      color: isSelected ? "white" : isDisabled ? "#9ca3af" : "#1f2937",
       fontSize: sz.fontSize,
-      cursor: "pointer",
+      cursor: isDisabled ? "not-allowed" : "pointer",
       ":active": { backgroundColor: "#0a3635", color: "white" },
     }),
     indicatorSeparator: () => ({ display: "none" }),

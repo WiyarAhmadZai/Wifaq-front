@@ -182,6 +182,13 @@ export default function Login() {
                 )}
               </button>
             </form>
+
+            {/* Visitors have no account — this is their way to ask for time with a staff member. */}
+            <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+              <a href="/book-appointment" className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-800">
+                <span>Want to meet someone at the school?</span> <span className="underline">Book an appointment</span>
+              </a>
+            </div>
           </div>
         </div>
 

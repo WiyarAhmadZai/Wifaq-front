@@ -1847,6 +1847,15 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
+          {/* Anyone may ask for time with any staff member — for themselves or
+              for a guest — so it sits at the top for every role, ungated. */}
+          <SidebarItem
+            icon={Icons.Leave}
+            label="Book an Appointment"
+            to="/hr/book-appointment"
+            active={isActive("/hr/book-appointment")}
+            onClick={closeSidebar}
+          />
           {/* The staff handbook. Like Bugs, every role holds the view
               permission — the colleague who does not yet know how the school
               works is exactly who has to be able to open it. */}

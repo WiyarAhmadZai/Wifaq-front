@@ -294,6 +294,7 @@ const ApplicationForm = lazy(() => import("./pages/recruitment/ApplicationForm")
 const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow"));
 const PublicApplicationForm = lazy(() => import("./pages/recruitment/PublicApplicationForm"));
 const PublicQuestionnaire = lazy(() => import("./pages/public/PublicQuestionnaire"));
+const BookAppointment = lazy(() => import("./pages/hr/BookAppointment"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
 const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolShow"));
@@ -410,6 +411,9 @@ function App() {
             <Route path="/questionnaire" element={<Suspense fallback={<PageLoader />}><PublicQuestionnaire /></Suspense>} />
             <Route path="/parent-questionnaire" element={<Navigate to="/questionnaire" replace />} />
 
+            {/* Public appointment booking — a visitor books time with a staff member, no login */}
+            <Route path="/book-appointment" element={<Suspense fallback={<PageLoader />}><BookAppointment isPublic /></Suspense>} />
+
             {/* Where a scanned student ID card lands. Deliberately short, so
                 the printed QR code stays coarse enough to read off plastic, and
                 outside the app shell because it is opened on a phone by someone
@@ -433,6 +437,8 @@ function App() {
             {/* Onboarding — every signed-in user has their own; no permission gate. */}
             <Route path="onboarding" element={<Suspense fallback={<PageLoader />}><MyOnboarding /></Suspense>} />
             <Route path="onboarding/quiz" element={<Suspense fallback={<PageLoader />}><OnboardingQuiz /></Suspense>} />
+            {/* Appointments — anyone signed in may book time with any staff member. */}
+            <Route path="hr/book-appointment" element={<Suspense fallback={<PageLoader />}><BookAppointment /></Suspense>} />
             <Route path="notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="support" element={<Placeholder title="Support" />} />

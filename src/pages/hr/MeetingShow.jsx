@@ -624,11 +624,47 @@ export default function MeetingShow() {
           {data.meeting_type === "routine" && (
             <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">Routine</span>
           )}
+          {data.meeting_type === "appointment" && (
+            <span className="px-2.5 py-0.5 bg-orange-500 text-white text-[11px] font-bold rounded-full">Appointment</span>
+          )}
           <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{getDuration()}</span>
         </div>
       </div>
 
       <div className="px-4 py-5 space-y-4">
+        {/* Appointment for a guest (public page, or booked for someone else):
+            the guest has no account, so how to reach them is shown here. */}
+        {data.meeting_type === "appointment" && (() => {
+          // The person being met is the appointment's only participant; their
+          // answer IS the confirmation.
+          const host = (data.participants || [])[0];
+          const st = data.status === "cancelled" ? "declined" : host?.pivot?.status || "invited";
+          const conf = {
+            accepted: { label: "Confirmed", cls: "bg-emerald-100 text-emerald-800" },
+            declined: { label: "Declined", cls: "bg-red-100 text-red-700" },
+            invited:  { label: "Awaiting confirmation", cls: "bg-amber-100 text-amber-800" },
+          }[st] || { label: "Awaiting confirmation", cls: "bg-amber-100 text-amber-800" };
+          return (
+            <div className="bg-white border border-orange-200 rounded-xl p-4 text-sm flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div><span className="text-[10px] text-gray-500 block">Confirmed by</span><span className="font-semibold text-gray-800">{host?.name || "Administrators"}</span></div>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${conf.cls}`}>{conf.label}</span>
+              {st === "declined" && host?.pivot?.response_reason && (
+                <span className="text-[11px] text-red-700"><span>Reason</span>: {host.pivot.response_reason}</span>
+              )}
+              <span className="text-[11px] text-gray-500 w-full">The guest is emailed the day, time and place only after the appointment is confirmed.</span>
+            </div>
+          );
+        })()}
+        {data.meeting_type === "appointment" && data.requester_name && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm">
+            <div className="text-xs font-bold text-orange-800 uppercase tracking-wider mb-2">Appointment guest</div>
+            <div className="grid sm:grid-cols-3 gap-2 text-gray-700">
+              <div><div className="text-[10px] text-gray-500">Name</div><div className="font-semibold">{data.requester_name}</div></div>
+              <div><div className="text-[10px] text-gray-500">Phone</div><div className="font-semibold" dir="ltr">{data.requester_phone ? <a href={`tel:${data.requester_phone}`} className="text-teal-700 hover:underline">{data.requester_phone}</a> : "—"}</div></div>
+              <div><div className="text-[10px] text-gray-500">Email</div><div className="font-semibold" dir="ltr">{data.requester_email || "—"}</div></div>
+            </div>
+          </div>
+        )}
         {/* RSVP banner — shown to the current user when they're an invitee.
             Hidden entirely once the meeting has passed; otherwise only the
             opposite-action button is shown so you can't re-confirm the same
@@ -637,6 +673,7 @@ export default function MeetingShow() {
           const mine = (data.participants || []).find((p) => p.id === currentUser.id);
           const myStatus = mine?.pivot?.status || "invited";
           const myReason = mine?.pivot?.response_reason;
+          const isAppointment = data.meeting_type === "appointment";
           return (
             <div className={`rounded-2xl border p-4 ${
               myStatus === "accepted" ? "bg-emerald-50 border-emerald-200"
@@ -645,7 +682,11 @@ export default function MeetingShow() {
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <p className="text-xs font-bold text-gray-800">
-                    {myStatus === "accepted" ? "You're attending this meeting"
+                    {isAppointment
+                      ? (myStatus === "accepted" ? "You confirmed this appointment"
+                        : myStatus === "declined" ? "You declined this appointment"
+                        : "Please confirm this appointment request")
+                      : myStatus === "accepted" ? "You're attending this meeting"
                       : myStatus === "declined" ? "You marked: can't attend"
                       : "Will you attend this meeting?"}
                   </p>
@@ -660,7 +701,7 @@ export default function MeetingShow() {
                       disabled={respondingRsvp}
                       onClick={() => respondRsvp("accepted")}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 bg-emerald-600 text-white hover:bg-emerald-700">
-                      Attend
+                      {isAppointment ? "Confirm" : "Attend"}
                     </button>
                   )}
                   {/* Show "Can't attend" unless already declined */}
@@ -669,7 +710,7 @@ export default function MeetingShow() {
                       disabled={respondingRsvp}
                       onClick={() => respondRsvp("declined")}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 bg-white border border-red-300 text-red-600 hover:bg-red-50">
-                      Can't attend
+                      {isAppointment ? "Decline" : "Can't attend"}
                     </button>
                   )}
                 </div>

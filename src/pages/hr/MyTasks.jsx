@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { get, put } from "../../api/axios";
 import { PageHeader, Spinner } from "../../components/hr/HrUI";
 import TaskCalendar from "../../components/hr/TaskCalendar";
+import StaffTaskCalendar from "../../components/hr/StaffTaskCalendar";
 
 /**
  * My Tasks.
@@ -36,6 +37,7 @@ export default function MyTasks() {
   const [month, setMonth] = useState(thisMonth);
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);   // the task whose status is being changed
+  const [calendarFor, setCalendarFor] = useState(null); // { id, name } — an assignee's calendar
 
   const load = useCallback(() => get("/hr/staff-tasks/my-tasks", { cache: false, params: { month } })
     .then((r) => setData(r.data))
@@ -87,7 +89,23 @@ export default function MyTasks() {
           onOpen={setOpen}
         />
       ) : (
-        <AssignedByMe rows={data.assigned_by_me} onOpen={(t) => navigate(`/hr/staff-task/show/${t.id}`)} />
+        <AssignedByMe rows={data.assigned_by_me} onOpen={(t) => navigate(`/hr/staff-task/show/${t.id}`)}
+          onCalendar={(t) => setCalendarFor({ id: t.staff_id, name: t.assignee })} />
+      )}
+
+      {calendarFor && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => { setCalendarFor(null); load(); }}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-gray-400">Task calendar — drag a task to a free day</div>
+                <div className="font-semibold text-gray-800" data-no-i18n>{calendarFor.name}</div>
+              </div>
+              <button onClick={() => { setCalendarFor(null); load(); }} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
+            <div className="p-4"><StaffTaskCalendar staffId={calendarFor.id} staffName={calendarFor.name} /></div>
+          </div>
+        </div>
       )}
 
       {open && (
@@ -100,7 +118,7 @@ export default function MyTasks() {
 }
 
 /** The tasks I gave other people, open ones first. */
-function AssignedByMe({ rows, onOpen }) {
+function AssignedByMe({ rows, onOpen, onCalendar }) {
   const [filter, setFilter] = useState("open");
   const list = rows.filter((t) => filter === "all" || (filter === "open" ? !["completed", "cancelled"].includes(t.status) : t.status === filter));
 
@@ -125,6 +143,7 @@ function AssignedByMe({ rows, onOpen }) {
                 <th className="px-3 py-2 text-start">Progress</th>
                 <th className="px-3 py-2 text-start">Planned for</th>
                 <th className="px-3 py-2 text-start">Deadline</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -143,6 +162,12 @@ function AssignedByMe({ rows, onOpen }) {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap" data-no-i18n>{t.planned_date ? `${t.planned_date}${t.planned_time ? ` ${t.planned_time}` : ""}` : "—"}</td>
                     <td className={`px-3 py-2 whitespace-nowrap ${t.overdue ? "text-red-600 font-semibold" : ""}`} data-no-i18n>{t.deadline || "—"}</td>
+                    <td className="px-3 py-2 text-end">
+                      {!["completed", "cancelled"].includes(t.status) && (
+                        <button onClick={(e) => { e.stopPropagation(); onCalendar(t); }} title="Open their calendar to move this task"
+                          className="px-2 py-1 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 text-xs">📅</button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

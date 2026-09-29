@@ -223,7 +223,7 @@ export default function StaffTask() {
               <button onClick={() => setCalendarFor(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <div className="p-4">
-              <StaffTaskCalendar staffId={calendarFor.id} deniedText="Only admins, HR and this person's supervisor can see their task calendar." />
+              <StaffTaskCalendar staffId={calendarFor.id} staffName={calendarFor.name} deniedText="Only admins, HR and this person's supervisor can see their task calendar." />
             </div>
           </div>
         </div>
@@ -242,6 +242,10 @@ export default function StaffTask() {
           </button>
         )}
       </div>
+
+      {/* Find anyone and open their calendar — to see their week and assign
+          a task on a day (or undated) right there. */}
+      {canCreate && <StaffCalendarSearch onOpen={setCalendarFor} />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -526,6 +530,59 @@ export default function StaffTask() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Search every staff member by name, ID or department; 📅 opens their task
+ * calendar, where tasks are assigned on a day or undated. Everyone is
+ * listed — nobody is filtered out of a people picker.
+ */
+function StaffCalendarSearch({ onOpen }) {
+  const [all, setAll] = useState(null);
+  const [q, setQ] = useState("");
+
+  const ensure = () => {
+    if (all) return;
+    setAll([]);
+    get("/hr/staff-tasks/staff-list").then((r) => setAll(r.data?.data || [])).catch(() => setAll([]));
+  };
+  const term = q.trim().toLowerCase();
+  const hits = !term || !all ? [] : all.filter((s) =>
+    [s.full_name, s.employee_id, s.department, s.role_title].some((v) => String(v || "").toLowerCase().includes(term))).slice(0, 12);
+
+  return (
+    <div className="bg-white rounded-2xl border border-teal-100 p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="shrink-0">
+          <p className="text-sm font-bold text-gray-800">📅 Staff calendars</p>
+          <p className="text-[11px] text-gray-500">Find a person, open their calendar, assign a task.</p>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} onFocus={ensure} dir="auto"
+          placeholder="Search staff by name, ID or department…"
+          className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+      </div>
+      {term && (
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {all === null || (all.length === 0 && term) ? null : hits.length === 0
+            ? <p className="text-xs text-gray-400 py-2">No staff match.</p>
+            : hits.map((s) => (
+              <button key={s.id} onClick={() => onOpen({ id: s.id, name: s.full_name })}
+                className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:border-teal-300 hover:bg-teal-50/50 text-start">
+                <span className="w-9 h-9 rounded-xl bg-teal-600 text-white text-xs font-bold flex items-center justify-center shrink-0" data-no-i18n>
+                  {(s.full_name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-gray-800 truncate" dir="auto" data-no-i18n>{s.full_name}</span>
+                  <span className="block text-[11px] text-gray-400 truncate" data-no-i18n>{[s.employee_id, s.department].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className="px-2 py-1 rounded-lg border border-teal-200 text-teal-700 text-xs">📅</span>
+              </button>
+            ))}
+          {all !== null && all.length === 0 && <p className="text-xs text-gray-400 py-2">Loading…</p>}
         </div>
       )}
     </div>

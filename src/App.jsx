@@ -89,6 +89,7 @@ const DailyWorks = lazy(() => import("./pages/hr/DailyWorks"));
 const EduDashboard = lazy(() => import("./pages/education/EduDashboard"));
 const DailyObservation = lazy(() => import("./pages/education/DailyObservation"));
 const CaseSearch = lazy(() => import("./pages/education/CaseSearch"));
+const ObservationReports = lazy(() => import("./pages/education/ObservationReports"));
 const StaffFaq = lazy(() => import("./pages/hr/StaffFaq"));
 const Committees = lazy(() => import("./pages/hr/Committees"));
 const Monitoring = lazy(() => import("./pages/education/Monitoring"));
@@ -570,6 +571,7 @@ function App() {
             <Route path="education/dashboard" element={<Suspense fallback={<PageLoader />}><EduDashboard /></Suspense>} />
             <Route path="education/observations" element={<Suspense fallback={<PageLoader />}><DailyObservation /></Suspense>} />
             <Route path="education/case-library" element={<Suspense fallback={<PageLoader />}><CaseSearch /></Suspense>} />
+            <Route path="education/observation-reports" element={<Suspense fallback={<PageLoader />}><ObservationReports /></Suspense>} />
             <Route path="handbook" element={<Suspense fallback={<PageLoader />}><StaffFaq /></Suspense>} />
             <Route path="hr/planner/committees" element={<Suspense fallback={<PageLoader />}><Committees /></Suspense>} />
             <Route path="education/monitoring" element={<Suspense fallback={<PageLoader />}><Monitoring /></Suspense>} />

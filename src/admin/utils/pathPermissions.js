@@ -87,6 +87,7 @@ const RULES = [
   { prefix: "/education/4d-self-rating", permission: "student-profiles.view" },
   { prefix: "/education/dashboard", permission: "student-observations.view" },
   { prefix: "/education/observations", permission: "student-observations.view" },
+  { prefix: "/education/observation-reports", permission: "student-observations.view" },
   { prefix: "/education/monitoring", permission: "student-monitoring.view" },
   { prefix: "/education/elicitation", permission: "student-elicitation.view" },
   { prefix: "/education/synthesis", permission: "student-synthesis.view" },
@@ -156,6 +157,13 @@ const RULES = [
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   { prefix: "/student-management/student-enrollments", permission: "student-enrollments.view" },
   { prefix: "/student-management/students/profile", permission: "student-profiles.view" },
+  // Pages that had no rule and so opened for super-admin only.
+  { prefix: "/hr/my-tasks", permission: "my-tasks.view" },
+  { prefix: "/hr/book-appointment", permission: "book-appointment.view" },
+  { prefix: "/hr/my-check-in", permission: "staff-task.view" },
+  { prefix: "/hr/team-overview", permission: "staff-task.view" },
+  // The sidebar shows the handbook to staff-faqs.view; the page had no rule.
+  { prefix: "/handbook", permission: "staff-faqs.view" },
   // The Enrolled Students row "view" button opens the shared student detail
   // page, which otherwise demands students.view — a permission an
   // enrolled-students-only user does not hold, so the eye bounced them to

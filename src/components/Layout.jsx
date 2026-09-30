@@ -1395,7 +1395,7 @@ export default function Layout() {
     ]},
     // Top level, not inside Planner: it is the page every staff member opens
     // daily, so it must be visible without expanding anything.
-    { label: "My Tasks", path: "/hr/my-tasks", permission: "staff-task.view" },
+    { label: "My Tasks", path: "/hr/my-tasks", permission: "my-tasks.view" },
     { label: "Attendance", path: "/hr/attendance", permission: "attendance.view" },
     { label: "Leave Request", path: "/hr/leave-request", permission: "leave-request.view" },
     { label: "Holidays", path: "/hr/holidays", permission: "holidays.view" },
@@ -1538,6 +1538,8 @@ export default function Layout() {
     { label: "Dashboard", path: "/education/dashboard", permission: "student-observations.view" },
     { label: "Daily Observation", path: "/education/observations", permission: "student-observations.view" },
     { label: "Case Library", path: "/education/case-library", permission: "student-observations.view" },
+    // Per-student PDF of observations + cards; one, or all as a ZIP.
+    { label: "Observation Reports", path: "/education/observation-reports", permission: "student-observations.view" },
     { label: "Students Under Watch", path: "/education/monitoring", permission: "student-monitoring.view" },
     { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
     { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
@@ -1849,13 +1851,15 @@ export default function Layout() {
           />
           {/* Anyone may ask for time with any staff member — for themselves or
               for a guest — so it sits at the top for every role, ungated. */}
-          <SidebarItem
-            icon={Icons.Leave}
-            label="Book an Appointment"
-            to="/hr/book-appointment"
-            active={isActive("/hr/book-appointment")}
-            onClick={closeSidebar}
-          />
+          {hasPermission("book-appointment.view") && (
+            <SidebarItem
+              icon={Icons.Leave}
+              label="Book an Appointment"
+              to="/hr/book-appointment"
+              active={isActive("/hr/book-appointment")}
+              onClick={closeSidebar}
+            />
+          )}
           {/* The staff handbook. Like Bugs, every role holds the view
               permission — the colleague who does not yet know how the school
               works is exactly who has to be able to open it. */}

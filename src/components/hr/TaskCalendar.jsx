@@ -13,9 +13,10 @@ import Swal from "sweetalert2";
  * assigned for), or, for a finished task nobody dated, the day it was finished.
  *
  * Only an UNDATED task can be dragged: a task whose date the assigner chose
- * is locked (🔒) on that day. Assigners (admins, supervisors) get "+ Add
- * task" on the Unplanned list and a "+" on every day — `onAddUnplanned` /
- * `onAddDay` — which create the task right there.
+ * is locked (🔒) on that day. Assigners (admins, supervisors) — and the
+ * person on their own My Tasks — get "+ Add task" on the Unplanned list and a
+ * "+" on every day (`onAddUnplanned` / `onAddDay`), which create one or more
+ * tasks right there, each with an optional time.
  */
 
 const TASK_STATUS = {
@@ -193,7 +194,7 @@ export default function TaskCalendar({
                       {/* Assign a task fixed on this day. Faint until hovered; always there on touch screens. */}
                       {onAddDay && c.date >= today && (
                         <button onClick={() => onAddDay(c.date)} title="Assign a task on this day" aria-label="Assign a task on this day"
-                          className="w-5 h-5 rounded-md text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white text-xs font-bold leading-none opacity-40 group-hover/day:opacity-100 transition">+</button>
+                          className="w-5 h-5 rounded-md text-teal-700 bg-teal-50 border border-teal-200 hover:bg-teal-600 hover:text-white text-xs font-bold leading-none opacity-70 group-hover/day:opacity-100 transition">+</button>
                       )}
                     </div>
                     {list.map((t) => chip(t))}

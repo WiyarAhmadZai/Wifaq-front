@@ -4,7 +4,7 @@ import Swal from "sweetalert2";
 import { get, put } from "../../api/axios";
 import { PageHeader, Spinner } from "../../components/hr/HrUI";
 import TaskCalendar from "../../components/hr/TaskCalendar";
-import StaffTaskCalendar from "../../components/hr/StaffTaskCalendar";
+import StaffTaskCalendar, { QuickTaskModal } from "../../components/hr/StaffTaskCalendar";
 
 /**
  * My Tasks.
@@ -38,6 +38,7 @@ export default function MyTasks() {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);   // the task whose status is being changed
   const [calendarFor, setCalendarFor] = useState(null); // { id, name } — an assignee's calendar
+  const [adding, setAdding] = useState(null);           // { date } — adding tasks to my own calendar
 
   const load = useCallback(() => get("/hr/staff-tasks/my-tasks", { cache: false, params: { month } })
     .then((r) => setData(r.data))
@@ -87,6 +88,9 @@ export default function MyTasks() {
           onMove={move}
           onReorder={reorder}
           onOpen={setOpen}
+          // Anyone may add tasks to their own day — several, each with an optional time.
+          onAddDay={data.my_staff_id ? (date) => setAdding({ date }) : undefined}
+          onAddUnplanned={data.my_staff_id ? () => setAdding({ date: null }) : undefined}
         />
       ) : (
         <AssignedByMe rows={data.assigned_by_me} onOpen={(t) => navigate(`/hr/staff-task/show/${t.id}`)}
@@ -106,6 +110,11 @@ export default function MyTasks() {
             <div className="p-4"><StaffTaskCalendar staffId={calendarFor.id} staffName={calendarFor.name} /></div>
           </div>
         </div>
+      )}
+
+      {adding && (
+        <QuickTaskModal self staffId={data.my_staff_id} date={adding.date}
+          onClose={() => setAdding(null)} onSaved={() => { setAdding(null); load(); }} />
       )}
 
       {open && (

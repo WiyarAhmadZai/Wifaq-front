@@ -1858,6 +1858,7 @@ export default {
   "Father occupation": "Father occupation",
   "Father phone": "Father phone",
   "Father Phone": "Father Phone",
+  "ID card": "ID card",
   "Student report": "Student report",
   "Produce report": "Produce report",
   "Format": "Format",

@@ -1857,6 +1857,7 @@ export default {
   "Father occupation": "د پلار دنده",
   "Father phone": "د پلار تلیفون",
   "Father Phone": "د پلار تلیفون",
+  "ID card": "د پېژندنې کارت",
   "Student report": "د زده‌کوونکي راپور",
   "Produce report": "راپور جوړ کړئ",
   "Format": "فارمټ",

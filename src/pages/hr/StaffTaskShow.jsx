@@ -7,6 +7,8 @@ import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import { SendReminderButton } from "../../components/hr/Reminders";
 import { useAuth } from "../../admin/context/AuthContext";
 import { RateWorkButton } from "../../components/hr/StaffRatings";
+import { RichTextView } from "../../components/RichTextField";
+import { richTextToPlain } from "../../utils/richText";
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
@@ -295,7 +297,7 @@ export default function StaffTaskShow() {
           </div>
 
           {/* Stars on the five standards — offered to the assignee's superiors. */}
-          <RateWorkButton type="staff_task" id={Number(id)} title={data.task} />
+          <RateWorkButton type="staff_task" id={Number(id)} title={data.title || richTextToPlain(data.task)} />
 
           {/* Task Details */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
@@ -329,7 +331,8 @@ export default function StaffTaskShow() {
                 <Icons.Task />
                 <span className="text-[10px] font-medium uppercase tracking-wider">Task Description</span>
               </div>
-              <p className="text-sm text-gray-800 leading-relaxed">{data.task}</p>
+              {data.title && <p className="text-base font-bold text-gray-900 mb-1" dir="auto">{data.title}</p>}
+              <RichTextView html={data.task} className="text-sm text-gray-800 leading-relaxed" />
             </div>
             {data.notes && (
               <div className="mt-4 bg-amber-50 rounded-lg p-4 border border-amber-100">
@@ -337,7 +340,7 @@ export default function StaffTaskShow() {
                   <Icons.Notes />
                   <span className="text-[10px] font-medium uppercase tracking-wider">Notes</span>
                 </div>
-                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{data.notes}</p>
+                <RichTextView html={data.notes} className="text-sm text-gray-800 leading-relaxed" />
               </div>
             )}
           </div>

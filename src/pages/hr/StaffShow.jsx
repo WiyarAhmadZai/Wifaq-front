@@ -8,6 +8,7 @@ import WelcomeLetterModal from '../../components/WelcomeLetterModal';
 import ExperienceLetterModal from '../../components/ExperienceLetterModal';
 import OnboardingWelcomeModal from '../../components/OnboardingWelcomeModal';
 import { getStaffOnboarding } from '../../api/onboarding';
+import { useI18n } from '../../i18n/I18nContext';
 import StaffGallery from './StaffGallery';
 import { StaffEvaluation } from '../../components/hr/StaffRatings';
 import StaffTaskCalendar from '../../components/hr/StaffTaskCalendar';
@@ -579,6 +580,7 @@ function MiniStat({ label, value, tone = "text-gray-800" }) {
  * HR can actually follow up — a failed attempt shows which section was missed.
  */
 function OnboardingSection({ staffId, staffName }) {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [compose, setCompose] = useState(false);
@@ -598,6 +600,7 @@ function OnboardingSection({ staffId, staffName }) {
   }, [load]);
 
   const quiz = data?.quiz;
+  const orientation = data?.orientation;
   const messages = data?.messages || [];
   const last = messages[0];
 
@@ -624,6 +627,48 @@ function OnboardingSection({ staffId, staffName }) {
             {last ? 'Re-send' : 'Send'}
           </button>
         </div>
+
+        {/* Orientation guide — how far they have read, and the self-check
+            lines they answered "not yet", which is what HR follows up on. */}
+        {orientation && orientation.total > 0 && (
+          <div className={`p-3.5 rounded-xl border ${
+            orientation.completed_at ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                orientation.completed_at ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'
+              }`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800">Orientation guide</p>
+                <p className="text-[10px] text-gray-500">
+                  {t('{} of {} chapters read', orientation.read_count, orientation.total)}
+                  {' · '}
+                  {t('{} of {} self-check lines answered', orientation.self_check_answered, orientation.self_check_total)}
+                  {orientation.completed_at ? ` · ${t('Confirmed on {}.', fmtDate(orientation.completed_at))}` : ''}
+                </p>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${
+                orientation.completed_at
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : orientation.read_count === 0
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {orientation.completed_at ? 'Read' : orientation.read_count === 0 ? 'Not started' : 'In progress'}
+              </span>
+            </div>
+            {orientation.not_yet?.length > 0 && (
+              <div className="mt-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Answered "not yet"</p>
+                <ul data-no-i18n dir="rtl" className="mt-1 space-y-0.5 text-xs text-gray-700 orientation-text list-disc ps-5">
+                  {orientation.not_yet.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quiz */}
         <div className={`p-3.5 rounded-xl border ${

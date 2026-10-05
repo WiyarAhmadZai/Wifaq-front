@@ -12,7 +12,7 @@ import ChecklistPanel from "../../components/hr/ChecklistPanel";
 import AttachmentPanel from "../../components/hr/AttachmentPanel";
 import { RichTextView } from "../../components/RichTextField";
 import { SendReminderButton } from "../../components/hr/Reminders";
-import { linesToItems } from "../../utils/richText";
+import { linesToItems, richTextToPlain } from "../../utils/richText";
 const statusConf = {
   scheduled: { label: "Scheduled", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
   in_progress: { label: "In Progress", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
@@ -767,7 +767,7 @@ export default function MeetingShow() {
                       <div className="flex items-start gap-2 flex-1 min-w-0">
                         <span className={`mt-0.5 font-bold ${isDone ? "text-emerald-600" : "text-amber-500"}`}>{isDone ? "✓" : "○"}</span>
                         <div className="min-w-0">
-                          <p className={`text-xs font-semibold ${isDone ? "text-gray-500 line-through" : "text-gray-800"}`}>{t.task}</p>
+                          <p className={`text-xs font-semibold ${isDone ? "text-gray-500 line-through" : "text-gray-800"}`}>{t.title || richTextToPlain(t.task)}</p>
                           <p className="text-[10px] text-gray-500">
                             {t.staff_name || t.staff?.application?.full_name || `Staff #${t.staff_id}`}
                             {!isDone && t.progress ? ` · ${t.progress}%` : ""}
@@ -1060,7 +1060,7 @@ export default function MeetingShow() {
                       return (
                         <div key={t.id} className="p-3 border border-gray-100 rounded-xl hover:border-indigo-200 transition-colors">
                           <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs font-semibold text-gray-800 flex-1">{t.task}</p>
+                            <p className="text-xs font-semibold text-gray-800 flex-1">{t.title || richTextToPlain(t.task)}</p>
                             <div className="flex gap-1 flex-shrink-0">
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${priority[t.task_type] || priority.normal}`}>{t.task_type?.toUpperCase()}</span>
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${statusColor[t.status] || statusColor.pending}`}>{t.status?.replace("_", " ")}</span>

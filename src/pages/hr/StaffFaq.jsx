@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import { get, post, put, del } from "../../api/axios";
+import RichTextField, { RichTextView } from "../../components/RichTextField";
+import { richTextToPlain } from "../../utils/richText";
 
 /**
  * Staff Handbook — the questions new colleagues actually ask.
@@ -58,7 +60,7 @@ export default function StaffFaq() {
       if (!term) return true;
       return (
         r.question.toLowerCase().includes(term) ||
-        r.answer.toLowerCase().includes(term) ||
+        richTextToPlain(r.answer).toLowerCase().includes(term) ||
         (r.category || "").toLowerCase().includes(term)
       );
     });
@@ -199,7 +201,7 @@ export default function StaffFaq() {
 
             {openId === r.id && (
               <div className="px-5 pb-5">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{r.answer}</p>
+                <RichTextView html={r.answer} className="text-sm text-gray-700" />
                 <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-50">
                   <p className="text-[10px] text-gray-400">
                     {r.author ? `Written by ${r.author}` : "Author not recorded"}
@@ -240,8 +242,12 @@ export default function StaffFaq() {
 
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Answer *</label>
-                <textarea rows={6} value={editing.answer} onChange={(e) => setEditing((f) => ({ ...f, answer: e.target.value }))}
-                  placeholder="Say exactly what to do, and who to ask if it does not work." className={inp} required />
+                {/* Rich text, so a handbook entry can be a real article — headings,
+                    bullets, numbering. Category "Orientation" puts it in the
+                    new-staff onboarding package. */}
+                <RichTextField value={editing.answer} onChange={(html) => setEditing((f) => ({ ...f, answer: html }))}
+                  rows={8} placeholder="Say exactly what to do, and who to ask if it does not work." />
+                <p className="text-[10px] text-gray-400 mt-1">Tip: category “Orientation” adds this article to the onboarding package for new staff.</p>
                 {errors.answer && <p className="text-[11px] text-red-600 mt-1">{errors.answer}</p>}
               </div>
 

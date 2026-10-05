@@ -11,7 +11,7 @@ import { fmtDate } from "../../utils/formErrors";
 import AudiencePicker, { OwnerBadge, AudienceChips } from "../../components/drive/AudiencePicker";
 import { EMPTY_AUDIENCE } from "../../components/drive/audience";
 import MediaPreviewModal from "./MediaPreviewModal";
-import { fileObjectUrl, previewKind } from "./mediaPreview";
+import { fileObjectUrl, previewKind, openInOfficeApp } from "./mediaPreview";
 
 const fmtSize = (n) => {
   if (!n) return "";
@@ -288,9 +288,13 @@ export default function Drive() {
     if (isDoc(f)) { openDocument(f); return; }
     if (f.is_link) { window.open(f.external_url, "_blank", "noopener"); return; }
     if (["image", "video", "audio", "pdf"].includes(previewKind(f))) { setPreview(f); return; }
-    // Word, Excel and the rest cannot be shown in a browser anyway — saving
-    // them is what "open" means. Via downloadFile so the copy keeps its real
-    // name: a blob opened in a tab saves as the blob's id ("27c8c2df-….docx").
+    // Word, Excel, PowerPoint: hand the file to the app on this machine. The
+    // file is never sent to an online viewer — if Office is not installed the
+    // callback saves it instead and the reader opens it however they like.
+    if (previewKind(f) === "office") { openInOfficeApp(f, { onFallback: () => downloadFile(f) }); return; }
+    // Anything else cannot be shown in a browser anyway — saving it is what
+    // "open" means. Via downloadFile so the copy keeps its real name: a blob
+    // opened in a tab saves as the blob's id ("27c8c2df-….docx").
     downloadFile(f);
   };
 

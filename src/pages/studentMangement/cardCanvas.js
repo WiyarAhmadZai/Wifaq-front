@@ -75,11 +75,23 @@ function roundRect(ctx, x, y, w, h, r) {
 /**
  * Render one card.
  *
+ * Two variants, because the school needs two different things from one card:
+ *   "photo"      — the child's ID card, with their picture. The everyday one.
+ *   "conference" — the same card WITHOUT the picture, for conferences and
+ *                  events where a printed photograph of a child should not be
+ *                  handed around. The fields simply take the space back.
+ *
  * @param {object} card   what the server returned for this student
- * @param {object} opts   { logo: HTMLImageElement|null }
+ * @param {object} opts   { logo: HTMLImageElement|null, variant: "photo"|"conference" }
  * @returns {Promise<HTMLCanvasElement>}
  */
+export const CARD_VARIANTS = {
+  photo: "With photo",
+  conference: "Without photo (conferences)",
+};
+
 export async function drawCard(card, opts = {}) {
+  const withPhoto = opts.variant !== "conference";
   const canvas = document.createElement("canvas");
   canvas.width = CARD_PX.w;
   canvas.height = CARD_PX.h;
@@ -87,7 +99,7 @@ export async function drawCard(card, opts = {}) {
 
   const [logo, photo, qr] = await Promise.all([
     opts.logo !== undefined ? Promise.resolve(opts.logo) : loadImage(wifaqLogo),
-    loadImage(card.photo_url),
+    withPhoto ? loadImage(card.photo_url) : Promise.resolve(null),
     card.scan_url
       ? QRCode.toDataURL(card.scan_url, {
           errorCorrectionLevel: "H",       // survives a scratched corner
@@ -154,12 +166,13 @@ export async function drawCard(card, opts = {}) {
     ctx.fillText("WIFAQ", mm(4), mm(8));
   }
 
-  /* ── the photo, top-right ──────────────────────────────────────────────── */
+  /* ── the photo, top-right — omitted entirely on the conference card ────── */
   const pw = mm(18);
   const ph = mm(22);
   const px = canvas.width - mm(4) - pw;
   const py = mm(12);
 
+  if (withPhoto) {
   ctx.save();
   roundRect(ctx, px, py, pw, ph, mm(1.8));
   ctx.clip();
@@ -183,6 +196,7 @@ export async function drawCard(card, opts = {}) {
   ctx.strokeStyle = TEAL;
   roundRect(ctx, px, py, pw, ph, mm(1.8));
   ctx.stroke();
+  }
 
   /* ── the four fields, right-aligned like the rest of the card ──────────── */
   const rows = [
@@ -192,7 +206,9 @@ export async function drawCard(card, opts = {}) {
     ["ایدی نمبر کارت", card.student_id, true],
   ];
 
-  const labelRight = px - mm(2.5);      // labels hug the photo
+  // With a photo the labels hug it; without one they take the full width, so
+  // a long name has room instead of being shrunk to fit a gap that is not there.
+  const labelRight = withPhoto ? px - mm(2.5) : canvas.width - mm(5);
   const valueLeft = mm(4.5);
   let y = mm(17);                       // last row lands at 33.5mm, clear of the wave
 
@@ -257,8 +273,9 @@ export async function drawCard(card, opts = {}) {
 }
 
 /** A file name that says whose card this is, so nobody has to rename anything. */
-export function cardFileName(card) {
-  const parts = [card.full_name, card.student_id].filter(Boolean).join(" - ");
+export function cardFileName(card, variant = "photo") {
+  const parts = [card.full_name, card.student_id, variant === "conference" ? "conference" : null]
+    .filter(Boolean).join(" - ");
   // Windows refuses these outright; a slash in a name would also break a ZIP.
   return `${parts.replace(/[\\/:*?"<>|]/g, "-").trim() || "student-card"}.png`;
 }

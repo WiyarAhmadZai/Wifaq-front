@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Swal from "sweetalert2";
 import { get, post, del } from "../../api/axios";
+import { officeScheme, openInOfficeApp } from "../../pages/drive/mediaPreview";
 
 const TEAL = "#0D5C63";
 const BORDER = "#D0E0E0";
@@ -224,7 +225,15 @@ function PhaseSection({ phase, files, canManage, uploading, dragging, maxMb, onD
             <div key={f.id} className="flex items-center gap-3 px-3 py-2"
               style={{ borderTop: i ? `1px solid ${BORDER}` : "none", background: i % 2 ? "#FAFCFC" : "#fff" }}>
               <span className="text-lg flex-shrink-0">{iconFor(f.mime_type, f.original_name)}</span>
-              <a href={f.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 hover:underline">
+              {/* Word / Excel / PowerPoint open in the app on this machine;
+                  everything else keeps the ordinary link. Nothing is ever sent
+                  to an online viewer. */}
+              <a href={f.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 hover:underline"
+                onClick={(e) => {
+                  if (!officeScheme(f)) return;
+                  e.preventDefault();
+                  openInOfficeApp(f, { onFallback: () => window.open(f.url, "_blank", "noopener") });
+                }}>
                 <bdi dir="auto" className="block text-sm font-semibold truncate" style={{ color: "#0A3A3E" }}>
                   {f.original_name}
                 </bdi>

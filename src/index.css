@@ -258,6 +258,8 @@ header { font-size: 0.8125rem; }
    extra leading Naskh needs (same call as arabicTextStyle()). An explicit font
    chosen in the toolbar sits on an inner span and still wins. */
 .rich-text [dir="rtl"] { font-family: "Vazirmatn", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif; line-height: 1.8; }
+/* The orientation guide is written in Dari: the same face the rich text uses. */
+.orientation-text { font-family: "Vazirmatn", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif; }
 
 /* A formatted message inside an outgoing (teal) chat bubble. The link colour
    and the quote rule are both brand teal, which is invisible on a teal

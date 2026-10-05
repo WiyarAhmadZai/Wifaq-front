@@ -74,6 +74,7 @@ export function previewKind(item) {
   if (mime.startsWith("video/") || /\.(mp4|webm|ogg|mov|m4v)$/.test(name)) return "video";
   if (mime.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac)$/.test(name)) return "audio";
   if (mime === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+  if (officeScheme(item)) return "office";
 
   // Fall back to the catalogue's own classification.
   if (item?.file_type === "image") return "image";
@@ -81,6 +82,82 @@ export function previewKind(item) {
   if (item?.file_type === "audio") return "audio";
 
   return "file";
+}
+
+/**
+ * Which desktop Office app owns this file — or null if it is not an Office one.
+ *
+ * Deliberately NOT a web viewer. Sending a school document to Microsoft's
+ * online viewer to render it would mean handing a child's record, or a
+ * colleague's contract, to a third party just to look at it. The file never
+ * leaves: it is opened by the copy of Word or Excel already on the machine,
+ * and if there is none it is simply downloaded.
+ */
+export function officeScheme(item) {
+  if (!item || item.is_link || item.media_type === "doc") return null;
+  // Drive calls it `name`, a meeting/event attachment `original_name` — one
+  // helper serves both so neither screen needs its own copy of this list.
+  const name = (item.name || item.original_name || "").toLowerCase();
+  const mime = (item.mime || item.mime_type || "").toLowerCase();
+
+  if (/\.(docx?|dotx?|docm|rtf|odt)$/.test(name)
+    || mime.includes("wordprocessingml") || mime === "application/msword") return "ms-word";
+
+  if (/\.(xlsx?|xlsm|xlsb|xltx?|csv|ods)$/.test(name)
+    || mime.includes("spreadsheetml") || mime === "application/vnd.ms-excel"
+    || mime === "text/csv") return "ms-excel";
+
+  if (/\.(pptx?|pptm|potx?|ppsx?|odp)$/.test(name)
+    || mime.includes("presentationml") || mime === "application/vnd.ms-powerpoint") return "ms-powerpoint";
+
+  return null;
+}
+
+/**
+ * Hand an Office file to the app installed on this machine; download it if
+ * there is none.
+ *
+ * Office registers the ms-word: / ms-excel: / ms-powerpoint: schemes when it
+ * installs. Launching one succeeds silently and fails silently — there is no
+ * error event either way — so the only usable signal is whether this tab lost
+ * focus, which it does when the OS brings the app forward. No hand-over inside
+ * the grace period means nothing is installed, and the file is saved instead.
+ *
+ * Must be called straight from a click: browsers only allow a custom-scheme
+ * launch during a user gesture.
+ */
+export function openInOfficeApp(item, { onFallback, graceMs = 1500 } = {}) {
+  const scheme = officeScheme(item);
+  /* `office_url` ends in the real filename. Word and Excel decide what a file
+     is from the URL, not the Content-Type, so the plain `url` — which ends in
+     "/image?expires=…" — made Office answer "doesn't recognize the command it
+     was given". An attachment's own URL already carries its extension, so it
+     needs no second form. */
+  const url = item?.office_url || item?.url;
+  if (!scheme || !url) { onFallback?.(); return false; }
+
+  let handedOver = false;
+  const noteHandOver = () => { handedOver = true; };
+  window.addEventListener("blur", noteHandOver);
+  document.addEventListener("visibilitychange", noteHandOver);
+
+  try {
+    /* `ofv` = open for VIEW. `ofe` (edit) asks Office to save back over the
+       same URL, which only works against WebDAV/SharePoint — over a plain
+       signed link it fails outright. Viewing is also all that was asked for:
+       the file opens read-only in the app already on this machine. */
+    window.location.href = `${scheme}:ofv|u|${url}`;
+  } catch {
+    handedOver = false;
+  }
+
+  setTimeout(() => {
+    window.removeEventListener("blur", noteHandOver);
+    document.removeEventListener("visibilitychange", noteHandOver);
+    if (!handedOver) onFallback?.();
+  }, graceMs);
+
+  return true;
 }
 
 /** True when a card should try to paint a real thumbnail rather than an icon. */

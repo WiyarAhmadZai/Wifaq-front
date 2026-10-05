@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FiDownloadCloud } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { get } from "../../api/axios";
-import { drawCard, cardFileName, canvasToBlob, saveBlob } from "./cardCanvas";
+import { drawCard, cardFileName, canvasToBlob, saveBlob, CARD_VARIANTS } from "./cardCanvas";
 import wifaqLogo from "../../assets/wifaq-logo.png";
 
 /**
@@ -24,15 +24,23 @@ export default function BulkCardsButton() {
   const [progress, setProgress] = useState(null);   // { done, total }
 
   const run = async () => {
+    /* Which card goes in the archive. The conference one — without the
+       child's photograph — is the reason a bulk export exists at all, so it is
+       the one offered first. */
     const confirm = await Swal.fire({
       title: "Download all ID cards?",
-      text: "Every enrolled student's card is prepared and saved as one ZIP file.",
+      input: "radio",
+      inputOptions: CARD_VARIANTS,
+      inputValue: "conference",
+      html: `<p style="font-size:13px">Every enrolled student's card is prepared and saved as one ZIP file.</p>`,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Download",
       confirmButtonColor: TEAL,
+      inputValidator: (v) => (v ? undefined : "Choose which card to print."),
     });
     if (!confirm.isConfirmed) return;
+    const variant = confirm.value;
 
     setProgress({ done: 0, total: 0 });
     try {
@@ -56,12 +64,12 @@ export default function BulkCardsButton() {
       for (let i = 0; i < cards.length; i++) {
         const card = cards[i];
         try {
-          const canvas = await drawCard(card, { logo });
+          const canvas = await drawCard(card, { logo, variant });
           const blob = await canvasToBlob(canvas);
 
           // Two students can share a name; the second must not overwrite the
           // first inside the archive.
-          let name = cardFileName(card);
+          let name = cardFileName(card, variant);
           const seen = used.get(name) || 0;
           used.set(name, seen + 1);
           if (seen) name = name.replace(/\.png$/, ` (${seen + 1}).png`);
@@ -69,7 +77,7 @@ export default function BulkCardsButton() {
           zip.file(name, blob);
         } catch {
           // One unreadable photo must not cost the other 399 cards.
-          zip.file(`FAILED - ${cardFileName(card)}.txt`,
+          zip.file(`FAILED - ${cardFileName(card, variant)}.txt`,
             `This card could not be drawn. Open the student and print it on its own.`);
         }
         setProgress({ done: i + 1, total: cards.length });
@@ -79,7 +87,7 @@ export default function BulkCardsButton() {
 
       const out = await zip.generateAsync({ type: "blob" });
       const stamp = new Date().toISOString().slice(0, 10);
-      saveBlob(out, `WEN student ID cards - ${stamp}.zip`);
+      saveBlob(out, `WEN student ID cards${variant === "conference" ? " (no photo)" : ""} - ${stamp}.zip`);
       setProgress(null);
       Swal.fire({
         toast: true, position: "top-end", icon: "success",

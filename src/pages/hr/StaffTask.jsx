@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { get, del, put, post, API_BASE_URL, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { fmtDate } from "../../utils/formErrors";
+import { richTextToPlain } from "../../utils/richText";
 import Select2 from '../../components/hr/Select2';
 import StaffTaskCalendar from "../../components/hr/StaffTaskCalendar";
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
@@ -340,8 +341,9 @@ export default function StaffTask() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-700 max-w-xs truncate">{item.task}</p>
-                      {item.notes && <p className="text-[11px] text-gray-400 truncate max-w-xs">{item.notes}</p>}
+                      {item.title && <p className="text-sm font-semibold text-gray-800 max-w-xs truncate" dir="auto">{item.title}</p>}
+                      <p className={`max-w-xs truncate ${item.title ? "text-[11px] text-gray-500" : "text-sm text-gray-700"}`} dir="auto">{richTextToPlain(item.task)}</p>
+                      {item.notes && <p className="text-[11px] text-gray-400 truncate max-w-xs" dir="auto">{richTextToPlain(item.notes)}</p>}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${taskTypeStyle[item.task_type] || "bg-gray-100 text-gray-600"}`}>
@@ -471,7 +473,7 @@ export default function StaffTask() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Collaborate — transfer task</h3>
-              <p className="text-[11px] text-gray-500 mt-0.5 truncate">"{collabFor.task}"</p>
+              <p className="text-[11px] text-gray-500 mt-0.5 truncate">"{collabFor.title || richTextToPlain(collabFor.task)}"</p>
             </div>
             <div className="p-5 space-y-3">
               <p className="text-[12px] text-gray-500">

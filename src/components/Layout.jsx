@@ -2388,6 +2388,13 @@ export default function Layout() {
             active={isActive("/onboarding")}
             onClick={closeSidebar}
           />
+          <SidebarItem
+            icon={Icons.Support}
+            label="Orientation Resources"
+            to="/onboarding/orientation"
+            active={isActive("/onboarding/orientation")}
+            onClick={closeSidebar}
+          />
 
           {hasPermission("settings.view") && (
             <>

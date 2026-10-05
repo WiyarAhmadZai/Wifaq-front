@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 
 import { DateField } from "../../components/hr/HrUI";
 import { AutoRemindPicker } from "../../components/hr/Reminders";
+import RichTextField from "../../components/RichTextField";
 const TASK_TYPES = [
   { value: "urgent", label: "Urgent", color: "bg-red-100 text-red-700" },
   { value: "high", label: "High", color: "bg-orange-100 text-orange-700" },
@@ -22,8 +23,11 @@ export default function StaffTaskForm() {
 
   const [form, setForm] = useState({
     staff_id: "",       // used in edit mode
+    title: "",
     task: "",
     task_type: "normal",
+    // Bulk: a bulleted / numbered description becomes one task per item.
+    split_into_tasks: false,
     estimate_value: "",
     estimate_unit: "hours",
     start_date: new Date().toISOString().split("T")[0],
@@ -88,6 +92,7 @@ export default function StaffTaskForm() {
       const d = __cached;
       setForm({
         staff_id: d.staff_id || "",
+        title: d.title || "",
         task: d.task || "",
         task_type: d.task_type || "normal",
         start_date: d.start_date?.split("T")[0] || "",
@@ -114,6 +119,7 @@ export default function StaffTaskForm() {
       const d = res.data;
       setForm({
         staff_id: d.staff_id || "",
+        title: d.title || "",
         task: d.task || "",
         task_type: d.task_type || "normal",
         start_date: d.start_date?.split("T")[0] || "",
@@ -178,10 +184,16 @@ export default function StaffTaskForm() {
       return;
     }
 
+    // The rich-text box reports '' when blank; a required textarea used to catch this.
+    if (!String(form.task || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim()) {
+      Swal.fire("Missing", "Please describe the task.", "warning");
+      return;
+    }
+
     setSaving(true);
     try {
       if (isEdit) {
-        const { no_date, auto_reminders: _r, estimate_value: _v, estimate_unit: _u, ...submitData } = form;
+        const { no_date, auto_reminders: _r, estimate_value: _v, estimate_unit: _u, split_into_tasks: _s, ...submitData } = form;
         if (no_date) submitData.start_date = null;
         if (!submitData.deadline) delete submitData.deadline;
         if (!submitData.recurrence) { submitData.recurrence = null; submitData.recurrence_until = null; }
@@ -436,11 +448,31 @@ export default function StaffTaskForm() {
           <p className="text-[11px] text-gray-400 mt-1">Used for workload planning and shown next to the clock once the colleague starts the task.</p>
         </div>
 
-        {/* Task Description */}
+        {/* Title — the short subject lists, calendars and notifications show. */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Task title <span className="text-gray-400 font-normal">(short subject)</span>
+          </label>
+          <input name="title" value={form.title} onChange={handleChange} maxLength={200} dir="auto"
+            placeholder="e.g. Prepare the monthly report" className={inp} disabled={form.split_into_tasks} />
+        </div>
+
+        {/* Task Description — rich text: bullets, numbering, bold, colours. */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Task Description *</label>
-          <textarea name="task" value={form.task} onChange={handleChange} required rows={4} placeholder="Describe the task in detail..."
-            className={inp} />
+          <RichTextField value={form.task} onChange={(html) => setForm((prev) => ({ ...prev, task: html }))}
+            rows={6} placeholder="Describe the task — use the toolbar for bullet points and numbering" />
+          {!isEdit && (
+            <label className="mt-2 flex items-start gap-2 p-2.5 rounded-xl bg-teal-50/60 border border-teal-100 cursor-pointer select-none">
+              <input type="checkbox" checked={form.split_into_tasks}
+                onChange={(e) => setForm((prev) => ({ ...prev, split_into_tasks: e.target.checked }))}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">
+                <span className="font-semibold">Make each bullet / line its own task</span>
+                <span className="block text-[11px] text-gray-500">Write a list above — every item becomes a separate task with the same dates, priority and reminders.</span>
+              </span>
+            </label>
+          )}
         </div>
 
         {/* Notes */}
@@ -448,8 +480,8 @@ export default function StaffTaskForm() {
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Notes <span className="text-gray-400 font-normal">(optional)</span>
           </label>
-          <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="Any additional notes..."
-            className={inp} />
+          <RichTextField value={form.notes} onChange={(html) => setForm((prev) => ({ ...prev, notes: html }))}
+            rows={3} placeholder="Any additional notes..." />
         </div>
 
         {/* Reminders for the assignee, counted back from the deadline (or the day they plan it for). */}

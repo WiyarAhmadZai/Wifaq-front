@@ -231,6 +231,11 @@ RULES.sort((a, b) => b.prefix.length - a.prefix.length);
 const PUBLIC_PATHS = new Set([
   "/",
   "/profile",
+  // Own onboarding: the orientation guide and the quiz. Every new colleague
+  // has one and the backend scopes it to the caller (/profile/onboarding).
+  "/onboarding",
+  "/onboarding/quiz",
+  "/onboarding/orientation",
   "/403",
   "/support",
   "/dashboard",

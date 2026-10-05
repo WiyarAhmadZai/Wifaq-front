@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 import StudentDevelopmentPanel from "./StudentDevelopmentPanel";
+import StudentIdCard from "./StudentIdCard";
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                            */
@@ -123,6 +124,8 @@ export default function StudentShow() {
   const [s, setS] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("Overview");
+  // The printable ID card, opened from this record.
+  const [showCard, setShowCard] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -186,6 +189,13 @@ export default function StudentShow() {
               className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
               شناسنامه
+            </button>
+            {/* The ID card, where the email asked for it: inside the student's
+                own record, not only on the list. */}
+            <button onClick={() => setShowCard(true)}
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+              ID card
             </button>
             {canUpdate && (
               <button onClick={() => navigate(`/student-management/students/edit/${id}`)}
@@ -533,6 +543,8 @@ export default function StudentShow() {
           {tab === "Development" && <StudentDevelopmentPanel student={s} />}
         </div>
       </div>
+
+      {showCard && <StudentIdCard studentId={id} onClose={() => setShowCard(false)} />}
     </div>
   );
 }

@@ -49,6 +49,7 @@ const MyProfile = lazy(() => import("./pages/MyProfile"));
 const MyOnboarding = lazy(() => import("./pages/onboarding/MyOnboarding"));
 const MyChildrenObservations = lazy(() => import("./pages/parent/MyChildrenObservations"));
 const OnboardingQuiz = lazy(() => import("./pages/onboarding/OnboardingQuiz"));
+const OrientationResources = lazy(() => import("./pages/onboarding/OrientationResources"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const ChatSettings = lazy(() => import("./pages/system/ChatSettings"));
@@ -438,6 +439,7 @@ function App() {
             {/* Onboarding — every signed-in user has their own; no permission gate. */}
             <Route path="onboarding" element={<Suspense fallback={<PageLoader />}><MyOnboarding /></Suspense>} />
             <Route path="onboarding/quiz" element={<Suspense fallback={<PageLoader />}><OnboardingQuiz /></Suspense>} />
+            <Route path="onboarding/orientation" element={<Suspense fallback={<PageLoader />}><OrientationResources /></Suspense>} />
             {/* Appointments — anyone signed in may book time with any staff member. */}
             <Route path="hr/book-appointment" element={<Suspense fallback={<PageLoader />}><BookAppointment /></Suspense>} />
             <Route path="notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />

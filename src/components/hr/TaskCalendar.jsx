@@ -26,6 +26,12 @@ const TASK_STATUS = {
   cancelled:   { label: "Cancelled",   chip: "bg-gray-100 text-gray-500 border-gray-200",         bar: "border-s-gray-300" },
 };
 
+/** One line of a task for the hover hint; a browser tooltip cannot scroll. */
+const shortTip = (s) => {
+  const text = String(s || "").replace(/\s+/g, " ").trim();
+  return text.length > 140 ? `${text.slice(0, 140)}…` : text;
+};
+
 const WEEKDAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -129,7 +135,8 @@ export default function TaskCalendar({
         onDragEnd={() => { setDragId(null); setOver(null); }}
         {...dropZone(`task:${t.id}`)}
         onClick={() => onOpen?.(t)}
-        title={t.fixed_date && editable ? `${t.task}\n🔒 ${t.assigned_by ? `Date set by ${t.assigned_by}` : "Date set by the assigner"}` : t.task}
+        // A short hover hint only — the whole task is in the pop-up a click opens.
+        title={t.fixed_date && editable ? `${shortTip(t.task)}\n🔒 ${t.assigned_by ? `Date set by ${t.assigned_by}` : "Date set by the assigner"}` : shortTip(t.task)}
         className={`group rounded-md border border-gray-200 border-s-4 ${st.bar} bg-white px-1.5 py-1 text-[10px] leading-tight shadow-sm
           ${onOpen ? "cursor-pointer hover:border-teal-300" : ""} ${movable(t) ? "cursor-grab active:cursor-grabbing" : ""}
           ${dragId === t.id ? "opacity-40" : ""} ${over === `task:${t.id}` ? "ring-2 ring-teal-400" : ""}`}>

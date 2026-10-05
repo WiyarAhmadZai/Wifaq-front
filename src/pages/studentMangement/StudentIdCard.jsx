@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FiDownload, FiPrinter, FiX } from "react-icons/fi";
 import { get } from "../../api/axios";
-import { drawCard, cardFileName, canvasToBlob, saveBlob, printCard, CARD_MM } from "./cardCanvas";
+import { drawCard, cardFileName, canvasToBlob, saveBlob, printCard, CARD_MM, CARD_VARIANTS } from "./cardCanvas";
 
 /**
  * One student's ID card: shown, downloaded, or printed.
@@ -15,6 +15,9 @@ import { drawCard, cardFileName, canvasToBlob, saveBlob, printCard, CARD_MM } fr
 const TEAL = "#0D5C63";
 
 export default function StudentIdCard({ studentId, onClose }) {
+  // Which card: the everyday one with the child's photo, or the conference
+  // one without it. Redrawn on the spot — the data is already here.
+  const [variant, setVariant] = useState("photo");
   const [card, setCard] = useState(null);
   const [png, setPng] = useState(null);       // data URL, for preview and print
   const [error, setError] = useState("");
@@ -23,19 +26,20 @@ export default function StudentIdCard({ studentId, onClose }) {
 
   useEffect(() => {
     let alive = true;
+    setPng(null);
     get(`/student-management/students/${studentId}/card`, { cache: false })
       .then(async (res) => {
         const d = res.data?.data;
         if (!alive) return;
         setCard(d);
-        const canvas = await drawCard(d);
+        const canvas = await drawCard(d, { variant });
         if (!alive) return;
         blobRef.current = await canvasToBlob(canvas);
         setPng(canvas.toDataURL("image/png"));
       })
       .catch((e) => alive && setError(e.response?.data?.message || "This card could not be prepared."));
     return () => { alive = false; };
-  }, [studentId]);
+  }, [studentId, variant]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
@@ -46,7 +50,7 @@ export default function StudentIdCard({ studentId, onClose }) {
   const download = async () => {
     if (!blobRef.current || !card) return;
     setBusy(true);
-    saveBlob(blobRef.current, cardFileName(card));
+    saveBlob(blobRef.current, cardFileName(card, variant));
     setBusy(false);
   };
 
@@ -59,6 +63,16 @@ export default function StudentIdCard({ studentId, onClose }) {
           <h3 className="text-sm font-bold" style={{ color: TEAL }}>
             Student ID card
           </h3>
+          <div className="flex items-center gap-1 ms-auto me-2">
+            {Object.entries(CARD_VARIANTS).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setVariant(key)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                  variant === key ? "text-white" : "bg-white text-gray-500"}`}
+                style={variant === key ? { background: TEAL, borderColor: TEAL } : { borderColor: "#D0E0E0" }}>
+                {label}
+              </button>
+            ))}
+          </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
             <FiX className="w-4 h-4" />
           </button>
@@ -91,7 +105,7 @@ export default function StudentIdCard({ studentId, onClose }) {
             </div>
 
             <p className="mt-3 text-[11px] text-gray-400" style={{ maxWidth: `${CARD_MM.w}mm` }}>
-              The file is saved as “{card ? cardFileName(card) : ""}”. Scanning the
+              The file is saved as “{card ? cardFileName(card, variant) : ""}”. Scanning the
               code opens this student in WEN — what the scanner sees depends on
               their own account.
             </p>

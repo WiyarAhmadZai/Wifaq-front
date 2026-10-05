@@ -68,6 +68,41 @@ export function exportRowsToExcel(rows, columns, title = "list") {
   XLSX.writeFile(wb, `${slug(title)}-${stamp()}.xlsx`);
 }
 
+/**
+ * Several tables in one workbook, a sheet each.
+ *
+ * A student's record is not one list — observations, achievements, parent
+ * meetings and ratings are different shapes — and flattening them into a
+ * single sheet makes a spreadsheet nobody can filter. One sheet per kind, and
+ * the empty ones are left out rather than shipped as a blank tab.
+ *
+ * @param {Array<{name: string, headers: string[], rows: Array<Array>}>} sheets
+ * @param {string} fileBase  file name, without the extension
+ */
+export function exportSheetsToExcel(sheets, fileBase = "report") {
+  const useful = (sheets || []).filter((s) => s && s.rows && s.rows.length);
+  if (!useful.length) return false;
+
+  const wb = XLSX.utils.book_new();
+  const taken = new Set();
+  for (const sheet of useful) {
+    const aoa = [[SCHOOL_NAME], [sheet.name], [], sheet.headers, ...sheet.rows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = sheet.headers.map((h, i) => {
+      const widest = Math.max(String(h).length, ...sheet.rows.map((r) => String(r[i] ?? "").length), 0);
+      return { wch: Math.max(12, Math.min(60, widest + 2)) };
+    });
+    // Excel refuses a tab name over 31 chars, or a duplicate.
+    let tab = String(sheet.name).replace(/[\/?*[\]:]/g, " ").slice(0, 28).trim() || "Sheet";
+    let n = 2;
+    while (taken.has(tab)) tab = `${tab.slice(0, 26)} ${n++}`;
+    taken.add(tab);
+    XLSX.utils.book_append_sheet(wb, ws, tab);
+  }
+  XLSX.writeFile(wb, `${slug(fileBase)}-${stamp()}.xlsx`);
+  return true;
+}
+
 // School name shown as the header on every printed page.
 export const SCHOOL_NAME = "Wifaq Educational Network";
 

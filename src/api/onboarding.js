@@ -34,3 +34,9 @@ export const getQuizPaper = (lang) =>
   get(`/profile/onboarding/quiz?lang=${encodeURIComponent(lang)}`, { cache: false });
 
 export const submitQuiz = (payload) => post("/profile/onboarding/quiz", payload);
+
+/**
+ * Progress through the orientation guide. Send one of: { read_article_id },
+ * { self_check: { key: "yes" | "not_yet" } }, or { complete: true }.
+ */
+export const saveOrientation = (payload) => post("/profile/onboarding/orientation", payload);

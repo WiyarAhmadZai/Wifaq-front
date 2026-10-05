@@ -140,7 +140,7 @@ export default function OnboardingQuiz() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6 pb-28">
+    <div className="max-w-3xl mx-auto p-4 sm:p-6">
       {/* Header */}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -224,10 +224,11 @@ export default function OnboardingQuiz() {
         ))}
       </div>
 
-      {/* Sticky submit bar — the progress count is what stops someone
+      {/* Sticky submit bar — sticky, not fixed, so it stays inside the content
+          column and never covers the last question. The progress count is what stops someone
           submitting a half-finished paper by accident. */}
-      <div className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+      <div className="sticky bottom-0 z-10 mt-5 -mx-4 sm:-mx-6 bg-white/95 backdrop-blur border-t border-gray-200 px-4 sm:px-6 py-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
               <div

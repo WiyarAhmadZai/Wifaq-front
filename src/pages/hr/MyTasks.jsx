@@ -4,7 +4,7 @@ import Swal from "sweetalert2";
 import { get, put } from "../../api/axios";
 import { PageHeader, Spinner } from "../../components/hr/HrUI";
 import TaskCalendar from "../../components/hr/TaskCalendar";
-import StaffTaskCalendar, { QuickTaskModal } from "../../components/hr/StaffTaskCalendar";
+import StaffTaskCalendar, { QuickTaskModal, TaskStatusModal } from "../../components/hr/StaffTaskCalendar";
 
 /**
  * My Tasks.
@@ -118,9 +118,8 @@ export default function MyTasks() {
       )}
 
       {open && (
-        <StatusModal task={open} onClose={() => setOpen(null)}
-          onSaved={() => { setOpen(null); load(); }}
-          onOpenTask={() => navigate(`/hr/staff-task/show/${open.id}`)} />
+        <TaskStatusModal task={open} onClose={() => setOpen(null)}
+          onSaved={() => { setOpen(null); load(); }} />
       )}
     </div>
   );
@@ -185,62 +184,5 @@ function AssignedByMe({ rows, onOpen, onCalendar }) {
         </div>
       )}
     </section>
-  );
-}
-
-/** Click a task on the calendar: change its status (and time), or open it. */
-function StatusModal({ task, onClose, onSaved, onOpenTask }) {
-  const [status, setStatus] = useState(task.status);
-  const [time, setTime] = useState(task.planned_time || "");
-  const [busy, setBusy] = useState(false);
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      if (status !== task.status) await put(`/hr/staff-tasks/${task.id}`, { status });
-      if (task.planned_date && (time || null) !== (task.planned_time || null)) {
-        await put(`/hr/staff-tasks/${task.id}/plan`, { planned_date: task.planned_date, planned_time: time || null });
-      }
-      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Saved", timer: 1200, showConfirmButton: false });
-      onSaved();
-    } catch (e) {
-      Swal.fire("Error", e.response?.data?.message || "Could not save.", "error");
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-gray-100">
-          <div className="text-xs text-gray-400">Task</div>
-          <div className="font-semibold text-gray-800" dir="auto" data-no-i18n>{task.task}</div>
-          {task.assigned_by && <div className="text-[11px] text-gray-400 mt-0.5"><span>Assigned by</span> <span data-no-i18n>{task.assigned_by}</span></div>}
-        </div>
-        <div className="p-5 space-y-4">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Status</div>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(STATUS).map(([k, s]) => (
-                <button key={k} onClick={() => setStatus(k)}
-                  className={`rounded-xl border-2 px-2 py-2 text-xs font-semibold ${status === k ? `${s.chip} border-current` : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>{s.label}</button>
-              ))}
-            </div>
-          </div>
-          {task.planned_date && (
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1"><span>Time on</span> <span data-no-i18n>{task.planned_date}</span></div>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
-            </div>
-          )}
-        </div>
-        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-2">
-          <button onClick={onOpenTask} className="text-xs font-semibold text-teal-700 hover:underline">Open task →</button>
-          <span className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600">Cancel</button>
-            <button onClick={save} disabled={busy} className="px-4 py-2 text-sm rounded-xl bg-teal-600 text-white font-semibold disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
-          </span>
-        </div>
-      </div>
-    </div>
   );
 }

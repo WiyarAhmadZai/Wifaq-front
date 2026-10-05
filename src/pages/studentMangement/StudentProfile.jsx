@@ -4,6 +4,8 @@ import { get, put, post, peekCache } from "../../api/axios";
 import { toastSuccess, toastError } from "../../utils/toast";
 import Modal from "../../components/Modal";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+import Swal from "sweetalert2";
+import { exportSheetsToExcel } from "../../utils/listExport";
 
 /* ── 4D dimension accents ── */
 const DIMS = [
@@ -22,6 +24,25 @@ const STORY_FIELDS = [
   F("perceived_talents", "Perceived talents"), F("career_aspiration", "Career aspiration"),
   F("favourite_activities", "Favourite activities"), F("favourite_subjects", "Favourite subjects"),
   F("hardest_subjects", "Hardest subjects"), F("self_description", "Self-description", { area: true }),
+];
+/* What a teacher brings back from a parent meeting or a home visit.
+   `sel` fields render as dropdowns and show as chips on the timeline, so the
+   source and the kind of information are readable at a glance. */
+const INFO_ENTRY_FIELDS = [
+  F("occurred_on", "Date learned · تاریخ", { date: true }),
+  F("source", "How we learned it · منبع", { sel: [
+    ["parent_meeting", "Parent meeting"], ["home_visit", "Home visit"], ["phone_call", "Phone call"],
+    ["parent_message", "Message from parent"], ["student", "From the student"], ["other", "Other"],
+  ] }),
+  F("info_type", "Type of information · نوعیت", { sel: [
+    ["general", "General"], ["family", "Family situation"], ["health", "Health"], ["behaviour", "Behaviour"],
+    ["academic", "Academic"], ["financial", "Financial"], ["safeguarding", "Safeguarding concern"],
+    ["achievement", "Achievement"],
+  ] }),
+  F("met_with", "Who we spoke with · با کی"),
+  F("details", "What we learned · معلومات", { area: true }),
+  F("action_needed", "What the school should do · اقدام", { area: true }),
+  F("needs_followup", "Needs follow-up", { bool: true }),
 ];
 const ASPIR_FIELDS = [
   F("want_to_know_discover", "ذهنی — want to know / discover", { area: true }),
@@ -79,6 +100,8 @@ const TABS = [
   { key: "family", label: "Family" },
   { key: "familydeep", label: "Home", sensitive: true },
   { key: "observations", label: "Observations" },
+  // What teachers learn at parent meetings and on home visits.
+  { key: "infolog", label: "Parent & Home" },
   { key: "portrait", label: "Portrait" },
   // Photographs of the child. Its own permission (student-gallery.*), so a
   // colleague who may read the profile does not automatically get the album.
@@ -122,26 +145,127 @@ export default function StudentProfile() {
     } finally { setSaving(false); }
   };
 
-  // Open the printable HTML report in a new tab (Save-as-PDF from the browser).
-  const openReport = async () => {
-    try {
-      const r = await get(`/student-management/students/${id}/profile/report`, { responseType: "blob" });
-      const url = URL.createObjectURL(new Blob([r.data], { type: "text/html" }));
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch { toastError("Could not open the report."); }
+  /* The report, over a period, in the format the reader needs.
+   *
+   * One dialog rather than two buttons: the period is the question people
+   * actually have ("the whole of last year", "both years, start to finish"),
+   * and it applies the same way whichever format comes out. A blank period
+   * means the entire record, which is what the old buttons always produced. */
+  const [reporting, setReporting] = useState(false);
+
+  const askReport = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const yearsAgo = (n) => { const d = new Date(); d.setFullYear(d.getFullYear() - n); return d.toISOString().slice(0, 10); };
+    const joined = data?.student?.enrollment_date || "";
+
+    const { isConfirmed, value } = await Swal.fire({
+      title: "Student report",
+      html: `
+        <div style="text-align:start;font-size:13px">
+          <p style="font-weight:700;margin-bottom:6px">Period</p>
+          <select id="rp-range" class="swal2-select" style="margin:0 0 10px;width:100%">
+            <option value="all">Whole record — everything</option>
+            <option value="since-joined">Since they joined${joined ? ` (${joined})` : ""}</option>
+            <option value="2y">Last two years</option>
+            <option value="1y">Last year</option>
+            <option value="custom">Choose the dates…</option>
+          </select>
+          <div id="rp-dates" style="display:none;gap:8px;margin-bottom:10px">
+            <input id="rp-from" type="date" class="swal2-input" style="margin:0" max="${today}">
+            <input id="rp-to" type="date" class="swal2-input" style="margin:0" max="${today}">
+          </div>
+          <p style="font-weight:700;margin-bottom:6px">Format</p>
+          <select id="rp-format" class="swal2-select" style="margin:0;width:100%">
+            <option value="pdf">PDF — to save or send</option>
+            <option value="print">Print — opens in a new tab</option>
+            <option value="excel">Excel — the records as a spreadsheet</option>
+          </select>
+        </div>`,
+      didOpen: () => {
+        const sel = document.getElementById("rp-range");
+        const box = document.getElementById("rp-dates");
+        sel.addEventListener("change", () => { box.style.display = sel.value === "custom" ? "flex" : "none"; });
+      },
+      showCancelButton: true,
+      confirmButtonText: "Produce report",
+      confirmButtonColor: "#0D5C63",
+      preConfirm: () => {
+        const range = document.getElementById("rp-range").value;
+        const format = document.getElementById("rp-format").value;
+        let from = "", to = "";
+        if (range === "custom") {
+          from = document.getElementById("rp-from").value;
+          to = document.getElementById("rp-to").value;
+          if (from && to && from > to) { Swal.showValidationMessage("The first date must come before the second."); return false; }
+        } else if (range === "since-joined") from = joined;
+        else if (range === "2y") from = yearsAgo(2);
+        else if (range === "1y") from = yearsAgo(1);
+        return { from, to, format };
+      },
+    });
+    if (!isConfirmed) return;
+    runReport(value);
   };
-  // Download the full شناسنامه as a branded PDF (mpdf, server-side).
-  const downloadPdf = async () => {
+
+  /* The report payload as a workbook: one sheet per kind of record, because
+     they have nothing in common but the child they belong to. */
+  const reportToExcel = (d, fileBase) => {
+    if (!d) { toastError("The report came back empty."); return; }
+    const txt = (v) => (v == null ? "" : String(v));
+    const sheets = [
+      { name: "Achievements", headers: ["Date", "Kind", "Detail", "Given by"],
+        rows: [
+          ...(d.awards || []).map((a) => [txt(a.announced_at).slice(0, 10), "Weekly award", txt(a.topic?.title || a.citation), ""]),
+          ...(d.merit_cards || []).map((c) => [txt(c.issued_on).slice(0, 10), `${txt(c.color)} card`, txt(c.reason), txt(c.issuer?.name)]),
+        ] },
+      { name: "Parent meetings", headers: ["Date", "Source", "Type", "Spoke with", "What we learned", "Action", "Recorded by"],
+        rows: (d.info_entries || []).map((e) => [txt(e.occurred_on).slice(0, 10), txt(e.source), txt(e.info_type),
+          txt(e.met_with), txt(e.details), txt(e.action_needed), txt(e.recorded_by?.name)]) },
+      { name: "Observations", headers: ["Date", "Category", "Dimension", "Description", "Recommendation", "Observer"],
+        rows: (d.observations || []).map((o) => [txt(o.observed_on).slice(0, 10), txt(o.category), txt(o.dimension),
+          txt(o.description), txt(o.recommendation), txt(o.observer?.name)]) },
+      { name: "4D ratings", headers: ["Date", "Intellectual", "Personal", "Social", "Practical", "Evidence"],
+        rows: (d.ratings || []).map((r) => [txt(r.created_at).slice(0, 10), txt(r.intellectual), txt(r.personal),
+          txt(r.social), txt(r.practical), txt(r.evidence)]) },
+      { name: "Profile updates", headers: ["Date", "Type", "Summary", "Flags"],
+        rows: (d.updates || []).map((u) => [txt(u.reviewed_at || u.created_at).slice(0, 10), txt(u.update_type),
+          txt(u.major_changes_summary), txt(u.flags_raised)]) },
+    ];
+    if (!exportSheetsToExcel(sheets, fileBase)) {
+      toastError("There is nothing in that period to export.");
+    }
+  };
+
+  const runReport = async ({ from, to, format }) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    const name = (data?.student?.full_name || "student").replace(/\s+/g, "-");
+    const suffix = from || to ? `-${from || "start"}_${to || "today"}` : "";
+    setReporting(true);
     try {
-      const r = await get(`/student-management/students/${id}/profile/report?format=pdf`, { responseType: "blob" });
-      const url = URL.createObjectURL(new Blob([r.data], { type: "application/pdf" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `profile-${(data?.student?.full_name || "student").replace(/\s+/g, "-")}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch { toastError("Could not generate the PDF."); }
+      if (format === "excel") {
+        qs.set("format", "json");
+        const r = await get(`/student-management/students/${id}/profile/report?${qs}`, { cache: false });
+        await reportToExcel(r.data?.data, `${name}${suffix}`);
+      } else {
+        if (format === "pdf") qs.set("format", "pdf");
+        const r = await get(`/student-management/students/${id}/profile/report?${qs}`, { responseType: "blob" });
+        const type = format === "pdf" ? "application/pdf" : "text/html";
+        const url = URL.createObjectURL(new Blob([r.data], { type }));
+        if (format === "pdf") {
+          const a = document.createElement("a");
+          a.href = url; a.download = `profile-${name}${suffix}.pdf`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 4000);
+        } else {
+          window.open(url, "_blank");
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }
+      }
+    } catch (e) {
+      toastError(e.response?.data?.message || "The report could not be produced.");
+    } finally { setReporting(false); }
   };
 
   if (loading) return <div className="min-h-screen bg-gray-50/60"><Spinner /></div>;
@@ -161,8 +285,11 @@ export default function StudentProfile() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div className="flex items-center gap-2">
-            <button onClick={openReport} title="Open the printable report" className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold">🖨 Print</button>
-            <button onClick={downloadPdf} title="Download the full شناسنامه as PDF" className="px-3 py-2 bg-white text-teal-700 hover:bg-teal-50 rounded-xl text-sm font-semibold">⬇ PDF</button>
+            <button onClick={askReport} disabled={reporting}
+              title="The full record over any period — PDF, print, or Excel"
+              className="px-3 py-2 bg-white text-teal-700 hover:bg-teal-50 rounded-xl text-sm font-semibold disabled:opacity-60">
+              {reporting ? "Preparing…" : "📄 Report"}
+            </button>
             <button onClick={() => navigate(`/student-management/students/show/${id}`)} className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold">Full record →</button>
           </div>
         </div>
@@ -213,6 +340,12 @@ export default function StudentProfile() {
           {tab === "family" && <FamilyTab {...ctx} />}
           {tab === "familydeep" && <LogSection {...ctx} title="Home Environment · وضعیت خانه" subtitle="Confidential — never shared with family" sensitive items={data.sensitive?.family_situation} path="/family-situation" dateKey="recorded_at" fields={FAMILY_FIELDS} />}
           {tab === "observations" && <Observations {...ctx} />}
+          {tab === "infolog" && (
+            <LogSection {...ctx} title="Parent Meetings & Home Visits · ملاقات والدین"
+              subtitle="New information about the child, in the order it was learned"
+              items={data.info_entries} path="/info-entries" dateKey="occurred_on" fields={INFO_ENTRY_FIELDS}
+              canAdd={can.record_info} />
+          )}
           {tab === "portrait" && <Portrait {...ctx} />}
           {/* The same gallery component the staff profile uses — one screen,
               a different subject. The endpoint and the permission behind it
@@ -231,9 +364,17 @@ export default function StudentProfile() {
 }
 
 /* ════════════════ generic append-log section ════════════════ */
-function LogSection({ title, subtitle, items = [], path, dateKey, fields, context, sensitive, save, saving, can }) {
+function LogSection({ title, subtitle, items = [], path, dateKey, fields, context, sensitive, save, saving, can, canAdd }) {
+  // Most logs are the class supervisor's to write; the parent/home one is open
+  // to every teacher of the child, so it passes its own flag.
+  const mayAdd = canAdd ?? can.update;
   const [adding, setAdding] = useState(false);
-  const blank = () => Object.fromEntries(fields.map((f) => [f.name, f.bool ? false : ""]).concat(context ? [["context", "intake"]] : []));
+  // A date field opens on today and a dropdown on its first option: the
+  // common case should need no typing, and the server rejects an empty one.
+  const blank = () => Object.fromEntries(
+    fields.map((f) => [f.name,
+      f.bool ? false : f.date ? new Date().toISOString().slice(0, 10) : f.sel ? f.sel[0][0] : ""])
+      .concat(context ? [["context", "intake"]] : []));
   const [form, setForm] = useState(blank());
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const list = Array.isArray(items) ? items : items ? [items] : [];
@@ -245,9 +386,9 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
   return (
     <div className="space-y-4">
       <Card title={title} subtitle={subtitle} sensitive={sensitive}
-        action={can.update && <button onClick={() => setAdding((a) => !a)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
+        action={mayAdd && <button onClick={() => setAdding((a) => !a)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
         {sensitive && <SensitiveBanner />}
-        {adding && can.update && (
+        {adding && mayAdd && (
           <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 mb-4 space-y-3">
             {context && <Seg label="Context" value={form.context} onChange={(v) => set("context", v)} options={[["intake", "Intake"], ["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]]} />}
             {fields.map((f) => <FieldInput key={f.name} f={f} value={form[f.name]} onChange={(v) => set(f.name, v)} />)}
@@ -258,7 +399,7 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
           </div>
         )}
         {list.length === 0 ? (
-          <EmptyState title="No records yet" hint={can.update ? "Add the first record — it'll start the timeline below." : "Nothing has been recorded for this student."} />
+          <EmptyState title="No records yet" hint={mayAdd ? "Add the first record — it'll start the timeline below." : "Nothing has been recorded for this student."} />
         ) : (
           <Timeline list={list} fields={fields} dateKey={dateKey} />
         )}
@@ -290,6 +431,11 @@ function Timeline({ list, fields, dateKey }) {
                   {latest && <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-600 text-white uppercase tracking-wider">Latest</span>}
                   {row.context && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 capitalize">{row.context}</span>}
                   <span className="text-[11px] font-semibold text-gray-600">{relativeTime(date)}</span>
+                  {/* Who put it on the record. Shown wherever the server sends
+                      it — every append-only log on this profile stamps it. */}
+                  {row.recorded_by?.name && (
+                    <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{row.recorded_by.name}</span></span>
+                  )}
                   <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(date)}</span>
                 </div>
                 <div className="p-4 space-y-3">
@@ -722,6 +868,9 @@ function FieldInput({ f, value, onChange }) {
       <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">{f.label}</p>
       {f.bool ? (
         <label className="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} /> Yes</label>
+      ) : f.date ? (
+        <input type="date" value={value || ""} max={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => onChange(e.target.value)} className={inp} />
       ) : f.sel ? (
         <select value={value} onChange={(e) => onChange(e.target.value)} className={inp}>{f.sel.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
       ) : f.area ? (

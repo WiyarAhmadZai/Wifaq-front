@@ -59,6 +59,13 @@ function socialUrl(platform, raw) {
   return cfg.base + (platform === "YouTube" ? "@" + handle : handle);
 }
 
+const STEP_BAR_COLORS = {
+  blue: "bg-blue-300",
+  teal: "bg-teal-300",
+  cyan: "bg-cyan-300",
+  emerald: "bg-emerald-300",
+};
+
 const STEPS = [
   { key: "received", label: "Received", desc: "Application received", color: "blue", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
   { key: "screening", label: "Screening", desc: "Under review", color: "teal", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
@@ -975,7 +982,7 @@ export default function ApplicationShow() {
                   </span>
                 </div>
                 {idx < STEPS.length - 1 && (
-                  <div className={`h-1 flex-1 mx-4 rounded-full ${isPast ? `bg-${step.color}-300` : "bg-gray-200"}`} />
+                  <div className={`h-1 flex-1 mx-4 rounded-full ${isPast ? (STEP_BAR_COLORS[step.color] || "bg-gray-300") : "bg-gray-200"}`} />
                 )}
               </div>
             );

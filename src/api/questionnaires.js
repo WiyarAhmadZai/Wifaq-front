@@ -12,6 +12,8 @@ export const closeQuestionnaire   = (id)          => post(`${BASE}/${id}/close`,
 export const getResponses         = (id)          => get(`${BASE}/${id}/responses`);
 export const getStats             = (id)          => get(`${BASE}/${id}/stats`);
 export const getCompletion        = ()            => get(`${BASE}/completion`);
+// Searchable account list for the "specific users" picker.
+export const getTargetUsers       = (search = "") => get(`${BASE}/target-users`, { params: { search } });
 
 // Parent's own questionnaire (logged-in family account).
 export const getMyQuestionnaire     = ()           => get("/my-questionnaire");

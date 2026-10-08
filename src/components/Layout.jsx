@@ -1458,6 +1458,7 @@ export default function Layout() {
     { label: "Parent Ratings", path: "/parent-ratings", permission: "parent-ratings.view" },
     { label: "Golden Record", path: "/parent-ratings/golden-record", permission: "parent-ratings.view" },
     { label: "Reports", path: "/parent-communications/reports", permission: "parent-communications.report" },
+    { label: "Fee Payment Extension", path: "/fee-extensions", permission: "fee-extensions.submit" },
   ];
 
   const academic = [
@@ -1618,6 +1619,7 @@ export default function Layout() {
       { label: "Payroll", path: "/finance/payroll", permission: "payroll.view" },
       { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
       { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
+      { label: "Fee Extensions", path: "/finance/fee-extensions", permission: "fee-extensions.view" },
     ]},
     { label: "Reports", key: "finance-reports", children: [
       // Board-pack — Assets / Liabilities / Equity snapshot + the monthly PDF

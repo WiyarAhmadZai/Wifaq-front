@@ -11,6 +11,7 @@ import {
   createFeePayment,
   addPendingCharge,
 } from "../../api/financial";
+import { getFeeExtensions } from "../../api/feeExtensions";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 import { DateField } from "../../components/hr/HrUI";
@@ -44,6 +45,11 @@ export default function Cashier() {
 
   const [statement, setStatement] = useState(null);
   const [loadingStatement, setLoadingStatement] = useState(false);
+
+  // Approved / modified fee extensions for the selected student —
+  // shown as a banner so the cashier sees the agreed commitment
+  // next to the bill they are settling.
+  const [extensions, setExtensions] = useState([]);
 
   const [accounts, setAccounts] = useState([]);
   const [feeItems, setFeeItems] = useState([]);
@@ -84,9 +90,16 @@ export default function Cashier() {
       setStatement(null);
       setAllocations({});
       setReceipt(null);
+      setExtensions([]);
       return;
     }
     loadStatement();
+    // Any fee extensions on record for this student — the
+    // cashier needs to see an approved commitment while
+    // settling the bill.
+    getFeeExtensions({ student_id: selectedStudentId, per_page: 50 })
+      .then((r) => setExtensions(Array.isArray(r.data?.data) ? r.data.data : []))
+      .catch(() => setExtensions([]));
   }, [selectedStudentId]);
 
   const loadStatement = async () => {
@@ -393,6 +406,49 @@ export default function Cashier() {
               />
             )}
           </div>
+
+          {/* Fee extension commitments — an approved /
+              modified extension the parent has agreed to.
+              The cashier sees the agreed date next to the
+              bill they are settling. */}
+          {selectedStudentId && extensions.some((e) => e.status === "approved" || e.status === "modified") && (
+            <div className="mb-4 space-y-2">
+              {extensions
+                .filter((e) => e.status === "approved" || e.status === "modified")
+                .map((e) => (
+                  <div
+                    key={e.id}
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-800">
+                          Fee extension {e.request_code} — {e.status === "approved" ? "approved" : "re-dated"}
+                        </p>
+                        <p className="text-[11px] text-emerald-700">
+                          Agreed payment date: <bdi>{fmtDate(e.approved_payment_date)}</bdi>
+                          {e.outstanding_amount != null && (
+                            <> · {Number(e.outstanding_amount).toLocaleString()} {e.currency || "AFN"}</>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {e.status === "overdue" || (e.approved_payment_date && new Date(e.approved_payment_date) < new Date(new Date().toDateString())) ? (
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                        Past agreed date
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Within agreed date
+                      </span>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
 
           {/* Outstanding invoices */}
           {selectedStudentId && (

@@ -12,6 +12,23 @@ const STATUS = {
   closed:    { label: "Closed", cls: "bg-amber-100 text-amber-700" },
 };
 
+const AUDIENCE_LABEL = {
+  families: { label: "Families", cls: "bg-violet-100 text-violet-700" },
+  teachers: { label: "Teachers", cls: "bg-sky-100 text-sky-700" },
+  staff:    { label: "Staff", cls: "bg-orange-100 text-orange-700" },
+};
+
+const audienceBadges = (q) => {
+  const list = Array.isArray(q.target_audiences) && q.target_audiences.length
+    ? q.target_audiences
+    : ["families"];
+  const badges = list.map((a) => AUDIENCE_LABEL[a] || AUDIENCE_LABEL.families);
+  if (Array.isArray(q.target_user_ids) && q.target_user_ids.length) {
+    badges.push({ label: `Specific (${q.target_user_ids.length})`, cls: "bg-rose-100 text-rose-700" });
+  }
+  return badges;
+};
+
 export default function Questionnaires() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -71,6 +88,7 @@ export default function Questionnaires() {
                 <th className="text-left px-4 py-3 font-bold">Title</th>
                 <th className="text-left px-4 py-3 font-bold">Topic</th>
                 <th className="text-left px-4 py-3 font-bold">Week</th>
+                <th className="text-left px-4 py-3 font-bold">Audience</th>
                 <th className="text-center px-4 py-3 font-bold">Questions</th>
                 <th className="text-center px-4 py-3 font-bold">Responses</th>
                 <th className="text-center px-4 py-3 font-bold">Status</th>
@@ -85,6 +103,13 @@ export default function Questionnaires() {
                     <td className="px-4 py-3 font-semibold text-gray-800">{q.title}</td>
                     <td className="px-4 py-3 text-gray-600">{q.topic || "—"}</td>
                     <td className="px-4 py-3 text-gray-500">{q.week_of ? fmtDate(q.week_of) : "—"}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {audienceBadges(q).map((a) => (
+                          <span key={a.label} className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${a.cls}`}>{a.label}</span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-center text-gray-600">{q.questions_count ?? 0}</td>
                     <td className="px-4 py-3 text-center text-gray-600">{q.responses_count ?? 0}</td>
                     <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${st.cls}`}>{st.label}</span></td>

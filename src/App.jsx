@@ -134,6 +134,7 @@ const ParentCommunicationReports = lazy(() => import("./pages/parent/ParentCommu
 const ParentCallGuide = lazy(() => import("./pages/parent/ParentCallGuide"));
 const ParentRatings = lazy(() => import("./pages/parent/ParentRatings"));
 const ParentGoldenRecord = lazy(() => import("./pages/parent/ParentGoldenRecord"));
+const FeeExtensionPortal = lazy(() => import("./pages/parent/FeeExtensionPortal"));
 const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
 const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
 const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
@@ -296,6 +297,7 @@ const ApplicationForm = lazy(() => import("./pages/recruitment/ApplicationForm")
 const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow"));
 const PublicApplicationForm = lazy(() => import("./pages/recruitment/PublicApplicationForm"));
 const PublicQuestionnaire = lazy(() => import("./pages/public/PublicQuestionnaire"));
+const PublicFeeExtension = lazy(() => import("./pages/public/PublicFeeExtension"));
 const BookAppointment = lazy(() => import("./pages/hr/BookAppointment"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
@@ -328,6 +330,7 @@ const StudentPayments = lazy(() => import("./pages/finance/StudentPayments"));
 const ClassCollectionReport = lazy(() => import("./pages/finance/ClassCollectionReport"));
 const LeadershipReport = lazy(() => import("./pages/finance/LeadershipReport"));
 const FinanceInbox = lazy(() => import("./pages/finance/FinanceInbox"));
+const FeeExtensions = lazy(() => import("./pages/finance/FeeExtensions"));
 const Parties = lazy(() => import("./pages/finance/Parties"));
 const PartyForm = lazy(() => import("./pages/finance/PartyForm"));
 const PartyLedger = lazy(() => import("./pages/finance/PartyLedger"));
@@ -423,6 +426,12 @@ function App() {
                 server decides what the scanner may see. */}
             <Route path="/s/:token" element={<Suspense fallback={<PageLoader />}><StudentScan /></Suspense>} />
 
+            {/* Public fee payment extension — a no-login form the fee
+                officer shares with a family. The token in the URL is
+                scoped to ONE student, so a visitor can only ever
+                submit for that child. */}
+            <Route path="/fee-extension/:token" element={<Suspense fallback={<PageLoader />}><PublicFeeExtension /></Suspense>} />
+
             {/* Messages as a page of its own — what the drawer's "open in a
                 separate window" button opens. Outside the Layout on purpose:
                 a window opened for mail carries no system navigation. */}
@@ -477,6 +486,10 @@ function App() {
             {/* A family's own page: every observation and card for their own
                 children. Scoped on the server from the signed-in account. */}
             <Route path="my-children/observations" element={<Suspense fallback={<PageLoader />}><MyChildrenObservations /></Suspense>} />
+
+            {/* Fee Payment Extension — the parent's own screen. The
+                server scopes it to the caller's own children. */}
+            <Route path="fee-extensions" element={<Suspense fallback={<PageLoader />}><FeeExtensionPortal /></Suspense>} />
 
             {/* Planning — Annual / Monthly / Weekly plans */}
             <Route path="planning" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />
@@ -778,6 +791,8 @@ function App() {
             <Route path="finance/fee-invoices/create" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/edit/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/show/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceShow /></Suspense>} />
+            {/* Fee Payment Extensions — the fee officer's review queue */}
+            <Route path="finance/fee-extensions" element={<Suspense fallback={<PageLoader />}><FeeExtensions /></Suspense>} />
             <Route path="finance/fee-payments" element={<Suspense fallback={<PageLoader />}><FeePayments /></Suspense>} />
             {/* /finance/fee-payments/create is handled above by redirect to /finance/cashier */}
             <Route path="finance/fee-payments/edit/:id" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />

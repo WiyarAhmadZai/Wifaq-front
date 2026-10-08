@@ -1,16 +1,36 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getQuestionnaire } from "../../api/questionnaires";
+import { getQuestionnaire, getTargetUsers } from "../../api/questionnaires";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 
 const TYPE_LABEL = { choice: "Multiple choice", yesno: "Yes / No", text: "Short answer", file: "File / image upload" };
+
+const AUDIENCE_LABEL = {
+  families: { label: "Families (Parents)", cls: "bg-violet-100 text-violet-700" },
+  teachers: { label: "Teachers", cls: "bg-sky-100 text-sky-700" },
+  staff:    { label: "Staff (employees)", cls: "bg-orange-100 text-orange-700" },
+};
 
 export default function QuestionnaireShow() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [q, setQ] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userNames, setUserNames] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    getTargetUsers()
+      .then((r) => {
+        if (!alive) return;
+        const map = {};
+        (r.data?.data || []).forEach((u) => { map[u.id] = u.name; });
+        setUserNames(map);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     const __cached = peekCache(`/questionnaires/${id}`);
@@ -38,6 +58,17 @@ export default function QuestionnaireShow() {
           {q.week_of && <span>Week: {fmtDate(q.week_of)}</span>}
           <span>Status: <b className="text-gray-700 capitalize">{q.status}</b></span>
           <span>{q.is_public ? "Public link: on" : "Public link: off"}</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {(Array.isArray(q.target_audiences) && q.target_audiences.length ? q.target_audiences : ["families"]).map((a) => {
+            const meta = AUDIENCE_LABEL[a] || AUDIENCE_LABEL.families;
+            return <span key={a} className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${meta.cls}`}>{meta.label}</span>;
+          })}
+          {Array.isArray(q.target_user_ids) && q.target_user_ids.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700">
+              Specific: {q.target_user_ids.map((uid) => userNames[uid] || `#${uid}`).join(", ")}
+            </span>
+          )}
         </div>
         {q.description && <p className="text-sm text-gray-600 mt-3 leading-relaxed">{q.description}</p>}
       </div>

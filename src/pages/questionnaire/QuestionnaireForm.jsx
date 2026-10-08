@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { createQuestionnaire, updateQuestionnaire, getQuestionnaire } from "../../api/questionnaires";
+import { createQuestionnaire, updateQuestionnaire, getQuestionnaire, getTargetUsers } from "../../api/questionnaires";
 import { peekCache } from "../../api/axios";
 import { DateField } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
 
 const input = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500";
 const label = "block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1";
+
+// Who the questionnaire is addressed to. Several groups can run
+// their own questionnaire at the same time.
+const AUDIENCES = [
+  { value: "families", label: "Families (Parents)", hint: "parent accounts + the public share link" },
+  { value: "teachers", label: "Teachers", hint: "staff accounts with a teacher record" },
+  { value: "staff", label: "Staff (employees)", hint: "non-teaching staff accounts" },
+];
 
 const blankQuestion = (type = "choice") => ({
   text: "",
@@ -21,13 +30,28 @@ export default function QuestionnaireForm() {
 
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title: "", topic: "", description: "", week_of: "", is_public: true });
+  const [form, setForm] = useState({ title: "", topic: "", description: "", week_of: "", is_public: true, target_audiences: ["families"], target_user_ids: [] });
   const [questions, setQuestions] = useState([blankQuestion()]);
+  const [userOptions, setUserOptions] = useState([]);
+
+  // Searchable account list for the "specific users" picker.
+  useEffect(() => {
+    let alive = true;
+    getTargetUsers()
+      .then((r) => { if (alive) setUserOptions((r.data?.data || []).map((u) => ({ value: u.id, label: u.name }))); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     if (!isEdit) return;
     const seed = (q) => {
-      setForm({ title: q.title || "", topic: q.topic || "", description: q.description || "", week_of: q.week_of?.slice(0, 10) || "", is_public: q.is_public ?? true });
+      setForm({
+        title: q.title || "", topic: q.topic || "", description: q.description || "",
+        week_of: q.week_of?.slice(0, 10) || "", is_public: q.is_public ?? true,
+        target_audiences: (q.target_audiences || []).length ? q.target_audiences : ["families"],
+        target_user_ids: Array.isArray(q.target_user_ids) ? q.target_user_ids : [],
+      });
       setQuestions((q.questions || []).length ? q.questions.map((qq) => ({
         text: qq.text, type: qq.type,
         options: qq.type === "choice" ? (qq.options || []).map((o) => o.text) : [],
@@ -38,7 +62,12 @@ export default function QuestionnaireForm() {
     getQuestionnaire(id).then((r) => {
       const q = r.data?.data;
       if (q) {
-        setForm({ title: q.title || "", topic: q.topic || "", description: q.description || "", week_of: q.week_of?.slice(0, 10) || "", is_public: q.is_public ?? true });
+        setForm({
+          title: q.title || "", topic: q.topic || "", description: q.description || "",
+          week_of: q.week_of?.slice(0, 10) || "", is_public: q.is_public ?? true,
+          target_audiences: (q.target_audiences || []).length ? q.target_audiences : ["families"],
+          target_user_ids: Array.isArray(q.target_user_ids) ? q.target_user_ids : [],
+        });
         setQuestions((q.questions || []).length ? q.questions.map((qq) => ({
           text: qq.text, type: qq.type,
           options: qq.type === "choice" ? (qq.options || []).map((o) => o.text) : [],
@@ -56,6 +85,7 @@ export default function QuestionnaireForm() {
 
   const save = async (publish) => {
     if (!form.title.trim()) { Swal.fire("Title required", "Give the questionnaire a title.", "warning"); return; }
+    if (!form.target_audiences.length) { Swal.fire("Choose who answers", "Pick at least one group (families, teachers or staff) who should see this questionnaire.", "warning"); return; }
     const clean = questions
       .filter((q) => q.text.trim())
       .map((q) => ({ text: q.text, type: q.type, options: q.type === "choice" ? q.options.filter((o) => o.trim()) : [] }));
@@ -88,7 +118,44 @@ export default function QuestionnaireForm() {
           <div><label className={label}>Topic</label><input className={input} value={form.topic} onChange={(e) => setField("topic", e.target.value)} placeholder="احترام" /></div>
           <div><label className={label}>Week of</label><DateField name="week_of" value={form.week_of} onChange={(e) => setField("week_of", e.target.value)} className={input} /></div>
           <div className="sm:col-span-2"><label className={label}>Description</label><textarea className={input} rows={2} value={form.description} onChange={(e) => setField("description", e.target.value)} /></div>
+          <div className="sm:col-span-2">
+            <label className={label}>Who answers this questionnaire</label>
+            <p className="text-[10px] text-gray-400 mb-2">Pick one or more groups — each group runs its own questionnaire at the same time.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {AUDIENCES.map((a) => {
+                const on = form.target_audiences.includes(a.value);
+                return (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => setField("target_audiences", on ? form.target_audiences.filter((v) => v !== a.value) : [...form.target_audiences, a.value])}
+                    className={`text-left px-3 py-2.5 rounded-xl border text-sm transition ${on ? "border-teal-500 bg-teal-50" : "border-gray-200 bg-white hover:border-teal-200"}`}
+                  >
+                    <span className={`flex items-center gap-2 font-semibold ${on ? "text-teal-700" : "text-gray-700"}`}>
+                      <span className={`inline-flex h-4 w-4 items-center justify-center rounded border ${on ? "border-teal-500 bg-teal-600 text-white" : "border-gray-300 text-transparent"}`}>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      </span>
+                      {a.label}
+                    </span>
+                    <span className="block text-[10px] text-gray-400 mt-0.5">{a.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={form.is_public} onChange={(e) => setField("is_public", e.target.checked)} /> Show on the public link</label>
+          <div className="sm:col-span-2">
+            <label className={label}>Specific users (optional)</label>
+            <p className="text-[10px] text-gray-400 mb-2">On top of the groups above, send this to hand-picked accounts. They will see it under "Answer Questionnaire" even if no group matches.</p>
+            <Select2
+              isMulti
+              value={form.target_user_ids}
+              onChange={(v) => setField("target_user_ids", v)}
+              options={userOptions}
+              placeholder="Search and pick users…"
+              size="md"
+            />
+          </div>
         </div>
       </div>
 

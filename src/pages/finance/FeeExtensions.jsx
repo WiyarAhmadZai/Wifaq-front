@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import Modal from "../../components/Modal";
+import Select2 from "../../components/hr/Select2";
 import { useAuth } from "../../admin/context/AuthContext";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import {
@@ -658,16 +659,14 @@ export default function FeeExtensions() {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Student *</label>
-            <select
+            <Select2
               value={newForm.student_id}
-              onChange={(e) => setNewForm({ ...newForm, student_id: e.target.value })}
-              className={inputCls(newErrors, "student_id")}
-            >
-              <option value="">Select student…</option>
-              {(formData?.students || []).map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
-              ))}
-            </select>
+              onChange={(v) => setNewForm({ ...newForm, student_id: v })}
+              options={(formData?.students || []).map((s) => ({ value: s.id, label: s.label }))}
+              placeholder="Search student by name or ID…"
+              error={!!newErrors.student_id}
+              size="md"
+            />
             {err(newErrors, "student_id")}
           </div>
 
@@ -800,16 +799,14 @@ export default function FeeExtensions() {
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Student *</label>
-              <select
+              <Select2
                 value={linkForm.student_id}
-                onChange={(e) => setLinkForm({ ...linkForm, student_id: e.target.value })}
-                className={inputCls(linkErrors, "student_id")}
-              >
-                <option value="">Select student…</option>
-                {(formData?.students || []).map((s) => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
+                onChange={(v) => setLinkForm({ ...linkForm, student_id: v })}
+                options={(formData?.students || []).map((s) => ({ value: s.id, label: s.label }))}
+                placeholder="Search student by name or ID…"
+                error={!!linkErrors.student_id}
+                size="md"
+              />
               {err(linkErrors, "student_id")}
               <p className="text-[11px] text-gray-400 mt-1">
                 The link is scoped to this student's family only — a visitor can never submit for another child.

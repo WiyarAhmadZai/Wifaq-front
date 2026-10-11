@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { get, post, put, del } from "../../api/axios";
 import TaskCalendar from "./TaskCalendar";
+import { DayDetailModal } from "./DayDetail";
 import { DateField } from "./HrUI";
 import RichTextField, { RichTextView } from "../RichTextField";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
@@ -25,6 +26,7 @@ export default function StaffTaskCalendar({ staffId, staffName = "", deniedText 
   const [denied, setDenied] = useState(false);
   const [adding, setAdding] = useState(null);   // { date: "YYYY-MM-DD" | null }
   const [open, setOpen] = useState(null);       // the task clicked on the calendar
+  const [day, setDay] = useState(null);         // the day clicked, for the day view
 
   const load = useCallback(() => get("/hr/staff-tasks/staff-calendar", { cache: false, params: { staff_id: staffId, month } })
     .then((r) => setData(r.data))
@@ -78,9 +80,14 @@ export default function StaffTaskCalendar({ staffId, staffName = "", deniedText 
         onAddDay={data.can_assign ? (date) => setAdding({ date }) : undefined}
         onAddUnplanned={data.can_assign ? () => setAdding({ date: null }) : undefined}
         onOpen={setOpen}
+        onDayClick={setDay}
       />
       {open && (
         <TaskStatusModal task={open} canReport={!!data.can_report} canSupervise={!!data.can_supervise} onClose={() => setOpen(null)} onSaved={() => { setOpen(null); load(); }} />
+      )}
+      {day && (
+        <DayDetailModal staffId={staffId} staffName={staffName} date={day}
+          onClose={() => setDay(null)} onOpenTask={setOpen} />
       )}
       {adding && (
         <QuickTaskModal staffId={staffId} staffName={staffName} date={adding.date}

@@ -44,6 +44,9 @@ export default function TaskCalendar({
   tasks = [], month, onMonth, editable = false,
   onMove, onReorder, onOpen, showUnplanned = true,
   onAddDay, onAddUnplanned,
+  // Click a day's date to open the whole day in detail
+  // (the Day View pop-up / page).
+  onDayClick,
   // true (default): a task whose date the assigner set cannot be dragged.
   // false: the viewer IS an assigner (admin/supervisor) and may move any task.
   lockFixed = true,
@@ -198,7 +201,13 @@ export default function TaskCalendar({
                       ${dragId && editable && c.date >= today && busyOn(c.date) === 0 ? "bg-emerald-50/80" : ""}
                       ${over === c.date ? "bg-teal-50 ring-2 ring-inset ring-teal-300" : ""}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-semibold ${c.date === today ? "text-amber-700" : c.inMonth ? "text-gray-600" : "text-gray-300"}`} data-no-i18n>{c.day}</span>
+                      {/* The date itself opens the day in detail. */}
+                      {onDayClick ? (
+                        <button onClick={() => onDayClick(c.date)} title="Open this day in detail" aria-label="Open this day in detail"
+                          className={`text-[10px] font-semibold px-1 rounded hover:bg-teal-100 hover:text-teal-800 ${c.date === today ? "text-amber-700" : c.inMonth ? "text-gray-600" : "text-gray-300"}`} data-no-i18n>{c.day}</button>
+                      ) : (
+                        <span className={`text-[10px] font-semibold ${c.date === today ? "text-amber-700" : c.inMonth ? "text-gray-600" : "text-gray-300"}`} data-no-i18n>{c.day}</span>
+                      )}
                       {/* While dragging: which days are free (no other open task). */}
                       {dragId && editable && c.date >= today && busyOn(c.date) === 0 && (
                         <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded px-1">Free</span>

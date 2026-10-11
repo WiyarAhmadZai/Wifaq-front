@@ -5,6 +5,7 @@ import { get, put } from "../../api/axios";
 import { PageHeader, Spinner } from "../../components/hr/HrUI";
 import TaskCalendar from "../../components/hr/TaskCalendar";
 import StaffTaskCalendar, { QuickTaskModal, TaskStatusModal } from "../../components/hr/StaffTaskCalendar";
+import { DayDetailModal } from "../../components/hr/DayDetail";
 
 /**
  * My Tasks.
@@ -39,6 +40,7 @@ export default function MyTasks() {
   const [open, setOpen] = useState(null);   // the task whose status is being changed
   const [calendarFor, setCalendarFor] = useState(null); // { id, name } — an assignee's calendar
   const [adding, setAdding] = useState(null);           // { date } — adding tasks to my own calendar
+  const [day, setDay] = useState(null);                 // the day clicked, for the day view
 
   const load = useCallback(() => get("/hr/staff-tasks/my-tasks", { cache: false, params: { month } })
     .then((r) => setData(r.data))
@@ -88,6 +90,7 @@ export default function MyTasks() {
           onMove={move}
           onReorder={reorder}
           onOpen={setOpen}
+          onDayClick={setDay}
           // Anyone may add tasks to their own day — several, each with an optional time.
           onAddDay={data.my_staff_id ? (date) => setAdding({ date }) : undefined}
           onAddUnplanned={data.my_staff_id ? () => setAdding({ date: null }) : undefined}
@@ -121,6 +124,11 @@ export default function MyTasks() {
       {open && (
         <TaskStatusModal task={open} canReport onClose={() => setOpen(null)}
           onSaved={() => { setOpen(null); load(); }} />
+      )}
+
+      {day && data.my_staff_id && (
+        <DayDetailModal staffId={data.my_staff_id} staffName="Me" date={day}
+          onClose={() => setDay(null)} onOpenTask={setOpen} />
       )}
     </div>
   );

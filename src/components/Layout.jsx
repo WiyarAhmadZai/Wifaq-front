@@ -1422,6 +1422,9 @@ export default function Layout() {
       // meetings, tagged with the committee.
       { label: "Committees", path: "/hr/planner/committees", permission: "committees.view" },
       { label: "Staff Tasks", path: "/hr/staff-task", permission: "staff-task.view" },
+      // The day screen: one person's whole day, from any calendar
+      // too (click a day). Same permission as the task calendars.
+      { label: "Day View", path: "/hr/day-view", permission: "staff-task.view" },
       // Operations Hub — Live Status: my week + clock, and the manager board.
       { label: "My Check-in", path: "/hr/my-check-in", permission: "staff-task.view" },
       { label: "Team Overview", path: "/hr/team-overview", permission: "staff-task.create" },

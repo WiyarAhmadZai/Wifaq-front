@@ -147,10 +147,13 @@ export default function EnrolledStudents() {
 
   /* The father's contact number, in the slot the transfer status used to hold.
    * `dir="ltr"` because a phone number is read left-to-right even when the row
-   * around it is Dari or Pashto. */
+   * around it is Dari or Pashto. `exportValue` because the on-screen cell is
+   * a <span> — without the plain-text twin, Excel and Print would see an
+   * empty column and drop it entirely. */
   const fatherPhoneColumn = {
     key: "father_phone",
     label: "Father Number",
+    exportValue: (item) => item.family?.father_phone || "",
     render: (_, item) => (item.family?.father_phone
       ? <span dir="ltr" className="text-xs text-gray-700 whitespace-nowrap">{item.family.father_phone}</span>
       : <span className="text-xs text-gray-300">—</span>),
@@ -196,6 +199,9 @@ export default function EnrolledStudents() {
           {
             key: "full_name",
             label: "Name",
+            // Plain text for Excel / Print — the on-screen cell is an
+            // avatar beside the name, which an export cannot carry.
+            exportValue: (item) => item.full_name || "",
             render: (_, item) => (
               <div className="flex items-center gap-2">
                 <StudentAvatar student={item} size="sm" />
@@ -206,13 +212,16 @@ export default function EnrolledStudents() {
           // Third, right after the student's own name: the column always held
           // the father's name, but "Family" read as though it were a household
           // or a family record, so nobody could tell what the value was.
-          { key: "family", label: "Father Name", render: (_, item) => item.family?.father_name || "—" },
+          { key: "family", label: "Father Name", exportValue: (item) => item.family?.father_name || "", render: (_, item) => item.family?.father_name || "—" },
           { key: "school_class", label: "Class", render: (_, item) => item.school_class?.class_name || "—" },
           { key: "date_of_birth", label: "DOB", render: (v) => v ? fmtDate(v) : "—" },
           { key: "final_fee", label: "Monthly Fee", render: (v) => v ? `${Number(v).toLocaleString()} AFN` : "—" },
           {
             key: "uniform_invoice",
             label: "Uniform",
+            // The on-screen cell is a button (or a dash); the export
+            // carries whether a uniform is needed, nothing else.
+            exportValue: (item) => (Boolean(item.need_uniform) && Number(item.uniform_price || 0) > 0 ? "Needed" : ""),
             render: (_, item) => {
               const ok = Boolean(item.need_uniform) && Number(item.uniform_price || 0) > 0;
               if (!ok) return <span className="text-xs text-gray-300">—</span>;

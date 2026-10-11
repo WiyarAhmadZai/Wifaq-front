@@ -32,7 +32,7 @@ const DAY_SHORT = {
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const KIND = {
-  lesson:      { label: "In class",    cls: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+  lesson:      { label: "Teaching",   cls: "bg-indigo-100 text-indigo-800 border-indigo-200" },
   unavailable: { label: "Unavailable", cls: "bg-gray-200 text-gray-700 border-gray-300" },
   meeting:     { label: "Meeting",     cls: "bg-amber-100 text-amber-800 border-amber-200" },
   appointment: { label: "Appointment", cls: "bg-orange-100 text-orange-800 border-orange-200" },

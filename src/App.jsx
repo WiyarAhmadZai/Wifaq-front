@@ -223,6 +223,7 @@ const AddVendorShow = lazy(() => import("./pages/hr/AddVendorShow"));
 const StaffTaskShow = lazy(() => import("./pages/hr/StaffTaskShow"));
 const MyCheckIn = lazy(() => import("./pages/hr/MyCheckIn"));
 const MyTasks = lazy(() => import("./pages/hr/MyTasks"));
+const DayView = lazy(() => import("./pages/hr/DayView"));
 const TeamOverview = lazy(() => import("./pages/hr/TeamOverview"));
 const TaskLeaderboard = lazy(() => import("./pages/hr/TaskLeaderboard"));
 const PlannerShow = lazy(() => import("./pages/hr/PlannerShow"));
@@ -582,6 +583,7 @@ function App() {
             {/* Operations Hub — Live Status */}
             <Route path="hr/my-check-in" element={<Suspense fallback={<PageLoader />}><MyCheckIn /></Suspense>} />
             <Route path="hr/my-tasks" element={<Suspense fallback={<PageLoader />}><MyTasks /></Suspense>} />
+            <Route path="hr/day-view" element={<Suspense fallback={<PageLoader />}><DayView /></Suspense>} />
             <Route path="hr/team-overview" element={<Suspense fallback={<PageLoader />}><TeamOverview /></Suspense>} />
             <Route path="hr/task-leaderboard" element={<Suspense fallback={<PageLoader />}><TaskLeaderboard /></Suspense>} />
             <Route path="hr/daily-works" element={<Suspense fallback={<PageLoader />}><DailyWorks /></Suspense>} />

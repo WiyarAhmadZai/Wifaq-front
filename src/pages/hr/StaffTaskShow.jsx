@@ -385,6 +385,38 @@ export default function StaffTaskShow() {
                 <RichTextView html={data.report} className="text-sm text-gray-800 leading-relaxed" />
               </div>
             )}
+            {data.statusUpdates && data.statusUpdates.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 text-gray-700 mb-3">
+                  <Icons.Notes />
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Responses</span>
+                </div>
+                <div className="space-y-3">
+                  {data.statusUpdates.map((u) => (
+                    <div key={u.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          u.status === 'done' ? 'bg-teal-100 text-teal-700'
+                            : u.status === 'at_risk' ? 'bg-amber-100 text-amber-700'
+                            : u.status === 'blocked' ? 'bg-red-100 text-red-700'
+                            : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {u.status ? u.status.replace('_', ' ') : 'update'}
+                        </span>
+                        {typeof u.progress_pct === 'number' && (
+                          <span className="text-[10px] text-gray-500">{u.progress_pct}%</span>
+                        )}
+                        <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(u.created_at)}</span>
+                      </div>
+                      {u.update_text && <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap" dir="auto">{u.update_text}</p>}
+                      {u.blocked_reason && (
+                        <p className="text-xs text-red-600 mt-1">Blocked: {u.blocked_reason}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

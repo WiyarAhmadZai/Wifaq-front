@@ -46,7 +46,7 @@ const stamp = () => {
   const d = new Date();
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
 };
-const slug = (s) => String(s || "list").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "list";
+export const slug = (s) => String(s || "list").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "list";
 
 export function exportRowsToExcel(rows, columns, title = "list") {
   const { headers, data } = buildMatrix(rows, columns);
@@ -93,7 +93,7 @@ export function exportSheetsToExcel(sheets, fileBase = "report") {
       return { wch: Math.max(12, Math.min(60, widest + 2)) };
     });
     // Excel refuses a tab name over 31 chars, or a duplicate.
-    let tab = String(sheet.name).replace(/[\/?*[\]:]/g, " ").slice(0, 28).trim() || "Sheet";
+    let tab = String(sheet.name).replace(/[/?*[\]:]/g, " ").slice(0, 28).trim() || "Sheet";
     let n = 2;
     while (taken.has(tab)) tab = `${tab.slice(0, 26)} ${n++}`;
     taken.add(tab);

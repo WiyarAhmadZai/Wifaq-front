@@ -246,6 +246,9 @@ export function TaskStatusModal({ task, onClose, onSaved, canReport = false, can
   // assigned) is kept as the planned start.
   const [start, setStart] = useState(task.planned_time || "");
   const [end, setEnd] = useState(task.end_time || "");
+  // The assignee's response on the task — their own words
+  // on how the work went: completed, modified, blocked.
+  const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -295,6 +298,7 @@ export function TaskStatusModal({ task, onClose, onSaved, canReport = false, can
       const patch = {};
       if (progress !== startProgress) patch.progress = progress;
       if (status !== task.status) patch.status = status;
+      if (comment.trim()) patch.update_text = comment.trim();
       if (Object.keys(patch).length) await put(`/hr/staff-tasks/${task.id}`, patch);
       const durTotal = start && end ? Math.max(0, toMin(end) - toMin(start)) : 0;
       const slotChanged = (start || null) !== (task.planned_time || null)
@@ -388,6 +392,17 @@ export function TaskStatusModal({ task, onClose, onSaved, canReport = false, can
                   className={`rounded-xl border-2 px-2 py-2 text-xs font-semibold ${status === k ? `${s.chip} border-current` : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>{s.label}</button>
               ))}
             </div>
+          </div>
+
+          {/* Respond — the assignee's own words on how the work went. */}
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Respond / comment</label>
+            <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2}
+              placeholder="Completed, modified, blocked… — what happened with this task?"
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-sm focus:ring-2 focus:ring-teal-200 outline-none" />
+            {task.last_update && (
+              <p className="mt-1.5 text-[11px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2" dir="auto" data-no-i18n>{task.last_update}</p>
+            )}
           </div>
 
           {task.planned_date && (

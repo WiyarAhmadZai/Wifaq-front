@@ -39,9 +39,10 @@ const KIND = {
   event:       { label: "Event",       cls: "bg-purple-100 text-purple-800 border-purple-200" },
   task:        { label: "Task",        cls: "bg-sky-100 text-sky-800 border-sky-200" },
   leave:       { label: "On leave",    cls: "bg-rose-100 text-rose-800 border-rose-200" },
+  absent:      { label: "Absent",      cls: "bg-red-100 text-red-700 border-red-200" },
   holiday:     { label: "Holiday",     cls: "bg-emerald-100 text-emerald-800 border-emerald-200" },
 };
-const CLOSED = { weekend: "Weekend", holiday: "Holiday", leave: "On leave" };
+const CLOSED = { weekend: "Weekend", holiday: "Holiday", leave: "On leave", absent: "Absent" };
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymNow = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
@@ -324,6 +325,7 @@ export default function BookAppointment({ isPublic = false }) {
 function ClosedDay({ reason, holiday }) {
   const conf = {
     leave:   { icon: "🌴", title: "On leave", text: "This person is on leave on this day. Please choose another day.", cls: "bg-rose-50 border-rose-200 text-rose-800" },
+    absent:  { icon: "⛔", title: "Absent", text: "This person was absent on this day. Please choose another day.", cls: "bg-red-50 border-red-200 text-red-800" },
     holiday: { icon: "🎉", title: "Holiday", text: "The school is closed for a holiday on this day.", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
     weekend: { icon: "📅", title: "Weekend", text: "The school is closed on this day.", cls: "bg-gray-50 border-gray-200 text-gray-600" },
   }[reason] || { icon: "📅", title: "Closed", text: "The school is closed on this day.", cls: "bg-gray-50 border-gray-200 text-gray-600" };

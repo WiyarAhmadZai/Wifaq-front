@@ -51,7 +51,7 @@ export default function MyTasks() {
   const patchTask = (id, fields) => setData((d) => d && ({ ...d, mine: d.mine.map((t) => (t.id === id ? { ...t, ...fields } : t)) }));
 
   const move = (t, date) => {
-    patchTask(t.id, { calendar_date: date, planned_date: date, ...(date ? {} : { planned_time: null }) });
+    patchTask(t.id, { calendar_date: date, planned_date: date, ...(date ? {} : { planned_time: null, end_time: null }) });
     put(`/hr/staff-tasks/${t.id}/plan`, { planned_date: date, planned_time: date ? t.planned_time : null })
       .catch((e) => { fail(e, "Could not move the task."); load(); });
   };
@@ -94,7 +94,8 @@ export default function MyTasks() {
         />
       ) : (
         <AssignedByMe rows={data.assigned_by_me} onOpen={(t) => navigate(`/hr/staff-task/show/${t.id}`)}
-          onCalendar={(t) => setCalendarFor({ id: t.staff_id, name: t.assignee })} />
+          onCalendar={(t) => setCalendarFor({ id: t.staff_id, name: t.assignee })}
+          onEdit={(t) => navigate(`/hr/staff-task/edit/${t.id}`)} />
       )}
 
       {calendarFor && (
@@ -118,7 +119,7 @@ export default function MyTasks() {
       )}
 
       {open && (
-        <TaskStatusModal task={open} onClose={() => setOpen(null)}
+        <TaskStatusModal task={open} canReport onClose={() => setOpen(null)}
           onSaved={() => { setOpen(null); load(); }} />
       )}
     </div>
@@ -126,7 +127,7 @@ export default function MyTasks() {
 }
 
 /** The tasks I gave other people, open ones first. */
-function AssignedByMe({ rows, onOpen, onCalendar }) {
+function AssignedByMe({ rows, onOpen, onCalendar, onEdit }) {
   const [filter, setFilter] = useState("open");
   const list = rows.filter((t) => filter === "all" || (filter === "open" ? !["completed", "cancelled"].includes(t.status) : t.status === filter));
 
@@ -159,7 +160,7 @@ function AssignedByMe({ rows, onOpen, onCalendar }) {
                 const st = STATUS[t.status] || STATUS.pending;
                 return (
                   <tr key={t.id} onClick={() => onOpen(t)} className="hover:bg-teal-50/40 cursor-pointer">
-                    <td className="px-3 py-2 max-w-xs"><div className="truncate font-medium text-gray-800" dir="auto" data-no-i18n>{t.task}</div>
+                    <td className="px-3 py-2 max-w-xs"><div className="truncate font-medium text-gray-800" dir="auto" data-no-i18n>{t.task}{t.report && <span className="ms-1" title="Has a report">📝</span>}</div>
                       {t.last_update && <div className="truncate text-[10px] text-gray-400" dir="auto" data-no-i18n>{t.last_update}</div>}</td>
                     <td className="px-3 py-2 whitespace-nowrap" data-no-i18n>{t.assignee}</td>
                     <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${st.chip}`}>{st.label}</span>
@@ -168,13 +169,19 @@ function AssignedByMe({ rows, onOpen, onCalendar }) {
                       <div className="flex items-center gap-1.5"><div className="flex-1 h-1.5 rounded bg-gray-100 overflow-hidden"><div className="h-full bg-teal-500" style={{ width: `${t.status === "completed" ? 100 : t.progress || 0}%` }} /></div>
                         <span className="text-[10px] text-gray-500" data-no-i18n>{t.status === "completed" ? 100 : t.progress || 0}%</span></div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap" data-no-i18n>{t.planned_date ? `${t.planned_date}${t.planned_time ? ` ${t.planned_time}` : ""}` : "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" data-no-i18n>{t.planned_date ? `${t.planned_date}${t.planned_time ? ` ${t.planned_time}${t.end_time ? `–${t.end_time}` : ""}` : ""}` : "—"}</td>
                     <td className={`px-3 py-2 whitespace-nowrap ${t.overdue ? "text-red-600 font-semibold" : ""}`} data-no-i18n>{t.deadline || "—"}</td>
                     <td className="px-3 py-2 text-end">
-                      {!["completed", "cancelled"].includes(t.status) && (
-                        <button onClick={(e) => { e.stopPropagation(); onCalendar(t); }} title="Open their calendar to move this task"
-                          className="px-2 py-1 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 text-xs">📅</button>
-                      )}
+                      <div className="flex justify-end gap-1">
+                        <button onClick={(e) => { e.stopPropagation(); onEdit(t); }} title="Edit this task"
+                          className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </button>
+                        {!["completed", "cancelled"].includes(t.status) && (
+                          <button onClick={(e) => { e.stopPropagation(); onCalendar(t); }} title="Open their calendar to move this task"
+                            className="px-2 py-1 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 text-xs">📅</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

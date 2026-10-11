@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del, put, API_BASE_URL, peekCache } from '../../api/axios';
+import { get, del, put, post, API_BASE_URL, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -9,6 +9,7 @@ import { useAuth } from "../../admin/context/AuthContext";
 import { RateWorkButton } from "../../components/hr/StaffRatings";
 import { RichTextView } from "../../components/RichTextField";
 import { richTextToPlain } from "../../utils/richText";
+import { TaskReportModal } from "../../components/hr/StaffTaskCalendar";
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
@@ -56,6 +57,11 @@ const Icons = {
   Trash: () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  ),
+  Edit: () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
     </svg>
   ),
 };
@@ -139,6 +145,7 @@ export default function StaffTaskShow() {
   const { canUpdate, canDelete } = useResourcePermissions("staff-task");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     fetchItem();
@@ -163,6 +170,13 @@ export default function StaffTaskShow() {
 
   // The assigner nudges; admins and HR may too (mirrors StaffTaskController::remind).
   const canRemind = !!data && (Number(authUser?.id) === Number(data.assigned_by) || isSuperAdmin || hasRole('admin') || hasRole('hr-manager'));
+
+  // The assignee reports back; an admin/HR may report on their behalf (mirrors StaffTaskController::canWork).
+  const canReport = !!data && (data.mine || isSuperAdmin || hasRole('admin') || hasRole('hr-manager'));
+
+  // Whoever assigned the task may edit it — the server allows the
+  // assigner to update (canSee), with or without the permission.
+  const canEditTask = canUpdate || (!!data && Number(data.assigned_by) === Number(authUser?.id));
 
   const handleStatusUpdate = async () => {
     const { value: newStatus } = await Swal.fire({
@@ -248,10 +262,28 @@ export default function StaffTaskShow() {
         <div className="flex flex-wrap gap-2">
           {/* Nudge the assignee — the server allows it for whoever assigned the task, and admins. */}
           {!['completed', 'cancelled'].includes(data.status) && canRemind && <SendReminderButton endpoint={`/hr/staff-tasks/${id}/remind`} />}
+          {canReport && (
+            <button
+              onClick={() => setReportOpen(true)}
+              className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Notes />
+              {data.report ? 'Update Report' : 'Report'}
+            </button>
+          )}
+          {canEditTask && (
+            <button
+              onClick={() => navigate(`/hr/staff-task/edit/${id}`)}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Edit />
+              Edit
+            </button>
+          )}
           {canUpdate && (
             <button
               onClick={handleStatusUpdate}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+              className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-xs font-medium"
             >
               <Icons.Refresh />
               Update Status
@@ -343,6 +375,16 @@ export default function StaffTaskShow() {
                 <RichTextView html={data.notes} className="text-sm text-gray-800 leading-relaxed" />
               </div>
             )}
+            {data.report && (
+              <div className="mt-4 bg-teal-50 rounded-lg p-4 border border-teal-100">
+                <div className="flex items-center gap-2 text-teal-700 mb-2">
+                  <Icons.Notes />
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Report back</span>
+                  {data.reported_at && <span className="text-[10px] text-gray-400 normal-case">· {fmtDateTime(data.reported_at)}</span>}
+                </div>
+                <RichTextView html={data.report} className="text-sm text-gray-800 leading-relaxed" />
+              </div>
+            )}
           </div>
         </div>
 
@@ -411,6 +453,11 @@ export default function StaffTaskShow() {
           </div>
         </div>
       </div>
+
+      {reportOpen && (
+        <TaskReportModal task={data} onClose={() => setReportOpen(false)}
+          onSaved={() => { setReportOpen(false); fetchItem(); }} />
+      )}
     </div>
   );
 }

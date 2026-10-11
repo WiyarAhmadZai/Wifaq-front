@@ -32,6 +32,9 @@ const shortTip = (s) => {
   return text.length > 140 ? `${text.slice(0, 140)}…` : text;
 };
 
+/** "1h 30m" / "45m" — how long a task takes, for an untimed card. */
+const fmtDur = (m) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`);
+
 const WEEKDAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -143,7 +146,9 @@ export default function TaskCalendar({
         <div className={`font-medium text-gray-800 line-clamp-2 ${done ? "line-through text-gray-400" : ""}`} dir="auto" data-no-i18n>{t.task}</div>
         <div className="mt-0.5 flex items-center gap-1 text-gray-400">
           {t.fixed_date && editable && lockFixed && <span title="Date set by the assigner" aria-label="Fixed date">🔒</span>}
-          {t.planned_time && <span data-no-i18n>{t.planned_time}</span>}
+          {/* The busy slot: the time window, or the length when untimed. */}
+          {t.planned_time && <span data-no-i18n>{t.end_time ? `${t.planned_time}–${t.end_time}` : t.status === "in_progress" ? `${t.planned_time}–…` : t.planned_time}</span>}
+          {!t.planned_time && t.duration_minutes > 0 && <span data-no-i18n>{fmtDur(t.duration_minutes)}</span>}
           {t.overdue && <span className="text-red-600 font-bold">!</span>}
           <span className="ms-auto" data-no-i18n>{t.progress || 0}%</span>
         </div>

@@ -1429,6 +1429,8 @@ export default function Layout() {
       { label: "My Check-in", path: "/hr/my-check-in", permission: "staff-task.view" },
       { label: "Team Overview", path: "/hr/team-overview", permission: "staff-task.create" },
       { label: "Task Leaderboard", path: "/hr/task-leaderboard", permission: "staff.view" },
+      // No permission tag → super-admin only (the notebook is theirs).
+      { label: "Talking Points", path: "/hr/talking-points" },
       { label: "Daily Tasks", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
     { label: "Visitor Log", path: "/hr/visitor-log", permission: "visitor-log.view" },

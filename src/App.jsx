@@ -226,6 +226,7 @@ const MyTasks = lazy(() => import("./pages/hr/MyTasks"));
 const DayView = lazy(() => import("./pages/hr/DayView"));
 const TeamOverview = lazy(() => import("./pages/hr/TeamOverview"));
 const TaskLeaderboard = lazy(() => import("./pages/hr/TaskLeaderboard"));
+const TalkingPoints = lazy(() => import("./pages/hr/TalkingPoints"));
 const PlannerShow = lazy(() => import("./pages/hr/PlannerShow"));
 const VisitorLogShow = lazy(() => import("./pages/hr/VisitorLogShow"));
 const SalarySnapshotShow = lazy(() => import("./pages/hr/SalarySnapshotShow"));
@@ -586,6 +587,7 @@ function App() {
             <Route path="hr/day-view" element={<Suspense fallback={<PageLoader />}><DayView /></Suspense>} />
             <Route path="hr/team-overview" element={<Suspense fallback={<PageLoader />}><TeamOverview /></Suspense>} />
             <Route path="hr/task-leaderboard" element={<Suspense fallback={<PageLoader />}><TaskLeaderboard /></Suspense>} />
+            <Route path="hr/talking-points" element={<Suspense fallback={<PageLoader />}><TalkingPoints /></Suspense>} />
             <Route path="hr/daily-works" element={<Suspense fallback={<PageLoader />}><DailyWorks /></Suspense>} />
             <Route path="education/dashboard" element={<Suspense fallback={<PageLoader />}><EduDashboard /></Suspense>} />
             <Route path="education/observations" element={<Suspense fallback={<PageLoader />}><DailyObservation /></Suspense>} />

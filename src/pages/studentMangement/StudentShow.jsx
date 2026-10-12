@@ -6,6 +6,7 @@ import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 import StudentDevelopmentPanel from "./StudentDevelopmentPanel";
 import StudentIdCard from "./StudentIdCard";
+import FamilyQuestionnaireModal from "./FamilyQuestionnaireModal";
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                            */
@@ -126,6 +127,8 @@ export default function StudentShow() {
   const [tab, setTab] = useState("Overview");
   // The printable ID card, opened from this record.
   const [showCard, setShowCard] = useState(false);
+  // The family questionnaire, opened from this record.
+  const [showFamilyQ, setShowFamilyQ] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -196,6 +199,13 @@ export default function StudentShow() {
               className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
               ID card
+            </button>
+            {/* The family questionnaire — the confidential home
+                context, recorded straight from the student's record. */}
+            <button onClick={() => setShowFamilyQ(true)}
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" /></svg>
+              Family questionnaire
             </button>
             {canUpdate && (
               <button onClick={() => navigate(`/student-management/students/edit/${id}`)}
@@ -545,6 +555,11 @@ export default function StudentShow() {
       </div>
 
       {showCard && <StudentIdCard studentId={id} onClose={() => setShowCard(false)} />}
+      {showFamilyQ && (
+        <FamilyQuestionnaireModal open={showFamilyQ} studentId={id}
+          studentName={s.full_name || `${s.first_name} ${s.last_name}`}
+          onClose={() => setShowFamilyQ(false)} />
+      )}
     </div>
   );
 }

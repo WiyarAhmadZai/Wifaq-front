@@ -172,7 +172,7 @@ export default function TaskCalendar({
     <div className="flex flex-col lg:flex-row gap-3 items-start">
       {showUnplanned && (
         <section {...dropZone("unplanned")}
-          className={`w-full lg:w-56 shrink-0 lg:sticky lg:top-4 rounded-xl border bg-white overflow-hidden ${over === "unplanned" ? "border-amber-400 ring-2 ring-amber-200" : "border-amber-200"}`}>
+          className={`w-full lg:w-56 shrink-0 flex flex-col lg:sticky lg:top-16 lg:max-h-[calc(100vh-8rem)] rounded-xl border bg-white overflow-hidden ${over === "unplanned" ? "border-amber-400 ring-2 ring-amber-200" : "border-amber-200"}`}>
           <header className="px-3 py-2 bg-amber-50 text-amber-900 text-xs font-bold flex items-center justify-between gap-2">
             <span>Unplanned <span className="font-normal" data-no-i18n>({unplanned.length})</span></span>
             {onAddUnplanned && (
@@ -181,7 +181,7 @@ export default function TaskCalendar({
           </header>
           {onAddUnplanned && <p className="px-3 pt-2 text-[10px] text-gray-400">No date — they choose the day themselves.</p>}
           {editable && !onAddUnplanned && <p className="px-3 pt-2 text-[10px] text-gray-400">Drag a task onto a day.</p>}
-          <div className="p-2 space-y-1.5 min-h-[80px] max-h-[60vh] overflow-y-auto">
+          <div className="p-2 space-y-1.5 min-h-[80px] max-h-[60vh] lg:max-h-none flex-1 overflow-y-auto overscroll-contain">
             {unplanned.length === 0 && <p className="text-[11px] text-gray-400 text-center py-4">Nothing unplanned.</p>}
             {unplanned.map((t) => chip(t))}
           </div>

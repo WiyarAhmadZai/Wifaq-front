@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { get, put } from "../../api/axios";
@@ -10,12 +10,10 @@ import { DayDetailModal } from "../../components/hr/DayDetail";
 /**
  * My Tasks.
  *
- * "My calendar": the days at the top — today first, then the
- * older days below it (scroll down for the dates further back,
- * or load whole earlier months) — and the month calendar under
- * them, where a task can be dragged onto a day, onto another
- * task to order the day, or back to Unplanned. "Assigned by me":
- * the tasks I gave other people, and where each one stands.
+ * "My calendar": the month calendar, where a task can be dragged onto a
+ * day, onto another task to order the day, or back to Unplanned.
+ * "Assigned by me": the tasks I gave other people, and where each one
+ * stands.
  *
  * Every day or status change also reaches the super-admin (server side).
  */
@@ -34,28 +32,12 @@ const shiftMonth = (m, by) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
-/** The order a day's tasks sit in: the arranged order, then the time. */
-const byDayOrder = (a, b) =>
-  (a.sort_order ?? 1e9) - (b.sort_order ?? 1e9)
-  || (a.planned_time || "99").localeCompare(b.planned_time || "99")
-  || a.id - b.id;
-
-/** How many earlier months the day list will fetch. */
-const MAX_OLDER_MONTHS = 12;
-
 export default function MyTasks() {
   const navigate = useNavigate();
-  // "mine" is the calendar, with the days at the top.
+  // "mine" is the calendar.
   const [tab, setTab] = useState("mine");
   const [month, setMonth] = useState(thisMonth());
   const [data, setData] = useState(null);
-  // The day list always starts at TODAY, whatever month the
-  // calendar tab happens to be showing — so it keeps its own
-  // copy of the current month, refreshed after every change.
-  const [home, setHome] = useState(null);
-  // Earlier months, fetched on demand as the list reaches back.
-  const [olderMonths, setOlderMonths] = useState({});
-  const [olderLoading, setOlderLoading] = useState(false);
   const [open, setOpen] = useState(null);   // the task whose status is being changed
   const [calendarFor, setCalendarFor] = useState(null); // { id, name } — an assignee's calendar
   const [adding, setAdding] = useState(null);           // { date } — adding tasks to my own calendar
@@ -66,13 +48,6 @@ export default function MyTasks() {
     .catch(() => Swal.fire("Error", "Could not load your tasks.", "error")), [month]);
   useEffect(() => { load(); }, [load]);
 
-  const loadHome = useCallback(() => get("/hr/staff-tasks/my-tasks", { cache: false, params: { month: thisMonth() } })
-    .then((r) => setHome(r.data))
-    .catch(() => { /* the calendar copy still shows the tasks */ }), []);
-  useEffect(() => { loadHome(); }, [loadHome]);
-
-  const refreshAll = useCallback(() => { load(); loadHome(); }, [load, loadHome]);
-
   const fail = (e, text) => Swal.fire("Error", e.response?.data?.message || text, "error");
 
   /* Optimistic: the card moves at once; the server confirms (or we reload). */
@@ -81,49 +56,12 @@ export default function MyTasks() {
   const move = (t, date) => {
     patchTask(t.id, { calendar_date: date, planned_date: date, ...(date ? {} : { planned_time: null, end_time: null }) });
     put(`/hr/staff-tasks/${t.id}/plan`, { planned_date: date, planned_time: date ? t.planned_time : null })
-      .catch((e) => { fail(e, "Could not move the task."); refreshAll(); });
+      .catch((e) => { fail(e, "Could not move the task."); load(); });
   };
   const reorder = (ids) => {
     setData((d) => d && ({ ...d, mine: d.mine.map((t) => (ids.includes(t.id) ? { ...t, sort_order: ids.indexOf(t.id) + 1 } : t)) }));
-    put("/hr/staff-tasks/reorder", { ids }).catch((e) => { fail(e, "Could not save the order."); refreshAll(); });
+    put("/hr/staff-tasks/reorder", { ids }).catch((e) => { fail(e, "Could not save the order."); load(); });
   };
-
-  /* The day list: every past day of the current month that has
-     tasks (today first), plus the earlier months loaded so far. */
-  const { days, unplanned } = useMemo(() => {
-    const byDate = new Map();
-    const addAll = (list) => (list || []).forEach((t) => {
-      if (!t.calendar_date) return;
-      if (!byDate.has(t.calendar_date)) byDate.set(t.calendar_date, []);
-      byDate.get(t.calendar_date).push(t);
-    });
-    addAll(home?.mine);
-    Object.values(olderMonths).forEach(addAll);
-    const today = new Date().toISOString().slice(0, 10);
-    const dates = [...byDate.keys()].filter((d) => d <= today).sort().reverse();
-    return {
-      days: dates.map((date) => ({ date, tasks: byDate.get(date).sort(byDayOrder) })),
-      unplanned: (home?.mine || [])
-        .filter((t) => !t.calendar_date && !["completed", "cancelled"].includes(t.status))
-        .sort(byDayOrder),
-    };
-  }, [home, olderMonths]);
-
-  const oldestMonth = useMemo(() => {
-    const keys = Object.keys(olderMonths).sort();
-    return keys.length ? keys[0] : thisMonth();
-  }, [olderMonths]);
-  const canLoadMore = Object.keys(olderMonths).length < MAX_OLDER_MONTHS;
-
-  const loadOlder = useCallback(() => {
-    if (olderLoading || !canLoadMore) return;
-    const target = shiftMonth(oldestMonth, -1);
-    setOlderLoading(true);
-    get("/hr/staff-tasks/my-tasks", { cache: false, params: { month: target } })
-      .then((r) => setOlderMonths((prev) => (prev[target] ? prev : { ...prev, [target]: r.data?.mine || [] })))
-      .catch(() => Swal.fire("Error", "Could not load older days.", "error"))
-      .finally(() => setOlderLoading(false));
-  }, [oldestMonth, olderLoading, canLoadMore]);
 
   if (!data) return <div className="flex justify-center py-24"><Spinner /></div>;
 
@@ -131,7 +69,7 @@ export default function MyTasks() {
 
   return (
     <div className="px-4 py-5 space-y-4">
-      <PageHeader title="My Tasks" subtitle="Today first — scroll down for older days, or plan on the calendar"
+      <PageHeader title="My Tasks" subtitle="Drag a task onto a day to plan it — today is highlighted"
         icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
 
       <div className="flex rounded-xl overflow-hidden border border-gray-200 text-xs w-fit bg-white">
@@ -145,32 +83,20 @@ export default function MyTasks() {
       </div>
 
       {tab === "mine" ? (
-        <>
-          {/* The days, today first and in sequence, at the top of the calendar. */}
-          <MyDayList
-            days={days}
-            unplanned={unplanned}
-            onOpenTask={setOpen}
-            onOpenDay={setDay}
-            onAddUnplanned={home?.my_staff_id ? () => setAdding({ date: null }) : undefined}
-            onLoadOlder={loadOlder}
-            olderLoading={olderLoading}
-            canLoadMore={canLoadMore}
-          />
-          <TaskCalendar
-            tasks={data.mine}
-            month={month}
-            onMonth={(by) => setMonth((m) => shiftMonth(m, by))}
-            editable
-            onMove={move}
-            onReorder={reorder}
-            onOpen={setOpen}
-            onDayClick={setDay}
-            // Anyone may add tasks to their own day — several, each with an optional time.
-            onAddDay={data.my_staff_id ? (date) => setAdding({ date }) : undefined}
-            onAddUnplanned={data.my_staff_id ? () => setAdding({ date: null }) : undefined}
-          />
-        </>
+        <TaskCalendar
+          tasks={data.mine}
+          month={month}
+          onMonth={(by) => setMonth((m) => shiftMonth(m, by))}
+          editable
+          onMove={move}
+          onReorder={reorder}
+          onOpen={setOpen}
+          onDayClick={setDay}
+          scrollToToday
+          // Anyone may add tasks to their own day — several, each with an optional time.
+          onAddDay={data.my_staff_id ? (date) => setAdding({ date }) : undefined}
+          onAddUnplanned={data.my_staff_id ? () => setAdding({ date: null }) : undefined}
+        />
       ) : (
         <AssignedByMe rows={data.assigned_by_me} onOpen={(t) => navigate(`/hr/staff-task/show/${t.id}`)}
           onCalendar={(t) => setCalendarFor({ id: t.staff_id, name: t.assignee })}
@@ -178,14 +104,14 @@ export default function MyTasks() {
       )}
 
       {calendarFor && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => { setCalendarFor(null); refreshAll(); }}>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => { setCalendarFor(null); load(); }}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <div className="text-xs text-gray-400">Task calendar — drag a task to a free day</div>
                 <div className="font-semibold text-gray-800" data-no-i18n>{calendarFor.name}</div>
               </div>
-              <button onClick={() => { setCalendarFor(null); refreshAll(); }} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+              <button onClick={() => { setCalendarFor(null); load(); }} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
             <div className="p-4"><StaffTaskCalendar staffId={calendarFor.id} staffName={calendarFor.name} /></div>
           </div>
@@ -193,132 +119,19 @@ export default function MyTasks() {
       )}
 
       {adding && (
-        <QuickTaskModal self staffId={home?.my_staff_id} date={adding.date}
-          onClose={() => setAdding(null)} onSaved={() => { setAdding(null); refreshAll(); }} />
+        <QuickTaskModal self staffId={data.my_staff_id} date={adding.date}
+          onClose={() => setAdding(null)} onSaved={() => { setAdding(null); load(); }} />
       )}
 
       {open && (
         <TaskStatusModal task={open} canReport onClose={() => setOpen(null)}
-          onSaved={() => { setOpen(null); refreshAll(); }} />
+          onSaved={() => { setOpen(null); load(); }} />
       )}
 
-      {day && home?.my_staff_id && (
-        <DayDetailModal staffId={home.my_staff_id} staffName="Me" date={day}
+      {day && data.my_staff_id && (
+        <DayDetailModal staffId={data.my_staff_id} staffName="Me" date={day}
           onClose={() => setDay(null)} onOpenTask={setOpen} />
       )}
-    </div>
-  );
-}
-
-/**
- * The day list: today's card first, then the older days below
- * it — scroll down for the dates further back. Each day is a
- * card of its tasks (click one to change its status); the day
- * itself opens the full day view. Earlier months load on
- * demand from the button at the bottom.
- */
-function MyDayList({ days, unplanned, onOpenTask, onOpenDay, onAddUnplanned, onLoadOlder, olderLoading, canLoadMore }) {
-  const today = new Date().toISOString().slice(0, 10);
-
-  return (
-    <div className="space-y-3">
-      {unplanned.length > 0 && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50/60 overflow-hidden">
-          <header className="px-4 py-2.5 border-b border-amber-100 flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-800">
-              Unplanned <span className="font-normal" data-no-i18n>({unplanned.length})</span>
-            </span>
-            {onAddUnplanned && (
-              <button onClick={onAddUnplanned}
-                className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold">+ Add task</button>
-            )}
-          </header>
-          <div className="divide-y divide-amber-100/70">
-            {unplanned.map((t) => <DayTaskRow key={t.id} task={t} onOpen={onOpenTask} />)}
-          </div>
-        </section>
-      )}
-
-      {days.map(({ date, tasks }) => (
-        <DayCard key={date} date={date} tasks={tasks} isToday={date === today}
-          onOpenTask={onOpenTask} onOpenDay={onOpenDay} />
-      ))}
-
-      {days.length === 0 && unplanned.length === 0 && (
-        <p className="py-10 text-center text-xs text-gray-400">No tasks yet — today is clear.</p>
-      )}
-
-      {canLoadMore && (
-        <div className="flex justify-center py-3">
-          <button onClick={onLoadOlder} disabled={olderLoading}
-            className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
-            {olderLoading ? "Loading older days…" : "Show older days"}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** One day: its date (click for the full day view) and its tasks. */
-function DayCard({ date, tasks, isToday, onOpenTask, onOpenDay }) {
-  const d = new Date(`${date}T00:00:00`);
-  const weekday = d.toLocaleDateString("en-GB", { weekday: "long" });
-  const monthName = d.toLocaleDateString("en-GB", { month: "short" });
-
-  return (
-    <section className={`rounded-xl border overflow-hidden ${isToday ? "border-teal-300 shadow-sm" : "border-gray-200 bg-white"}`}>
-      <header onClick={() => onOpenDay?.(date)}
-        className={`px-4 py-2.5 flex items-center gap-3 cursor-pointer transition-colors ${isToday ? "bg-teal-50 hover:bg-teal-100/70" : "bg-gray-50/70 hover:bg-teal-50/50"}`}
-        title="Open this day in detail">
-        <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center ${isToday ? "bg-teal-600 text-white" : "bg-white border border-gray-200 text-gray-700"}`}>
-          <span className="text-base font-bold leading-none" data-no-i18n>{d.getDate()}</span>
-          <span className="text-[8px] font-semibold uppercase" data-no-i18n>{monthName}</span>
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-gray-800">{weekday}</div>
-          <div className="text-[10px] text-gray-400">
-            <span data-no-i18n>{tasks.length}</span> {tasks.length === 1 ? "task" : "tasks"}
-          </div>
-        </div>
-        {isToday && (
-          <span className="ms-auto px-2 py-0.5 rounded-full bg-teal-600 text-white text-[9px] font-bold">Today</span>
-        )}
-      </header>
-      {tasks.length > 0 && (
-        <div className="divide-y divide-gray-100">
-          {tasks.map((t) => <DayTaskRow key={t.id} task={t} onOpen={onOpenTask} />)}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/** One task row inside a day: its slot, status and progress. */
-function DayTaskRow({ task: t, onOpen }) {
-  const st = STATUS[t.status] || STATUS.pending;
-  const done = t.status === "completed";
-
-  return (
-    <div onClick={() => onOpen?.(t)}
-      className="px-4 py-2.5 cursor-pointer hover:bg-teal-50/40 transition-colors">
-      <div className="flex items-center gap-2">
-        {t.planned_time ? (
-          <span className="text-[11px] font-bold text-gray-700 whitespace-nowrap" data-no-i18n>
-            {t.planned_time}{t.end_time ? `–${t.end_time}` : t.status === "in_progress" ? "–…" : ""}
-          </span>
-        ) : (
-          <span className="text-[10px] text-gray-400 whitespace-nowrap">any time</span>
-        )}
-        <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-semibold ${st.chip}`}>{st.label}</span>
-        {t.overdue && <span className="text-[9px] font-bold text-red-600">Overdue</span>}
-        {t.stale && !done && <span className="text-[9px] font-semibold text-amber-600" title="No check-in for 24 hours">Stale</span>}
-        <span className="ms-auto text-[10px] text-gray-400" data-no-i18n>{t.progress || 0}%</span>
-      </div>
-      <div className={`mt-1 text-xs font-medium leading-snug line-clamp-2 ${done ? "line-through text-gray-400" : "text-gray-800"}`} dir="auto" data-no-i18n>{t.task}</div>
-      <div className="mt-1.5 h-1 rounded bg-gray-100 overflow-hidden">
-        <div className={`h-full ${done ? "bg-emerald-500" : "bg-teal-500"}`} style={{ width: `${done ? 100 : t.progress || 0}%` }} />
-      </div>
     </div>
   );
 }

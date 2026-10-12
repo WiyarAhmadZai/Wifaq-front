@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 
 /**
@@ -44,6 +44,8 @@ export default function TaskCalendar({
   tasks = [], month, onMonth, editable = false,
   onMove, onReorder, onOpen, showUnplanned = true,
   onAddDay, onAddUnplanned,
+  // Scroll today's date into view when the calendar opens.
+  scrollToToday = false,
   // Click a day's date to open the whole day in detail
   // (the Day View pop-up / page).
   onDayClick,
@@ -55,6 +57,12 @@ export default function TaskCalendar({
 }) {
   const [dragId, setDragId] = useState(null);
   const [over, setOver] = useState(null); // a date, "unplanned", or "task:<id>"
+
+  // On open (and whenever the shown month contains it), bring today into view.
+  const todayRef = useRef(null);
+  useEffect(() => {
+    if (scrollToToday) todayRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [month, scrollToToday]);
 
   // The grid: from the Saturday on/before the 1st to the Friday on/after the last day.
   const { cells, monthLabel } = useMemo(() => {
@@ -164,7 +172,7 @@ export default function TaskCalendar({
     <div className="flex flex-col lg:flex-row gap-3 items-start">
       {showUnplanned && (
         <section {...dropZone("unplanned")}
-          className={`w-full lg:w-56 shrink-0 rounded-xl border bg-white overflow-hidden ${over === "unplanned" ? "border-amber-400 ring-2 ring-amber-200" : "border-amber-200"}`}>
+          className={`w-full lg:w-56 shrink-0 lg:sticky lg:top-4 rounded-xl border bg-white overflow-hidden ${over === "unplanned" ? "border-amber-400 ring-2 ring-amber-200" : "border-amber-200"}`}>
           <header className="px-3 py-2 bg-amber-50 text-amber-900 text-xs font-bold flex items-center justify-between gap-2">
             <span>Unplanned <span className="font-normal" data-no-i18n>({unplanned.length})</span></span>
             {onAddUnplanned && (
@@ -194,8 +202,8 @@ export default function TaskCalendar({
             <div className="grid grid-cols-7">
               {cells.map((c) => {
                 const list = byDay[c.date] || [];
-                return (
-                  <div key={c.date} {...dropZone(c.date)}
+                  return (
+                    <div key={c.date} ref={c.date === today ? todayRef : undefined} {...dropZone(c.date)}
                     className={`group/day min-h-[96px] border-b border-e border-gray-100 p-1 space-y-1 transition
                       ${c.inMonth ? "" : "bg-gray-50/70"} ${c.date === today ? "bg-amber-50/60" : ""}
                       ${dragId && editable && c.date >= today && busyOn(c.date) === 0 ? "bg-emerald-50/80" : ""}

@@ -30,11 +30,18 @@ export default function ListExportActions({ getRows, columns = [], title = "List
   // user prints every week keeps the columns they chose.
   const storageKey = `print-columns:${slug(title)}`;
   const [selected, setSelected] = useState(() => {
+    const all = printable.map((c) => c.key);
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (Array.isArray(saved) && saved.length) return new Set(saved);
+      if (Array.isArray(saved) && saved.length) {
+        // Keep only keys that still exist on this list. A choice saved
+        // against an older column set must not leave the sheet with no
+        // columns at all — that printed a header banner over empty rows.
+        const valid = saved.filter((k) => printable.some((c) => c.key === k));
+        if (valid.length) return new Set(valid);
+      }
     } catch { /* noop */ }
-    return new Set(printable.map((c) => c.key));
+    return new Set(all);
   });
 
   const persist = (next) => {

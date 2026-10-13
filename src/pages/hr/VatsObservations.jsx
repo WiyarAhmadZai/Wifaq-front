@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { get, post, del, peekCache } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, StatGrid, EmptyState, Spinner, Pill, InfoNote } from "../../components/hr/HrUI";
 import Select2 from "../../components/hr/Select2";
@@ -47,12 +47,15 @@ const CATEGORY_STYLE = {
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors";
 
 export default function VatsObservations() {
-  const { canCreate, canDelete } = useResourcePermissions("vats-observations");
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions("vats-observations");
   const location = useLocation();
   const [items, setItems] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  // The observation being edited, or null. The same form modal
+  // serves both create and edit — it PUTs when this is set.
+  const [editing, setEditing] = useState(null);
   const [filter, setFilter] = useState({ category: "", staff_id: "" });
   const [pulseActive, setPulseActive] = useState(false);
   const rowRefs = useRef({});
@@ -188,6 +191,7 @@ export default function VatsObservations() {
                 <ObservationCard
                   key={o.id}
                   item={o}
+                  onEdit={canUpdate ? (item) => setEditing(item) : null}
                   onDelete={canDelete ? remove : null}
                   innerRef={(el) => { if (el) rowRefs.current[String(o.id)] = el; }}
                   pulse={isTarget && pulseActive}
@@ -204,12 +208,21 @@ export default function VatsObservations() {
             onSaved={() => { setShowForm(false); fetchAll(); }}
           />
         )}
+
+        {editing && (
+          <ObservationForm
+            staff={staff}
+            editing={editing}
+            onClose={() => setEditing(null)}
+            onSaved={() => { setEditing(null); fetchAll(); }}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function ObservationCard({ item, onDelete, innerRef, pulse }) {
+function ObservationCard({ item, onEdit, onDelete, innerRef, pulse }) {
   const c = CATEGORY_STYLE[item.category] || CATEGORY_STYLE.positive;
   const name = item.staff?.application?.full_name || item.staff?.employee_id || `Staff #${item.staff_id}`;
 
@@ -249,9 +262,14 @@ function ObservationCard({ item, onDelete, innerRef, pulse }) {
               Acknowledged
             </span>
           : <span className="text-[10px] text-gray-400">Pending acknowledgement</span>}
-        {onDelete && (
-          <button onClick={() => onDelete(item.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onEdit && (
+            <button onClick={() => onEdit(item)} className="text-[10px] text-teal-700 hover:underline font-semibold">Edit</button>
+          )}
+          {onDelete && (
+            <button onClick={() => onDelete(item.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -133,24 +133,33 @@ export function printRows(rows, columns, title = "List") {
   </body></html>`;
 
   // Print via a hidden iframe so the current page is NOT navigated away from
-  // (no new tab/window).
+  // (no new tab/window). The frame is moved off-screen but stays RENDERED —
+  // a 0x0 visibility:hidden frame is never laid out, and several browsers
+  // answer print() on it with a blank page.
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
-  Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0", visibility: "hidden" });
+  Object.assign(iframe.style, { position: "fixed", left: "-10000px", top: "0", width: "1000px", height: "800px", border: "0" });
   document.body.appendChild(iframe);
 
   const cleanup = () => { try { iframe.remove(); } catch { /* noop */ } };
-  const doc = iframe.contentWindow?.document;
+  const win = iframe.contentWindow;
+  const doc = win?.document;
   if (!doc) { cleanup(); return false; }
+
+  win.onafterprint = cleanup;
+  // Print once the written document has actually loaded, with a
+  // fallback delay in case the load event never fires.
+  let printed = false;
+  const doPrint = () => {
+    if (printed) return;
+    printed = true;
+    try { win.focus(); win.print(); } catch { /* noop */ }
+    setTimeout(cleanup, 60000);
+  };
+  win.addEventListener("load", doPrint);
+  setTimeout(doPrint, 1000);
   doc.open();
   doc.write(html);
   doc.close();
-
-  const win = iframe.contentWindow;
-  win.onafterprint = cleanup;
-  setTimeout(() => {
-    try { win.focus(); win.print(); } catch { /* noop */ }
-    setTimeout(cleanup, 60000); // fallback cleanup if onafterprint never fires
-  }, 250);
   return true;
 }

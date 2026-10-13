@@ -75,7 +75,7 @@ export default function VatsObservations() {
     const target = rowRefs.current[String(highlightId)];
     if (!target) return;
     requestAnimationFrame(() => {
-      try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {}
+      try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* noop */ }
       setPulseActive(true);
     });
     const tmr = setTimeout(() => setPulseActive(false), 2500);
@@ -99,7 +99,7 @@ export default function VatsObservations() {
   };
 
   const fetchStaff = async () => {
-    try { const r = await get("/hr/staff/list?per_page=200"); setStaff(r.data?.data || []); } catch {}
+    try { const r = await get("/hr/staff/list?per_page=200"); setStaff(r.data?.data || []); } catch { /* noop */ }
   };
 
   const remove = async (id) => {
@@ -275,9 +275,16 @@ function ObservationCard({ item, onEdit, onDelete, innerRef, pulse }) {
   );
 }
 
-function ObservationForm({ staff, onClose, onSaved }) {
+function ObservationForm({ staff, editing = null, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(editing ? {
+    staff_id: editing.staff_id,
+    category: editing.category,
+    dimension: editing.dimension || "practical",
+    area: editing.area || "",
+    type: editing.type,
+    description: editing.description,
+  } : {
     staff_id: "",
     category: "positive",
     dimension: "practical",
@@ -290,8 +297,12 @@ function ObservationForm({ staff, onClose, onSaved }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await post("/vats/observations", form);
-      Swal.fire({ icon: "success", title: "Logged", timer: 1200, showConfirmButton: false });
+      if (editing) {
+        await put(`/vats/observations/${editing.id}`, form);
+      } else {
+        await post("/vats/observations", form);
+      }
+      Swal.fire({ icon: "success", title: editing ? "Updated" : "Logged", timer: 1200, showConfirmButton: false });
       onSaved();
       // An observation is a recognition/concern event — keep dashboard + cards in sync.
       broadcastVatsChange();
@@ -300,13 +311,11 @@ function ObservationForm({ staff, onClose, onSaved }) {
     } finally { setSaving(false); }
   };
 
-  const c = CATEGORY_STYLE[form.category];
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 bg-teal-600 text-white rounded-t-2xl">
-          <h3 className="text-sm font-bold">Log a New Observation</h3>
+          <h3 className="text-sm font-bold">{editing ? "Edit Observation" : "Log a New Observation"}</h3>
           <p className="text-[11px] text-teal-100 mt-0.5">Be factual. Focus on behaviour, not the person.</p>
         </div>
         <form onSubmit={submit} className="p-5 space-y-4">
@@ -317,7 +326,11 @@ function ObservationForm({ staff, onClose, onSaved }) {
               options={staff.map(s => ({ value: s.id, label: s.application?.full_name || s.employee_id }))}
               placeholder="Search staff…"
               required
+              disabled={!!editing}
             />
+            {editing && (
+              <p className="text-[10px] text-gray-400 mt-1">The staff member this observation is about cannot be changed here.</p>
+            )}
           </Field>
 
           <Field label="What kind of observation?">

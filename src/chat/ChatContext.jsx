@@ -553,9 +553,16 @@ export function ChatProvider({ children }) {
             let changed = false;
             const merged = prev.map((m) => {
               const s = byId.get(m.id);
-              if (s && (s.seen_at !== m.seen_at || s.delivered_at !== m.delivered_at)) {
+              const reactionsChanged = s?.reactions
+                && JSON.stringify(s.reactions) !== JSON.stringify(m.reactions || []);
+              if (s && (s.seen_at !== m.seen_at || s.delivered_at !== m.delivered_at || reactionsChanged)) {
                 changed = true;
-                return { ...m, seen_at: s.seen_at, delivered_at: s.delivered_at };
+                return {
+                  ...m,
+                  seen_at: s.seen_at,
+                  delivered_at: s.delivered_at,
+                  reactions: s.reactions || m.reactions,
+                };
               }
               return m;
             });

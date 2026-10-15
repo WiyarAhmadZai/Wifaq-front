@@ -124,7 +124,7 @@ function AttachmentView({ att, outgoing, onPreview, progress }) {
   );
 }
 
-export default function MessageBubble({ message, outgoing, showSender = false, onReply, onForward, onEdit, onDelete, onReact }) {
+export default function MessageBubble({ message, outgoing, showSender = false, onReply, onForward, onEdit, onDelete, onReact, meId }) {
   const [menu, setMenu] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [showAllEmojis, setShowAllEmojis] = useState(false);
@@ -163,6 +163,12 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
   }, [menu, emojiOpen]);
 
   const deleted = message.is_deleted;
+  const myReaction = message.reactions?.find((reaction) => (
+    reaction.reacted_by_me || reaction.user_ids?.includes(Number(meId))
+  ))?.emoji;
+  const quickReactions = myReaction && !QUICK_REACTIONS.some(({ emoji }) => emoji === myReaction)
+    ? [{ emoji: myReaction, label: 'Your reaction' }, ...QUICK_REACTIONS]
+    : QUICK_REACTIONS;
 
   return (
     <div className={`group flex ${outgoing ? 'justify-end' : 'justify-start'} px-1`}>
@@ -239,22 +245,31 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
         </div>
         {!deleted && message.reactions?.length > 0 && (
           <div className={`relative z-10 -mt-1 flex flex-wrap gap-1 ${outgoing ? 'justify-end' : 'justify-start'}`}>
-            {message.reactions.map((reaction) => (
+            {message.reactions.map((reaction) => {
+              const reactedByMe = reaction.reacted_by_me || reaction.user_ids?.includes(Number(meId));
+
+              return (
               <button
                 key={reaction.emoji}
                 type="button"
                 title={`${reaction.emoji} ${reaction.count}`}
                 aria-label={`${reaction.emoji}, ${reaction.count} reactions`}
-                aria-pressed={reaction.reacted_by_me}
+                aria-pressed={reactedByMe}
                 onClick={() => onReact?.(message.id, reaction.emoji)}
                 className={`min-w-8 h-7 px-1.5 rounded-full border shadow-sm text-xs flex items-center justify-center gap-1 ${
-                  reaction.reacted_by_me ? 'bg-teal-50 border-teal-300' : 'bg-white border-gray-200'
+                  reactedByMe
+                    ? 'bg-teal-100 border-teal-700 ring-2 ring-teal-300 text-teal-950 shadow-md'
+                    : 'bg-white border-gray-200'
                 }`}
               >
                 <span>{reaction.emoji}</span>
-                <span className="text-[10px] text-gray-600">{reaction.count}</span>
+                <span className={`text-[10px] ${reactedByMe ? 'font-bold text-teal-900' : 'text-gray-600'}`}>
+                  {reaction.count}
+                </span>
+                {reactedByMe && <FiCheck className="w-3 h-3 text-teal-800" />}
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -296,18 +311,27 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                   />
                 ) : (
                   <div className="flex items-center gap-1 p-2 rounded-full bg-white shadow-xl border border-gray-200">
-                    {QUICK_REACTIONS.map(({ emoji, label }) => (
+                    {quickReactions.map(({ emoji, label }) => {
+                      const selected = emoji === myReaction;
+
+                      return (
                       <button
                         key={emoji}
                         type="button"
-                        title={label}
+                        title={selected ? `${label} (your reaction)` : label}
                         aria-label={label}
+                        aria-pressed={selected}
                         onClick={() => { onReact?.(message.id, emoji); setEmojiOpen(false); }}
-                        className="w-8 h-8 flex-shrink-0 rounded-full text-xl hover:bg-gray-100 hover:scale-110 transition-transform"
+                        className={`w-8 h-8 flex-shrink-0 rounded-full text-xl transition-transform ${
+                          selected
+                            ? 'bg-teal-100 ring-2 ring-teal-600 scale-110 shadow-sm'
+                            : 'hover:bg-gray-100 hover:scale-110'
+                        }`}
                       >
                         {emoji}
                       </button>
-                    ))}
+                      );
+                    })}
                     <button
                       type="button"
                       title="More emojis"

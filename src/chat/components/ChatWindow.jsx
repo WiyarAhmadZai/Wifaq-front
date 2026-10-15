@@ -172,6 +172,7 @@ export default function ChatWindow({ onBack, controlsWidth = 1 }) {
                     onForward={setForwarding}
                     onEdit={(message) => { setReplyTo(null); setEditing(message); }}
                     onReact={reactToMessage}
+                    meId={me?.id}
                     onDelete={(msg) => deleteMessage(msg.id)}
                   />
                 ))}

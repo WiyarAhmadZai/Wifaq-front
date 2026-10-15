@@ -20,13 +20,13 @@ const QUICK_REACTIONS = [
   { emoji: '😡', label: 'Angry' },
 ];
 
-// Double-tick receipt: grey = delivered, teal = seen. Single = sent only.
+// Double-tick receipt: grey = delivered, blue = seen. Single = sent only.
 function Ticks({ message }) {
   if (message._pending) return <span className="text-[10px] text-gray-300">🕓</span>;
   const seen = Boolean(message.seen_at);
   const delivered = Boolean(message.delivered_at);
   return (
-    <span className={`inline-flex ${seen ? 'text-teal-100' : 'text-teal-200/70'}`}>
+    <span className={`inline-flex ${seen ? 'text-blue-400' : 'text-teal-200/70'}`}>
       <FiCheck className="w-3 h-3" />
       {(delivered || seen) && <FiCheck className="w-3 h-3 -ml-1.5" />}
     </span>

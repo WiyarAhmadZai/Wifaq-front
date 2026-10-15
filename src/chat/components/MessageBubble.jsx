@@ -256,17 +256,9 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                 aria-label={`${reaction.emoji}, ${reaction.count} reactions`}
                 aria-pressed={reactedByMe}
                 onClick={() => onReact?.(message.id, reaction.emoji)}
-                className={`min-w-8 h-7 px-1.5 rounded-full border shadow-sm text-xs flex items-center justify-center gap-1 ${
-                  reactedByMe
-                    ? 'bg-teal-100 border-teal-700 ring-2 ring-teal-300 text-teal-950 shadow-md'
-                    : 'bg-white border-gray-200'
-                }`}
+                className="w-8 h-7 rounded-full border border-gray-200 bg-white shadow-sm text-base flex items-center justify-center"
               >
                 <span>{reaction.emoji}</span>
-                <span className={`text-[10px] ${reactedByMe ? 'font-bold text-teal-900' : 'text-gray-600'}`}>
-                  {reaction.count}
-                </span>
-                {reactedByMe && <FiCheck className="w-3 h-3 text-teal-800" />}
               </button>
               );
             })}

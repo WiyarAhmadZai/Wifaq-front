@@ -94,7 +94,8 @@ export default function MessageComposer({
   useEffect(() => {
     if (editing) {
       setText(editing.body || '');
-      focusEditor();
+      const frame = requestAnimationFrame(focusEditor);
+      return () => cancelAnimationFrame(frame);
     }
   }, [editing]);
 
@@ -182,6 +183,13 @@ export default function MessageComposer({
     // message stays on screen in the box.
     const el = document.getElementById(INPUT_ID);
     if (el) el.innerHTML = '';
+  };
+
+  const cancelEditing = () => {
+    setText('');
+    const el = document.getElementById(INPUT_ID);
+    if (el) el.innerHTML = '';
+    onCancelEdit?.();
   };
 
   useEffect(() => {
@@ -283,6 +291,8 @@ export default function MessageComposer({
       if (body && body !== editing.body) await onSaveEdit(editing.id, body);
       else onCancelEdit();
       setText('');
+      const el = document.getElementById(INPUT_ID);
+      if (el) el.innerHTML = '';
       return;
     }
     if (!body && files.length === 0) return;
@@ -303,7 +313,7 @@ export default function MessageComposer({
       submit();
     }
     if (e.key === 'Escape') {
-      if (editing) onCancelEdit();
+      if (editing) cancelEditing();
       if (replyTo) onCancelReply();
     }
   };
@@ -323,7 +333,7 @@ export default function MessageComposer({
             </div>
           </div>
           <button
-            onClick={editing ? onCancelEdit : onCancelReply}
+            onClick={editing ? cancelEditing : onCancelReply}
             className="p-1 rounded-full hover:bg-gray-200 text-gray-500"
           >
             <FiX className="w-4 h-4" />

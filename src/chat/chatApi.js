@@ -47,6 +47,7 @@ export const chatApi = {
     });
   },
   editMessage: (messageId, body) => api.put(`/chat/messages/${messageId}`, { body }, { headers: socketHeader() }),
+  reactToMessage: (messageId, emoji) => api.post(`/chat/messages/${messageId}/reaction`, { emoji }, { headers: socketHeader() }),
   deleteMessage: (messageId) => api.delete(`/chat/messages/${messageId}`, { headers: socketHeader() }),
   forwardMessage: (messageId, conversationIds) =>
     api.post(`/chat/messages/${messageId}/forward`, { conversation_ids: conversationIds }),

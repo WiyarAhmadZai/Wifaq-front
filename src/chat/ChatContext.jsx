@@ -452,6 +452,12 @@ export function ChatProvider({ children }) {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? saved : m)));
   }, []);
 
+  const reactToMessage = useCallback(async (messageId, emoji) => {
+    const res = await chatApi.reactToMessage(messageId, emoji);
+    const saved = res.data?.data;
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? saved : m)));
+  }, []);
+
   const deleteMessage = useCallback(async (messageId) => {
     await chatApi.deleteMessage(messageId);
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, is_deleted: true, body: null } : m)));
@@ -617,7 +623,7 @@ export function ChatProvider({ children }) {
     activeId, activeConversation, openConversation, closeConversation: () => setActiveId(null),
     messages, hasMore, loadOlder, loadingMessages,
     typingPeers: typingPeers[activeId] || {},
-    startChatWith, sendMessage, sendTyping, editMessage, deleteMessage,
+    startChatWith, sendMessage, sendTyping, editMessage, reactToMessage, deleteMessage,
     setPinned, setArchived, setMuted,
     soundEnabled, setSoundEnabled,
     me: user,
@@ -627,7 +633,7 @@ export function ChatProvider({ children }) {
   }), [
     open, conversations, unreadTotal, onlineIds, activeId, activeConversation, messages,
     hasMore, loadOlder, loadingMessages, typingPeers, openConversation, startChatWith,
-    sendMessage, sendTyping, editMessage, deleteMessage, setPinned, setArchived, setMuted,
+    sendMessage, sendTyping, editMessage, reactToMessage, deleteMessage, setPinned, setArchived, setMuted,
     soundEnabled, refreshConversations, user,
     canUseChat, canCreateGroups, createGroup, updateConversation, addMembers, removeMember, setMemberRole, leaveGroup,
   ]);

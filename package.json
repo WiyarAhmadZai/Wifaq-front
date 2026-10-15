@@ -15,6 +15,7 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.1",
     "axios": "^1.13.5",
+    "emoji-picker-react": "^5.0.0",
     "jszip": "^3.10.2",
     "laravel-echo": "^2.3.7",
     "pusher-js": "^8.5.0",

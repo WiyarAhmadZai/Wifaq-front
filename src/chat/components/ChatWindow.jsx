@@ -11,7 +11,7 @@ import { formatDateDivider, lastSeenLabel, roleLabel, filesFromClipboard } from 
 export default function ChatWindow({ onBack, controlsWidth = 1 }) {
   const {
     activeConversation, messages, loadingMessages, hasMore, loadOlder,
-    isOnline, typingPeers, sendMessage, sendTyping, editMessage, deleteMessage, me,
+    isOnline, typingPeers, sendMessage, sendTyping, editMessage, reactToMessage, deleteMessage, me,
   } = useChat();
 
   const [replyTo, setReplyTo] = useState(null);
@@ -168,9 +168,10 @@ export default function ChatWindow({ onBack, controlsWidth = 1 }) {
                     message={m}
                     outgoing={m.sender_id === me?.id}
                     showSender={isGroup}
-                    onReply={setReplyTo}
+                    onReply={(message) => { setEditing(null); setReplyTo(message); }}
                     onForward={setForwarding}
-                    onEdit={setEditing}
+                    onEdit={(message) => { setReplyTo(null); setEditing(message); }}
+                    onReact={reactToMessage}
                     onDelete={(msg) => deleteMessage(msg.id)}
                   />
                 ))}

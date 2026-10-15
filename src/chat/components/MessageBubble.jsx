@@ -1,13 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   FiCheck, FiMoreHorizontal, FiCornerUpLeft, FiCornerUpRight,
-  FiEdit2, FiTrash2, FiCopy, FiFile, FiDownload,
+  FiEdit2, FiTrash2, FiCopy, FiFile, FiDownload, FiSmile, FiPlus,
 } from 'react-icons/fi';
+import EmojiPicker from 'emoji-picker-react';
 import { formatTime, formatSize, fileUrl } from '../utils';
 import ImageLightbox from './ImageLightbox';
 import { RichTextView } from '../../components/RichTextField';
 import { isRichText, richTextToPlain, decodeEntities } from '../../utils/richText';
 import { TagChip } from './TagPicker';
+
+const QUICK_REACTIONS = [
+  { emoji: '👍', label: 'Like' },
+  { emoji: '👎', label: 'Dislike' },
+  { emoji: '🤗', label: 'Care' },
+  { emoji: '❤️', label: 'Love' },
+  { emoji: '🙏', label: 'Pray' },
+  { emoji: '😡', label: 'Angry' },
+];
 
 // Double-tick receipt: grey = delivered, teal = seen. Single = sent only.
 function Ticks({ message }) {
@@ -113,17 +123,25 @@ function AttachmentView({ att, outgoing, onPreview, progress }) {
   );
 }
 
-export default function MessageBubble({ message, outgoing, showSender = false, onReply, onForward, onEdit, onDelete }) {
+export default function MessageBubble({ message, outgoing, showSender = false, onReply, onForward, onEdit, onDelete, onReact }) {
   const [menu, setMenu] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [showAllEmojis, setShowAllEmojis] = useState(false);
   const [preview, setPreview] = useState(null); // { url, name } for the lightbox
   const ref = useRef(null);
 
   useEffect(() => {
-    if (!menu) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setMenu(false); };
+    if (!menu && !emojiOpen) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setMenu(false);
+        setEmojiOpen(false);
+        setShowAllEmojis(false);
+      }
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [menu]);
+  }, [menu, emojiOpen]);
 
   const deleted = message.is_deleted;
 
@@ -200,14 +218,87 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
             {outgoing && !deleted && <Ticks message={message} />}
           </div>
         </div>
+        {!deleted && message.reactions?.length > 0 && (
+          <div className={`relative z-10 -mt-1 flex flex-wrap gap-1 ${outgoing ? 'justify-end' : 'justify-start'}`}>
+            {message.reactions.map((reaction) => (
+              <button
+                key={reaction.emoji}
+                type="button"
+                title={`${reaction.emoji} ${reaction.count}`}
+                aria-label={`${reaction.emoji}, ${reaction.count} reactions`}
+                aria-pressed={reaction.reacted_by_me}
+                onClick={() => onReact?.(message.id, reaction.emoji)}
+                className={`min-w-8 h-7 px-1.5 rounded-full border shadow-sm text-xs flex items-center justify-center gap-1 ${
+                  reaction.reacted_by_me ? 'bg-teal-50 border-teal-300' : 'bg-white border-gray-200'
+                }`}
+              >
+                <span>{reaction.emoji}</span>
+                <span className="text-[10px] text-gray-600">{reaction.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Hover actions */}
       {!deleted && !message._pending && (
-        <div className={`self-center opacity-0 group-hover:opacity-100 transition-opacity ${outgoing ? 'order-1 mr-1' : 'ml-1'}`}>
-          <div className="relative" ref={ref}>
+        <div className={`self-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity ${outgoing ? 'order-1 mr-1' : 'ml-1'}`}>
+          <div className="relative flex items-center" ref={ref}>
             <button
-              onClick={() => setMenu((v) => !v)}
+              type="button"
+              onClick={() => {
+                setEmojiOpen((open) => !open);
+                setShowAllEmojis(false);
+                setMenu(false);
+              }}
+              title="Add reaction"
+              aria-label="Add reaction"
+              aria-expanded={emojiOpen}
+              className="p-1 rounded-full hover:bg-gray-200 text-gray-400"
+            >
+              <FiSmile className="w-4 h-4" />
+            </button>
+            {emojiOpen && (
+              <div className={`absolute z-40 bottom-8 ${outgoing ? 'right-0' : 'left-0'}`}>
+                {showAllEmojis ? (
+                  <EmojiPicker
+                    onEmojiClick={(item) => { onReact?.(message.id, item.emoji); setEmojiOpen(false); }}
+                    width={300}
+                    height={360}
+                    lazyLoadEmojis
+                    previewConfig={{ showPreview: false }}
+                    skinTonesDisabled
+                  />
+                ) : (
+                  <div className="flex items-center gap-1 p-2 rounded-full bg-white shadow-xl border border-gray-200">
+                    {QUICK_REACTIONS.map(({ emoji, label }) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        title={label}
+                        aria-label={label}
+                        onClick={() => { onReact?.(message.id, emoji); setEmojiOpen(false); }}
+                        className="w-8 h-8 flex-shrink-0 rounded-full text-xl hover:bg-gray-100 hover:scale-110 transition-transform"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      title="More emojis"
+                      aria-label="More emojis"
+                      onClick={() => setShowAllEmojis(true)}
+                      className="w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center text-gray-500 bg-gray-100 hover:bg-gray-200"
+                    >
+                      <FiPlus className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => { setMenu((v) => !v); setEmojiOpen(false); }}
+              aria-label="Message options"
               className="p-1 rounded-full hover:bg-gray-200 text-gray-400"
             >
               <FiMoreHorizontal className="w-4 h-4" />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FiCheck, FiMoreHorizontal, FiCornerUpLeft, FiCornerUpRight,
   FiEdit2, FiTrash2, FiCopy, FiFile, FiDownload, FiSmile, FiPlus,
@@ -127,16 +128,34 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
   const [menu, setMenu] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [showAllEmojis, setShowAllEmojis] = useState(false);
+  const [pickerPosition, setPickerPosition] = useState(null);
   const [preview, setPreview] = useState(null); // { url, name } for the lightbox
   const ref = useRef(null);
+  const pickerRef = useRef(null);
+
+  const positionPicker = (height, width) => {
+    const anchor = ref.current?.getBoundingClientRect();
+    if (!anchor) return null;
+
+    const margin = 8;
+    const placeBelow = anchor.top < window.innerHeight / 2;
+    const preferredTop = placeBelow ? anchor.bottom + margin : anchor.top - height - margin;
+    const left = outgoing ? anchor.right - width : anchor.left;
+
+    return {
+      top: Math.max(margin, Math.min(preferredTop, window.innerHeight - height - margin)),
+      left: Math.max(margin, Math.min(left, window.innerWidth - width - margin)),
+    };
+  };
 
   useEffect(() => {
     if (!menu && !emojiOpen) return;
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
+      if (!ref.current?.contains(e.target) && !pickerRef.current?.contains(e.target)) {
         setMenu(false);
         setEmojiOpen(false);
         setShowAllEmojis(false);
+        setPickerPosition(null);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -247,7 +266,9 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
             <button
               type="button"
               onClick={() => {
-                setEmojiOpen((open) => !open);
+                const opening = !emojiOpen;
+                setEmojiOpen(opening);
+                setPickerPosition(opening ? positionPicker(52, 292) : null);
                 setShowAllEmojis(false);
                 setMenu(false);
               }}
@@ -258,8 +279,12 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
             >
               <FiSmile className="w-4 h-4" />
             </button>
-            {emojiOpen && (
-              <div className={`absolute z-40 bottom-8 ${outgoing ? 'right-0' : 'left-0'}`}>
+            {emojiOpen && pickerPosition && createPortal(
+              <div
+                ref={pickerRef}
+                className="fixed z-[100]"
+                style={{ top: pickerPosition.top, left: pickerPosition.left }}
+              >
                 {showAllEmojis ? (
                   <EmojiPicker
                     onEmojiClick={(item) => { onReact?.(message.id, item.emoji); setEmojiOpen(false); }}
@@ -287,14 +312,18 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                       type="button"
                       title="More emojis"
                       aria-label="More emojis"
-                      onClick={() => setShowAllEmojis(true)}
+                      onClick={() => {
+                        setPickerPosition(positionPicker(360, 300));
+                        setShowAllEmojis(true);
+                      }}
                       className="w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center text-gray-500 bg-gray-100 hover:bg-gray-200"
                     >
                       <FiPlus className="w-4 h-4" />
                     </button>
                   </div>
                 )}
-              </div>
+              </div>,
+              document.body,
             )}
             <button
               onClick={() => { setMenu((v) => !v); setEmojiOpen(false); }}

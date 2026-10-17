@@ -190,10 +190,11 @@ export default function DayDetail({ staffId, staffName, date, onOpenTask }) {
               <div className="divide-y divide-gray-100">
                 {tasks.map((t) => {
                   const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
+                  const routine = t.calendar_kind === "daily_work";
                   return (
                     <div key={t.id}
-                      onClick={() => onOpenTask?.(t)}
-                      className={`px-4 py-3 ${onOpenTask ? "cursor-pointer hover:bg-teal-50/40" : ""}`}>
+                      onClick={routine ? undefined : () => onOpenTask?.(t)}
+                      className={`px-4 py-3 ${!routine && onOpenTask ? "cursor-pointer hover:bg-teal-50/40" : ""}`}>
                       <div className="flex items-center gap-2">
                         {t.planned_time ? (
                           <span className="text-[11px] font-bold text-gray-700 whitespace-nowrap" data-no-i18n>
@@ -203,8 +204,9 @@ export default function DayDetail({ staffId, staffName, date, onOpenTask }) {
                           <span className="text-[10px] text-gray-400 whitespace-nowrap">any time</span>
                         )}
                         <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-semibold ${st.chip}`}>{st.label}</span>
+                        {routine && <span className="px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 text-[9px] font-semibold">Daily routine</span>}
                         {t.overdue && <span className="text-[9px] font-bold text-red-600">Overdue</span>}
-                        <span className="ms-auto text-[10px] text-gray-400" data-no-i18n>{t.progress || 0}%</span>
+                        <span className="ms-auto text-[10px] text-gray-400" data-no-i18n>{routine ? (t.status === "completed" ? "Done" : "To do") : `${t.progress || 0}%`}</span>
                       </div>
                       <div className="mt-1 text-xs font-medium text-gray-800 leading-snug line-clamp-2" dir="auto" data-no-i18n>{t.task}</div>
                       {t.assigned_by && <div className="mt-0.5 text-[10px] text-gray-400" data-no-i18n>Assigned by {t.assigned_by}</div>}

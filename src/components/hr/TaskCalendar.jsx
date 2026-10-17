@@ -141,27 +141,29 @@ export default function TaskCalendar({
   const chip = (t) => {
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
     const done = t.status === "completed";
+    const routine = t.calendar_kind === "daily_work";
     return (
       <div
         key={t.id}
         draggable={movable(t)}
         onDragStart={(e) => { e.dataTransfer.setData("text/plain", String(t.id)); e.dataTransfer.effectAllowed = "move"; setDragId(t.id); }}
         onDragEnd={() => { setDragId(null); setOver(null); }}
-        {...dropZone(`task:${t.id}`)}
-        onClick={() => onOpen?.(t)}
+        {...(routine ? {} : dropZone(`task:${t.id}`))}
+        onClick={routine ? undefined : () => onOpen?.(t)}
         // A short hover hint only — the whole task is in the pop-up a click opens.
-        title={t.fixed_date && editable ? `${shortTip(t.task)}\n🔒 ${t.assigned_by ? `Date set by ${t.assigned_by}` : "Date set by the assigner"}` : shortTip(t.task)}
+        title={routine ? `${shortTip(t.task)}\nDaily routine` : t.fixed_date && editable ? `${shortTip(t.task)}\n🔒 ${t.assigned_by ? `Date set by ${t.assigned_by}` : "Date set by the assigner"}` : shortTip(t.task)}
         className={`group rounded-md border border-gray-200 border-s-4 ${st.bar} bg-white px-1.5 py-1 text-[10px] leading-tight shadow-sm
-          ${onOpen ? "cursor-pointer hover:border-teal-300" : ""} ${movable(t) ? "cursor-grab active:cursor-grabbing" : ""}
+          ${!routine && onOpen ? "cursor-pointer hover:border-teal-300" : ""} ${movable(t) ? "cursor-grab active:cursor-grabbing" : ""}
           ${dragId === t.id ? "opacity-40" : ""} ${over === `task:${t.id}` ? "ring-2 ring-teal-400" : ""}`}>
         <div className={`font-medium text-gray-800 line-clamp-2 ${done ? "line-through text-gray-400" : ""}`} dir="auto" data-no-i18n>{t.task}</div>
         <div className="mt-0.5 flex items-center gap-1 text-gray-400">
-          {t.fixed_date && editable && lockFixed && <span title="Date set by the assigner" aria-label="Fixed date">🔒</span>}
+          {routine && <span className="text-[9px] font-semibold text-violet-600">Daily routine</span>}
+          {!routine && t.fixed_date && editable && lockFixed && <span title="Date set by the assigner" aria-label="Fixed date">🔒</span>}
           {/* The busy slot: the time window, or the length when untimed. */}
           {t.planned_time && <span data-no-i18n>{t.end_time ? `${t.planned_time}–${t.end_time}` : t.status === "in_progress" ? `${t.planned_time}–…` : t.planned_time}</span>}
           {!t.planned_time && t.duration_minutes > 0 && <span data-no-i18n>{fmtDur(t.duration_minutes)}</span>}
           {t.overdue && <span className="text-red-600 font-bold">!</span>}
-          <span className="ms-auto" data-no-i18n>{t.progress || 0}%</span>
+          <span className="ms-auto" data-no-i18n>{routine ? (done ? "Done" : "To do") : `${t.progress || 0}%`}</span>
         </div>
         <div className="mt-0.5 h-0.5 rounded bg-gray-100 overflow-hidden"><div className={`h-full ${done ? "bg-emerald-500" : "bg-teal-500"}`} style={{ width: `${done ? 100 : t.progress || 0}%` }} /></div>
       </div>

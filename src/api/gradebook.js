@@ -66,6 +66,24 @@ export const termExamFormData = () => get(`${BASE}/term-exams/form-data`);
 export const termExamSheet = (params) => get(`${BASE}/term-exams/sheet`, { params });
 export const saveTermExam = (data) => post(`${BASE}/term-exams/save`, data);
 
+// Independent subject marks and report cards for Chaharnima / Salana.
+export const examResultFormData = () => get(`${BASE}/exam-results/form-data`);
+export const examResultSheet = (params) => get(`${BASE}/exam-results/sheet`, { params });
+export const saveExamResults = (data) => post(`${BASE}/exam-results/save`, data);
+export const saveExamResultSettings = (data) => put(`${BASE}/exam-results/settings`, data);
+export const examReportCards = (params) => get(`${BASE}/exam-results/report-cards`, { params });
+export const downloadExamReportPdf = async (params) => {
+  const response = await get(`${BASE}/exam-results/report-cards/pdf`, { params, responseType: "blob" });
+  const url = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `report-cards-${params.exam_type}-${params.class_id}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 // ── Promotion ───────────────────────────────────────────────────────────
 export const promotionBoard = (params) => get(`${BASE}/promotion/board`, { params });
 export const confirmPromotion = (data) => post(`${BASE}/promotion/confirm`, data);

@@ -1622,6 +1622,14 @@ export default function Layout() {
     { label: "Promotion Board", path: "/education/gradebook/promotion", permission: "gradebook.view" },
     { label: "Analytics", path: "/education/gradebook/analytics", permission: "gradebook.analyze" },
   ];
+  const reportCardMenus = [
+    { label: "Chaharnima Report Card", path: "/education/report-cards/chaharnima", permission: "report-cards.view" },
+    { label: "Salana (Annual) Report Card", path: "/education/report-cards/salana", permission: "report-cards.view" },
+  ];
+  const subjectMarksMenus = [
+    { label: "Chaharnima Marks", path: "/education/subject-marks/chaharnima", permission: "subject-marks.view" },
+    { label: "Salana Marks", path: "/education/subject-marks/salana", permission: "subject-marks.view" },
+  ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
     { label: "Subjects", path: "/class-management/subjects", permission: "subjects.view" },
@@ -1697,6 +1705,8 @@ export default function Layout() {
     { key: "morning-assembly", label: "Morning Assembly", items: assemblyMenus },
     { key: "lesson-planning", label: "Lesson Plans", items: lessonPlanMenus },
     { key: "gradebook", label: "Gradebook", items: gradebookMenus },
+    { key: "report-cards", label: "Report Cards", items: reportCardMenus },
+    { key: "subject-marks", label: "Subject Marks", items: subjectMarksMenus },
     { key: "class-management", label: "Class Management", items: classMgmtMenus },
     { key: "finance", label: "Finance", items: financeMenus },
     // Parent portal. Its item is written inline where the menu renders (gated
@@ -2095,7 +2105,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus) || canSeeGroup(reportCardMenus) || canSeeGroup(subjectMarksMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -2179,6 +2189,32 @@ export default function Layout() {
               onClick={() => toggleMenu("gradebook")}
             >
               {visible(gradebookMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(reportCardMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Report Cards"
+              isOpen={openMenu.includes("report-cards")}
+              onClick={() => toggleMenu("report-cards")}
+            >
+              {visible(reportCardMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(subjectMarksMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Subject Marks"
+              isOpen={openMenu.includes("subject-marks")}
+              onClick={() => toggleMenu("subject-marks")}
+            >
+              {visible(subjectMarksMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

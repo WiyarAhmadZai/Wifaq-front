@@ -154,6 +154,8 @@ const StudentGradeHistory = lazy(() => import("./pages/education/StudentGradeHis
 const HomeworkQueue = lazy(() => import("./pages/education/HomeworkQueue"));
 const AssignHomework = lazy(() => import("./pages/education/AssignHomework"));
 const TermExamSheet = lazy(() => import("./pages/education/TermExamSheet"));
+const ExamResults = lazy(() => import("./pages/education/ExamResults"));
+const ReportCards = lazy(() => import("./pages/education/ExamResults").then((module) => ({ default: module.ReportCardsPage })));
 const PromotionBoard = lazy(() => import("./pages/education/PromotionBoard"));
 const WeeklyAssessments = lazy(() => import("./pages/education/WeeklyAssessments"));
 const StudentAcademicHistory = lazy(() => import("./pages/education/StudentAcademicHistory"));
@@ -675,6 +677,10 @@ function App() {
             <Route path="education/gradebook/analytics" element={<Suspense fallback={<PageLoader />}><GradebookDashboard /></Suspense>} />
             <Route path="education/gradebook/student/:studentId/subject/:subjectId" element={<Suspense fallback={<PageLoader />}><StudentGradeHistory /></Suspense>} />
             <Route path="education/gradebook/term-exams" element={<Suspense fallback={<PageLoader />}><TermExamSheet /></Suspense>} />
+            <Route path="education/subject-marks/chaharnima" element={<Suspense fallback={<PageLoader />}><ExamResults examType="chaharnima" /></Suspense>} />
+            <Route path="education/subject-marks/salana" element={<Suspense fallback={<PageLoader />}><ExamResults examType="salana" /></Suspense>} />
+            <Route path="education/report-cards/chaharnima" element={<Suspense fallback={<PageLoader />}><ReportCards examType="chaharnima" /></Suspense>} />
+            <Route path="education/report-cards/salana" element={<Suspense fallback={<PageLoader />}><ReportCards examType="salana" /></Suspense>} />
             <Route path="education/gradebook/promotion" element={<Suspense fallback={<PageLoader />}><PromotionBoard /></Suspense>} />
             <Route path="education/gradebook/weekly" element={<Suspense fallback={<PageLoader />}><WeeklyAssessments /></Suspense>} />
             <Route path="education/gradebook/student/:studentId/academic-history" element={<Suspense fallback={<PageLoader />}><StudentAcademicHistory /></Suspense>} />

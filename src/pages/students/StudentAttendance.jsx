@@ -54,24 +54,9 @@ export default function StudentAttendance() {
 
   const [classes, setClasses] = useState([]);
   const [classId, setClassId] = useState("");
-  // Attendance is only ever taken for TODAY. The date is shown but never
-  // typed: a register is a record of the day it was taken, and letting it be
-  // back- or forward-dated is how a month of attendance gets quietly
-  // rewritten. The server enforces the same rule.
-  //
-  // Re-read once a minute rather than fixed at mount, so a register left open
-  // in a staff room overnight rolls to the new day instead of dropping the
-  // morning's marks onto yesterday. setState only fires on an actual change,
-  // so this does not re-render every minute.
+  // Starts on today; staff can choose a past date to complete or correct the
+  // year register. Future dates are rejected by the server.
   const [date, setDate] = useState(todayIso);
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      const today = todayIso();
-      setDate((current) => (current === today ? current : today));
-    }, 60_000);
-    return () => clearInterval(t);
-  }, []);
 
   const [tab, setTab] = useState("sheet");          // sheet | away
 
@@ -315,13 +300,12 @@ export default function StudentAttendance() {
               ))}
             </select>
           </div>
-          {/* Shown, never typed — today only, locked. */}
+          {/* Historical attendance can be completed for any past date. */}
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Date</label>
-            <input type="date" value={date} readOnly disabled
-              title="Attendance can only be taken for today"
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed" />
-            <p className="text-[10px] text-gray-400 mt-1">{prettyDate(date)} · today only</p>
+            <input type="date" value={date} max={todayIso()} onChange={(e) => setDate(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
+            <p className="text-[10px] text-gray-400 mt-1">{prettyDate(date)} · past dates allowed</p>
           </div>
           <div className="flex gap-1 ml-auto">
             {["sheet", "away"].map((t) => (

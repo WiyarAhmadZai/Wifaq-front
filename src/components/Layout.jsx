@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
 import PathPermissionGate from "../admin/guards/PathPermissionGate";
+import { permissionForPath } from "../admin/utils/pathPermissions";
 import ErrorBoundary from "./ErrorBoundary";
 import ScrollMemory from "./ScrollMemory";
 import MessagesButton from "../chat/components/MessagesButton";
@@ -1354,7 +1355,20 @@ export default function Layout() {
       if (visibleChildren.length === 0) return false;
       return true;
     }
-    if (item.permission) return hasPermission(item.permission);
+    if (item.permission && !hasPermission(item.permission)) return false;
+    if (item.permission) {
+      const accessRule = permissionForPath(item.path);
+      if (accessRule.type === "public") {
+        return (accessRule.requiredPermissions || []).every(hasPermission);
+      }
+      if (accessRule.type === "protected" && accessRule.permissionGroups?.length) {
+        return accessRule.permissionGroups.some((group) =>
+          group.permissions.some(hasPermission)
+          && group.requiredPermissions.every(hasPermission)
+        );
+      }
+      return true;
+    }
     return isSuperAdmin; // untagged → super-admin only
   };
   const visible = (items) => items.filter(itemAllowed);

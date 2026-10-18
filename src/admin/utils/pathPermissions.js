@@ -257,9 +257,8 @@ const PUBLIC_PATHS = new Set([
   // staff Party (self-service balance / advance history). Backend scopes
   // the response; privileged users with parties.view see the full list.
   "/finance/parties",
-  // Personal notifications inbox — every authenticated user sees their own
-  // feed (backend's /api/notifications already scopes the response to the
-  // logged-in user). No permission needed.
+  // Personal notifications inbox — requires notifications.view and only
+  // returns the logged-in user's notifications.
   "/notifications",
   // Parent's own questionnaire answering page — backend route is
   // withoutMiddleware('path.permission') and row-scopes to the caller, so any
@@ -339,6 +338,36 @@ function withAction(permission, action) {
   return permission.replace(/\.[^.]+$/, `.${action}`);
 }
 
+function sectionNotificationPermission(section) {
+  return section === "birthdays"
+    ? "birthdays.notifications.receive"
+    : `${section}.notifications`;
+}
+
+function notificationPermissionForPublicPath(pathname) {
+  if (pathname === "/notifications" || pathname.startsWith("/notifications/")) {
+    return "notifications.view";
+  }
+
+  const sections = [
+    ["/my-children", "gradebook"],
+    ["/my-questionnaire", "questionnaires"],
+    ["/hr/welfare/alerts", "welfare-alerts"],
+    ["/hr/welfare/benefits", "welfare-benefits"],
+    ["/hr/staff-task", "staff-task"],
+    ["/finance/parties", "parties"],
+    ["/hr/meetings", "meetings"],
+    ["/hr/events", "events"],
+    ["/hr/contracts", "contracts"],
+    ["/hr/vats/cards", "vats-cards"],
+  ];
+  const match = sections.find(([prefix]) =>
+    pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+
+  return match ? sectionNotificationPermission(match[1]) : null;
+}
+
 /**
  * Resolve the required permission(s) for a given pathname.
  * Returns:
@@ -350,9 +379,15 @@ function withAction(permission, action) {
  * sub-path we accept either "{module}.create" or "{module}.manage".
  */
 export function permissionForPath(pathname) {
-  if (PUBLIC_PATHS.has(pathname)) return { type: "public" };
+  if (PUBLIC_PATHS.has(pathname)) {
+    const required = notificationPermissionForPublicPath(pathname);
+    return { type: "public", requiredPermissions: required ? [required] : [] };
+  }
   for (const re of SELF_SCOPED_PATH_PATTERNS) {
-    if (re.test(pathname)) return { type: "public" };
+    if (re.test(pathname)) {
+      const required = notificationPermissionForPublicPath(pathname);
+      return { type: "public", requiredPermissions: required ? [required] : [] };
+    }
   }
   for (const rule of RULES) {
     if (pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")) {
@@ -367,7 +402,14 @@ export function permissionForPath(pathname) {
       for (const altPermission of rule.alt || []) {
         candidates.push(withAction(altPermission, action), withAction(altPermission, "manage"));
       }
-      return { type: "protected", permissions: candidates };
+      const permissionGroups = [rule.permission, ...(rule.alt || [])].map((permission) => {
+        const section = permission.split(".", 1)[0];
+        return {
+          permissions: [withAction(permission, action), withAction(permission, "manage")],
+          requiredPermissions: [sectionNotificationPermission(section)],
+        };
+      });
+      return { type: "protected", permissions: candidates, permissionGroups };
     }
   }
   return { type: "untagged" };

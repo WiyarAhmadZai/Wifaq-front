@@ -102,7 +102,11 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
                       disabled={readOnly}
                       className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
                     />
-                    <span className="text-gray-700 break-all">{p.name.split(".").slice(1).join(".") || p.name}</span>
+                    <span className="text-gray-700 break-all">
+                      {p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")
+                        ? "Receive section notifications"
+                        : p.name.split(".").slice(1).join(".") || p.name}
+                    </span>
                   </label>
                 ))}
               </div>

@@ -77,8 +77,24 @@ export default function PathPermissionGate({ children }) {
 
   const rule = permissionForPath(location.pathname);
 
-  if (rule.type === "public") return children;
+  if (rule.type === "public") {
+    const allowed = (rule.requiredPermissions || []).every((permission) =>
+      isSuperAdmin || hasPermission(permission)
+    );
+    return allowed ? children : <Navigate to="/403" replace state={{ from: location }} />;
+  }
   if (rule.type === "protected") {
+    if (rule.permissionGroups?.length) {
+      const allowed = rule.permissionGroups.some((group) =>
+        (group.permissions || []).some((permission) => hasPermission(permission))
+        && (group.requiredPermissions || []).every((permission) =>
+          isSuperAdmin || hasPermission(permission)
+        )
+      );
+      return allowed
+        ? children
+        : <Navigate to="/403" replace state={{ from: location }} />;
+    }
     // OR semantics: user needs ANY of the candidate permissions.
     const allowed = (rule.permissions || [rule.permission])
       .some((p) => hasPermission(p));

@@ -44,10 +44,13 @@ export function ChatProvider({ children }) {
   const { user, isAuthenticated, hasPermission, hasRole } = useAuth();
   const myId = user?.id;
 
-  /* The chat is a staff channel. Without `chat.access` nothing below runs: no
+  /* The chat is a staff channel. Without its access and notification grants nothing below runs: no
    * conversation list, no websocket, no presence ping — a parent account
    * simply has no chat, rather than a chat that 403s. */
-  const canUseChat = Boolean(isAuthenticated && (hasRole?.('super-admin') || hasPermission?.('chat.access')));
+  const canUseChat = Boolean(isAuthenticated && (
+    hasRole?.('super-admin')
+    || (hasPermission?.('chat.access') && hasPermission?.('chat.notifications'))
+  ));
   const canCreateGroups = Boolean(canUseChat && (hasRole?.('super-admin') || hasPermission?.('chat.groups.create')));
 
   const [open, setOpen] = useState(false);

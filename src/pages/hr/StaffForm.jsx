@@ -24,6 +24,7 @@ const FIELD_LABELS = {
   father_name: "Father's name",
   blood_type: "Blood type",
   branch_id: "Branch",
+  branch_ids: "Branches",
   department_id: "Department",
   job_requisition_id: "Job requisition",
   supervisor_ids: "Supervisors",
@@ -262,7 +263,7 @@ export default function StaffForm() {
     application_id: "",
     father_name: "", blood_type: "",
     profile_photo: null,
-    branch_id: "", department_id: "", job_requisition_id: "",
+    branch_id: "", branch_ids: [], department_id: "", job_requisition_id: "",
     role_title_en: "", status: "active", supervisor_ids: [],
   });
 
@@ -345,6 +346,12 @@ export default function StaffForm() {
       father_name: d.father_name || "",
       blood_type: d.blood_type || "",
       branch_id: d.branch_id || "",
+      branch_ids: d.branches?.length
+        ? [
+          ...(d.branch_id ? [String(d.branch_id)] : []),
+          ...d.branches.filter((branch) => String(branch.id) !== String(d.branch_id)).map((branch) => String(branch.id)),
+        ]
+        : (d.branch_id ? [String(d.branch_id)] : []),
       department: d.department || "",
       department_id: d.department_id || "",
       supervisor_ids: d.supervisors?.length
@@ -464,7 +471,7 @@ export default function StaffForm() {
   const canNext = () => {
     if (step === 1) return form.application_id || isEdit;
     if (step === 3) {
-      if (!form.branch_id) return false;
+      if (!(form.branch_ids?.length || form.branch_id)) return false;
     }
     return true;
   };
@@ -475,6 +482,11 @@ export default function StaffForm() {
     try {
       const formData = new FormData();
       Object.entries(form).forEach(([key, val]) => {
+        if (key === "branch_ids") {
+          if (val.length) val.forEach((branchId) => formData.append("branch_ids[]", branchId));
+          else formData.append("branch_ids", "");
+          return;
+        }
         if (key === "supervisor_ids") {
           if (val.length) val.forEach((supervisorId) => formData.append("supervisor_ids[]", supervisorId));
           else formData.append("supervisor_ids", "");
@@ -737,13 +749,18 @@ export default function StaffForm() {
             <StepCard step={cur}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label required>Branch</Label>
-                  <SearchSelect
+                  <Label required>Branches</Label>
+                  <MultiSearchSelect
                     options={branches.map(b => ({ value: b.id, label: b.name }))}
-                    value={form.branch_id}
-                    onChange={v => set('branch_id', v)}
-                    placeholder="Select branch..."
+                    value={form.branch_ids}
+                    onChange={(ids) => setForm((current) => ({
+                      ...current,
+                      branch_ids: ids,
+                      branch_id: ids[0] || "",
+                    }))}
+                    placeholder="Search and select branches..."
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">Select every branch where this staff member works. The first selected branch is the primary branch.</p>
                 </div>
                 <div>
                   <Label>Department</Label>

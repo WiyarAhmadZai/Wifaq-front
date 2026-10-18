@@ -41,10 +41,9 @@ export default function MyLessonPlans() {
     const t = setTimeout(() => setQ(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
-  const { hasPermission, user, isSuperAdmin } = useAuth();
-  // Leadership (reviewer / analyst) gets ALL teachers' plans from the backend —
-  // this list becomes a read-only browse with the teacher's name on each card.
-  const isLeadership = hasPermission("lesson-plans.review") || hasPermission("lesson-plans.analyze") || hasPermission("lesson-plans.manage");
+  const { user, isSuperAdmin } = useAuth();
+  // Supervisors browse their own reporting team; only super-admins see all.
+  const isLeadership = isSuperAdmin || Boolean(user?.is_lesson_plan_supervisor);
   const title = isSuperAdmin
     ? "Lesson Plans — All Teachers"
     : user?.is_lesson_plan_supervisor

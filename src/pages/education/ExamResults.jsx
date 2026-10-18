@@ -294,6 +294,8 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [documentType, setDocumentType] = useState("result-sheet");
+  const [printStudentId, setPrintStudentId] = useState(null);
 
   useEffect(() => {
     examResultFormData().then((response) => {
@@ -322,21 +324,21 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
   const activeClass = (meta?.classes || []).find((schoolClass) => String(schoolClass.id) === String(classId));
   const reportReady = report?.request_key === `${classId}:${termId}:${examType}`;
 
-  function printStudent(studentId) {
-    const hiddenCards = [...document.querySelectorAll(".report-card")]
-      .filter((card) => card.dataset.student !== String(studentId));
-    hiddenCards.forEach((card) => card.classList.add("print-hidden"));
-    const clearFilter = () => hiddenCards.forEach((card) => card.classList.remove("print-hidden"));
-    window.addEventListener("afterprint", clearFilter, { once: true });
-    window.print();
-    window.setTimeout(clearFilter, 1500);
+  function printDocument(type, studentId = null) {
+    setDocumentType(type);
+    setPrintStudentId(studentId);
+    window.addEventListener("afterprint", () => {
+      setPrintStudentId(null);
+      setDocumentType("result-sheet");
+    }, { once: true });
+    window.setTimeout(() => window.print(), 150);
   }
 
-  async function downloadPdf(studentId = null) {
+  async function downloadPdf(studentId = null, type = "result-sheet") {
     setDownloading(true);
     setError("");
     try {
-      await downloadExamReportPdf({ class_id: classId, academic_term_id: termId, exam_type: examType, ...(studentId ? { student_id: studentId } : {}) });
+      await downloadExamReportPdf({ class_id: classId, academic_term_id: termId, exam_type: examType, ...(studentId ? { student_id: studentId } : {}) }, type);
     } catch (requestError) {
       setError(requestError.response?.data?.message || "PDF could not be downloaded.");
     } finally {
@@ -345,7 +347,7 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
   }
 
   return <Page>
-    <Header title={`${exam.label.replace("Marks", "Report Card")}`} subtitle="Class results · Individual cards · A4 print" actions={<div className="flex gap-2"><Btn tone="outline" onClick={() => window.print()} disabled={!students.length}><FiPrinter aria-hidden /> Print class</Btn><Btn onClick={() => downloadPdf()} disabled={!students.length || downloading}><FiDownload aria-hidden /> {downloading ? "Preparing PDF…" : "Download PDF"}</Btn></div>} />
+    <Header title={`${exam.label.replace("Marks", "Report Card")}`} subtitle="Student result sheets · A4 landscape" actions={<div className="no-print flex flex-wrap gap-2"><Btn tone="outline" onClick={() => printDocument("result-sheet")} disabled={!students.length}><FiPrinter aria-hidden /> Print result sheets</Btn><Btn onClick={() => downloadPdf()} disabled={!students.length || downloading}><FiDownload aria-hidden /> Download results PDF</Btn><Btn tone="outline" onClick={() => printDocument("certificate")} disabled={!students.length}><FiPrinter aria-hidden /> Print certificates</Btn><Btn tone="outline" onClick={() => downloadPdf(null, "certificate")} disabled={!students.length || downloading}><FiDownload aria-hidden /> Certificate PDF</Btn></div>} />
     {error && <Banner kind="error" onClose={() => setError("")}>{error}</Banner>}
     <Card className="no-print mb-4 grid gap-3 sm:grid-cols-2">
       <ClassAndSection classes={meta?.classes || []} classId={classId} onChange={setClassId} />
@@ -359,59 +361,79 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
       </Card>
       <div className="no-print overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <table className="w-full min-w-[680px]">
-          <thead><tr><th className={thCls}>Student</th><th className={`${thCls} text-right`}>Total</th><th className={`${thCls} text-right`}>Percent</th><th className={`${thCls} text-right`}>Present</th><th className={`${thCls} text-right`}>Absent</th><th className={thCls}>Result</th><th className={thCls}>View</th></tr></thead>
+          <thead><tr><th className={thCls}>Student</th><th className={`${thCls} text-right`}>Total</th><th className={`${thCls} text-right`}>Percent</th><th className={`${thCls} text-right`}>Present</th><th className={`${thCls} text-right`}>Absent</th><th className={thCls}>Result</th><th className={thCls}>View / Print</th></tr></thead>
           <tbody>{students.map((student) => <tr key={student.student_id} className="border-b border-gray-100">
-            <td className={tdCls}>{student.name}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.total_score)} / {formatResultNumber(student.maximum_score)}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.percentage)}٪</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.present_days)}</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.absent_days)}</td><td className={tdCls}>{student.complete ? student.passed ? "Pass" : "Fail" : "Incomplete"}</td><td className={`${tdCls} whitespace-nowrap`}><a className="font-semibold text-teal-700 hover:underline" href={`#report-${student.student_id}`}>Open</a><button type="button" className="ml-3 text-gray-500 hover:text-teal-700" title={`Print ${student.name}'s report card`} aria-label={`Print ${student.name}'s report card`} onClick={() => printStudent(student.student_id)}><FiPrinter aria-hidden /></button><button type="button" className="ml-2 text-gray-500 hover:text-teal-700" title={`Download ${student.name}'s PDF`} aria-label={`Download ${student.name}'s PDF`} onClick={() => downloadPdf(student.student_id)}><FiDownload aria-hidden /></button></td>
+            <td className={tdCls}>{student.name}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.total_score)} / {formatResultNumber(student.maximum_score)}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.percentage)}٪</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.present_days)}</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.absent_days)}</td><td className={tdCls}>{student.complete ? student.passed ? "Pass" : "Fail" : "Incomplete"}</td><td className={`${tdCls} whitespace-nowrap`}><a className="font-semibold text-teal-700 hover:underline" href={`#report-${student.student_id}`}>Open</a><button type="button" className="ml-3 text-gray-500 hover:text-teal-700" title={`Print ${student.name}'s result sheet`} aria-label={`Print ${student.name}'s result sheet`} onClick={() => printDocument("result-sheet", student.student_id)}><FiPrinter aria-hidden /></button><button type="button" className="ml-2 text-gray-500 hover:text-teal-700" title={`Download ${student.name}'s result PDF`} aria-label={`Download ${student.name}'s result PDF`} onClick={() => downloadPdf(student.student_id)}><FiDownload aria-hidden /></button><button type="button" className="ml-2 text-amber-700 hover:text-amber-900" title={`Print ${student.name}'s certificate`} aria-label={`Print ${student.name}'s certificate`} onClick={() => printDocument("certificate", student.student_id)}>✧</button></td>
           </tr>)}</tbody>
         </table>
       </div>
       <section className="report-print-area mt-5 space-y-5">
-        {students.map((student) => <article className="report-card" data-student={student.student_id} id={`report-${student.student_id}`} key={student.student_id} dir="rtl" lang="fa-AF">
-          <div className="certificate-frame">
+        {students.map((student) => <article className={`report-card ${printStudentId && printStudentId !== student.student_id ? "print-hidden" : ""}`} data-student={student.student_id} id={`report-${student.student_id}`} key={student.student_id} dir="rtl" lang="fa-AF">
+          {documentType === "result-sheet" ? <div className="result-sheet-frame">
             <header className="certificate-header">
               <img src="/wifaq-logo.png" alt="Wifaq School" />
-              <div><h1>اطلاعنامه نتایج</h1><p>شبکه تعلیمی وفاق</p></div>
+              <div><p className="result-school-name">شبکه تعلیمی وفاق</p><h1>اطلاعنامه پیشرفت تحصیلی</h1><p>سال تعلیمی {report?.academic_term?.name}</p></div>
               <span className="exam-seal">{examType === "chaharnima" ? "چهارنیمه" : "سالانه"}</span>
             </header>
-            <div className="student-details">
-              <span>نام شاگرد: <b>{student.name}</b></span>
-              <span>شماره اساس: <b>{student.admission_no || "—"}</b></span>
-              <span>صنف: <b>{activeClass?.class_name} {activeClass?.section || ""}</b></span>
-              <span>سال تعلیمی: <b>{report?.academic_term?.name}</b></span>
+            <div className="result-student-line">
+              <span>نام شاگرد: <b>{student.name}</b></span><span>شماره اساس: <b>{student.admission_no || "—"}</b></span>
+              <span>صنف و سکشن: <b>{activeClass?.class_name} {activeClass?.section || ""}</b></span>
+            </div>
+            <div className="result-stats">
+              <div><small>مجموعه نمرات</small><b>{formatResultNumber(student.total_score)} / {formatResultNumber(student.maximum_score)}</b></div>
+              <div><small>فیصدی</small><b>{formatResultNumber(student.percentage)}٪</b></div>
+              <div><small>حاضری</small><b>{formatResultNumber(student.attendance.present_days)} روز</b></div>
+              <div><small>غیرحاضری</small><b>{formatResultNumber(student.attendance.absent_days)} روز</b></div>
             </div>
             <table className="report-subjects">
-              <thead><tr><th>مضمون</th><th>کارخانگی</th><th>ارزیابی و فعالیت</th><th>امتحان تحریری</th>{examType === "salana" && <th>چهارنیمه /40</th>}<th>مجموعه</th><th>نتیجه</th></tr></thead>
+              <thead><tr><th>مضمون</th><th>کارخانگی</th><th>فعالیت صنفی</th><th>امتحان تحریری</th><th>چهارنیمه /۴۰</th><th>سالانه /۶۰</th><th>مجموعه</th><th>نتیجه</th></tr></thead>
               <tbody>{student.subjects.map((subject) => <tr key={subject.subject_id}>
-                <td>{subject.subject_name}</td><td>{subject.homework_score === null ? "—" : formatResultNumber(subject.homework_score)}</td><td>{subject.performance_score === null ? "—" : formatResultNumber(subject.performance_score)}</td><td>{subject.paper_score === null ? "—" : formatResultNumber(subject.paper_score)}</td>{examType === "salana" && <td>{subject.chaharnima_score === null ? "—" : formatResultNumber(subject.chaharnima_score)}</td>}<td>{subject.total_score === null ? "—" : formatResultNumber(subject.total_score)} / {formatResultNumber(subject.max_score)}</td><td>{subject.passed === null ? "نا مکمل" : subject.passed ? "کامیاب" : "ناکام"}</td>
+                <td>{subject.subject_name}</td><td>{subject.homework_score === null ? "—" : formatResultNumber(subject.homework_score)}</td><td>{subject.performance_score === null ? "—" : formatResultNumber(subject.performance_score)}</td><td>{subject.paper_score === null ? "—" : formatResultNumber(subject.paper_score)}</td><td>{subject.chaharnima_score === null ? "—" : formatResultNumber(subject.chaharnima_score)}</td><td>{subject.salana_score === null ? "—" : formatResultNumber(subject.salana_score)}</td><td>{subject.total_score === null ? "—" : `${formatResultNumber(subject.total_score)} / ${formatResultNumber(subject.max_score)}`}</td><td>{subject.passed === null ? "نا مکمل" : subject.passed ? "کامیاب" : "ناکام"}</td>
               </tr>)}</tbody>
-              <tfoot><tr><th>مجموعه عمومی</th><th colSpan="3">{formatResultNumber(student.total_score)} از {formatResultNumber(student.maximum_score)}</th>{examType === "salana" && <th></th>}<th>{formatResultNumber(student.percentage)}٪</th><th>{student.complete ? student.passed ? "کامیاب" : "ناکام" : "نا مکمل"}</th></tr></tfoot>
+              <tfoot><tr><th>مجموعه عمومی</th><th colSpan="5">{formatResultNumber(student.total_score)} از {formatResultNumber(student.maximum_score)}</th><th>{formatResultNumber(student.percentage)}٪</th><th>{student.complete ? student.passed ? "کامیاب" : "ناکام" : "نا مکمل"}</th></tr></tfoot>
             </table>
-            <div className="attendance-strip"><span>حاضری: <b>{formatResultNumber(student.attendance.present_days)}</b> روز</span><span>غیرحاضری: <b>{formatResultNumber(student.attendance.absent_days)}</b> روز</span></div>
-            <footer className="signature-row"><span>امضای معلم مضمون: __________________</span><span>امضای مدیر: __________________</span><span>مهر مکتب</span></footer>
-          </div>
+            <footer className="signature-row"><span>امضای معلم: __________________</span><span>امضای مدیر: __________________</span><span>مهر مکتب</span></footer>
+          </div> : <div className="certificate-frame">
+            <header className="certificate-header"><img src="/wifaq-logo.png" alt="Wifaq School" /><div><h1>تقدیرنامه</h1><p>شبکه تعلیمی وفاق</p></div><span className="exam-seal">سال تعلیمی</span></header>
+            <div className="certificate-copy"><strong>دانش‌آموز ارجمند!</strong><p>فرزند {student.name}، شاگرد صنف {activeClass?.class_name} {activeClass?.section || ""}، با کمال مسرت و افتخار موفقیت شما را در امتحان {examType === "chaharnima" ? "چهارنیمه" : "سالانه"} تبریک می‌گوییم.</p><p>با آرزوی موفقیت‌های روزافزون شما در مسیر دانش و خدمت به جامعه.</p></div>
+            <footer className="signature-row"><span>با احترام</span><span>مدیریت مکتب وفاق</span><span>مهر مکتب</span></footer>
+          </div>}
         </article>)}
       </section>
     </>}
     {!loading && reportReady && !students.length && <Card><p className="py-8 text-center text-sm text-gray-500">No students or report data are available for this class and year.</p></Card>}
     <style>{`
       .report-card { color:#132f2d; font-family:Vazirmatn,"Noto Naskh Arabic",serif; }
+      .result-sheet-frame { box-sizing:border-box; min-height:190mm; padding:9mm; background:#fff; border:2px solid #d4a62d; border-radius:4px; }
       .certificate-frame { box-sizing:border-box; position:relative; min-height:190mm; padding:26px; background:#fff; border:8px double #d8a92b; box-shadow:inset 0 0 0 5px #fff,inset 0 0 0 7px #e4ba48; }
       .certificate-header { display:grid; grid-template-columns:100px 1fr 76px; align-items:center; gap:14px; border-bottom:2px solid #d8a92b; padding-bottom:14px; }
       .certificate-header img { width:88px; height:68px; object-fit:contain; }
       .certificate-header h1 { margin:0; text-align:center; color:#075d5a; font-size:24px; }
       .certificate-header p { margin:4px 0 0; text-align:center; color:#9b7416; font-size:13px; }
       .exam-seal { border:2px solid #c7a13b; border-radius:50%; display:grid; place-items:center; width:70px; aspect-ratio:1; color:#785812; font-weight:700; text-align:center; font-size:13px; }
-      .student-details { display:grid; grid-template-columns:1fr 1fr; gap:9px 22px; padding:16px 0; font-size:13px; }
-      .report-subjects { width:100%; border-collapse:collapse; font-size:11px; }
-      .report-subjects th,.report-subjects td { border:1px solid #b7cbc7; padding:7px 5px; text-align:center; }
+      .certificate-header h1 { margin:0; text-align:center; color:#075d5a; font-size:24px; }
+      .certificate-header p { margin:4px 0 0; text-align:center; color:#9b7416; font-size:13px; }
+      .result-school-name { font-weight:700; }
+      .result-student-line { display:flex; justify-content:space-between; gap:14px; padding:8px 0; font-size:12px; }
+      .result-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:5px 0 9px; }
+      .result-stats div { display:flex; justify-content:space-between; align-items:center; gap:7px; padding:7px 9px; background:#f1f6f4; border:1px solid #dce8e4; border-radius:3px; }
+      .result-stats div:nth-child(2) { border-top:3px solid #d4a62d; }
+      .result-stats div:nth-child(3) { border-top:3px solid #36986b; }
+      .result-stats div:nth-child(4) { border-top:3px solid #c9685e; }
+      .result-stats small { color:#526762; font-size:10px; }
+      .result-stats b { color:#075d5a; font-size:12px; }
+      .report-subjects { width:100%; border-collapse:collapse; font-size:10px; }
+      .report-subjects th,.report-subjects td { border:1px solid #b7cbc7; padding:6px 4px; text-align:center; }
+      .report-subjects th:first-child,.report-subjects td:first-child { text-align:right; }
       .report-subjects thead { background:#075d5a; color:#fff; }
       .report-subjects tbody tr:nth-child(even) { background:#f2f8f6; }
       .report-subjects tfoot { background:#f7edcf; }
-      .attendance-strip { display:flex; justify-content:space-around; border:1px solid #d8a92b; padding:9px; margin-top:12px; font-size:12px; }
-      .signature-row { display:flex; justify-content:space-between; gap:12px; margin-top:34px; font-size:11px; }
+      .signature-row { display:flex; justify-content:space-between; gap:12px; margin-top:13mm; font-size:11px; }
+      .certificate-copy { margin-top:24mm; text-align:right; font-size:18px; line-height:2; }
+      .certificate-copy p { margin:10mm 0; }
       .report-card.print-hidden { display:none!important; }
-      @media print { @page { size:A4 landscape; margin:10mm; } body { background:white!important; } .no-print,button,nav,aside,header:not(.certificate-header) { display:none!important; } .report-print-area { margin:0!important; } .report-card { page-break-after:always; break-after:page; } .report-card:last-child { page-break-after:auto; break-after:auto; } .report-card.print-hidden { display:none!important; } .certificate-frame { min-height:190mm; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
-      @media (max-width:640px) { .certificate-frame { padding:14px; border-width:5px; } .certificate-header { grid-template-columns:60px 1fr 54px; gap:7px; } .certificate-header img { width:58px; height:52px; } .certificate-header h1 { font-size:18px; } .exam-seal { width:50px; font-size:10px; } .report-subjects { font-size:9px; } .report-subjects th,.report-subjects td { padding:5px 2px; } .signature-row { flex-wrap:wrap; } }
+      @media print { @page { size:A4 landscape; margin:8mm; } body { background:white!important; } .no-print,button,nav,aside,header:not(.certificate-header) { display:none!important; } .report-print-area { margin:0!important; } .report-card { page-break-after:always; break-after:page; } .report-card:last-child { page-break-after:auto; break-after:auto; } .report-card.print-hidden { display:none!important; } .result-sheet-frame,.certificate-frame { min-height:190mm; height:190mm; overflow:hidden; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
+      @media (max-width:640px) { .result-student-line { flex-wrap:wrap; } .result-stats { grid-template-columns:1fr 1fr; } .certificate-frame { padding:14px; border-width:5px; } .certificate-header { grid-template-columns:60px 1fr 54px; gap:7px; } .certificate-header img { width:58px; height:52px; } .certificate-header h1 { font-size:18px; } .exam-seal { width:50px; font-size:10px; } .report-subjects { font-size:9px; } .report-subjects th,.report-subjects td { padding:5px 2px; } .signature-row { flex-wrap:wrap; } }
     `}</style>
   </Page>;
 }

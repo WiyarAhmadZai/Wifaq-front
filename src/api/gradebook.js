@@ -72,12 +72,12 @@ export const examResultSheet = (params) => get(`${BASE}/exam-results/sheet`, { p
 export const saveExamResults = (data) => post(`${BASE}/exam-results/save`, data);
 export const saveExamResultSettings = (data) => put(`${BASE}/exam-results/settings`, data);
 export const examReportCards = (params) => get(`${BASE}/exam-results/report-cards`, { params });
-export const downloadExamReportPdf = async (params) => {
-  const response = await get(`${BASE}/exam-results/report-cards/pdf`, { params, responseType: "blob" });
+export const downloadExamReportPdf = async (params, documentType = "result-sheet") => {
+  const response = await get(`${BASE}/exam-results/report-cards/pdf`, { params: { ...params, document_type: documentType }, responseType: "blob" });
   const url = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `report-cards-${params.exam_type}-${params.class_id}.pdf`;
+  link.download = `${documentType}-${params.exam_type}-${params.class_id}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();

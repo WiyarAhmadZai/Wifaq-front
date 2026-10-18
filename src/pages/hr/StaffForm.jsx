@@ -26,7 +26,7 @@ const FIELD_LABELS = {
   branch_id: "Branch",
   department_id: "Department",
   job_requisition_id: "Job requisition",
-  supervisor_id: "Supervisor",
+  supervisor_ids: "Supervisors",
   role_title_en: "Role title",
   contract_type: "Contract type",
   "application.full_name": "Full name",
@@ -115,6 +115,79 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
   );
 }
 
+function MultiSearchSelect({ options, value = [], onChange, placeholder = 'Search or select...' }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selectedIds = new Set((Array.isArray(value) ? value : []).map(String));
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const filtered = options.filter((option) => option.label.toLowerCase().includes(query.toLowerCase()));
+  const toggle = (id) => {
+    const next = new Set(selectedIds);
+    if (next.has(String(id))) next.delete(String(id));
+    else next.add(String(id));
+    onChange([...next]);
+    setOpen(true);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+        placeholder={placeholder}
+        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+      />
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {options.filter((option) => selectedIds.has(String(option.value))).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => toggle(option.value)}
+              className="px-2 py-1 rounded-lg bg-teal-50 text-teal-700 text-xs hover:bg-teal-100"
+            >
+              {option.label} ×
+            </button>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
+            ) : filtered.map((option) => {
+              const checked = selectedIds.has(String(option.value));
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => toggle(option.value)}
+                  className={`w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm transition-colors ${checked ? 'bg-teal-50 text-teal-800' : 'hover:bg-teal-50 text-gray-700'}`}
+                >
+                  <span className={`w-4 h-4 border rounded flex items-center justify-center text-[10px] ${checked ? 'bg-teal-600 border-teal-600 text-white' : 'border-gray-300'}`}>
+                    {checked ? '✓' : ''}
+                  </span>
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const StepCard = ({ step, children }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
     <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 rounded-t-2xl flex items-center gap-3">
@@ -190,7 +263,7 @@ export default function StaffForm() {
     father_name: "", blood_type: "",
     profile_photo: null,
     branch_id: "", department_id: "", job_requisition_id: "",
-    role_title_en: "", status: "active", supervisor_id: "",
+    role_title_en: "", status: "active", supervisor_ids: [],
   });
 
   /**
@@ -274,7 +347,9 @@ export default function StaffForm() {
       branch_id: d.branch_id || "",
       department: d.department || "",
       department_id: d.department_id || "",
-      supervisor_id: d.supervisor_id || "",
+      supervisor_ids: d.supervisors?.length
+        ? d.supervisors.map((supervisor) => String(supervisor.id))
+        : (d.supervisor_id ? [String(d.supervisor_id)] : []),
       role_title_en: d.role_title_en || "",
       contract_type: d.contract_type || "",
       status: d.status || "active",
@@ -400,6 +475,11 @@ export default function StaffForm() {
     try {
       const formData = new FormData();
       Object.entries(form).forEach(([key, val]) => {
+        if (key === "supervisor_ids") {
+          if (val.length) val.forEach((supervisorId) => formData.append("supervisor_ids[]", supervisorId));
+          else formData.append("supervisor_ids", "");
+          return;
+        }
         if (val !== null && val !== undefined && val !== "") {
           formData.append(key, typeof val === 'boolean' ? (val ? '1' : '0') : val);
         }
@@ -675,16 +755,16 @@ export default function StaffForm() {
                   />
                 </div>
                 <div>
-                  <Label>Supervisor</Label>
-                  <SearchSelect
+                  <Label>Supervisors</Label>
+                  <MultiSearchSelect
                     options={supervisors
                       .filter(sv => !isEdit || String(sv.id) !== String(id))
                       .map(sv => ({ value: sv.id, label: sv.role_title_en ? `${sv.full_name_en} — ${sv.role_title_en}` : sv.full_name_en }))}
-                    value={form.supervisor_id}
-                    onChange={v => set('supervisor_id', v)}
-                    placeholder="Select supervisor..."
+                    value={form.supervisor_ids}
+                    onChange={v => set('supervisor_ids', v)}
+                    placeholder="Search and select supervisors..."
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">Receives this person's leave and other requests first. Leave empty to send them straight to HR.</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Selected supervisors can review this staff member's lesson plans and receive their requests. Leave empty to send requests straight to HR.</p>
                 </div>
                 <div>
                   <Label>Position Title</Label>

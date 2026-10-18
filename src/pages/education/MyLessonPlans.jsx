@@ -41,10 +41,20 @@ export default function MyLessonPlans() {
     const t = setTimeout(() => setQ(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
-  const { hasPermission } = useAuth();
+  const { hasPermission, user, isSuperAdmin } = useAuth();
   // Leadership (reviewer / analyst) gets ALL teachers' plans from the backend —
   // this list becomes a read-only browse with the teacher's name on each card.
   const isLeadership = hasPermission("lesson-plans.review") || hasPermission("lesson-plans.analyze") || hasPermission("lesson-plans.manage");
+  const title = isSuperAdmin
+    ? "Lesson Plans — All Teachers"
+    : user?.is_lesson_plan_supervisor
+      ? "Lesson Plans — My Team"
+      : "My Lesson Plans";
+  const subtitle = isSuperAdmin
+    ? "Browse every teacher's plans, reviews & reflections"
+    : user?.is_lesson_plan_supervisor
+      ? "Browse plans belonging to your assigned reporting team"
+      : "History, review status, dimensions filled & reflection";
 
   const load = useCallback(() => {
     setLoading(true);
@@ -86,8 +96,8 @@ export default function MyLessonPlans() {
 
   return (
     <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
-      <Hero title={isLeadership ? "Lesson Plans — All Teachers" : "My Lesson Plans"}
-        subtitle={isLeadership ? "Browse every teacher's plans, reviews & reflections" : "History, review status, dimensions filled & reflection"}
+      <Hero title={title}
+        subtitle={subtitle}
         right={
           <button onClick={() => navigate("/education/lesson-plans/create")} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: GOLD, color: "#052528" }}>
             ＋ New plan

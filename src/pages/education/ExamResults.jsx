@@ -296,6 +296,7 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
   const [downloading, setDownloading] = useState(false);
   const [documentType, setDocumentType] = useState("result-sheet");
   const [printStudentId, setPrintStudentId] = useState(null);
+  const [viewStudentId, setViewStudentId] = useState(null);
 
   useEffect(() => {
     examResultFormData().then((response) => {
@@ -325,6 +326,7 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
   const reportReady = report?.request_key === `${classId}:${termId}:${examType}`;
 
   function printDocument(type, studentId = null) {
+    setViewStudentId(null);
     setDocumentType(type);
     setPrintStudentId(studentId);
     window.addEventListener("afterprint", () => {
@@ -363,12 +365,13 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
         <table className="w-full min-w-[680px]">
           <thead><tr><th className={thCls}>Student</th><th className={`${thCls} text-right`}>Total</th><th className={`${thCls} text-right`}>Percent</th><th className={`${thCls} text-right`}>Present</th><th className={`${thCls} text-right`}>Absent</th><th className={thCls}>Result</th><th className={thCls}>View / Print</th></tr></thead>
           <tbody>{students.map((student) => <tr key={student.student_id} className="border-b border-gray-100">
-            <td className={tdCls}>{student.name}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.total_score)} / {formatResultNumber(student.maximum_score)}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.percentage)}٪</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.present_days)}</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.absent_days)}</td><td className={tdCls}>{student.complete ? student.passed ? "Pass" : "Fail" : "Incomplete"}</td><td className={`${tdCls} whitespace-nowrap`}><a className="font-semibold text-teal-700 hover:underline" href={`#report-${student.student_id}`}>Open</a><button type="button" className="ml-3 text-gray-500 hover:text-teal-700" title={`Print ${student.name}'s result sheet`} aria-label={`Print ${student.name}'s result sheet`} onClick={() => printDocument("result-sheet", student.student_id)}><FiPrinter aria-hidden /></button><button type="button" className="ml-2 text-gray-500 hover:text-teal-700" title={`Download ${student.name}'s result PDF`} aria-label={`Download ${student.name}'s result PDF`} onClick={() => downloadPdf(student.student_id)}><FiDownload aria-hidden /></button><button type="button" className="ml-2 text-amber-700 hover:text-amber-900" title={`Print ${student.name}'s certificate`} aria-label={`Print ${student.name}'s certificate`} onClick={() => printDocument("certificate", student.student_id)}>✧</button></td>
+            <td className={tdCls}>{student.name}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.total_score)} / {formatResultNumber(student.maximum_score)}</td><td className={`${tdCls} text-right tabular-nums`}>{formatResultNumber(student.percentage)}٪</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.present_days)}</td><td className={`${tdCls} text-right`}>{formatResultNumber(student.attendance.absent_days)}</td><td className={tdCls}>{student.complete ? student.passed ? "Pass" : "Fail" : "Incomplete"}</td><td className={`${tdCls} whitespace-nowrap`}><button type="button" className="font-semibold text-teal-700 hover:underline" onClick={() => { setDocumentType("result-sheet"); setViewStudentId(student.student_id); }}>View</button><button type="button" className="ml-3 text-gray-500 hover:text-teal-700" title={`Print ${student.name}'s result sheet`} aria-label={`Print ${student.name}'s result sheet`} onClick={() => printDocument("result-sheet", student.student_id)}><FiPrinter aria-hidden /></button><button type="button" className="ml-2 text-gray-500 hover:text-teal-700" title={`Download ${student.name}'s result PDF`} aria-label={`Download ${student.name}'s result PDF`} onClick={() => downloadPdf(student.student_id)}><FiDownload aria-hidden /></button><button type="button" className="ml-2 text-amber-700 hover:text-amber-900" title={`Print ${student.name}'s certificate`} aria-label={`Print ${student.name}'s certificate`} onClick={() => printDocument("certificate", student.student_id)}><FiPrinter aria-hidden /></button></td>
           </tr>)}</tbody>
         </table>
       </div>
-      <section className="report-print-area mt-5 space-y-5">
-        {students.map((student) => <article className={`report-card ${printStudentId && printStudentId !== student.student_id ? "print-hidden" : ""}`} data-student={student.student_id} id={`report-${student.student_id}`} key={student.student_id} dir="rtl" lang="fa-AF">
+      <section className={`report-print-area ${viewStudentId ? "screen-preview" : ""}`}>
+        {viewStudentId && <div className="screen-preview-toolbar no-print"><strong>{students.find((student) => student.student_id === viewStudentId)?.name}</strong><button type="button" onClick={() => setViewStudentId(null)}>Close</button><button type="button" onClick={() => printDocument("result-sheet", viewStudentId)}>Print result sheet</button><button type="button" onClick={() => printDocument("certificate", viewStudentId)}>Print certificate</button></div>}
+        {students.map((student) => <article className={`report-card ${((printStudentId || viewStudentId) && (printStudentId || viewStudentId) !== student.student_id) ? "print-hidden" : ""}`} data-student={student.student_id} id={`report-${student.student_id}`} key={student.student_id} dir="rtl" lang="fa-AF">
           {documentType === "result-sheet" ? <div className="result-sheet-frame">
             <header className="certificate-header">
               <img src="/wifaq-logo.png" alt="Wifaq School" />
@@ -431,8 +434,14 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
       .signature-row { display:flex; justify-content:space-between; gap:12px; margin-top:13mm; font-size:11px; }
       .certificate-copy { margin-top:24mm; text-align:right; font-size:18px; line-height:2; }
       .certificate-copy p { margin:10mm 0; }
+      .report-print-area { display:none; }
+      .report-print-area.screen-preview { display:block; position:fixed; z-index:70; inset:0; overflow:auto; padding:24px; background:rgba(19,47,45,.82); }
+      .screen-preview-toolbar { display:flex; align-items:center; justify-content:flex-end; gap:10px; max-width:1100px; margin:0 auto 12px; padding:10px 14px; background:#fff; border-radius:5px; }
+      .screen-preview-toolbar strong { margin-right:auto; }
+      .screen-preview-toolbar button { padding:7px 11px; border:1px solid #d1d5db; border-radius:4px; color:#075d5a; font-size:12px; }
+      .screen-preview .report-card { max-width:1100px; margin:0 auto; background:#fff; }
       .report-card.print-hidden { display:none!important; }
-      @media print { @page { size:A4 landscape; margin:8mm; } body { background:white!important; } .no-print,button,nav,aside,header:not(.certificate-header) { display:none!important; } .report-print-area { margin:0!important; } .report-card { page-break-after:always; break-after:page; } .report-card:last-child { page-break-after:auto; break-after:auto; } .report-card.print-hidden { display:none!important; } .result-sheet-frame,.certificate-frame { min-height:190mm; height:190mm; overflow:hidden; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
+      @media print { @page { size:A4 landscape; margin:8mm; } html,body,#root { height:auto!important; min-height:0!important; overflow:visible!important; background:white!important; } body * { visibility:hidden!important; } .report-print-area,.report-print-area * { visibility:visible!important; } .report-print-area { display:block!important; position:absolute!important; inset:0 auto auto 0!important; width:100%!important; margin:0!important; padding:0!important; overflow:visible!important; background:white!important; } .screen-preview-toolbar,.no-print,button,nav,aside,header:not(.certificate-header) { display:none!important; } .report-card { display:block!important; width:100%!important; margin:0!important; page-break-after:always; break-after:page; } .report-card:last-child { page-break-after:auto; break-after:auto; } .report-card.print-hidden { display:none!important; } .result-sheet-frame,.certificate-frame { min-height:190mm; height:190mm; overflow:hidden; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
       @media (max-width:640px) { .result-student-line { flex-wrap:wrap; } .result-stats { grid-template-columns:1fr 1fr; } .certificate-frame { padding:14px; border-width:5px; } .certificate-header { grid-template-columns:60px 1fr 54px; gap:7px; } .certificate-header img { width:58px; height:52px; } .certificate-header h1 { font-size:18px; } .exam-seal { width:50px; font-size:10px; } .report-subjects { font-size:9px; } .report-subjects th,.report-subjects td { padding:5px 2px; } .signature-row { flex-wrap:wrap; } }
     `}</style>
   </Page>;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
@@ -31,12 +31,13 @@ const leaveTypeInfo = {
   other: { color: "purple", icon: "M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", desc: "Other type of leave" },
 };
 
-export default function LeaveRequestForm() {
+export default function LeaveRequestForm({ assignMode = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
-  const { hasRole, loading: authLoading } = useAuth();
+  const { hasRole, hasPermission, loading: authLoading } = useAuth();
   const isHr = HR_ROLES.some((r) => hasRole(r));
+  const canAssign = isHr && (hasPermission("leave-request.assign") || hasPermission("leave-request.manage"));
 
   const [form, setForm] = useState({
     staff_id: "",
@@ -53,20 +54,6 @@ export default function LeaveRequestForm() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Wait until AuthContext settles so we don't briefly run the staff-self
-    // branch for an HR user (or vice-versa).
-    if (authLoading) return;
-    if (isHr) {
-      // HR can submit on behalf of anyone — load the full staff picker.
-      fetchStaff();
-    } else {
-      // Regular staff — auto-bind their own staff record via /profile.
-      bindSelfStaff();
-    }
-    if (isEdit) fetchLeaveRequest();
-  }, [id, isHr, authLoading]);
 
   // Total days is computed live from the dates — never stored in the DB.
   const totalDays = (() => {
@@ -129,7 +116,7 @@ export default function LeaveRequestForm() {
     }
   };
 
-  const fetchLeaveRequest = async () => {
+  const fetchLeaveRequest = useCallback(async () => {
     setLoading(true);
     const __cached = peekCache(`/hr/leave-requests/${id}`);
     if (__cached) {
@@ -170,7 +157,23 @@ export default function LeaveRequestForm() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    // Wait until AuthContext settles so we don't briefly run the staff-self
+    // branch for an HR user (or vice-versa).
+    if (authLoading) return;
+    if (assignMode && !canAssign) {
+      navigate("/hr/leave-request");
+      return;
+    }
+    if (isHr) {
+      fetchStaff();
+    } else {
+      bindSelfStaff();
+    }
+    if (id) fetchLeaveRequest();
+  }, [id, isHr, authLoading, assignMode, canAssign, navigate, fetchLeaveRequest]);
 
   const selectStaff = (staffId) => {
     const staff = staffList.find((s) => String(s.id) === String(staffId));
@@ -193,12 +196,12 @@ export default function LeaveRequestForm() {
     // their own behalf so a missing staff_id is fine — the backend resolves
     // it from the authenticated user.
     const errs = {};
-    if (isHr && !form.staff_id) errs.staff_id = "Please select a staff member";
+    if ((isHr || assignMode) && !form.staff_id) errs.staff_id = "Please select a staff member";
     if (!form.leave_type) errs.leave_type = "Leave type is required";
     if (!form.from_date) errs.from_date = "Start date is required";
     if (totalDays < 1) errs.from_date = "Dates produce zero days";
-    if (!form.coverage_plan) errs.coverage_plan = "Coverage plan is required";
-    if (form.leave_type === "other" && !form.reason) errs.reason = "Reason is required for Other leave type";
+    if (!assignMode && !form.coverage_plan) errs.coverage_plan = "Coverage plan is required";
+    if ((assignMode || form.leave_type === "other") && !form.reason) errs.reason = "A reason is required";
 
     if (Object.keys(errs).length) {
       setErrors(errs);
@@ -210,6 +213,12 @@ export default function LeaveRequestForm() {
       if (isEdit) {
         await put(`/hr/leave-requests/${id}`, form);
         Swal.fire("Updated!", "Leave request updated successfully.", "success");
+      } else if (assignMode) {
+        await post("/hr/leave-requests/assign", {
+          ...form,
+          coverage_plan: form.coverage_plan || undefined,
+        });
+        Swal.fire("Assigned!", "Leave has been assigned and approved for the staff member.", "success");
       } else {
         await post("/hr/leave-requests", form);
         Swal.fire("Created!", "Leave request submitted successfully.", "success");
@@ -282,8 +291,8 @@ export default function LeaveRequestForm() {
             </svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Leave Request" : "New Leave Request"}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Submit a request for time off</p>
+            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Leave Request" : assignMode ? "Assign Leave" : "New Leave Request"}</h1>
+            <p className="text-xs text-teal-100 mt-0.5">{assignMode ? "Record approved leave on a staff member's behalf" : "Submit a request for time off"}</p>
           </div>
         </div>
       </div>
@@ -430,7 +439,7 @@ export default function LeaveRequestForm() {
               {/* Reason */}
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Reason {form.leave_type === "other" && <span className="text-red-500">*</span>}
+                  Reason {(assignMode || form.leave_type === "other") && <span className="text-red-500">*</span>}
                 </label>
                 <textarea name="reason" value={form.reason} onChange={handleChange} rows={3}
                   placeholder="Explain the reason for your leave request..."
@@ -441,7 +450,7 @@ export default function LeaveRequestForm() {
           </div>
 
           {/* Coverage Plan */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {!assignMode && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2.5">
               <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -461,7 +470,7 @@ export default function LeaveRequestForm() {
                 className={inputClass("coverage_plan")} />
               {errors.coverage_plan && <p className="text-red-500 text-[10px] mt-1">{errors.coverage_plan}</p>}
             </div>
-          </div>
+          </div>}
 
           {/* Status (edit only) */}
           {isEdit && (
@@ -530,7 +539,7 @@ export default function LeaveRequestForm() {
               {saving ? (
                 <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
               ) : (
-                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Request" : "Submit Request"}</>
+                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Request" : assignMode ? "Assign Approved Leave" : "Submit Request"}</>
               )}
             </button>
           </div>

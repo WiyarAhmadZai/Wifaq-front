@@ -563,6 +563,7 @@ function App() {
             <Route path="hr/attendance/show/:id" element={<Suspense fallback={<PageLoader />}><AttendanceShow /></Suspense>} />
             <Route path="hr/leave-request" element={<Suspense fallback={<PageLoader />}><LeaveRequest /></Suspense>} />
             <Route path="hr/leave-request/create" element={<Suspense fallback={<PageLoader />}><LeaveRequestForm /></Suspense>} />
+            <Route path="hr/leave-request/assign" element={<Suspense fallback={<PageLoader />}><LeaveRequestForm assignMode /></Suspense>} />
             <Route path="hr/leave-request/edit/:id" element={<Suspense fallback={<PageLoader />}><LeaveRequestForm /></Suspense>} />
             <Route path="hr/leave-request/show/:id" element={<Suspense fallback={<PageLoader />}><LeaveRequestShow /></Suspense>} />
             <Route path="hr/jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import CrudPage from "../../components/CrudPage";
 import LeaveRejectModal from "../../components/hr/LeaveRejectModal";
 import { useAuth } from "../../admin/context/AuthContext";
@@ -48,8 +49,10 @@ function daysBetween(fromIso, toIso) {
 }
 
 export default function LeaveRequest() {
+  const navigate = useNavigate();
   const { hasRole, hasPermission } = useAuth();
   const isHr = HR_ROLES.some((r) => hasRole(r));
+  const canAssign = isHr && (hasPermission("leave-request.assign") || hasPermission("leave-request.manage"));
   // Approve/Reject buttons require the explicit permission. Strip
   // `leave-request.approve` from a user and the buttons disappear, even
   // if they're in an HR role.
@@ -227,6 +230,14 @@ export default function LeaveRequest() {
     <>
       <CrudPage
         permissionBase="leave-request"
+        extraHeaderButtons={canAssign && (
+          <button
+            onClick={() => navigate("/hr/leave-request/assign")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
+          >
+            Assign Leave
+          </button>
+        )}
         title={isHr ? "Leave Requests" : "My Leave Requests"}
         apiEndpoint="/hr/leave-requests"
         createRoute="/hr/leave-request/create"

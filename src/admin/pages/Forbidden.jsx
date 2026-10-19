@@ -1,9 +1,21 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { permissionForPath } from "../utils/pathPermissions";
 
 export default function Forbidden() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission } = useAuth();
   const attempted = location.state?.from?.pathname;
+  const access = attempted ? permissionForPath(attempted) : null;
+  const alternatives = (access?.permissionGroups || []).map((group) => {
+    const missingAction = !group.permissions.some(hasPermission);
+    const missingNotifications = group.requiredPermissions.filter((permission) => !hasPermission(permission));
+    return [
+      ...(missingAction ? [`one of: ${group.permissions.join(", ")}`] : []),
+      ...missingNotifications,
+    ];
+  }).filter((items) => items.length > 0);
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
@@ -19,6 +31,15 @@ export default function Forbidden() {
           You don't have permission to access this page.
           {attempted && <span className="block mt-1 text-[11px] text-gray-400 break-all">Attempted: <code>{attempted}</code></span>}
         </p>
+        {alternatives.length > 0 && <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-left">
+          <p className="text-xs font-bold text-amber-900">Ask an administrator to grant:</p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-900">
+            {alternatives.map((requirements, index) => <li key={index}>
+              {alternatives.length > 1 && <span className="font-semibold">Option {index + 1}: </span>}
+              {requirements.join(" and ")}
+            </li>)}
+          </ul>
+        </div>}
         <div className="mt-6 flex gap-2 justify-center">
           <button
             onClick={() => navigate(-1)}

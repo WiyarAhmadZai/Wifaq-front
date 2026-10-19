@@ -99,7 +99,7 @@ export default function StudentEnrollments() {
   useEffect(() => {
     const t = setTimeout(() => fetchItems(1), 400);
     return () => clearTimeout(t);
-  }, [search, filterGrade, filterClass, filterTerm, filterStatus]);
+  }, [fetchItems]);
 
   // Pull every page (with the current filters) for the Excel/Print export.
   const fetchAllEnrollments = useCallback(async () => {
@@ -127,23 +127,19 @@ export default function StudentEnrollments() {
   useEffect(() => {
     (async () => {
       try {
-        const __g = peekCache("/grades/list");
-        if (__g) setGrades(__g?.data || []);
-        const r0 = await get("/grades/list");
-        setGrades(r0.data?.data || []);
-      } catch {}
-      try {
-        const __c = peekCache("/class-management/classes/list?per_page=1000");
-        if (__c) setClasses(__c?.data || []);
-        const r1 = await get("/class-management/classes/list?per_page=1000");
-        setClasses(r1.data?.data || []);
-      } catch {}
-      try {
-        const __t = peekCache("/academic-terms/list");
-        if (__t) setTerms(__t?.data || []);
-        const r2 = await get("/academic-terms/list");
-        setTerms(r2.data?.data || []);
-      } catch {}
+        const optionsUrl = "/student-management/students/filter-options";
+        const applyOptions = (options) => {
+          if (!options) return;
+          setGrades(options.grades || []);
+          setClasses(options.classes || []);
+          setTerms(options.academic_terms || []);
+        };
+        applyOptions(peekCache(optionsUrl));
+        const response = await get(optionsUrl);
+        applyOptions(response.data);
+      } catch (error) {
+        console.error("Failed to load enrollment filters", error);
+      }
     })();
   }, []);
 
@@ -163,7 +159,10 @@ export default function StudentEnrollments() {
     if (res.isConfirmed) {
       try {
         await del(`/student-management/students/delete/${id}`);
-      } catch {}
+      } catch (error) {
+        Swal.fire("Error", error.response?.data?.message || "Could not remove this enrollment.", "error");
+        return;
+      }
       fetchItems(meta.current_page);
       Swal.fire({ icon: "success", title: "Deleted", timer: 1500, showConfirmButton: false });
     }

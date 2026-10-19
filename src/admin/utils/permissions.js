@@ -22,14 +22,23 @@ export const hasRole = (user, role) => {
 export const hasPermission = (user, permission) => {
   if (!user) return false;
   if (isSuperAdmin(user)) return true;
-  if (Array.isArray(permission)) return permission.some((p) => (user.permissions || []).includes(p));
-  return (user.permissions || []).includes(permission);
+  const granted = user.permissions || [];
+  const includes = (name) => {
+    if (granted.includes(name)) return true;
+    const split = name.lastIndexOf(".");
+    if (split < 0) return false;
+    const action = name.slice(split + 1);
+    return ["view", "create", "update", "delete"].includes(action)
+      && granted.includes(`${name.slice(0, split)}.manage`);
+  };
+  if (Array.isArray(permission)) return permission.some(includes);
+  return includes(permission);
 };
 
 export const hasAllPermissions = (user, permissions) => {
   if (!user) return false;
   if (isSuperAdmin(user)) return true;
-  return (permissions || []).every((p) => (user.permissions || []).includes(p));
+  return (permissions || []).every((permission) => hasPermission(user, permission));
 };
 
 /**

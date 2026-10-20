@@ -14,6 +14,7 @@ export default function LessonPlanReview() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const [forbidden, setForbidden] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   /* Filters. `search` is what the reviewer types; `q` is the debounced copy the
    * request actually uses, so a five-letter name is one request rather than
@@ -30,6 +31,8 @@ export default function LessonPlanReview() {
 
   const load = useCallback(() => {
     setLoading(true);
+    setForbidden(false);
+    setLoadError("");
     const params = {};
     if (q) params.q = q;
     if (teacherIds.length) params.teacher_ids = teacherIds;
@@ -49,7 +52,16 @@ export default function LessonPlanReview() {
         setStats(r.data?.stats || null);
         setTeachers(r.data?.teachers || []);
       })
-      .catch((e) => { if (e.response?.status === 403) setForbidden(true); setRows([]); })
+      .catch((e) => {
+        setRows([]);
+        setStats(null);
+        setTeachers([]);
+        if (e.response?.status === 403) {
+          setForbidden(true);
+        } else {
+          setLoadError(e.response?.data?.message || "Unable to load the review queue. Please try again.");
+        }
+      })
       .finally(() => setLoading(false));
   }, [q, teacherIds]);
   useEffect(() => { load(); }, [load]);
@@ -210,7 +222,12 @@ export default function LessonPlanReview() {
           )}
         </div>
 
-        {loading ? <Spinner /> : rows.length === 0 ? (
+        {loadError ? (
+          <div role="alert" className="rounded-2xl border bg-white p-10 text-center" style={{ borderColor: "#dbe8e8" }}>
+            <p className="text-sm text-red-600">{loadError}</p>
+            <button onClick={load} className="mt-3 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white" style={{ background: TEAL }}>Retry</button>
+          </div>
+        ) : loading ? <Spinner /> : rows.length === 0 ? (
           <div className="rounded-2xl border bg-white p-10 text-center" style={{ borderColor: "#dbe8e8" }}>
             <p className="text-sm text-gray-400">
               {search || teacherIds.length > 0

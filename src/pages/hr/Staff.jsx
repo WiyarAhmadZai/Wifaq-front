@@ -19,11 +19,16 @@ export default function Staff() {
   const [deptFilter, setDeptFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [contractFilter, setContractFilter] = useState('');
+  const [supervisorFilter, setSupervisorFilter] = useState('');
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
   const [positionTitles, setPositionTitles] = useState({});
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+  const [supervisorSelection, setSupervisorSelection] = useState([]);
+  const [supervisorSearch, setSupervisorSearch] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
   /* Somebody leaving is the one status change that has to say why: the reason
@@ -44,8 +49,8 @@ export default function Staff() {
   // Staff row whose welcome letter is open (null = modal closed).
   const [letterStaff, setLetterStaff] = useState(null);
 
-  useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); fetchExitReasons(); }, []);
-  useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
+  useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); fetchExitReasons(); fetchSupervisors(); }, []);
+  useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter, supervisorFilter]);
 
   const fetchBranches = async () => {
     try {
@@ -63,6 +68,15 @@ export default function Staff() {
       const res = await listDepartments({ active_only: 1 });
       setDepartments(res.data?.data || res.data || []);
     } catch { setDepartments([]); }
+  };
+
+  const fetchSupervisors = async () => {
+    try {
+      const __cached = peekCache('/hr/staff/supervisors/list');
+      if (__cached) setSupervisors(__cached?.data || __cached || []);
+      const res = await get('/hr/staff/supervisors/list');
+      setSupervisors(res.data?.data || []);
+    } catch { setSupervisors([]); }
   };
 
   const fetchPositionTitles = async () => {
@@ -95,6 +109,7 @@ export default function Staff() {
       if (deptFilter) params.append('department', deptFilter);
       if (branchFilter) params.append('branch_id', branchFilter);
       if (contractFilter) params.append('contract_type', contractFilter);
+      if (supervisorFilter) params.append('supervisor_id', supervisorFilter);
 
       const __cached = peekCache(`/hr/staff/list?${params.toString()}`);
       if (__cached) {
@@ -203,6 +218,40 @@ export default function Staff() {
     } finally { setSaving(false); }
   };
 
+  // Open the supervisors-only editor. Pre-select whoever already supervises
+  // this person (the many-to-many list, falling back to the single line).
+  const openSupervisorModal = (staff) => {
+    const name = staff.application?.full_name || `Staff #${staff.employee_id}`;
+    setSelectedStaff({ ...staff, display_name: name });
+    const current = staff.supervisors?.length
+      ? staff.supervisors.map(s => String(s.id))
+      : (staff.supervisor_id ? [String(staff.supervisor_id)] : []);
+    setSupervisorSelection(current);
+    setSupervisorSearch('');
+    setShowSupervisorModal(true);
+  };
+
+  const toggleSupervisor = (id) => {
+    setSupervisorSelection(prev => {
+      const key = String(id);
+      return prev.includes(key) ? prev.filter(v => v !== key) : [...prev, key];
+    });
+  };
+
+  const handleSupervisorSave = async () => {
+    setSaving(true);
+    try {
+      await put(`/hr/staff/update-supervisors/${selectedStaff.id}`, {
+        supervisor_ids: supervisorSelection.map(Number),
+      });
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Supervisors Updated!', timer: 1500, showConfirmButton: false });
+      setShowSupervisorModal(false);
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to save supervisors', 'error');
+    } finally { setSaving(false); }
+  };
+
   const activeCount = items.filter(i => i.status === 'active').length;
   const inactiveCount = items.filter(i => i.status === 'inactive').length;
 
@@ -212,9 +261,10 @@ export default function Staff() {
     setDeptFilter('');
     setBranchFilter('');
     setContractFilter('');
+    setSupervisorFilter('');
   };
 
-  const hasFilters = search || statusFilter !== 'all' || deptFilter || branchFilter || contractFilter;
+  const hasFilters = search || statusFilter !== 'all' || deptFilter || branchFilter || contractFilter || supervisorFilter;
 
   // Helper to get name from application relationship
   const getName = (item) => item.application?.full_name || `Staff #${item.employee_id}`;
@@ -294,6 +344,11 @@ export default function Staff() {
               <option value="">All Contracts</option>
               {[{ v: "FT", l: "Full Time" }, { v: "PT", l: "Part Time" }, { v: "TEMP", l: "Temporary" }, { v: "CONTRACT", l: "Contract" }, { v: "INTERNSHIP", l: "Internship" }].map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
             </select>
+            <select value={supervisorFilter} onChange={e => setSupervisorFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white max-w-[180px]">
+              <option value="">All Supervisors</option>
+              {supervisors.map(s => <option key={s.id} value={s.id}>{s.full_name_en}{s.employee_id ? ` (${s.employee_id})` : ''}</option>)}
+            </select>
             {hasFilters && (
               <button onClick={clearFilters}
                 className="px-3 py-2 text-xs text-teal-600 font-semibold hover:bg-teal-50 rounded-xl transition-colors">
@@ -317,6 +372,7 @@ export default function Staff() {
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Staff</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Branch</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden md:table-cell">Department</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Supervisor(s)</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Contract</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Phone</th>
                     <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
@@ -330,6 +386,9 @@ export default function Staff() {
                     const role = positionTitles[item.role_title_en] || item.role_title_en || '';
                     const branchName = item.branch?.name || '—';
                     const dept = item.department_relation?.name || item.department || '';
+                    const supervisorNames = (item.supervisors && item.supervisors.length)
+                      ? item.supervisors.map(s => s.application?.full_name || `Staff #${s.employee_id}`)
+                      : (item.supervisor?.application?.full_name ? [item.supervisor.application.full_name] : []);
                     const contract = item.contract_type || '';
                     const status = item.status || '';
                     const phone = item.application?.contact_number || '';
@@ -356,6 +415,13 @@ export default function Staff() {
                           <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] font-semibold rounded-lg">{branchName}</span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">{dept || '—'}</td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          {supervisorNames.length ? (
+                            <span className="text-[11px] text-gray-600 font-medium" title={supervisorNames.join(', ')}>
+                              {supervisorNames[0]}{supervisorNames.length > 1 && ` +${supervisorNames.length - 1}`}
+                            </span>
+                          ) : <span className="text-[11px] text-gray-400">—</span>}
+                        </td>
                         <td className="px-4 py-3 hidden lg:table-cell">
                           <span className="text-[11px] text-gray-600 font-medium">{CONTRACT_LABELS[contract] || contract || '—'}</span>
                         </td>
@@ -389,6 +455,12 @@ export default function Staff() {
                               <button onClick={() => openTransferModal(item)}
                                 className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Transfer / Update">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                              </button>
+                            )}
+                            {canUpdate && (
+                              <button onClick={() => openSupervisorModal(item)}
+                                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Update Supervisors">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                               </button>
                             )}
                             {canUpdate && (
@@ -593,6 +665,73 @@ export default function Staff() {
           </div>
         </div>
       )}
+
+      {/* Supervisors Update Modal */}
+      {showSupervisorModal && selectedStaff && (() => {
+        const query = supervisorSearch.trim().toLowerCase();
+        const candidates = supervisors.filter(s => String(s.id) !== String(selectedStaff.id));
+        const filtered = query
+          ? candidates.filter(s => (s.full_name_en || '').toLowerCase().includes(query) || (s.employee_id || '').toLowerCase().includes(query) || (s.role_title_en || '').toLowerCase().includes(query))
+          : candidates;
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+              <div className="px-5 py-4 bg-purple-50 border-b border-purple-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center text-white flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800">Update Supervisors</h3>
+                    <p className="text-[11px] text-purple-600 mt-0.5">{selectedStaff.display_name} — {selectedStaff.employee_id}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-5 pt-4">
+                <input value={supervisorSearch} onChange={e => setSupervisorSearch(e.target.value)}
+                  placeholder="Search colleagues by name, code, or role…"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none" />
+                <p className="text-[10px] text-gray-400 mt-1">Pick one or several. The first selected becomes the primary reporting line. Leave empty to send requests straight to HR.</p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-3">
+                {filtered.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-6">No colleagues found.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {filtered.map(s => {
+                      const checked = supervisorSelection.includes(String(s.id));
+                      const primary = supervisorSelection[0] === String(s.id);
+                      return (
+                        <label key={s.id}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-purple-300 bg-purple-50' : 'border-gray-100 hover:bg-gray-50'}`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleSupervisor(s.id)}
+                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-gray-800 truncate">{s.full_name_en}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{s.employee_id}{s.role_title_en ? ` · ${s.role_title_en}` : ''}</p>
+                          </div>
+                          {primary && <span className="text-[9px] font-bold text-purple-600 uppercase">Primary</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                <p className="text-[11px] text-gray-500">{supervisorSelection.length} selected</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowSupervisorModal(false)}
+                    className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 text-xs font-medium">Cancel</button>
+                  <button onClick={handleSupervisorSave} disabled={saving}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-xs font-semibold disabled:opacity-50">
+                    {saving ? 'Saving...' : 'Save Supervisors'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {letterStaff && (
         <WelcomeLetterModal

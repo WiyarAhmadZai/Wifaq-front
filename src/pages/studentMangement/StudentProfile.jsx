@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { get, put, post, peekCache } from "../../api/axios";
 import { toastSuccess, toastError } from "../../utils/toast";
 import Modal from "../../components/Modal";
@@ -112,14 +112,22 @@ const TABS = [
 ];
 
 import StaffGallery from "../hr/StaffGallery";
+import { AuthImage, FullScreenImage } from "../../components/AuthImage";
 
 export default function StudentProfile() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [params] = useSearchParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("overview");
+  // ?tab=gallery opens straight on the album: the Student Gallery screen links
+  // here after somebody picks a child, and making them click the tab again is
+  // friction on the one journey that already knows where it is going.
+  const [tab, setTab] = useState(TABS.some((t) => t.key === params.get("tab")) ? params.get("tab") : "overview");
   const [saving, setSaving] = useState(false);
+  // The child's photo, enlarged over the page. An overlay and not a route, so
+  // closing it returns you to the very tab and scroll position you left.
+  const [zoomPhoto, setZoomPhoto] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -300,7 +308,8 @@ export default function StudentProfile() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 flex-wrap">
           {s.photo_url ? (
             <img src={s.photo_url} alt={s.full_name || "Student"}
-              className="w-20 h-20 rounded-2xl object-cover border border-teal-100 shrink-0"
+              onClick={() => setZoomPhoto(true)} title="click to enlarge"
+              className="w-20 h-20 rounded-2xl object-cover border border-teal-100 shrink-0 cursor-zoom-in"
               // A photo that will not load must not leave an empty box where a
               // face should be — drop back to the initials underneath.
               onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }} />
@@ -347,18 +356,112 @@ export default function StudentProfile() {
               canAdd={can.record_info} />
           )}
           {tab === "portrait" && <Portrait {...ctx} />}
-          {/* The same gallery component the staff profile uses — one screen,
-              a different subject. The endpoint and the permission behind it
-              are the only difference, and both come from the prop. */}
-          {tab === "gallery" && (
-            <StaffGallery subject="student" subjectId={data?.student?.id}
-              subjectName={data?.student?.full_name} />
-          )}
+          {/* Every picture of this child the school holds: their own photo, the
+              album curated on the Student Gallery screen, and the photographs
+              teachers attached to an observation. The same gallery component the
+              staff profile uses — one screen, a different subject. */}
+          {tab === "gallery" && <GalleryTab {...ctx} />}
           {tab === "interview" && <LogSection {...ctx} title="Interviewer Observations · مشاهدات مصاحبه" subtitle="Confidential — internal use only" sensitive items={data.sensitive?.interview_observation} path="/interview" dateKey="interviewed_at" fields={INTERVIEW_FIELDS} />}
           {tab === "updates" && <Updates {...ctx} />}
           {tab === "caredesk" && <CareDesk {...ctx} />}
         </div>
       </div>
+
+      {zoomPhoto && s.photo_url && (
+        <FullScreenImage src={s.photo_url} alt={s.full_name || "Student"}
+          caption={s.full_name} onClose={() => setZoomPhoto(false)} />
+      )}
+    </div>
+  );
+}
+
+/* ════════════════ gallery: every picture of this child ════════════════
+
+   Three sources, one screen. The child's own photo sits at the top because it
+   is the fastest way to be sure you are looking at the right person; the album
+   underneath it is the curated one, written by whoever holds `student-gallery`;
+   and the observation photographs at the bottom are evidence a teacher filed,
+   which nobody curates and which arrives here read-only.
+
+   Clicking any of them fills the screen. The ✕ puts the page back exactly as it
+   was — the viewer is an overlay, not a route, so the tab you were on, the
+   scroll position and anything half-typed all survive the look.            */
+function GalleryTab({ data }) {
+  const s = data.student;
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const [zoom, setZoom] = useState(null);   // { src | authSrc, alt, caption }
+  const shots = data.development?.observation_photos || [];
+  const initials = `${s.first_name?.[0] || ""}${s.last_name?.[0] || ""}`.toUpperCase();
+  const showPhoto = Boolean(s.photo_url) && !photoFailed;
+
+  return (
+    <div className="space-y-4">
+      {/* ── the child's own picture ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center gap-4 flex-wrap">
+          <button type="button"
+            disabled={!showPhoto}
+            onClick={() => showPhoto && setZoom({ src: s.photo_url, alt: s.full_name || "Student", caption: s.full_name })}
+            title={showPhoto ? "click to enlarge" : undefined}
+            className="relative shrink-0 group disabled:cursor-default">
+            {showPhoto ? (
+              <img src={s.photo_url} alt={s.full_name || "Student"}
+                onError={() => setPhotoFailed(true)}
+                className="w-28 h-28 rounded-2xl object-cover border border-teal-100" />
+            ) : (
+              <div className="w-28 h-28 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center text-3xl font-black">
+                {initials || "?"}
+              </div>
+            )}
+            {showPhoto && (
+              <span className="absolute inset-0 hidden group-hover:flex items-center justify-center gap-1
+                               bg-black/40 rounded-2xl text-white text-[11px] font-bold">🔍 Zoom</span>
+            )}
+          </button>
+          <div className="min-w-0 flex-1">
+            <bdi dir="auto" className="block text-sm font-bold text-gray-800">{s.full_name}</bdi>
+            <p className="text-[11px] text-gray-500 mt-0.5 font-mono">{s.student_id}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">{[s.class, s.grade].filter(Boolean).join(" · ")}</p>
+            {!s.photo_url && (
+              <p className="text-[11px] text-gray-400 mt-1">No profile photo yet — it is uploaded on the student's registration form.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── the album ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <p className="text-xs font-bold text-gray-500 mb-3">Gallery</p>
+        <StaffGallery subject="student" subjectId={s.id} subjectName={s.full_name} />
+      </div>
+
+      {/* ── evidence a teacher attached to an observation ── */}
+      {shots.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-500">From observations</p>
+          <p className="text-[11px] text-gray-400 mb-3">Photographs recorded with an observation. Read-only — they belong to that record.</p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+            {shots.map((p) => {
+              const path = `/student-observations/${p.observation_id}/photo/${p.index}`;
+              return (
+                <button key={`${p.observation_id}-${p.index}`} type="button"
+                  onClick={() => setZoom({ authSrc: path, alt: p.name || "Observation photo", caption: p.observed_on })}
+                  className="relative aspect-square rounded-xl overflow-hidden border border-gray-100
+                             hover:ring-2 hover:ring-teal-400 transition-all">
+                  <AuthImage src={path} alt={p.name || "Observation photo"} className="w-full h-full object-cover" />
+                  {p.observed_on && (
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/55 text-white text-[9px]">
+                      {p.observed_on}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {zoom && <FullScreenImage {...zoom} onClose={() => setZoom(null)} />}
     </div>
   );
 }
@@ -532,6 +635,9 @@ function FourD({ data, save, saving, can }) {
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 capitalize">{r.rated_by}</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 capitalize">{r.context}</span>
                     <span className="text-[11px] font-semibold text-gray-600">{relativeTime(r.rated_at || r.created_at)}</span>
+                    {r.recorded_by?.name && (
+                      <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{r.recorded_by.name}</span></span>
+                    )}
                     <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(r.rated_at || r.created_at)}</span>
                   </div>
                   <div className="p-4 space-y-2.5">
@@ -601,6 +707,9 @@ function Habits({ data, save, saving, can }) {
             <div key={h.id} className="rounded-xl border border-gray-100 p-3">
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-[11px] text-gray-500">Sleep {h.sleep_time || "—"} · Wake {h.wake_time || "—"}</span>
+                {h.recorded_by?.name && (
+                  <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{h.recorded_by.name}</span></span>
+                )}
                 <span className="text-[11px] text-gray-400 ml-auto">{fmtDateTime(h.recorded_at || h.created_at)}</span>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">

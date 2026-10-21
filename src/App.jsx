@@ -257,6 +257,7 @@ const FoundationRequestShow = lazy(() => import("./pages/studentMangement/Founda
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
 const StudentShow = lazy(() => import("./pages/studentMangement/StudentShow"));
 const StudentProfile = lazy(() => import("./pages/studentMangement/StudentProfile"));
+const StudentGallery = lazy(() => import("./pages/studentMangement/StudentGallery"));
 const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEnrollments"));
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
 
@@ -732,6 +733,14 @@ function App() {
             <Route path="student-management/students/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentShow /></Suspense>} />
             <Route path="student-management/students/profile/:id" element={<Suspense fallback={<PageLoader />}><StudentProfile /></Suspense>} />
+            {/* Student Gallery — find the child, then add their photos. The
+                album itself also sits on the profile; this is the way in for
+                whoever has a photograph in hand and needs to file it. */}
+            <Route path="student-management/student-gallery" element={
+              <Protected permission="student-gallery.view">
+                <Suspense fallback={<PageLoader />}><StudentGallery /></Suspense>
+              </Protected>
+            } />
             {/* Student register. `/report` and `/my-children` must be declared
                 BEFORE the bare attendance route or the prefix match would
                 swallow them. */}

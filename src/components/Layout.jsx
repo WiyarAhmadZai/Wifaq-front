@@ -1456,6 +1456,10 @@ export default function Layout() {
     { label: "Student Information", path: "/student-management/students", permission: "students.view" },
     { label: "Student Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
     { label: "Enrolled Students", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
+    // A child's photo album, reached by searching for the child. Its own
+    // grant (`student-gallery.view`) because a pupil's photographs are a
+    // safeguarding record, not part of the register.
+    { label: "Student Gallery", path: "/student-management/student-gallery", permission: "student-gallery.view" },
     { label: "Foundation Requests", path: "/student-management/foundation-requests", permission: "foundation-requests.view" },
     // Student register — the student-side mirror of staff attendance. The
     // report sits behind the stricter grant, so a class teacher sees only

@@ -157,6 +157,9 @@ const RULES = [
   { prefix: "/student-management/attendance/report", permission: "student-attendance.report" },
   { prefix: "/student-management/attendance", permission: "student-attendance.view" },
   { prefix: "/student-management/enrolled-students", permission: "enrolled-students.view" },
+  // A child's photo album. Its own grant, mirroring the backend: holding the
+  // student register is not holding a pupil's photographs.
+  { prefix: "/student-management/student-gallery", permission: "student-gallery.view" },
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },
   { prefix: "/student-management/student-enrollments", permission: "student-enrollments.view" },
   { prefix: "/student-management/students/profile", permission: "student-profiles.view" },

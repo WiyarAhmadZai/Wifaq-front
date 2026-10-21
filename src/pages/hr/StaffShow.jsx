@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del, API_BASE_URL as _API, peekCache } from '../../api/axios';
+import { get, post, del, API_BASE_URL as _API, peekCache } from '../../api/axios';
 const STORAGE_URL = _API.replace(/\/api\/?$/, '');
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
@@ -13,7 +13,7 @@ import StaffGallery from './StaffGallery';
 import { StaffEvaluation } from '../../components/hr/StaffRatings';
 import StaffTaskCalendar from '../../components/hr/StaffTaskCalendar';
 
-import { fmtDate } from "../../utils/formErrors";
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const DOCUMENT_TYPES = {
   cv_resume: { label: "CV/Resume", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", color: "blue" },
@@ -217,6 +217,24 @@ export default function StaffShow() {
                 )}
               </Section>
             )}
+
+            {/* Self-profile — what the employee entered on their own MyProfile
+                screen. Surfaced here (read-only) so admin/HR can actually read
+                the narrative, skills and personal notes they gave us. */}
+            <SelfProfileSection profile={data.self_profile} />
+
+            {/* Information log — the part the brief asked for by name: a button
+                to add anything we learn as we go (interviews, one-to-ones, a
+                conversation with a family member). Every entry keeps WHO put it
+                on the record and WHEN it came to light, and nothing is ever
+                overwritten. */}
+            <InfoLogSection
+              staffId={data.id}
+              entries={data.info_entries}
+              options={data.info_entry_options}
+              canAdd={canUpdate}
+              onChanged={fetchItem}
+            />
 
             {/* Employment Details */}
             <Section title="Employment Details" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
@@ -833,5 +851,247 @@ function Field({ label, value }) {
       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
       <p className="text-sm font-semibold text-gray-800 capitalize">{value || '—'}</p>
     </div>
+  );
+}
+
+/**
+ * The employee's own narrative profile — the answers they typed into their
+ * MyProfile screen (skills, languages, dreams, growth areas, family).
+ * Read-only here: this is the admin/HR view of what they told us about
+ * themselves, sitting beside everything else on their record.
+ */
+function SelfProfileSection({ profile }) {
+  const chips = (arr) =>
+    Array.isArray(arr) && arr.length
+      ? (
+        <div className="flex flex-wrap gap-1.5">
+          {arr.map((s, i) => (
+            <span key={i} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-100">{s}</span>
+          ))}
+        </div>
+      ) : <span className="text-sm text-gray-400">—</span>;
+
+  const hasAny = profile && (
+    profile.education || profile.previous_experience || profile.strengths || profile.aspirations ||
+    profile.growth_areas || profile.family_status || profile.personal_notes ||
+    (profile.languages || []).length || (profile.skills || []).length || (profile.certifications || []).length
+  );
+
+  if (!hasAny) {
+    return (
+      <Section title="Self-Profile (employee)" icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z">
+        <p className="text-sm text-gray-400">
+          This person has not filled in their own profile yet. It appears here once they complete the
+          self-profile on their MyProfile page.
+        </p>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title="Self-Profile (employee)" icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <Field label="Education" value={profile.education} />
+          <Field label="Family Status" value={profile.family_status} />
+          <Field label="Dependents" value={profile.dependents != null ? String(profile.dependents) : null} />
+        </div>
+        <SelfRow label="Languages">{chips(profile.languages)}</SelfRow>
+        <SelfRow label="Skills">{chips(profile.skills)}</SelfRow>
+        <SelfRow label="Certifications">{chips(profile.certifications)}</SelfRow>
+        <SelfText label="Previous experience" value={profile.previous_experience} />
+        <SelfText label="Strengths" value={profile.strengths} />
+        <SelfText label="Aspirations" value={profile.aspirations} />
+        <SelfText label="Growth areas" value={profile.growth_areas} />
+        <SelfText label="Personal notes" value={profile.personal_notes} />
+      </div>
+    </Section>
+  );
+}
+
+function SelfRow({ label, children }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function SelfText({ label, value }) {
+  if (!value) return null;
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap" dir="auto">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * The running information log.
+ *
+ * HR reads everything else on this page as fixed fields. This is the free-form
+ * counterweight: a single "＋ Add information" button that drops a new, dated,
+ * attributed record onto the top of the timeline whenever something comes to
+ * mind — an interview, a one-to-one, a call to a family member, a plain
+ * observation. Nothing here edits what came before, so the history of what was
+ * known, by whom, and when is never lost.
+ */
+const TODAY = new Date().toISOString().slice(0, 10);
+const INFO_TONES = {
+  achievement: 'bg-emerald-100 text-emerald-700',
+  concern: 'bg-red-100 text-red-700',
+  performance: 'bg-indigo-100 text-indigo-700',
+  conduct: 'bg-purple-100 text-purple-700',
+  financial: 'bg-amber-100 text-amber-700',
+  health: 'bg-cyan-100 text-cyan-700',
+  family: 'bg-pink-100 text-pink-700',
+  training: 'bg-teal-100 text-teal-700',
+  general: 'bg-gray-100 text-gray-600',
+};
+
+function InfoLogSection({ staffId, entries, options, canAdd, onChanged }) {
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const sources = options?.sources || {};
+  const infoTypes = options?.info_types || {};
+  const blank = () => ({
+    occurred_on: TODAY,
+    source: Object.keys(sources)[0] || 'one_on_one',
+    info_type: Object.keys(infoTypes)[0] || 'general',
+    met_with: '',
+    details: '',
+    action_needed: '',
+    needs_followup: false,
+  });
+  const [form, setForm] = useState(blank());
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  const list = Array.isArray(entries) ? entries : [];
+
+  const submit = async () => {
+    if (!form.details.trim()) {
+      Swal.fire('Required', 'Please describe the information you learned.', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await post(`/hr/staff/${staffId}/info-entries`, form);
+      Swal.fire({ icon: 'success', title: 'Recorded', timer: 1200, showConfirmButton: false });
+      setForm(blank());
+      setAdding(false);
+      onChanged && onChanged();
+    } catch (err) {
+      const errors = err?.response?.data?.errors;
+      const msg = errors ? Object.values(errors).flat().join('\n') : 'Could not save the entry.';
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none';
+  const labelCls = 'block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1';
+
+  return (
+    <Section title="Information Log" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11px] text-gray-500">Facts learned as we go — interviews, meetings, family contacts. Each entry keeps who recorded it and when.</p>
+        {canAdd && (
+          <button onClick={() => setAdding((a) => !a)}
+            className="ml-3 flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white hover:bg-teal-700 transition-colors">
+            {adding ? 'Close' : '＋ Add information'}
+          </button>
+        )}
+      </div>
+
+      {adding && canAdd && (
+        <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 mb-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Date learned</label>
+              <input type="date" max={TODAY} value={form.occurred_on} onChange={(e) => set('occurred_on', e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className={labelCls}>How we learned it</label>
+              <select value={form.source} onChange={(e) => set('source', e.target.value)} className={inp}>
+                {Object.entries(sources).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Type of information</label>
+              <select value={form.info_type} onChange={(e) => set('info_type', e.target.value)} className={inp}>
+                {Object.entries(infoTypes).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Who we spoke with (optional)</label>
+            <input value={form.met_with} onChange={(e) => set('met_with', e.target.value)} placeholder="e.g. the person themselves, a supervisor, a family member" className={inp} />
+          </div>
+          <div>
+            <label className={labelCls}>What we learned</label>
+            <textarea value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} placeholder="The information, in your own words" className={inp} dir="auto" />
+          </div>
+          <div>
+            <label className={labelCls}>What the school should do (optional)</label>
+            <textarea value={form.action_needed} onChange={(e) => set('action_needed', e.target.value)} rows={2} className={inp} dir="auto" />
+          </div>
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer w-fit">
+            <input type="checkbox" checked={form.needs_followup} onChange={(e) => set('needs_followup', e.target.checked)} />
+            Needs follow-up
+          </label>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => { setForm(blank()); setAdding(false); }} className="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 text-gray-500">Cancel</button>
+            <button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Save record</button>
+          </div>
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+          <p className="text-sm text-gray-400">No information logged yet.</p>
+        </div>
+      ) : (
+        <div className="relative">
+          <span className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-teal-200 via-gray-200 to-transparent" aria-hidden />
+          <div className="space-y-4">
+            {list.map((row, i) => (
+              <div key={row.id || i} className="relative pl-7">
+                <span className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white"
+                  style={{ background: i === 0 ? '#0D5C63' : '#cbd5d5', boxShadow: '0 0 0 1px #e5e7eb' }} aria-hidden />
+                <div className={`rounded-2xl border bg-white overflow-hidden ${i === 0 ? 'border-teal-200 shadow-sm' : 'border-gray-100'}`}>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50/70 border-b border-gray-100 flex-wrap">
+                    {i === 0 && <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-600 text-white uppercase tracking-wider">Latest</span>}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600">{sources[row.source] || row.source}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${INFO_TONES[row.info_type] || 'bg-gray-100 text-gray-600'}`}>{infoTypes[row.info_type] || row.info_type}</span>
+                    {row.needs_followup && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">Follow-up</span>}
+                    {row.recorded_by?.name && (
+                      <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{row.recorded_by.name}</span></span>
+                    )}
+                    <span className="text-[10px] text-gray-400 ml-auto">
+                      Learned {fmtDate(row.occurred_on)}{row.created_at ? ` · entered ${fmtDateTime(row.created_at)}` : ''}
+                    </span>
+                  </div>
+                  <div className="p-4 space-y-2.5">
+                    {row.met_with && (
+                      <p className="text-[11px] text-gray-500">Spoke with: <span className="font-semibold text-gray-700" data-no-i18n>{row.met_with}</span></p>
+                    )}
+                    <p className="text-[14px] leading-6 text-gray-800 whitespace-pre-wrap" dir="auto">{row.details}</p>
+                    {row.action_needed && (
+                      <div className="rounded-lg bg-teal-50/60 border-l-2 border-teal-300 px-3 py-2">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-teal-500 mb-0.5">Action needed</p>
+                        <p className="text-[13px] text-gray-700 whitespace-pre-wrap" dir="auto">{row.action_needed}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }

@@ -31,10 +31,18 @@ function cellValue(col, item) {
   return typeof v === "object" ? "" : v;
 }
 
-function buildMatrix(rows, columns) {
+function buildMatrix(rows, columns, { keepEmpty = false } = {}) {
   const cols = (columns || []).filter((c) => c && c.label && !c.noExport);
   const computed = (rows || []).map((it) => cols.map((c) => cellValue(c, it)));
-  // Drop columns that are empty for every row (e.g. action-only columns).
+  // Print carries EXACTLY the columns the user ticked in the picker, even when
+  // every value happens to be blank. Silently dropping an empty column made a
+  // printed sheet lose the optional ones (Uniform, Father Number) whenever the
+  // records being printed had no values for them — the reader saw the old,
+  // narrower layout and assumed the print was broken.
+  if (keepEmpty) {
+    return { headers: cols.map((c) => c.label), data: computed };
+  }
+  // Excel: drop columns that are empty for every row (e.g. action-only ones).
   const keep = cols.map((_, ci) => computed.some((r) => String(r[ci] ?? "").trim() !== ""));
   const headers = cols.filter((_, ci) => keep[ci]).map((c) => c.label);
   const data = computed.map((r) => r.filter((_, ci) => keep[ci]));
@@ -107,7 +115,7 @@ export function exportSheetsToExcel(sheets, fileBase = "report") {
 export const SCHOOL_NAME = "Wifaq Educational Network";
 
 export function printRows(rows, columns, title = "List") {
-  const { headers, data } = buildMatrix(rows, columns);
+  const { headers, data } = buildMatrix(rows, columns, { keepEmpty: true });
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const colCount = Math.max(1, headers.length);
   // School name + report line live INSIDE <thead> so they sit above the columns

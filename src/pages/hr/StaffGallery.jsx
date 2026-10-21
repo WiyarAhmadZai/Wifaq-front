@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Swal from "sweetalert2";
 import { get, post, put, del, API_BASE_URL } from "../../api/axios";
+import RichTextField, { RichTextView } from "../../components/RichTextField";
+import { richTextToPlain } from "../../utils/richText";
 
 /**
  * The memory wall on a colleague's profile.
@@ -29,6 +31,9 @@ const prettySize = (b) => {
 /** The raw endpoint is same-origin under /api, so a relative URL is enough. */
 const srcOf = (item) => item.url || `${API_BASE_URL}/staff-gallery/item/${item.id}/raw`;
 
+/** The description as one line, for a tile that has no caption of its own. */
+const plain = (item) => (item.description ? (richTextToPlain(item.description) || "").slice(0, 80) : "");
+
 /**
  * A gallery of remembered moments, for a colleague or for a student.
  *
@@ -43,6 +48,10 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
   const who = subjectId ?? staffId;
   const whoName = subjectName ?? staffName;
   const endpoint = subject === "student" ? "/student-gallery" : "/staff-gallery";
+  /* A child's photo is worth a paragraph — what the occasion was, who was
+   * there. A colleague's memory wall stays a one-line caption, so the rich-text
+   * description belongs to the student gallery only. */
+  const hasDescription = subject === "student";
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(true);
@@ -58,8 +67,13 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
   const [mode, setMode] = useState("link");
   const [linkUrl, setLinkUrl] = useState("");
   const [caption, setCaption] = useState("");
+  const [description, setDescription] = useState("");
   const [takenOn, setTakenOn] = useState("");
   const [lightbox, setLightbox] = useState(null);   // the item being viewed large
+  // The edit form, in the page rather than in a Swal prompt: a prompt box
+  // cannot hold a rich-text editor.
+  const [editing, setEditing] = useState(null);     // { id, caption, taken_on, description }
+  const [savingEdit, setSavingEdit] = useState(false);
   const fileInput = useRef(null);
 
   const load = useCallback(async () => {
@@ -92,6 +106,14 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
     return () => document.removeEventListener("keydown", onKey);
   }, [lightbox]);
 
+  // Same courtesy for the edit form.
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e) => { if (e.key === "Escape") setEditing(null); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [editing]);
+
   const upload = async (fileList) => {
     const files = Array.from(fileList || []);
     if (!files.length) return;
@@ -105,6 +127,7 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
     const fd = new FormData();
     files.forEach((f) => fd.append("files[]", f));
     if (caption.trim()) fd.append("caption", caption.trim());
+    if (hasDescription && description) fd.append("description", description);
     if (takenOn) fd.append("taken_on", takenOn);
 
     setUploading(true);
@@ -112,7 +135,7 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
       await post(`${endpoint}/${who}`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setCaption(""); setTakenOn("");
+      setCaption(""); setDescription(""); setTakenOn("");
       if (fileInput.current) fileInput.current.value = "";
       await load();
       Swal.fire({ icon: "success", title: "Added to the gallery", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
@@ -134,9 +157,10 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
       const res = await post(`${endpoint}/${who}`, {
         link_url: url,
         caption: caption.trim() || null,
+        description: hasDescription ? (description || null) : null,
         taken_on: takenOn || null,
       });
-      setLinkUrl(""); setCaption(""); setTakenOn("");
+      setLinkUrl(""); setCaption(""); setDescription(""); setTakenOn("");
       await load();
 
       /* The link saved, but some kinds cannot be shown as a picture — a Drive
@@ -151,28 +175,27 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
     } finally { setUploading(false); }
   };
 
-  const editCaption = async (item) => {
-    const { value: form } = await Swal.fire({
-      title: "Edit this memory",
-      html:
-        `<input id="g-cap" class="swal2-input" placeholder="Caption" value="${(item.caption || "").replace(/"/g, "&quot;")}">` +
-        `<input id="g-date" type="date" class="swal2-input" value="${item.taken_on || ""}">`,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonColor: TEAL,
-      confirmButtonText: "Save",
-      preConfirm: () => ({
-        caption: document.getElementById("g-cap").value,
-        taken_on: document.getElementById("g-date").value || null,
-      }),
-    });
-    if (!form) return;
+  const openEdit = (item) => setEditing({
+    id: item.id,
+    caption: item.caption || "",
+    taken_on: item.taken_on || "",
+    description: item.description || "",
+  });
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSavingEdit(true);
     try {
-      await put(`${endpoint}/item/${item.id}`, form);
+      await put(`${endpoint}/item/${editing.id}`, {
+        caption: editing.caption || null,
+        taken_on: editing.taken_on || null,
+        ...(hasDescription ? { description: editing.description || null } : {}),
+      });
+      setEditing(null);
       await load();
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Could not save.", "error");
-    }
+    } finally { setSavingEdit(false); }
   };
 
   const remove = async (item) => {
@@ -211,7 +234,7 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
       {canCurate && (
         <div className="rounded-2xl border border-dashed p-4" style={{ borderColor: "#CFE6E6", background: "#F8FCFC" }}>
           <p className="text-[11px] font-semibold text-gray-700 mb-2">
-            Add a memory{staffName ? ` of ${whoName}` : ""}
+            {hasDescription ? "Add a photo" : "Add a memory"}{whoName ? ` of ${whoName}` : ""}
           </p>
           <div className="grid sm:grid-cols-2 gap-2 mb-2">
             <input value={caption} onChange={(e) => setCaption(e.target.value)}
@@ -224,6 +247,16 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
               className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#9CCBCB] focus:outline-none"
               style={{ borderColor: "#D0E0E0" }} />
           </div>
+          {/* The caption is a label; this is the story. The same editor the
+              forms use, so a note about a child can be bold where it needs to
+              be and can switch between Pashto and English mid-paragraph. */}
+          {hasDescription && (
+            <div className="mb-2">
+              <RichTextField value={description} onChange={setDescription}
+                placeholder="Description — what happened, who was there, why it matters (rich text)"
+                rows={4} dir="auto" />
+            </div>
+          )}
           {/* Two ways in, with the link first on purpose. A gallery for every
               colleague and every student would fill this server within a term;
               the photos already sit in WEN's Google Drive, so pasting the link
@@ -304,11 +337,11 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
                 )}
               </button>
 
-              {(it.caption || it.taken_on) && (
+              {(it.caption || it.taken_on || plain(it)) && (
                 <figcaption className="px-2 py-1.5 bg-white">
-                  {it.caption && (
-                    <bdi dir="auto" className="block text-[11px] font-medium text-gray-800 truncate">{it.caption}</bdi>
-                  )}
+                  <bdi dir="auto" className="block text-[11px] font-medium text-gray-800 truncate">
+                    {it.caption || plain(it)}
+                  </bdi>
                   {it.taken_on && <span className="block text-[9px] text-gray-400">{it.taken_on}</span>}
                 </figcaption>
               )}
@@ -316,7 +349,7 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
               {(canCurate || canDelete) && (
                 <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                   {canCurate && (
-                    <button type="button" onClick={() => editCaption(it)} title="Edit caption / date"
+                    <button type="button" onClick={() => openEdit(it)} title="Edit caption, description / date"
                       className="w-6 h-6 rounded-lg bg-white/90 text-gray-600 hover:text-teal-700 text-[11px] shadow">✎</button>
                   )}
                   {canDelete && (
@@ -344,6 +377,11 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
             <div className="flex items-start justify-between gap-3 mt-3 text-white">
               <div className="min-w-0">
                 {lightbox.caption && <bdi dir="auto" className="block text-sm font-semibold">{lightbox.caption}</bdi>}
+                {/* The full story, in the formatting it was written in. */}
+                {lightbox.description && (
+                  <RichTextView html={lightbox.description} dir="auto"
+                    className="text-[13px] mt-1 max-h-48 overflow-y-auto text-white/90" />
+                )}
                 <p className="text-[11px] text-white/70">
                   {[lightbox.taken_on, lightbox.added_by && `added by ${lightbox.added_by}`, prettySize(lightbox.size)]
                     .filter(Boolean).join(" · ")}
@@ -352,6 +390,44 @@ export default function StaffGallery({ staffId, staffName, subject = "staff", su
               <button onClick={() => setLightbox(null)}
                 className="shrink-0 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-semibold">
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* The edit form. A Swal prompt could carry a caption and a date; a
+          description needs the real editor, so the box lives here. */}
+      {editing && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/50"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="px-5 py-3 border-b" style={{ borderColor: "#EEF4F4" }}>
+              <h3 className="text-sm font-bold text-gray-800">Edit this photo</h3>
+            </div>
+            <div className="p-4 space-y-2">
+              <input value={editing.caption} onChange={(e) => setEditing((p) => ({ ...p, caption: e.target.value }))}
+                placeholder="Caption"
+                dir="auto"
+                className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#9CCBCB] focus:outline-none"
+                style={{ borderColor: "#D0E0E0" }} />
+              <input type="date" value={editing.taken_on} onChange={(e) => setEditing((p) => ({ ...p, taken_on: e.target.value }))}
+                title="When was it taken?"
+                className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#9CCBCB] focus:outline-none"
+                style={{ borderColor: "#D0E0E0" }} />
+              {hasDescription && (
+                <RichTextField value={editing.description}
+                  onChange={(html) => setEditing((p) => ({ ...p, description: html }))}
+                  placeholder="Description (rich text)" rows={5} dir="auto" />
+              )}
+            </div>
+            <div className="px-5 py-3 border-t flex justify-end gap-2" style={{ borderColor: "#EEF4F4" }}>
+              <button type="button" onClick={() => setEditing(null)}
+                className="px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+                Cancel
+              </button>
+              <button type="button" onClick={saveEdit} disabled={savingEdit}
+                className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50">
+                {savingEdit ? "Saving…" : "Save"}
               </button>
             </div>
           </div>

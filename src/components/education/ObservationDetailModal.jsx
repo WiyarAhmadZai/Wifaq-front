@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import api from "../../api/axios";
+import { AuthImage } from "../AuthImage";
 
 /**
  * One observation, in full.
@@ -34,43 +34,6 @@ const CAT = {
   concern: { label: "Concerning", emoji: "⚠️", bg: "#fbf0db", fg: "#9a6a12" },
   urgent: { label: "Urgent", emoji: "🚨", bg: "#f7e3e1", fg: "#C0473F" },
 };
-
-/** Authenticated <img>. Holds one object URL and releases it on unmount. */
-function AuthImage({ src, alt, className, onClick, title }) {
-  const [url, setUrl] = useState(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let objectUrl = null;
-    let alive = true;
-
-    api
-      .get(src, { responseType: "blob" })
-      .then((r) => {
-        if (!alive) return;
-        objectUrl = URL.createObjectURL(r.data);
-        setUrl(objectUrl);
-      })
-      .catch(() => alive && setFailed(true));
-
-    return () => {
-      alive = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [src]);
-
-  if (failed) {
-    return (
-      <div className={`${className} flex items-center justify-center bg-gray-100 text-[10px] text-gray-400`}>
-        unavailable
-      </div>
-    );
-  }
-  if (!url) {
-    return <div className={`${className} bg-gray-100 animate-pulse`} />;
-  }
-  return <img src={url} alt={alt} title={title} onClick={onClick} className={className} />;
-}
 
 /** Full-screen photo viewer — Esc or a click anywhere closes it. */
 function PhotoLightbox({ photos, index, onClose, onIndex }) {

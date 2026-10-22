@@ -8,6 +8,7 @@ const MUTED = "#5A7A7E";
 
 export const AUDIENCES = [
   { value: "all",         label: "Everyone" },
+  { value: "public",      label: "Public" },
   { value: "departments", label: "Specific departments" },
   { value: "users",       label: "Specific people" },
 ];
@@ -30,7 +31,8 @@ export function describeAudience(value, options) {
     return n === 0 ? "nobody picked yet"
       : names.length <= 3 ? names.join(", ") : `${n} people`;
   }
-  return "everyone";
+  if (value.audience === "public") return "everyone — including visitors who are not signed in";
+  return "everyone (signed-in users only)";
 }
 
 /** True when the choice actually reaches somebody. */
@@ -39,6 +41,9 @@ export function audienceIsComplete(value) {
   if (value.audience === "users") return value.user_ids.length > 0;
   return true;
 }
+
+/** What the audience is drawn as in the list — teal for the open ones. */
+export const audienceIsOpen = (a) => a === "all" || a === "public" || !a;
 
 /** Loads the departments and people an author may address. */
 export function useAudienceOptions() {
@@ -104,7 +109,8 @@ export default function AudiencePicker({ value, onChange, options, loading = fal
       )}
 
       <p className="text-[10px]" style={{ color: MUTED }}>
-        {value.audience === "all" && "Shown to every user, and on the sign-in page."}
+        {value.audience === "all" && "Shown to every signed-in user. Not shown to visitors on the sign-in page."}
+        {value.audience === "public" && "Shown to everyone — signed in or not — including the sign-in page. Only this option is visible to visitors."}
         {value.audience === "departments" && "Shown only to staff in these departments. Not shown on the sign-in page."}
         {value.audience === "users" && "Shown only to these people. Not shown on the sign-in page."}
       </p>

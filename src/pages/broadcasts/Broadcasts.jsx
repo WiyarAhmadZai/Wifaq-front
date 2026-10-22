@@ -6,7 +6,7 @@ import { useAuth } from "../../admin/context/AuthContext";
 import { RichTextView } from "../../components/RichTextField";
 import { richTextToPlain } from "../../utils/richText";
 import AudiencePicker, {
-  emptyAudience, audienceIsComplete, useAudienceOptions,
+  emptyAudience, audienceIsComplete, audienceIsOpen, useAudienceOptions,
 } from "../../components/broadcasts/AudiencePicker";
 
 const TEAL = "#0D5C63";
@@ -114,10 +114,10 @@ export default function Broadcasts() {
           render: (v, row) => (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border max-w-[220px]"
               title={v || "Everyone"}
-              style={row.audience === "all" || !row.audience
+              style={audienceIsOpen(row.audience)
                 ? { background: "#E8F6F6", color: TEAL, borderColor: "#CFE6E6" }
                 : { background: GOLD_LT, color: GOLD_DEEP, borderColor: GOLD_SOFT }}>
-              <span aria-hidden="true">{row.audience === "users" ? "👤" : row.audience === "departments" ? "🏷" : "📢"}</span>
+              <span aria-hidden="true">{row.audience === "users" ? "👤" : row.audience === "departments" ? "🏷" : row.audience === "public" ? "🌐" : "📢"}</span>
               <bdi dir="auto" className="truncate">{v || "Everyone"}</bdi>
             </span>
           ),

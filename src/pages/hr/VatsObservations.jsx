@@ -99,7 +99,9 @@ export default function VatsObservations() {
   };
 
   const fetchStaff = async () => {
-    try { const r = await get("/hr/staff/list?per_page=200"); setStaff(r.data?.data || []); } catch { /* noop */ }
+    // Supervisor-scoped roster: leadership gets everyone, a supervisor gets
+    // their own team (direct reports and every level below them).
+    try { const r = await get("/vats/observations/team"); setStaff(r.data?.data || []); } catch { /* noop */ }
   };
 
   const remove = async (id) => {

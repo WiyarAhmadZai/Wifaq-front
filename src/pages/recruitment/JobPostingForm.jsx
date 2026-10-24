@@ -16,6 +16,16 @@ const STATUS_OPTIONS = [
   { value: "archived", label: "Archived" },
 ];
 
+/* Institutions the public careers filters offer, mirroring DriveTaxonomy::
+ * INSTITUTIONS on the backend. Kept here so the picker matches the values the
+ * filters read back. */
+const INSTITUTION_OPTIONS = [
+  { value: "WS", label: "WS" },
+  { value: "WLS", label: "WLS" },
+  { value: "WISAL", label: "WISAL" },
+  { value: "WEN", label: "WEN (umbrella)" },
+];
+
 export default function JobPostingForm() {
   const navigate = useNavigate();
   // Back returns to wherever the user came from — the filtered/paginated
@@ -30,10 +40,16 @@ export default function JobPostingForm() {
     description: "",
     requirements: [""],
     location: "",
+    institution: "",
+    branch: "",
     status: "published",
   });
 
   const [requisitionOptions, setRequisitionOptions] = useState([]);
+  // Branch names sourced from the shared Branch module so the two stay in
+  // lockstep. Stored as the branch name string (not the id) to keep the public
+  // filter self-describing without a join.
+  const [branchOptions, setBranchOptions] = useState([]);
   // The requisition this posting is already attached to. Kept separately
   // because the picker lists only requisitions that are still open, and the
   // one already in use may have expired since the posting was created — it
@@ -45,6 +61,7 @@ export default function JobPostingForm() {
 
   useEffect(() => {
     fetchApprovedRequisitions();
+    fetchBranches();
     if (isEdit) fetchPosting();
   }, [id]);
 
@@ -69,6 +86,23 @@ export default function JobPostingForm() {
     }
   };
 
+  /* Branch picker feeds off the same Branch records staff admin elsewhere.
+   * Only live branches (status on) are offered. */
+  const fetchBranches = async () => {
+    try {
+      const response = await get("/branches/list");
+      const data = response.data?.data || [];
+      const array = Array.isArray(data) ? data : [];
+      setBranchOptions(
+        array
+          .filter((b) => b.status !== false)
+          .map((b) => ({ value: b.name, label: b.name }))
+      );
+    } catch (error) {
+      console.error("Failed to fetch branches", error);
+    }
+  };
+
   const fetchPosting = async () => {
     setLoading(true);
     const __cached = peekCache(`/recruitment/job-postings/${id}`);
@@ -80,6 +114,8 @@ export default function JobPostingForm() {
         description: d.description || "",
         requirements: d.requirements?.length > 0 ? d.requirements : [""],
         location: d.location || "",
+        institution: d.institution || "",
+        branch: d.branch || "",
         status: d.status || "published",
       });
       if (d.requisition) setCurrentRequisition(d.requisition);
@@ -94,6 +130,8 @@ export default function JobPostingForm() {
         description: d.description || "",
         requirements: d.requirements?.length > 0 ? d.requirements : [""],
         location: d.location || "",
+        institution: d.institution || "",
+        branch: d.branch || "",
         status: d.status || "published",
       });
       
@@ -177,6 +215,8 @@ export default function JobPostingForm() {
         title: formData.title,
         description: formData.description,
         location: formData.location,
+        institution: formData.institution || null,
+        branch: formData.branch || null,
         requirements: formData.requirements.filter(r => r.trim() !== ""),
         status: formData.status || "published",
       };
@@ -360,6 +400,46 @@ export default function JobPostingForm() {
                 className={inputClass("location")}
               />
               {err("location") && <p className="text-red-500 text-[10px] mt-1">{err("location")}</p>}
+            </div>
+
+            {/* Institution */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                Institution
+              </label>
+              <select
+                name="institution"
+                value={formData.institution}
+                onChange={handleChange}
+                className={inputClass("institution")}
+              >
+                <option value="">— Not specified —</option>
+                {INSTITUTION_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <p className="text-gray-400 text-[10px] mt-1">Used by the careers portal to filter vacancies by institution.</p>
+            </div>
+
+            {/* Branch */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                Branch
+              </label>
+              <select
+                name="branch"
+                value={formData.branch}
+                onChange={handleChange}
+                className={inputClass("branch")}
+              >
+                <option value="">— Not specified —</option>
+                {branchOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              {branchOptions.length === 0 && (
+                <p className="text-amber-600 text-[10px] mt-1">No branches on record yet — add them under Branches.</p>
+              )}
             </div>
 
             {/* Hidden status field - managed via list actions */}

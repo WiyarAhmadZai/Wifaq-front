@@ -50,6 +50,7 @@ const L = {
     time_management: "How do you manage your time and daily work?", ph_time_management: "Self-discipline, daily habits, and how you manage your time",
     jd_overview: "Job Overview", jd_description: "Job Description", jd_requirements: "Requirements & Qualifications",
     jd_department: "Department", jd_employment: "Employment Type", jd_location: "Location",
+    jd_institution: "Institution", jd_branch: "Branch",
     jd_positions: "Open Positions", jd_experience: "Experience Required", jd_deadline: "Application Deadline",
     jd_reporting: "Reports To", jd_posted: "Posted On", jd_position_title: "Position Title",
     jd_no_desc: "No detailed description was provided for this position.",
@@ -82,6 +83,10 @@ const L = {
     back: "Back", continue: "Continue", submit: "Submit Application", submitting: "Submitting…",
     open_positions: "{n} Open Positions", open_position: "{n} Open Position", choose_role: "Choose the role that matches your skills.",
     search_positions: "Search positions…", no_match: 'No positions match "{q}"', clear_search: "Clear search",
+    filter_location: "Location", filter_institution: "Institution", filter_branch: "Branch",
+    all_locations: "All locations", all_institutions: "All institutions", all_branches: "All branches",
+    clear_filters: "Clear filters", no_filter_match: "No positions match the selected filters",
+    showing_of: "Showing {n} of {total}",
     no_positions: "No open positions at the moment", check_back: "Please check back soon — we post new opportunities regularly.",
     closed: "Closed", closes_today: "Closes today", days_left: "{n} days left", day_left: "1 day left", closes_on: "Closes {d}",
     no_deadline: "Open — no deadline",
@@ -142,6 +147,7 @@ const L = {
     time_management: "خپل وخت او ورځني کارونه څنګه مدیریت کوئ؟", ph_time_management: "شخصي انضباط، ورځني عادتونه، او د وخت مدیریت طریقې",
     jd_overview: "د بست لنډیز", jd_description: "د بست تشریح", jd_requirements: "شرایط او وړتیاوې",
     jd_department: "څانګه", jd_employment: "د دندې ډول", jd_location: "ځای",
+    jd_institution: "مؤسسه", jd_branch: "شعبه",
     jd_positions: "خلاص بستونه", jd_experience: "اړینه تجربه", jd_deadline: "د غوښتنلیک وروستۍ نېټه",
     jd_reporting: "راپور ورکول", jd_posted: "د خپرېدو نېټه", jd_position_title: "د بست عنوان",
     jd_no_desc: "د دې بست لپاره تفصیلي تشریح نه ده ورکړل شوې.",
@@ -174,6 +180,10 @@ const L = {
     back: "بیرته", continue: "دوام", submit: "غوښتنلیک لېږل", submitting: "د لېږلو په حال کې…",
     open_positions: "{n} خلاص بستونه", open_position: "{n} خلاص بست", choose_role: "هغه بست وټاکئ چې ستاسو مهارتونو سره سمون لري.",
     search_positions: "د بستونو لټون…", no_match: '"{q}" سره هیڅ بست سمون نه لري', clear_search: "لټون پاکول",
+    filter_location: "ځای", filter_institution: "مؤسسه", filter_branch: "شعبه",
+    all_locations: "ټول ځایونه", all_institutions: "ټولې مؤسسې", all_branches: "ټولې شعبې",
+    clear_filters: "فلټرونه پاکول", no_filter_match: "هیڅ بست د غوره شویو فلټرونو سره سمون نه لري",
+    showing_of: "{total} څخه {n} ښودل شوي",
     no_positions: "اوس مهال هیڅ خلاص بست نشته", check_back: "مهرباني وکړئ ژر بیا وګورئ — موږ په منظمه توګه نوي فرصتونه خپروو.",
     closed: "تړل شوی", closes_today: "نن تړل کیږي", days_left: "{n} ورځې پاتې", day_left: "۱ ورځ پاتې", closes_on: "په {d} تړل کیږي",
     no_deadline: "پرانیستی — وروستۍ نېټه نه لري",
@@ -234,6 +244,7 @@ const L = {
     time_management: "وقت و کارهای روزانه خود را چگونه مدیریت می‌کنید؟", ph_time_management: "در مورد انضباط شخصی، عادت‌های روزانه، و روش‌های مدیریت زمان خود بنویسید",
     jd_overview: "خلاصه بست", jd_description: "شرح وظایف بست", jd_requirements: "شرایط و شایستگی‌ها",
     jd_department: "بخش", jd_employment: "نوع استخدام", jd_location: "موقعیت",
+    jd_institution: "مؤسسه", jd_branch: "شعبه",
     jd_positions: "بست‌های باز", jd_experience: "تجربه مورد نیاز", jd_deadline: "آخرین مهلت درخواست",
     jd_reporting: "گزارش‌دهی به", jd_posted: "تاریخ نشر", jd_position_title: "عنوان بست",
     jd_no_desc: "برای این بست شرح تفصیلی ارائه نشده است.",
@@ -266,6 +277,10 @@ const L = {
     back: "بازگشت", continue: "ادامه", submit: "ارسال درخواست", submitting: "در حال ارسال…",
     open_positions: "{n} بست باز", open_position: "{n} بست باز", choose_role: "بستی را که با مهارت‌های شما مطابقت دارد انتخاب کنید.",
     search_positions: "جستجوی بست‌ها…", no_match: 'هیچ بستی با "{q}" مطابقت ندارد', clear_search: "پاک کردن جستجو",
+    filter_location: "موقعیت", filter_institution: "مؤسسه", filter_branch: "شعبه",
+    all_locations: "همه موقعیت‌ها", all_institutions: "همه مؤسس‌ها", all_branches: "همه شعبه‌ها",
+    clear_filters: "پاک کردن فیلترها", no_filter_match: "هیچ بستی با فیلترهای انتخاب‌شده مطابقت ندارد",
+    showing_of: "نمایش {n} از {total}",
     no_positions: "در حال حاضر بست بازی وجود ندارد", check_back: "لطفاً به‌زودی دوباره سر بزنید — ما به‌طور منظم فرصت‌های جدید منتشر می‌کنیم.",
     closed: "بسته شد", closes_today: "امروز بسته می‌شود", days_left: "{n} روز باقی‌مانده", day_left: "۱ روز باقی‌مانده", closes_on: "بسته شدن در {d}",
     no_deadline: "باز — بدون مهلت",
@@ -1169,6 +1184,9 @@ function LangSwitch({ lang, changeLang }) {
 
 function JobPicker({ t, jobPostings, selectedId, onSelect, error }) {
   const [query, setQuery] = useState("");
+  const [fLoc, setFLoc] = useState("");
+  const [fInst, setFInst] = useState("");
+  const [fBranch, setFBranch] = useState("");
   if (jobPostings.length === 0) {
     return (
       <div className="text-center py-10">
@@ -1178,14 +1196,46 @@ function JobPicker({ t, jobPostings, selectedId, onSelect, error }) {
       </div>
     );
   }
+  /* Facet choices are derived from the postings actually on offer, not a
+   * hard-coded list — so a facility only appears as a filter once a live
+   * vacancy carries it, and it disappears when the last such posting closes.
+   * A facet with fewer than two distinct values is hidden: one option is not a
+   * choice, so it would only add clutter. */
+  const uniq = (key) => Array.from(new Set(
+    jobPostings.map((jp) => (jp[key] == null ? "" : String(jp[key]).trim())).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
+  const locOptions = uniq("location");
+  const instOptions = uniq("institution");
+  const branchOptions = uniq("branch");
+
   const q = query.trim().toLowerCase();
-  const filtered = q ? jobPostings.filter((jp) => [jp.code, jp.title, jp.location, jp.position_title, jp.department, jp.employment_type].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))) : jobPostings;
+  const filtered = jobPostings.filter((jp) => {
+    if (fLoc && String(jp.location || "").trim() !== fLoc) return false;
+    if (fInst && String(jp.institution || "").trim() !== fInst) return false;
+    if (fBranch && String(jp.branch || "").trim() !== fBranch) return false;
+    if (q && ![jp.code, jp.title, jp.location, jp.institution, jp.branch, jp.position_title, jp.department, jp.employment_type].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  const filtersActive = !!(fLoc || fInst || fBranch || q);
+  const clearAll = () => { setFLoc(""); setFInst(""); setFBranch(""); setQuery(""); };
+  const anyFacet = locOptions.length > 1 || instOptions.length > 1 || branchOptions.length > 1;
+  const dropdown = (label, value, set, options, allLabel) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{label}</span>
+      <select value={value} onChange={(e) => set(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none">
+        <option value="">{allLabel}</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-gray-800">{t(jobPostings.length === 1 ? "open_position" : "open_positions", { n: jobPostings.length })}</p>
-          <p className="text-xs text-gray-500">{t("choose_role")}</p>
+          <p className="text-xs text-gray-500">{filtersActive ? t("showing_of", { n: filtered.length, total: jobPostings.length }) : t("choose_role")}</p>
         </div>
         {jobPostings.length > 3 && (
           <div className="relative w-full sm:w-72">
@@ -1194,12 +1244,23 @@ function JobPicker({ t, jobPostings, selectedId, onSelect, error }) {
           </div>
         )}
       </div>
+      {anyFacet && (
+        <div className="flex flex-wrap items-end gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
+          {locOptions.length > 1 && dropdown(t("filter_location"), fLoc, setFLoc, locOptions, t("all_locations"))}
+          {instOptions.length > 1 && dropdown(t("filter_institution"), fInst, setFInst, instOptions, t("all_institutions"))}
+          {branchOptions.length > 1 && dropdown(t("filter_branch"), fBranch, setFBranch, branchOptions, t("all_branches"))}
+          {filtersActive && (
+            <button type="button" onClick={clearAll} className="ml-auto text-xs text-teal-600 font-medium hover:underline self-end pb-1.5">{t("clear_filters")}</button>
+          )}
+        </div>
+      )}
       {filtered.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-          <p className="text-sm text-gray-500">{t("no_match", { q: query })}</p>
-          <button type="button" onClick={() => setQuery("")} className="text-xs text-teal-600 font-medium mt-1 hover:underline">{t("clear_search")}</button>
+          <p className="text-sm text-gray-500">{q ? t("no_match", { q: query }) : t("no_filter_match")}</p>
+          <button type="button" onClick={clearAll} className="text-xs text-teal-600 font-medium mt-1 hover:underline">{filtersActive ? t("clear_filters") : t("clear_search")}</button>
         </div>
       ) : (
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{filtered.map((jp) => <JobCard key={jp.id} t={t} job={jp} selected={parseInt(selectedId) === jp.id} onClick={() => onSelect(jp.id)} />)}</div>
       )}
       {error && <p className="text-red-500 text-xs flex items-center gap-1"><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>{error}</p>}
@@ -1245,6 +1306,8 @@ function JobCard({ t, job, selected, onClick }) {
           {dept && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 text-teal-700 rounded-md text-[10px] font-semibold capitalize">{dept}</span>}
           {empType && <span className="inline-flex items-center px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-[10px] font-semibold capitalize">{empType}</span>}
           {job.location && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 text-gray-600 rounded-md text-[10px] font-semibold">{job.location}</span>}
+          {job.institution && <span className="inline-flex items-center px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md text-[10px] font-semibold">{job.institution}</span>}
+          {job.branch && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sky-50 text-sky-700 rounded-md text-[10px] font-semibold">{job.branch}</span>}
         </div>
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center gap-3 text-[11px] text-gray-500">
@@ -1362,6 +1425,8 @@ function JobDetails({ t, dir, job, onChangeJob }) {
           <Fact t={t} icon={FACT_ICON.department} label={t("jd_department")} value={dept} capitalize />
           <Fact t={t} icon={FACT_ICON.employment} label={t("jd_employment")} value={empType} capitalize />
           <Fact t={t} icon={FACT_ICON.location} label={t("jd_location")} value={job.location} />
+          <Fact t={t} icon={FACT_ICON.department} label={t("jd_institution")} value={job.institution} />
+          <Fact t={t} icon={FACT_ICON.reporting} label={t("jd_branch")} value={job.branch} />
           <Fact t={t} icon={FACT_ICON.positions} label={t("jd_positions")} value={job.number_of_positions ? t("jd_n_positions", { n: job.number_of_positions }) : null} />
           <Fact t={t} icon={FACT_ICON.experience} label={t("jd_experience")} value={job.experience_years ? t("jd_min_yrs", { n: job.experience_years }) : null} />
           <Fact t={t} icon={FACT_ICON.reporting} label={t("jd_reporting")} value={job.reporting_to} />

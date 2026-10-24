@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { DateField } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
 
 /* ── i18n ─────────────────────────────────────────────────────────────────
  * Three languages: English (en), Pashto (ps), Dari (fa). Pashto & Dari are
@@ -1220,40 +1221,54 @@ function JobPicker({ t, jobPostings, selectedId, onSelect, error }) {
   const filtersActive = !!(fLoc || fInst || fBranch || q);
   const clearAll = () => { setFLoc(""); setFInst(""); setFBranch(""); setQuery(""); };
   const anyFacet = locOptions.length > 1 || instOptions.length > 1 || branchOptions.length > 1;
-  const dropdown = (label, value, set, options, allLabel) => (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{label}</span>
-      <select value={value} onChange={(e) => set(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none">
-        <option value="">{allLabel}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </label>
+  // How many facets will actually render — drives the column count so a single
+  // filter owns the whole row instead of sitting stranded in half the width.
+  const facetCount = [locOptions, instOptions, branchOptions].filter((o) => o.length > 1).length;
+  /* Each facet is a searchable Select2 filling the whole row. A lone filter
+   * reads as a deliberate, full-width control instead of a tiny orphaned
+   * dropdown, and once Ghazni adds more stations/institutions the box already
+   * scrolls and filters rather than cramming a long native list. */
+  const facet = (label, value, set, options, allLabel) => (
+    <div>
+      <label className="block text-[11px] font-semibold text-gray-500 mb-1">{label}</label>
+      <Select2 size="md" value={value} onChange={set} options={options} placeholder={allLabel} />
+    </div>
   );
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-gray-800">{t(jobPostings.length === 1 ? "open_position" : "open_positions", { n: jobPostings.length })}</p>
-          <p className="text-xs text-gray-500">{filtersActive ? t("showing_of", { n: filtered.length, total: jobPostings.length }) : t("choose_role")}</p>
-        </div>
-        {jobPostings.length > 3 && (
-          <div className="relative w-full sm:w-72">
-            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("search_positions")} className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
-          </div>
-        )}
+      <div>
+        <p className="text-sm font-bold text-gray-800">{t(jobPostings.length === 1 ? "open_position" : "open_positions", { n: jobPostings.length })}</p>
+        <p className="text-xs text-gray-500">{filtersActive ? t("showing_of", { n: filtered.length, total: jobPostings.length }) : t("choose_role")}</p>
       </div>
-      {anyFacet && (
-        <div className="flex flex-wrap items-end gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
-          {locOptions.length > 1 && dropdown(t("filter_location"), fLoc, setFLoc, locOptions, t("all_locations"))}
-          {instOptions.length > 1 && dropdown(t("filter_institution"), fInst, setFInst, instOptions, t("all_institutions"))}
-          {branchOptions.length > 1 && dropdown(t("filter_branch"), fBranch, setFBranch, branchOptions, t("all_branches"))}
+
+      {(jobPostings.length > 3 || anyFacet) && (
+        <div className="bg-white rounded-2xl ring-1 ring-gray-200 shadow-sm p-3 space-y-3">
+          {jobPostings.length > 3 && (
+            <div className="relative">
+              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("search_positions")} className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-colors" />
+            </div>
+          )}
+          {anyFacet && (
+            <div className={`grid gap-3 ${facetCount >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : facetCount === 2 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+              {locOptions.length > 1 && facet(t("filter_location"), fLoc, setFLoc, locOptions, t("all_locations"))}
+              {instOptions.length > 1 && facet(t("filter_institution"), fInst, setFInst, instOptions, t("all_institutions"))}
+              {branchOptions.length > 1 && facet(t("filter_branch"), fBranch, setFBranch, branchOptions, t("all_branches"))}
+            </div>
+          )}
           {filtersActive && (
-            <button type="button" onClick={clearAll} className="ml-auto text-xs text-teal-600 font-medium hover:underline self-end pb-1.5">{t("clear_filters")}</button>
+            <div className="flex justify-end pt-0.5">
+              <button type="button" onClick={clearAll} className="inline-flex items-center gap-1 text-[11px] text-gray-500 font-medium hover:text-teal-600 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                {t("clear_filters")}
+              </button>
+            </div>
           )}
         </div>
       )}
+
+
       {filtered.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
           <p className="text-sm text-gray-500">{q ? t("no_match", { q: query }) : t("no_filter_match")}</p>

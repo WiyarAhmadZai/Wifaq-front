@@ -12,6 +12,7 @@ import ChecklistPanel from "../../components/hr/ChecklistPanel";
 import AttachmentPanel from "../../components/hr/AttachmentPanel";
 import { RichTextView } from "../../components/RichTextField";
 import { SendReminderButton } from "../../components/hr/Reminders";
+import { useAuth } from "../../admin/context/AuthContext";
 import { linesToItems, richTextToPlain } from "../../utils/richText";
 const statusConf = {
   scheduled: { label: "Scheduled", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
@@ -219,10 +220,15 @@ export default function MeetingShow() {
   // dashboard, a notification — not always to the top of the module.
   const goBack = useSmartBack("/hr/meetings");
   const { canUpdate, canDelete } = useResourcePermissions("meetings");
+  const { isSuperAdmin } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const statusRef = useRef(null);
+
+  // Talking points linked to this meeting — the notebook entries captured
+  // from it (super-admin's own view). Powers the two-way convert/integrate.
+  const [linkedTps, setLinkedTps] = useState([]);
 
   // Notes state
   const [showNoteForm, setShowNoteForm] = useState(false);
@@ -282,6 +288,59 @@ export default function MeetingShow() {
   useEffect(() => {
     loadMeeting().catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
   }, [id, loadMeeting]);
+
+  // The notebook entries linked to this meeting (super-admin only — the
+  // talking-points module is their private notebook).
+  const loadLinkedTps = useCallback(() => {
+    if (!isSuperAdmin) { setLinkedTps([]); return; }
+    get(`/hr/talking-points/for-meeting/${id}`, { cache: false })
+      .then((r) => setLinkedTps(r.data?.data || []))
+      .catch(() => setLinkedTps([]));
+  }, [id, isSuperAdmin]);
+  useEffect(() => { loadLinkedTps(); }, [loadLinkedTps]);
+
+  // Capture this meeting / appointment as a talking point (vice-versa of the
+  // talking-point → appointment conversion). Title is pre-filled and editable.
+  const handleToTalkingPoint = async () => {
+    const r = await Swal.fire({
+      title: "Save as a talking point",
+      input: "text",
+      inputValue: data?.title || "",
+      inputPlaceholder: "Talking point title",
+      inputLabel: "The meeting's purpose becomes the note; its people are carried in.",
+      showCancelButton: true,
+      confirmButtonText: "Create talking point",
+      reverseButtons: true,
+    });
+    if (!r.isConfirmed) return;
+    try {
+      await post(`/hr/talking-points/from-meeting/${id}`, { title: (r.value || "").trim() || undefined });
+      loadLinkedTps();
+      window.dispatchEvent(new Event("wen:notifications-refresh"));
+      Swal.fire({
+        icon: "success", title: "Saved as a talking point",
+        text: "The note is in your Talking Points notebook, linked to this meeting.",
+        showCancelButton: true, confirmButtonText: "OK", cancelButtonText: "Open notebook",
+      }).then((x) => {
+        if (x.dismiss === Swal.DismissReason.cancel) navigate("/hr/talking-points");
+      });
+    } catch (err) {
+      const res = err.response?.data;
+      if (err.response?.status === 422 && res?.data?.id) {
+        // Already converted — take the admin straight to the notebook.
+        loadLinkedTps();
+        Swal.fire({
+          icon: "info", title: "Already in your notebook",
+          text: res.message || "A talking point is already linked to this meeting.",
+          showCancelButton: true, confirmButtonText: "OK", cancelButtonText: "Open notebook",
+        }).then((x) => {
+          if (x.dismiss === Swal.DismissReason.cancel) navigate("/hr/talking-points");
+        });
+      } else {
+        Swal.fire("Error", res?.message || "Could not create the talking point.", "error");
+      }
+    }
+  };
 
   const [respondingRsvp, setRespondingRsvp] = useState(false);
   const respondRsvp = async (status) => {
@@ -565,6 +624,9 @@ export default function MeetingShow() {
           {canUpdate && (
             <button onClick={handleCopy} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Copy</button>
           )}
+          {isSuperAdmin && (
+            <button onClick={handleToTalkingPoint} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl" title="Capture this meeting as a talking point">🗒 Talking Point</button>
+          )}
           {canUpdate && (
             <button onClick={() => navigate(`/hr/meetings/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
           )}
@@ -718,6 +780,26 @@ export default function MeetingShow() {
             </div>
           );
         })()}
+
+        {/* Talking points captured from this meeting — the two-way link back
+            to the super-admin's notebook. */}
+        {isSuperAdmin && linkedTps.length > 0 && (
+          <div className="bg-white rounded-2xl border border-teal-100 shadow-sm p-4">
+            <div className="text-[10px] font-bold text-teal-600 uppercase tracking-wider mb-2">Talking points</div>
+            <div className="space-y-1.5">
+              {linkedTps.map((tp) => (
+                <button key={tp.id} onClick={() => navigate("/hr/talking-points")}
+                  className="w-full flex items-center gap-2 text-left hover:bg-teal-50/60 rounded-lg px-2 py-1.5 transition">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${tp.status === "completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-teal-50 text-teal-700 border-teal-200"}`}>
+                    {tp.status === "completed" ? "Done" : "Open"}
+                  </span>
+                  <span className="text-sm text-gray-800 truncate flex-1" data-no-i18n>{tp.title}</span>
+                  {tp.task && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">Task</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Continuation chain — links to earlier / later sessions of this discussion */}
         {(data.continued_from || (data.continuations && data.continuations.length > 0)) && (

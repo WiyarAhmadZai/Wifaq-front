@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, Spinner, EmptyState } from "../../components/hr/HrUI";
 import RichTextField, { RichTextView } from "../../components/RichTextField";
@@ -124,6 +124,10 @@ export default function TalkingPoints() {
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
                   <button onClick={() => setModal({ mode: "view", tp })}
                     className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">View</button>
+                  <button onClick={() => setModal({ mode: "view", tp })}
+                    className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">
+                    💬 Reply{tp.replies?.length ? ` (${tp.replies.length})` : ""}
+                  </button>
                   {isSuperAdmin && (
                     <button onClick={() => setModal({ mode: "edit", tp })}
                       className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Edit</button>
@@ -157,7 +161,7 @@ export default function TalkingPoints() {
       )}
 
       {modal && modal.mode === "view" ? (
-        <ViewModal tp={modal.tp} onClose={() => setModal(null)} />
+        <ViewModal tp={modal.tp} onClose={() => setModal(null)} onChanged={load} />
       ) : modal ? (
         <TpModal key={modal.tp?.id || "new"} modal={modal}
           onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />
@@ -551,9 +555,42 @@ function ConvertModal({ tp, onClose, onConverted }) {
   );
 }
 
-/** Read-only full view of one talking point — the whole note,
- *  everyone involved, and what it became. */
-function ViewModal({ tp, onClose }) {
+/** Full view of one talking point — the whole note, everyone
+ *  involved, what it became, and the reply-back thread where the
+ *  people it was shared with can answer. Anyone who can see the
+ *  entry may reply; a reply can be removed by its author. */
+function ViewModal({ tp, onClose, onChanged }) {
+  const { user, isSuperAdmin } = useAuth();
+  const [replies, setReplies] = useState(tp.replies || []);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    const body = text.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    try {
+      const r = await post(`/hr/talking-points/${tp.id}/reply`, { body });
+      setReplies((list) => [...list, r.data?.data]);
+      setText("");
+      onChanged?.();
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not send reply.", "error");
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (id) => {
+    try {
+      await del(`/hr/talking-points/${tp.id}/reply/${id}`);
+      setReplies((list) => list.filter((x) => x.id !== id));
+      onChanged?.();
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not delete reply.", "error");
+    }
+  };
+
+  const canDelete = (r) => isSuperAdmin || (user && r.user_id === user.id);
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -613,6 +650,52 @@ function ViewModal({ tp, onClose }) {
               )}
             </div>
           )}
+
+          {/* Reply-back thread — the people it was shared with answer here. */}
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+              Replies {replies.length > 0 && <span className="text-gray-400">({replies.length})</span>}
+            </div>
+
+            {replies.length === 0 ? (
+              <div className="text-sm text-gray-400 italic">No replies yet — be the first to answer.</div>
+            ) : (
+              <div className="space-y-2">
+                {replies.map((r) => (
+                  <div key={r.id} className="rounded-lg border border-gray-200 bg-gray-50/60 p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11px] text-gray-500">
+                          <span className="font-semibold text-gray-700" data-no-i18n>{r.author?.name || "Someone"}</span>
+                          <span> · {fmtDay((r.created_at || "").slice(0, 10))}</span>
+                        </div>
+                        <div className="mt-1 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed" data-no-i18n>{r.body}</div>
+                      </div>
+                      {canDelete(r) && (
+                        <button onClick={() => remove(r.id)}
+                          className="text-[11px] text-gray-400 hover:text-red-600 flex-shrink-0">Delete</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-3">
+              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2}
+                maxLength={5000}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(); }}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y"
+                placeholder="Write a reply…" />
+              <div className="flex items-center justify-end gap-2 mt-1.5">
+                <span className="text-[10px] text-gray-400 mr-auto">Ctrl+Enter to send</span>
+                <button onClick={send} disabled={busy || !text.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 disabled:opacity-50">
+                  {busy ? "Sending…" : "Send reply"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="px-5 py-3 border-t border-gray-100 flex justify-end">

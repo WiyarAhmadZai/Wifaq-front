@@ -37,11 +37,33 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
       .filter((g) => g.items.length > 0);
   }, [grouped, filter]);
 
+  // Each module's "Receive section notifications" permission, by module name.
+  // Opening a section's page requires it (PathPermissionGate), so granting any
+  // action in the module must bring it along — otherwise a user given the
+  // section is bounced to /403 for want of one easy-to-miss checkbox.
+  const notifByModule = useMemo(() => {
+    const map = {};
+    (permissions || []).forEach((p) => {
+      if (p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")) {
+        map[p.name.split(".", 1)[0]] = p.name;
+      }
+    });
+    return map;
+  }, [permissions]);
+
   const toggle = (name) => {
     if (readOnly) return;
     const next = new Set(selected);
-    if (next.has(name)) next.delete(name);
-    else next.add(name);
+    if (next.has(name)) {
+      next.delete(name);
+    } else {
+      next.add(name);
+      const isNotif = name.endsWith(".notifications") || name.endsWith(".notifications.receive");
+      if (!isNotif) {
+        const notif = notifByModule[name.split(".", 1)[0]];
+        if (notif) next.add(notif);
+      }
+    }
     onChange(next);
   };
 

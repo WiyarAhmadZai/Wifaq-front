@@ -85,6 +85,15 @@ export default function EnrolledStudents() {
   const canWith = (action) =>
     PERMISSION_BASES.some((base) => hasPermission(`${base}.${action}`) || hasPermission(`${base}.manage`));
   const canUpdate = canWith("update");
+  // Per-action-button permissions. Each roster button carries its own grant so
+  // a section owner can be given, say, the ID card without also handing over
+  // transfers or family contact. The shared `students.*` register still unlocks
+  // the same buttons (canWith checks both bases), and the backend enforces each
+  // one through PathPermissionMiddleware::PERMISSION_OVERRIDES.
+  const canIdCard = canWith("id-card");
+  const canBulkCards = canWith("bulk-cards");
+  const canTransfer = canWith("transfer");
+  const canContact = canWith("contact");
   // The uniform invoice posts to the finance module (fee-invoices), which is a
   // separate grant — showing the button without it just produced a 403 toast.
   const canInvoice = hasPermission("fee-invoices.create") || hasPermission("fee-invoices.manage");
@@ -164,6 +173,7 @@ export default function EnrolledStudents() {
    * dropping the column without rehoming the button would have quietly removed
    * the ability to run a transfer. StudentEnrollments already keeps it here. */
   const transferAction = (item) => {
+    if (!canTransfer) return null;
     if (item.enrollment_type !== "transfer") return null;
     const done = item.transfer_case_status === "completed";
     // The old column showed how far the transfer had got ("Records done").
@@ -244,25 +254,27 @@ export default function EnrolledStudents() {
           { key: "status", label: "Status", render: statusBadge },
           fatherPhoneColumn,
         ]}
-        extraHeaderButtons={canUpdate ? <BulkCardsButton /> : null}
+        extraHeaderButtons={canBulkCards ? <BulkCardsButton /> : null}
         showRoute="/student-management/students/show"
         searchable={true}
         searchFields={["first_name", "last_name", "student_id"]}
         rowActions={(item) => (
           <>
             {/* Contact the family — WhatsApp or Call */}
-            <FamilyContactButton family={item.family} />
+            {canContact && <FamilyContactButton family={item.family} />}
             {transferAction(item)}
             {/* Print the ID card — with the QR code that opens this student
                 in WEN for whoever scans it, as far as their own account allows. */}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setCardStudentId(item.id); }}
-              title="Print ID card"
-              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-            >
-              <FiCreditCard className="w-3.5 h-3.5" />
-            </button>
+            {canIdCard && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setCardStudentId(item.id); }}
+                title="Print ID card"
+                className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+              >
+                <FiCreditCard className="w-3.5 h-3.5" />
+              </button>
+            )}
             {/* Edit EVERYTHING (phase 1 + phase 2 + family) in a modal */}
             {canUpdate && (
               <button

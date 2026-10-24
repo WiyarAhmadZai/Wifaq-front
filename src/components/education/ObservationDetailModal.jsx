@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthImage } from "../AuthImage";
+import { RateWorkButton } from "../hr/StaffRatings";
 
 /**
  * One observation, in full.
@@ -225,6 +226,9 @@ export default function ObservationDetailModal({ observation, onClose, onEdit, o
                 </div>
               </div>
             )}
+
+            {/* Who wrote this note is judged here, on the five standards. */}
+            <RateWorkButton type="student_observation" id={o.id} title={o.description} />
 
             {o.created_at && (
               <p className="text-[10px] text-gray-400 pt-1">Recorded {o.created_at}</p>

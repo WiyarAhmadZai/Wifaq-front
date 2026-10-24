@@ -1355,8 +1355,9 @@ export default function Layout() {
       if (visibleChildren.length === 0) return false;
       return true;
     }
-    if (item.permission && !hasPermission(item.permission)) return false;
     if (item.permission) {
+      const anyHeld = hasPermission(item.permission) || (item.alt || []).some(hasPermission);
+      if (!anyHeld) return false;
       const accessRule = permissionForPath(item.path);
       if (accessRule.type === "public") {
         return (accessRule.requiredPermissions || []).every(hasPermission);
@@ -1453,7 +1454,7 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents", permission: "parents.view" },
-    { label: "Student Information", path: "/student-management/students", permission: "students.view" },
+    { label: "Student Information", path: "/student-management/students", permission: "students.view", alt: ["student-profiles.view"] },
     { label: "Student Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
     { label: "Enrolled Students", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
     // A child's photo album, reached by searching for the child. Its own

@@ -6,6 +6,8 @@ import { PageHeader, StatGrid, EmptyState, Spinner, Pill, InfoNote } from "../..
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 import { broadcastVatsChange } from "../../components/hr/useVats";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
 
 import { fmtDate } from "../../utils/formErrors";
 
@@ -59,6 +61,9 @@ export default function VatsObservations() {
   const [filter, setFilter] = useState({ category: "", staff_id: "" });
   const [pulseActive, setPulseActive] = useState(false);
   const rowRefs = useRef({});
+
+  // Stars on every observation card, in one request for the whole page.
+  const { map: ratingMap } = useBulkRatings("vats_observation", items.map((o) => o.id));
 
   // Read highlight & from-notif markers each render so they react to URL changes.
   const searchParams = new URLSearchParams(location.search);
@@ -193,6 +198,7 @@ export default function VatsObservations() {
                 <ObservationCard
                   key={o.id}
                   item={o}
+                  rating={ratingMap[o.id]}
                   onEdit={canUpdate ? (item) => setEditing(item) : null}
                   onDelete={canDelete ? remove : null}
                   innerRef={(el) => { if (el) rowRefs.current[String(o.id)] = el; }}
@@ -224,7 +230,7 @@ export default function VatsObservations() {
   );
 }
 
-function ObservationCard({ item, onEdit, onDelete, innerRef, pulse }) {
+function ObservationCard({ item, rating, onEdit, onDelete, innerRef, pulse }) {
   const c = CATEGORY_STYLE[item.category] || CATEGORY_STYLE.positive;
   const name = item.staff?.application?.full_name || item.staff?.employee_id || `Staff #${item.staff_id}`;
 
@@ -254,6 +260,11 @@ function ObservationCard({ item, onEdit, onDelete, innerRef, pulse }) {
         )}
         {item.area && (
           <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{item.area}</span>
+        )}
+        {rating && (
+          <span className="ms-auto">
+            <RatePill type="vats_observation" id={item.id} title={`${name} · ${item.category} observation`} entry={rating} />
+          </span>
         )}
       </div>
       <p className="text-[13px] text-gray-700 leading-snug">{item.description}</p>

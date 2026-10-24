@@ -6,6 +6,8 @@ import { enqueue, flush, pendingCount, watchConnection } from "../../utils/offli
 import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
 import { useAuth } from "../../admin/context/AuthContext";
 import StudentAvatar from "../../components/students/StudentAvatar";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
 
 /* ── Brand tokens ── */
 const TEAL = "#0D5C63", TEAL_LT = "#14919B", GOLD = "#C9A227", PAPER = "#F4F8F8";
@@ -218,6 +220,10 @@ export default function DailyObservation() {
   }, [fromDate, toDate]);
 
   useEffect(() => { loadHistoryRef.current = loadHistory; }, [loadHistory]);
+
+  /* A note written about a child is the teacher's own work product — rate it.
+   * Attributed to whoever wrote it (the observer), on the five standards. */
+  const { map: ratingMap } = useBulkRatings("student_observation", history.map((o) => o.id));
 
   /* Mirror the in-progress form locally, so a refresh, a crash or a closed tab
    * does not cost the user what they had written. Cleared once it is saved. */
@@ -783,6 +789,11 @@ export default function DailyObservation() {
                                 {o.monitoring_flag ? <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: "#f7e3e1", color: "#C0473F" }}>🔎 monitoring</span> : null}
                               </div>
                               <span className="flex items-center gap-2 flex-shrink-0">
+                                {ratingMap[o.id] && (
+                                  <RatePill type="student_observation" id={o.id}
+                                    title={`${selected?.name || "Observation"} · ${dim.label || o.dimension}`}
+                                    entry={ratingMap[o.id]} />
+                                )}
                                 {/* `editable` comes from the server and mirrors
                                   * exactly what the update endpoint allows, so
                                   * the button is never a route to a 403. */}

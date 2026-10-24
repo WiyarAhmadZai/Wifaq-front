@@ -7,13 +7,23 @@ import { richTextToPlain } from "../../utils/richText";
 import Select2 from '../../components/hr/Select2';
 import StaffTaskCalendar from "../../components/hr/StaffTaskCalendar";
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import { RatePill } from '../../components/hr/StaffRatings';
+import { useBulkRatings } from '../../components/hr/ratingKit';
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const statusStyle = { pending: "bg-yellow-50 text-yellow-700", in_progress: "bg-teal-50 text-teal-700", completed: "bg-teal-50 text-teal-700", cancelled: "bg-gray-100 text-gray-500 line-through" };
 const statusDot = { pending: "bg-yellow-500", in_progress: "bg-teal-500", completed: "bg-teal-600", cancelled: "bg-gray-400" };
 const statusLabel = { pending: "Pending", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled" };
-const qualityStyle = { excellent: "bg-teal-50 text-teal-700", good: "bg-teal-50 text-teal-600", average: "bg-yellow-50 text-yellow-700", poor: "bg-red-50 text-red-700" };
+// Quality is a judgement, so it should read like one: a filled gradient chip,
+// green through red, that is legible at a glance across fifty rows.
+const qualityStyle = {
+  excellent: "bg-gradient-to-r from-emerald-500 to-emerald-700 text-white",
+  good: "bg-gradient-to-r from-teal-500 to-teal-600 text-white",
+  average: "bg-gradient-to-r from-amber-400 to-amber-600 text-white",
+  poor: "bg-gradient-to-r from-rose-500 to-red-700 text-white",
+};
+const qualityIcon = { excellent: "★★★", good: "★★", average: "★", poor: "▽" };
 const taskTypeStyle = { urgent: "bg-red-100 text-red-700", high: "bg-orange-100 text-orange-700", normal: "bg-blue-100 text-blue-700", low: "bg-gray-100 text-gray-600" };
 
 export default function StaffTask() {
@@ -149,6 +159,11 @@ export default function StaffTask() {
     if (filterStatus && it.status !== filterStatus) return false;
     return true;
   });
+
+  // Five-standard stars for every row on screen, in one request. Quality (the
+  // word chosen from the dropdown) and the star rating say different things:
+  // quality is "how did it turn out", the stars are "how did the person work".
+  const { map: ratingMap } = useBulkRatings("staff_task", filtered.map((it) => it.id));
 
   const stats = [
     { label: "Total Tasks", value: items.length, icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
@@ -312,7 +327,7 @@ export default function StaffTask() {
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Dates</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Progress</th>
-                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quality</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quality · Stars</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -376,12 +391,19 @@ export default function StaffTask() {
                         <span className="text-[11px] font-semibold text-gray-600 w-8 text-right">{item.progress || 0}%</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      {item.quality ? (
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${qualityStyle[item.quality]}`}>
-                          {item.quality}
-                        </span>
-                      ) : <span className="text-xs text-gray-300">—</span>}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-center gap-1">
+                        {item.quality ? (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold capitalize shadow-sm ${qualityStyle[item.quality]}`}>
+                            <span data-no-i18n>{qualityIcon[item.quality]}</span>
+                            {item.quality}
+                          </span>
+                        ) : <span className="text-[10px] text-gray-300">No quality set</span>}
+                        {item.status === "completed" && ratingMap[item.id] && (
+                          <RatePill type="staff_task" id={item.id}
+                            title={item.title || richTextToPlain(item.task)} entry={ratingMap[item.id]} />
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">

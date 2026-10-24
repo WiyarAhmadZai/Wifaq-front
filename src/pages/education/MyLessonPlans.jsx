@@ -7,6 +7,8 @@ import { TEAL, TEAL_LT, GOLD, PAPER, STATUS, Hero, Spinner, StatusPill, Dimensio
 import ReflectionModal from "./ReflectionModal";
 import { useAuth } from "../../admin/context/AuthContext";
 import TeacherMultiSelect from "../../components/education/TeacherMultiSelect";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
 
 const FILTERS = [
   { key: "", label: "All" },
@@ -81,6 +83,9 @@ export default function MyLessonPlans() {
       .finally(() => setLoading(false));
   }, [filter, q, teacherIds]);
   useEffect(() => { load(); }, [load]);
+
+  // Every plan on screen carries its stars — one request for the whole list.
+  const { map: ratingMap } = useBulkRatings("lesson_plan", rows.map((p) => p.id));
 
   const act = async (id, action, body) => {
     setBusy(id);
@@ -171,6 +176,9 @@ export default function MyLessonPlans() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-black text-gray-800 truncate">{p.title}</p>
                       <StatusPill status={p.status} />
+                      {ratingMap[p.id] && (
+                        <RatePill type="lesson_plan" id={p.id} title={p.title} entry={ratingMap[p.id]} />
+                      )}
                     </div>
                     <p className="text-[11px] text-gray-400 mt-0.5">
                       {isLeadership && p.teacher ? <span className="font-bold text-gray-500">{p.teacher} · </span> : null}

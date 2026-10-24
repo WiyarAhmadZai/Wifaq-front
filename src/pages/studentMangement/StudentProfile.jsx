@@ -113,6 +113,8 @@ const TABS = [
 
 import StaffGallery from "../hr/StaffGallery";
 import { AuthImage, FullScreenImage } from "../../components/AuthImage";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
 
 export default function StudentProfile() {
   const navigate = useNavigate();
@@ -128,6 +130,10 @@ export default function StudentProfile() {
   // The child's photo, enlarged over the page. An overlay and not a route, so
   // closing it returns you to the very tab and scroll position you left.
   const [zoomPhoto, setZoomPhoto] = useState(false);
+
+  /* The شناسنامه is somebody's work — kept, updated, written on. It is rated as
+   * the work of the class supervisor (or whoever the backend attributes it to). */
+  const { map: fileRating } = useBulkRatings("student_profile", [id]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -321,6 +327,9 @@ export default function StudentProfile() {
               <h1 className="text-xl font-bold text-gray-800">{s.full_name}</h1>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700">{data.profile?.access_level || "L1"}</span>
               {s.class && <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-700">شناسنامه</span>}
+              {fileRating[id] && (
+                <RatePill type="student_profile" id={id} title={`شناسنامه · ${s.full_name}`} entry={fileRating[id]} />
+              )}
             </div>
             <p className="text-sm text-gray-500 mt-1 font-mono">{s.student_id}</p>
             <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500 flex-wrap">

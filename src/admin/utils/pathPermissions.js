@@ -174,8 +174,13 @@ const RULES = [
   // page, which otherwise demands students.view — a permission an
   // enrolled-students-only user does not hold, so the eye bounced them to
   // /403. Longest prefix wins, so this beats the /students rule below.
-  { prefix: "/student-management/students/show", permission: "students.view", alt: ["enrolled-students.view"] },
-  { prefix: "/student-management/students", permission: "students.view" },
+  // A شناسنامه (student-profiles) holder needs a read-only way in: the profile
+  // lives behind the students list and the student detail page, both of which
+  // otherwise demand students.view — a permission a profile-only user does not
+  // hold. The alt gives them that entry point; writes stay gated by the
+  // student-profiles.* family inside the profile screen and its controller.
+  { prefix: "/student-management/students/show", permission: "students.view", alt: ["enrolled-students.view", "student-profiles.view"] },
+  { prefix: "/student-management/students", permission: "students.view", alt: ["student-profiles.view"] },
   { prefix: "/student-management/parents", permission: "parents.view" },
   { prefix: "/student-management/grades", permission: "grades.view" },
   { prefix: "/student-management/academic-terms", permission: "academic-terms.view" },

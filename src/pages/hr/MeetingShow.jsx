@@ -12,6 +12,7 @@ import ChecklistPanel from "../../components/hr/ChecklistPanel";
 import AttachmentPanel from "../../components/hr/AttachmentPanel";
 import { RichTextView } from "../../components/RichTextField";
 import { SendReminderButton } from "../../components/hr/Reminders";
+import { RateWorkButton } from "../../components/hr/StaffRatings";
 import { useAuth } from "../../admin/context/AuthContext";
 import { linesToItems, richTextToPlain } from "../../utils/richText";
 const statusConf = {
@@ -694,6 +695,10 @@ export default function MeetingShow() {
       </div>
 
       <div className="px-4 py-5 space-y-4">
+        {/* Whoever called and ran this meeting is judged here, on the five
+          * standards — only the button appears for those entitled to rate it. */}
+        <RateWorkButton type="meeting" id={Number(id)} title={data.title} />
+
         {/* Appointment for a guest (public page, or booked for someone else):
             the guest has no account, so how to reach them is shown here. */}
         {data.meeting_type === "appointment" && (() => {

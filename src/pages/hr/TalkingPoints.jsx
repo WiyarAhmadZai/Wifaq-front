@@ -100,7 +100,7 @@ export default function TalkingPoints() {
                   </div>
                   <div className="text-[11px] text-gray-400 mt-0.5">
                     <span>{fmtDay(tp.written_on)}</span>
-                    {!isSuperAdmin && tp.author?.name && <span data-no-i18n> · shared by {tp.author.name}</span>}
+                    {tp.author?.name && <span data-no-i18n> · {isSuperAdmin ? "by" : "shared by"} {tp.author.name}</span>}
                     {tp.completed_at && <span> · completed {fmtDay(tp.completed_at.slice(0, 10))}</span>}
                   </div>
                   {tp.body && (

@@ -11,7 +11,14 @@ const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", C
 
 export default function Staff() {
   const navigate = useNavigate();
-  const { canCreate, canUpdate, canDelete } = useResourcePermissions('staff');
+  const { canCreate, canUpdate, canDelete, can } = useResourcePermissions('staff');
+  // Each action button owns its own permission so HR can hand out a single
+  // power without handing over the whole record (e.g. status changes only).
+  // `can()` also honours the staff.manage catch-all.
+  const canTransfer = can('transfer');
+  const canSupervisors = can('supervisors');
+  const canStatus = can('status');
+  const canWelcomeLetter = can('welcome-letter');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -441,29 +448,31 @@ export default function Staff() {
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             </button>
                             {/* Welcome letter — view / print / download in EN, Dari or Pashto. */}
+                            {canWelcomeLetter && (
                             <button onClick={() => setLetterStaff({ id: item.id, name })}
                               className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Welcome Letter">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                             </button>
+                            )}
                             {canUpdate && (
                               <button onClick={() => navigate(`/hr/staff/edit/${item.id}`)}
                                 className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                               </button>
                             )}
-                            {canUpdate && (
+                            {canTransfer && (
                               <button onClick={() => openTransferModal(item)}
                                 className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Transfer / Update">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                               </button>
                             )}
-                            {canUpdate && (
+                            {canSupervisors && (
                               <button onClick={() => openSupervisorModal(item)}
                                 className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Update Supervisors">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                               </button>
                             )}
-                            {canUpdate && (
+                            {canStatus && (
                               <button onClick={() => openStatusModal(item)}
                                 className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

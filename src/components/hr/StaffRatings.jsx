@@ -258,7 +258,8 @@ export function RatePill({ type, id, title = "", entry, size = "sm" }) {
 
   const save = async (fields) => {
     try {
-      await post("/staff-ratings", { rateable_type: type, rateable_id: id, ...fields });
+      // type "staff": the row IS the person, so this is a general rating of them.
+      await post("/staff-ratings", type === "staff" ? { staff_id: id, ...fields } : { rateable_type: type, rateable_id: id, ...fields });
       Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Rating saved", timer: 1600, showConfirmButton: false });
       // The row's own bulk entry is stale now; refetch the page's scores.
       broadcastRatingChange();

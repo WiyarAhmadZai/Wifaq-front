@@ -3,6 +3,8 @@ import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import Select2 from "../../components/hr/Select2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
 
 /** Shared progress bar — colour shifts from amber → teal → emerald as it fills. */
 function ProgressBar({ percent, height = "h-2.5" }) {
@@ -404,6 +406,8 @@ function MonitorWorks() {
   }, [date]);
 
   useEffect(() => { load(); }, [load]);
+  // Rate the person's day of work straight from the team list.
+  const { map: ratingMap } = useBulkRatings("staff", rows.map((r) => r.staff_id));
 
   const teamPercent = rows.length ? Math.round(rows.reduce((s, r) => s + r.percent, 0) / rows.length) : 0;
 
@@ -442,6 +446,7 @@ function MonitorWorks() {
                 </div>
                 <ProgressBar percent={r.percent} />
               </div>
+              <RatePill type="staff" id={r.staff_id} title={`${r.staff_name} · daily works ${date}`} entry={ratingMap[r.staff_id]} />
             </div>
           ))}
         </div>

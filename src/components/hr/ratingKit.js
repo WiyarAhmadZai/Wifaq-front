@@ -18,6 +18,7 @@ export const RATEABLE_LABEL = {
   student_observation: "Student observation",
   student_profile: "شناسنامه",
   meeting: "Meeting",
+  staff: "General",
 };
 
 /** A score in one word — a number alone is forgettable, a judgement is not. */

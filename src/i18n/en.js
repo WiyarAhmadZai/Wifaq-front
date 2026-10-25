@@ -1921,6 +1921,7 @@ export default {
   "Semester 1 end": "Semester 1 end",
   "Semester 2 start": "Semester 2 start",
   "Semester 2 end": "Semester 2 end",
+  "★ Rate": "★ Rate",
   "No staff with a login account found": "No staff with a login account found",
   "Pick one or more departments…": "Pick one or more departments…",
   "Search and pick individual staff…": "Search and pick individual staff…",

@@ -1920,6 +1920,7 @@ export default {
   "Semester 1 end": "د لومړي سمستر پای",
   "Semester 2 start": "د دویم سمستر پیل",
   "Semester 2 end": "د دویم سمستر پای",
+  "★ Rate": "★ درجه ورکړئ",
   "No staff with a login account found": "د ننوتلو حساب لرونکی هېڅ کارکوونکی ونه موندل شو",
   "Pick one or more departments…": "یوه یا څو څانګې وټاکئ…",
   "Search and pick individual staff…": "کارکوونکي ولټوئ او وټاکئ…",

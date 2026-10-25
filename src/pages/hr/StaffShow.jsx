@@ -11,6 +11,7 @@ import { getStaffOnboarding } from '../../api/onboarding';
 import { useI18n } from '../../i18n/I18nContext';
 import StaffGallery from './StaffGallery';
 import { StaffEvaluation } from '../../components/hr/StaffRatings';
+import { useBulkRatings } from '../../components/hr/ratingKit';
 import StaffTaskCalendar from '../../components/hr/StaffTaskCalendar';
 
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -39,6 +40,9 @@ export default function StaffShow() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewingDoc, setViewingDoc] = useState(null);
+  // Whether the viewer may rate this person — the header's ★ Rate shows only then.
+  const { map: ratingMap } = useBulkRatings("staff", [Number(id)]);
+  const canRate = Boolean(ratingMap[Number(id)]?.can_rate);
 
   useEffect(() => { fetchItem(); }, [id]);
 
@@ -100,6 +104,13 @@ export default function StaffShow() {
               <p className="text-xs text-teal-100 mt-0.5">Viewing staff record</p>
             </div>
             <div className="flex gap-2">
+              {/* The Evaluation section is far down a long page; this gets there. */}
+              {canRate && (
+                <button onClick={() => document.getElementById("evaluation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-500 text-amber-950 text-xs font-bold rounded-xl transition-colors">
+                  ★ Rate
+                </button>
+              )}
               {canUpdate && (
                 <button onClick={() => navigate(`/hr/staff/edit/${id}`)}
                   className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
@@ -272,6 +283,7 @@ export default function StaffShow() {
 
             {/* Evaluation — star ratings on the five standards, by week, month and
                 year. Hides itself for viewers who may not see them. */}
+            <div id="evaluation" className="scroll-mt-4" />
             <Section title="Evaluation" icon="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z">
               <StaffEvaluation staffId={data.id} name={name} />
             </Section>

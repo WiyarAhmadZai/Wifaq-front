@@ -1920,6 +1920,7 @@ export default {
   "Semester 1 end": "ختم سمستر اول",
   "Semester 2 start": "شروع سمستر دوم",
   "Semester 2 end": "ختم سمستر دوم",
+  "★ Rate": "★ امتیاز دادن",
   "No staff with a login account found": "هیچ کارمندی با حساب ورود یافت نشد",
   "Pick one or more departments…": "یک یا چند دیپارتمنت را انتخاب کنید…",
   "Search and pick individual staff…": "کارمندان را جستجو و انتخاب کنید…",

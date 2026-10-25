@@ -5,6 +5,8 @@ import { listDepartments } from '../../api/departments';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 import WelcomeLetterModal from '../../components/WelcomeLetterModal';
+import { RatePill } from '../../components/hr/StaffRatings';
+import { useBulkRatings } from '../../components/hr/ratingKit';
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
@@ -20,6 +22,8 @@ export default function Staff() {
   const canStatus = can('status');
   const canWelcomeLetter = can('welcome-letter');
   const [items, setItems] = useState([]);
+  // Each person's average rating, and a one-click ★ for their supervisors.
+  const { map: ratingMap } = useBulkRatings('staff', items.map((i) => i.id));
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -383,6 +387,7 @@ export default function Staff() {
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Contract</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Phone</th>
                     <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Rating</th>
                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -440,6 +445,9 @@ export default function Staff() {
                           }`}>
                             {status}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <RatePill type="staff" id={item.id} title={`${name} · general rating`} entry={ratingMap[item.id]} />
                         </td>
                         <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

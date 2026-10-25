@@ -171,6 +171,8 @@ export default function StudentProfile() {
     const today = new Date().toISOString().slice(0, 10);
     const yearsAgo = (n) => { const d = new Date(); d.setFullYear(d.getFullYear() - n); return d.toISOString().slice(0, 10); };
     const joined = data?.student?.enrollment_date || "";
+    const terms = data?.report_terms || [];
+    const thisMonth = today.slice(0, 7);
 
     const { isConfirmed, value } = await Swal.fire({
       title: "Student report",
@@ -178,12 +180,26 @@ export default function StudentProfile() {
         <div style="text-align:start;font-size:13px">
           <p style="font-weight:700;margin-bottom:6px">Period</p>
           <select id="rp-range" class="swal2-select" style="margin:0 0 10px;width:100%">
+            <option value="monthly">Monthly report</option>
+            <option value="semester1">Semester 1 report</option>
+            <option value="semester2">Semester 2 report</option>
+            <option value="annual">Annual report</option>
             <option value="all">Whole record — everything</option>
             <option value="since-joined">Since they joined${joined ? ` (${joined})` : ""}</option>
             <option value="2y">Last two years</option>
             <option value="1y">Last year</option>
             <option value="custom">Choose the dates…</option>
           </select>
+          <div id="rp-month-box" style="margin-bottom:10px">
+            <p style="font-weight:700;margin-bottom:6px">Month</p>
+            <input id="rp-month" type="month" class="swal2-input" style="margin:0;width:100%" value="${thisMonth}" max="${thisMonth}">
+          </div>
+          <div id="rp-term-box" style="display:none;margin-bottom:10px">
+            <p style="font-weight:700;margin-bottom:6px">School year</p>
+            <select id="rp-term" class="swal2-select" style="margin:0;width:100%">
+              ${terms.map((t) => `<option value="${t.id}"${t.is_current ? " selected" : ""}>${t.name}</option>`).join("")}
+            </select>
+          </div>
           <div id="rp-dates" style="display:none;gap:8px;margin-bottom:10px">
             <input id="rp-from" type="date" class="swal2-input" style="margin:0" max="${today}">
             <input id="rp-to" type="date" class="swal2-input" style="margin:0" max="${today}">
@@ -199,7 +215,13 @@ export default function StudentProfile() {
       didOpen: () => {
         const sel = document.getElementById("rp-range");
         const box = document.getElementById("rp-dates");
-        sel.addEventListener("change", () => { box.style.display = sel.value === "custom" ? "flex" : "none"; });
+        const monthBox = document.getElementById("rp-month-box");
+        const termBox = document.getElementById("rp-term-box");
+        sel.addEventListener("change", () => {
+          box.style.display = sel.value === "custom" ? "flex" : "none";
+          monthBox.style.display = sel.value === "monthly" ? "block" : "none";
+          termBox.style.display = ["semester1", "semester2", "annual"].includes(sel.value) ? "block" : "none";
+        });
       },
       showCancelButton: true,
       confirmButtonText: "Produce report",
@@ -208,6 +230,24 @@ export default function StudentProfile() {
         const range = document.getElementById("rp-range").value;
         const format = document.getElementById("rp-format").value;
         let from = "", to = "";
+        // Named periods: the server turns them into dates and a report title.
+        if (range === "monthly") {
+          const month = document.getElementById("rp-month").value;
+          if (!month) { Swal.showValidationMessage("Choose a month."); return false; }
+          return { kind: "monthly", month, format };
+        }
+        if (["semester1", "semester2", "annual"].includes(range)) {
+          const termId = document.getElementById("rp-term")?.value;
+          const term = terms.find((t) => String(t.id) === String(termId));
+          if (!term) { Swal.showValidationMessage("No school year is set up yet."); return false; }
+          if (!term[range]) {
+            Swal.showValidationMessage(range === "annual"
+              ? "This school year has no start and end date."
+              : "Semester dates are not set for this school year. Add them under Academic Terms.");
+            return false;
+          }
+          return { kind: range, termId, termName: term.name, format };
+        }
         if (range === "custom") {
           from = document.getElementById("rp-from").value;
           to = document.getElementById("rp-to").value;
@@ -251,12 +291,17 @@ export default function StudentProfile() {
     }
   };
 
-  const runReport = async ({ from, to, format }) => {
+  const runReport = async ({ from, to, format, kind, month, termId, termName }) => {
     const qs = new URLSearchParams();
     if (from) qs.set("from", from);
     if (to) qs.set("to", to);
+    if (kind) qs.set("kind", kind);
+    if (month) qs.set("month", month);
+    if (termId) qs.set("academic_term_id", termId);
     const name = (data?.student?.full_name || "student").replace(/\s+/g, "-");
-    const suffix = from || to ? `-${from || "start"}_${to || "today"}` : "";
+    const suffix = kind === "monthly" ? `-${month}`
+      : kind ? `-${kind}-${termName}`
+      : from || to ? `-${from || "start"}_${to || "today"}` : "";
     setReporting(true);
     try {
       if (format === "excel") {

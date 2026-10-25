@@ -10,6 +10,9 @@ import Select2 from "../../components/hr/Select2";
  * t(key, vars) → translated string with {placeholder} interpolation.
  */
 const RTL_FONT = "Vazirmatn, 'Noto Naskh Arabic', Tahoma, Arial, sans-serif";
+// The recruitment-process explainer the old Google Form linked to — shown above
+// the form so applicants read it before they start. Empty hides the notice.
+const RECRUITMENT_INFO_URL = "";
 const LANGS = [
   { code: "en", label: "English" },
   { code: "ps", label: "پښتو" },
@@ -19,6 +22,7 @@ const LANGS = [
 const L = {
   en: {
     now_hiring: "Now Hiring", hero_title: "Join the Wifaq Family",
+    recruit_info: "For more information about the recruitment process at Wifaq, read this before you apply.", recruit_info_link: "Read about the recruitment process",
     hero_desc: "We're building a team that inspires the next generation. Complete the form below and our recruitment team will be in touch with the next steps.",
     step_of: "Step {x} of {y}:",
     step1: "Position", step1d: "Choose the role you're applying for",
@@ -116,6 +120,7 @@ const L = {
   },
   ps: {
     now_hiring: "اوس استخدام", hero_title: "د وفاق کورنۍ سره یوځای شئ",
+    recruit_info: "په وفاق کې د استخدام د پروسې په اړه د لا زیاتو معلوماتو لپاره، مخکې له دې چې غوښتنلیک ډک کړئ دا ولولئ.", recruit_info_link: "د استخدام پروسه ولولئ",
     hero_desc: "موږ داسې ټیم جوړوو چې راتلونکی نسل الهام بخښي. لاندې فورمه ډکه کړئ او زموږ د استخدام ټیم به درسره اړیکه ونیسي.",
     step_of: "{x} له {y} مرحله:",
     step1: "بست", step1d: "هغه بست وټاکئ چې غوښتنه یې کوئ",
@@ -213,6 +218,7 @@ const L = {
   },
   fa: {
     now_hiring: "در حال استخدام", hero_title: "به خانواده وفاق بپیوندید",
+    recruit_info: "برای معلومات بیشتر در مورد پروسه استخدام در وفاق، پیش از پر کردن فورم این را بخوانید.", recruit_info_link: "پروسه استخدام را بخوانید",
     hero_desc: "ما تیمی می‌سازیم که نسل بعدی را الهام می‌بخشد. فرم زیر را تکمیل کنید و تیم استخدام با شما در تماس خواهد شد.",
     step_of: "مرحله {x} از {y}:",
     step1: "بست", step1d: "بستی را که می‌خواهید انتخاب کنید",
@@ -767,6 +773,19 @@ export default function PublicApplicationForm() {
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mt-4">{t("hero_title")}</h1>
           <p className="text-gray-600 mt-2 text-sm max-w-xl mx-auto">{t("hero_desc")}</p>
         </div>
+
+        {/* Before anything is filled in: what the recruitment process looks like.
+          * New tab, so following the link never loses a half-filled form. */}
+        {RECRUITMENT_INFO_URL && (
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <p className="text-sm text-amber-900 flex-1">{t("recruit_info")}</p>
+            <a href={RECRUITMENT_INFO_URL} target="_blank" rel="noopener noreferrer"
+              className="shrink-0 text-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl transition-colors">
+              {t("recruit_info_link")} ↗
+            </a>
+          </div>
+        )}
 
         {/* Progress bar — equal-width grid columns rather than flex items, so a
           * long label can never widen its own column, squeeze its neighbours'

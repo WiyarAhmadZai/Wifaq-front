@@ -38,6 +38,44 @@ export default function TalkingPoints() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);   // { mode: "new" } | { mode: "edit", tp } | { mode: "view", tp }
   const [convertTarget, setConvertTarget] = useState(null);
+  // One person's talking points, gathered from wherever they are scattered:
+  // "u:12" an employee, "g:3" a registered guest. Plus free text, which also
+  // finds entries that only name someone in the title or notes.
+  const [person, setPerson] = useState("");
+  const [search, setSearch] = useState("");
+
+  // Everyone who appears on a talking point, with how many they appear on.
+  const people = useMemo(() => {
+    const map = new Map();
+    const add = (key, name) => {
+      const cur = map.get(key) || { value: key, name, n: 0 };
+      cur.n += 1;
+      map.set(key, cur);
+    };
+    rows.forEach((tp) => {
+      (tp.participants || []).forEach((p) => add(`u:${p.id}`, p.name));
+      (tp.guests || []).forEach((g) => add(`g:${g.id}`, `👤 ${g.name}${g.who ? ` (${g.who})` : ""}`));
+    });
+    return [...map.values()]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((p) => ({ value: p.value, label: `${p.name} (${p.n})` }));
+  }, [rows]);
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((tp) => {
+      if (person) {
+        const [kind, id] = person.split(":");
+        const list = kind === "u" ? tp.participants : tp.guests;
+        if (!(list || []).some((p) => String(p.id) === id)) return false;
+      }
+      if (!q) return true;
+      const names = [...(tp.participants || []), ...(tp.guests || [])].map((p) => p.name).join(" ");
+      const text = `${tp.title} ${(tp.body || "").replace(/<[^>]+>/g, " ")} ${names} ${tp.author?.name || ""}`;
+      return text.toLowerCase().includes(q);
+    });
+  }, [rows, person, search]);
+  const personLabel = people.find((p) => p.value === person)?.label;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -61,15 +99,36 @@ export default function TalkingPoints() {
           </button>
         ) : null} />
 
-      <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5">
-        {[["open", "Open"], ["completed", "Completed"]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`px-3 py-1.5 text-sm rounded-lg ${tab === k ? "bg-teal-600 text-white" : "text-gray-600"}`}>{l}</button>
-        ))}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-2">
+        <div className="inline-flex self-start rounded-xl border border-gray-200 bg-white p-0.5">
+          {[["open", "Open"], ["completed", "Completed"], ["all", "All"]].map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`px-3 py-1.5 text-sm rounded-lg ${tab === k ? "bg-teal-600 text-white" : "text-gray-600"}`}>{l}</button>
+          ))}
+        </div>
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Select2 value={person} onChange={(v) => setPerson(v || "")} options={people}
+            placeholder="Filter by person…" isClearable />
+          <input value={search} onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-teal-400"
+            placeholder="Search title, notes or names…" />
+        </div>
       </div>
+
+      {(person || search.trim()) && !loading && (
+        <div className="flex items-center gap-2 text-xs text-gray-600">
+          <span>Talking points found:</span>
+          <span className="font-semibold">{shown.length} / {rows.length}</span>
+          {personLabel && <span className="font-semibold text-teal-700" data-no-i18n>· {personLabel}</span>}
+          <button onClick={() => { setPerson(""); setSearch(""); }}
+            className="ms-1 px-2 py-0.5 rounded border border-gray-200 hover:bg-gray-50">Clear filter</button>
+        </div>
+      )}
 
       {loading && !rows.length ? (
         <div className="flex justify-center py-24"><Spinner /></div>
+      ) : rows.length > 0 && shown.length === 0 ? (
+        <EmptyState title="No talking points match" description="Try another person or search, or switch to All." />
       ) : rows.length === 0 ? (
         <EmptyState title={tab === "open" ? "No open talking points" : "Nothing completed yet"}
           description={isSuperAdmin
@@ -77,7 +136,7 @@ export default function TalkingPoints() {
             : "Nothing has been shared with you here yet."} />
       ) : (
         <div className="space-y-2">
-          {rows.map((tp) => (
+          {shown.map((tp) => (
             <div key={tp.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:border-teal-300 transition">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
@@ -110,13 +169,16 @@ export default function TalkingPoints() {
                   )}
                   {(tp.participants?.length > 0 || tp.guests?.length > 0) && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
+                      {/* A name is a shortcut to everything about that person. */}
                       {tp.participants?.map((p) => (
-                        <span key={p.id} className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200" data-no-i18n>{p.name}</span>
+                        <button key={p.id} type="button" onClick={() => setPerson(`u:${p.id}`)} title="Show all talking points with this person"
+                          className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100" data-no-i18n>{p.name}</button>
                       ))}
                       {tp.guests?.map((g) => (
-                        <span key={g.id} className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200" data-no-i18n>
+                        <button key={g.id} type="button" onClick={() => setPerson(`g:${g.id}`)} title="Show all talking points with this person"
+                          className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100" data-no-i18n>
                           👤 {g.name}{g.who ? ` (${g.who})` : ""}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   )}

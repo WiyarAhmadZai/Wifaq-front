@@ -191,6 +191,7 @@ export default function StudentProfile() {
           <p style="font-weight:700;margin-bottom:6px">Format</p>
           <select id="rp-format" class="swal2-select" style="margin:0;width:100%">
             <option value="pdf">PDF — to save or send</option>
+            <option value="doc">Word — editable, for the annual report</option>
             <option value="print">Print — opens in a new tab</option>
             <option value="excel">Excel — the records as a spreadsheet</option>
           </select>
@@ -263,13 +264,13 @@ export default function StudentProfile() {
         const r = await get(`/student-management/students/${id}/profile/report?${qs}`, { cache: false });
         await reportToExcel(r.data?.data, `${name}${suffix}`);
       } else {
-        if (format === "pdf") qs.set("format", "pdf");
+        if (format === "pdf" || format === "doc") qs.set("format", format);
         const r = await get(`/student-management/students/${id}/profile/report?${qs}`, { responseType: "blob" });
-        const type = format === "pdf" ? "application/pdf" : "text/html";
+        const type = { pdf: "application/pdf", doc: "application/msword" }[format] || "text/html";
         const url = URL.createObjectURL(new Blob([r.data], { type }));
-        if (format === "pdf") {
+        if (format === "pdf" || format === "doc") {
           const a = document.createElement("a");
-          a.href = url; a.download = `profile-${name}${suffix}.pdf`;
+          a.href = url; a.download = `profile-${name}${suffix}.${format}`;
           document.body.appendChild(a); a.click(); a.remove();
           setTimeout(() => URL.revokeObjectURL(url), 4000);
         } else {
@@ -300,7 +301,7 @@ export default function StudentProfile() {
           </button>
           <div className="flex items-center gap-2">
             <button onClick={askReport} disabled={reporting}
-              title="The full record over any period — PDF, print, or Excel"
+              title="The full record over any period — PDF, Word, print, or Excel"
               className="px-3 py-2 bg-white text-teal-700 hover:bg-teal-50 rounded-xl text-sm font-semibold disabled:opacity-60">
               {reporting ? "Preparing…" : "📄 Report"}
             </button>

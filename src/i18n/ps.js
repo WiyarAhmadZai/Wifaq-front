@@ -1897,6 +1897,7 @@ export default {
   "Staff registered in the system. Add a whole department, or search and pick people one by one — they are notified when the event is saved.": "په سیستم کې ثبت شوي کارکوونکي. یو بشپړ څانګه اضافه کړئ، یا خلک یو‌یو ولټوئ او وټاکئ — د پېښې له خوندي کولو وروسته خبر ورکول کیږي.",
   "Add a department": "څانګه اضافه کړئ",
   "Also email the participants": "ګډونوالو ته بریښنالیک هم ولېږئ",
+  "(guests are reached by email only)": "(مېلمنو ته یوازې د بریښنالیک له لارې خبر ورکول کېږي)",
   "No staff with a login account found": "د ننوتلو حساب لرونکی هېڅ کارکوونکی ونه موندل شو",
   "Pick one or more departments…": "یوه یا څو څانګې وټاکئ…",
   "Search and pick individual staff…": "کارکوونکي ولټوئ او وټاکئ…",

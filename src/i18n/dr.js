@@ -1897,6 +1897,7 @@ export default {
   "Staff registered in the system. Add a whole department, or search and pick people one by one — they are notified when the event is saved.": "کارمندان ثبت‌شده در سیستم. یک دیپارتمنت کامل را اضافه کنید، یا افراد را یکی‌یکی جستجو و انتخاب کنید — پس از ذخیره رویداد به آن‌ها اطلاع داده می‌شود.",
   "Add a department": "افزودن دیپارتمنت",
   "Also email the participants": "به اشتراک‌کنندگان ایمیل هم بفرستید",
+  "(guests are reached by email only)": "(مهمانان تنها از طریق ایمیل مطلع می‌شوند)",
   "No staff with a login account found": "هیچ کارمندی با حساب ورود یافت نشد",
   "Pick one or more departments…": "یک یا چند دیپارتمنت را انتخاب کنید…",
   "Search and pick individual staff…": "کارمندان را جستجو و انتخاب کنید…",

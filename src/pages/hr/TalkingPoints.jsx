@@ -204,6 +204,8 @@ function TpModal({ modal, onClose, onSaved }) {
   const [body, setBody] = useState(editing?.body || "");
   const [writtenOn, setWrittenOn] = useState(editing?.written_on || new Date().toISOString().slice(0, 10));
   const [notify, setNotify] = useState(editing?.notify ?? true);
+  // Guests have no bell, so without this they are never told at all.
+  const [emailToo, setEmailToo] = useState(true);
   const [meetingId, setMeetingId] = useState(editing?.meeting?.id || "");
   const [participants, setParticipants] = useState(editing?.participants?.map((p) => p.id) || []);
   const [guests, setGuests] = useState(editing?.guests?.map((g) => g.id) || []);
@@ -257,6 +259,7 @@ function TpModal({ modal, onClose, onSaved }) {
     try {
       const payload = {
         title: title.trim(), body, written_on: writtenOn, notify,
+        notify_by_email: notify && emailToo,
         meeting_id: meetingId || null, participants, guests,
       };
       const r = editing
@@ -410,6 +413,12 @@ function TpModal({ modal, onClose, onSaved }) {
             <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="accent-teal-600" />
             <span className="text-sm text-gray-700">Share with the people involved <span className="text-gray-400">(notify them in their bell)</span></span>
           </label>
+          {notify && (
+            <label className="flex items-center gap-2 cursor-pointer ms-6">
+              <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)} className="accent-teal-600" />
+              <span className="text-sm text-gray-700">Also email the participants <span className="text-gray-400">(guests are reached by email only)</span></span>
+            </label>
+          )}
         </div>
 
         <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">

@@ -1898,6 +1898,7 @@ export default {
   "Staff registered in the system. Add a whole department, or search and pick people one by one — they are notified when the event is saved.": "Staff registered in the system. Add a whole department, or search and pick people one by one — they are notified when the event is saved.",
   "Add a department": "Add a department",
   "Also email the participants": "Also email the participants",
+  "(guests are reached by email only)": "(guests are reached by email only)",
   "No staff with a login account found": "No staff with a login account found",
   "Pick one or more departments…": "Pick one or more departments…",
   "Search and pick individual staff…": "Search and pick individual staff…",

@@ -605,6 +605,8 @@ function App() {
             <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
             <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />
             <Route path="education/4d-self-rating" element={<Suspense fallback={<PageLoader />}><QuickFourD /></Suspense>} />
+            {/* No id: StudentProfile shows its student finder. */}
+            <Route path="education/student-profiles" element={<Suspense fallback={<PageLoader />}><StudentProfile /></Suspense>} />
             <Route path="education/cards" element={<Suspense fallback={<PageLoader />}><StudentCards /></Suspense>} />
             <Route path="education/card-rankings" element={<Suspense fallback={<PageLoader />}><CardRankings /></Suspense>} />
 

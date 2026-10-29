@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get, del, put, API_BASE_URL, peekCache } from '../../api/axios';
 import { listDepartments } from '../../api/departments';
@@ -31,6 +31,9 @@ export default function Staff() {
   const [branchFilter, setBranchFilter] = useState('');
   const [contractFilter, setContractFilter] = useState('');
   const [supervisorFilter, setSupervisorFilter] = useState('');
+  // Nested listing: one staff group at a time, or all of them under headings.
+  const [groupFilter, setGroupFilter] = useState('');
+  const [groups, setGroups] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [supervisors, setSupervisors] = useState([]);
@@ -61,7 +64,7 @@ export default function Staff() {
   const [letterStaff, setLetterStaff] = useState(null);
 
   useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); fetchExitReasons(); fetchSupervisors(); }, []);
-  useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter, supervisorFilter]);
+  useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter, supervisorFilter, groupFilter]);
 
   const fetchBranches = async () => {
     try {
@@ -121,16 +124,19 @@ export default function Staff() {
       if (branchFilter) params.append('branch_id', branchFilter);
       if (contractFilter) params.append('contract_type', contractFilter);
       if (supervisorFilter) params.append('supervisor_id', supervisorFilter);
+      if (groupFilter) params.append('category', groupFilter);
 
       const __cached = peekCache(`/hr/staff/list?${params.toString()}`);
       if (__cached) {
         setItems(__cached?.data || []);
+        setGroups(__cached?.groups || []);
         setPagination({ current_page: __cached?.current_page || 1, last_page: __cached?.last_page || 1, total: __cached?.total || 0 });
         setLoading(false);
       }
       const res = await get(`/hr/staff/list?${params.toString()}`);
       const data = res.data;
       setItems(data?.data || []);
+      setGroups(data?.groups || []);
       setPagination({ current_page: data?.current_page || 1, last_page: data?.last_page || 1, total: data?.total || 0 });
     } catch {
       setItems([]);
@@ -273,9 +279,12 @@ export default function Staff() {
     setBranchFilter('');
     setContractFilter('');
     setSupervisorFilter('');
+    setGroupFilter('');
   };
 
-  const hasFilters = search || statusFilter !== 'all' || deptFilter || branchFilter || contractFilter || supervisorFilter;
+  const hasFilters = search || statusFilter !== 'all' || deptFilter || branchFilter || contractFilter || supervisorFilter || groupFilter;
+  const groupLabel = (key) => groups.find((g) => g.key === key)?.label || 'Other';
+  const groupCount = (key) => groups.find((g) => g.key === key)?.count ?? 0;
 
   // Helper to get name from application relationship
   const getName = (item) => item.application?.full_name || `Staff #${item.employee_id}`;
@@ -367,6 +376,22 @@ export default function Staff() {
               </button>
             )}
           </div>
+          {/* Staff groups — the long list, nested. Counts follow the other
+              filters, so they say what each group holds for this search. */}
+          {groups.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap mt-3 pt-3 border-t border-gray-100">
+              <button onClick={() => setGroupFilter('')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${!groupFilter ? 'bg-teal-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-teal-50'}`}>
+                <span>All groups</span> <span data-no-i18n>({groups.reduce((n, g) => n + g.count, 0)})</span>
+              </button>
+              {groups.filter((g) => g.count > 0 || g.key === groupFilter).map((g) => (
+                <button key={g.key} onClick={() => setGroupFilter(groupFilter === g.key ? '' : g.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${groupFilter === g.key ? 'bg-teal-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-teal-50'}`}>
+                  <span>{g.label}</span> <span data-no-i18n>({g.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Table */}
@@ -392,7 +417,7 @@ export default function Staff() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {items.map(item => {
+                  {items.map((item, idx) => {
                     const name = getName(item);
                     const code = item.employee_id || '';
                     const role = positionTitles[item.role_title_en] || item.role_title_en || '';
@@ -405,8 +430,20 @@ export default function Staff() {
                     const status = item.status || '';
                     const phone = item.application?.contact_number || '';
 
+                    // A heading wherever the group changes — the server sorts by group.
+                    const showHeading = item.staff_category && (idx === 0 || items[idx - 1].staff_category !== item.staff_category);
+
                     return (
-                      <tr key={item.id} onClick={() => navigate(`/hr/staff/show/${item.id}`)}
+                      <Fragment key={item.id}>
+                      {showHeading && (
+                        <tr className="bg-gray-50/80">
+                          <td colSpan={9} className="px-4 py-2">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800">{groupLabel(item.staff_category)}</span>
+                            <span className="ms-2 text-[10px] text-gray-400" data-no-i18n>({groupCount(item.staff_category)})</span>
+                          </td>
+                        </tr>
+                      )}
+                      <tr onClick={() => navigate(`/hr/staff/show/${item.id}`)}
                         className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
@@ -495,6 +532,7 @@ export default function Staff() {
                           </div>
                         </td>
                       </tr>
+                      </Fragment>
                     );
                   })}
                 </tbody>

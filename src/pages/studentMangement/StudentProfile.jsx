@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { get, put, post, peekCache } from "../../api/axios";
 import { toastSuccess, toastError } from "../../utils/toast";
@@ -6,6 +6,7 @@ import Modal from "../../components/Modal";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import Swal from "sweetalert2";
 import { exportSheetsToExcel } from "../../utils/listExport";
+import { useI18n } from "../../i18n/I18nContext";
 
 /* ── 4D dimension accents ── */
 const DIMS = [
@@ -116,20 +117,89 @@ import { AuthImage, FullScreenImage } from "../../components/AuthImage";
 import { RatePill } from "../../components/hr/StaffRatings";
 import { useBulkRatings } from "../../components/hr/ratingKit";
 
+/* /education/student-profiles (no id) is the finder; with an id, the profile. */
 export default function StudentProfile() {
+  const { id } = useParams();
+  return id ? <StudentProfileView /> : <StudentProfileFinder />;
+}
+
+/* ════════════════ the شناسنامه finder ════════════════
+   The Student Development menu's way in. A teacher sees their own students at
+   once; anyone can search by name or student code. The list holds only
+   children this viewer may open — the server filters it (openable=1). */
+function StudentProfileFinder() {
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      get(`/student-management/student-profiles/search?openable=1&q=${encodeURIComponent(q.trim())}`, { cache: false })
+        .then((r) => setRows(r.data?.data || []))
+        .catch(() => setRows([]));
+    }, q ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  return (
+    <div className="min-h-screen bg-gray-50/60 pb-10">
+      <div className="max-w-4xl mx-auto px-4 pt-6 space-y-4">
+        <div>
+          <h1 className="text-lg font-bold text-gray-800">Student Profiles · شناسنامه</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Find a student and open their شناسنامه.</p>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus
+          placeholder="Search by name or student code…"
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+        {rows === null ? <Spinner /> : rows.length === 0 ? (
+          <EmptyState title={q ? "No student found" : "Type a name to search"}
+            hint={q ? "Only students you may open are listed." : "Your own students appear here automatically."} />
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+            {rows.map((st) => (
+              <button key={st.id} type="button" onClick={() => navigate(`/student-management/students/profile/${st.id}`)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-start hover:bg-teal-50/50 transition-colors">
+                <span className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-black shrink-0">
+                  {`${st.first_name?.[0] || ""}${st.last_name?.[0] || ""}`.toUpperCase() || "?"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <bdi dir="auto" className="block text-sm font-semibold text-gray-800 truncate" data-no-i18n>{st.first_name} {st.last_name}</bdi>
+                  <span className="block text-[11px] text-gray-400 font-mono" data-no-i18n>{st.student_id}{st.school_class?.class_name ? ` · ${st.school_class.class_name}` : ""}</span>
+                </span>
+                <span className="text-teal-600 text-xs font-bold shrink-0">شناسنامه →</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StudentProfileView() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   // ?tab=gallery opens straight on the album: the Student Gallery screen links
   // here after somebody picks a child, and making them click the tab again is
   // friction on the one journey that already knows where it is going.
   const [tab, setTab] = useState(TABS.some((t) => t.key === params.get("tab")) ? params.get("tab") : "overview");
+  // Switching tabs also mirrors the choice into ?tab=, so a refresh (or a
+  // shared/back-button link) lands back on the same tab instead of Overview.
+  // replace:true keeps the browser history clean — one entry per profile visit.
+  const changeTab = (key) => {
+    setTab(key);
+    const p = new URLSearchParams(params);
+    p.set("tab", key);
+    setParams(p, { replace: true });
+  };
   const [saving, setSaving] = useState(false);
   // The child's photo, enlarged over the page. An overlay and not a route, so
   // closing it returns you to the very tab and scroll position you left.
   const [zoomPhoto, setZoomPhoto] = useState(false);
+  // The report follows the interface language unless the reader picks another.
+  const { lang: uiLang } = useI18n();
 
   /* The شناسنامه is somebody's work — kept, updated, written on. It is rated as
    * the work of the class supervisor (or whoever the backend attributes it to). */
@@ -145,6 +215,14 @@ export default function StudentProfile() {
       .finally(() => setLoading(false));
   }, [id]);
   useEffect(() => { load(); }, [load]);
+
+  // Closing or reloading the page with unsaved text: the browser asks first.
+  // (The text itself is also kept as a draft — see useAutoSave.)
+  useEffect(() => {
+    const warn = (e) => { if (pendingRef.current?.dirty()) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
 
   const save = async (method, path, body, msg = "Recorded") => {
     setSaving(true);
@@ -172,6 +250,7 @@ export default function StudentProfile() {
     const yearsAgo = (n) => { const d = new Date(); d.setFullYear(d.getFullYear() - n); return d.toISOString().slice(0, 10); };
     const joined = data?.student?.enrollment_date || "";
     const terms = data?.report_terms || [];
+    let reportLang = uiLang;
     const thisMonth = today.slice(0, 7);
 
     const { isConfirmed, value } = await Swal.fire({
@@ -204,6 +283,12 @@ export default function StudentProfile() {
             <input id="rp-from" type="date" class="swal2-input" style="margin:0" max="${today}">
             <input id="rp-to" type="date" class="swal2-input" style="margin:0" max="${today}">
           </div>
+          <p style="font-weight:700;margin-bottom:6px">Report language</p>
+          <select id="rp-lang" class="swal2-select" style="margin:0 0 10px;width:100%">
+            <option value="dr"${uiLang === "dr" ? " selected" : ""}>دری — راست به چپ</option>
+            <option value="ps"${uiLang === "ps" ? " selected" : ""}>پښتو — له ښي نه کیڼ ته</option>
+            <option value="en"${uiLang === "en" ? " selected" : ""}>English</option>
+          </select>
           <p style="font-weight:700;margin-bottom:6px">Format</p>
           <select id="rp-format" class="swal2-select" style="margin:0;width:100%">
             <option value="pdf">PDF — to save or send</option>
@@ -229,6 +314,7 @@ export default function StudentProfile() {
       preConfirm: () => {
         const range = document.getElementById("rp-range").value;
         const format = document.getElementById("rp-format").value;
+        reportLang = document.getElementById("rp-lang").value;
         let from = "", to = "";
         // Named periods: the server turns them into dates and a report title.
         if (range === "monthly") {
@@ -259,7 +345,7 @@ export default function StudentProfile() {
       },
     });
     if (!isConfirmed) return;
-    runReport(value);
+    runReport({ ...value, lang: reportLang });
   };
 
   /* The report payload as a workbook: one sheet per kind of record, because
@@ -291,11 +377,12 @@ export default function StudentProfile() {
     }
   };
 
-  const runReport = async ({ from, to, format, kind, month, termId, termName }) => {
+  const runReport = async ({ from, to, format, kind, month, termId, termName, lang }) => {
     const qs = new URLSearchParams();
     if (from) qs.set("from", from);
     if (to) qs.set("to", to);
     if (kind) qs.set("kind", kind);
+    if (lang) qs.set("lang", lang);
     if (month) qs.set("month", month);
     if (termId) qs.set("academic_term_id", termId);
     const name = (data?.student?.full_name || "student").replace(/\s+/g, "-");
@@ -334,7 +421,21 @@ export default function StudentProfile() {
   const s = data.student, can = data.can || {};
   const tabs = TABS.filter((t) => !t.sensitive || can.view_sensitive);
   const initials = `${s.first_name?.[0] || ""}${s.last_name?.[0] || ""}`.toUpperCase();
-  const ctx = { data, save, saving, can };
+  /* Auto-save. A section with a half-filled form registers itself here; moving
+   * to another tab saves it first, so a teacher who clicks on without pressing
+   * Save no longer loses what they typed. A save the server rejects stays as a
+   * draft in the browser and reopens, filled in, when they come back. */
+  const pendingRef = useRef(null);
+  const registerPending = useCallback((entry) => { pendingRef.current = entry; }, []);
+  const switchTab = async (key) => {
+    const pending = pendingRef.current;
+    if (key !== tab && pending?.dirty()) {
+      const ok = await pending.flush();
+      if (!ok) toastError("Not saved yet — kept as a draft. It will reopen when you come back to this tab.");
+    }
+    changeTab(key);
+  };
+  const ctx = { data, save, saving, can, registerPending };
 
   return (
     <div className="min-h-screen bg-gray-50/60 pb-10">
@@ -387,7 +488,7 @@ export default function StudentProfile() {
         {/* Tabs */}
         <div className="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-1.5 flex gap-1 overflow-x-auto">
           {tabs.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
+            <button key={t.key} onClick={() => switchTab(t.key)}
               className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${tab === t.key ? "bg-teal-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}>
               {t.label}
             </button>
@@ -521,8 +622,54 @@ function GalleryTab({ data }) {
   );
 }
 
+/* ════════════════ auto-save ════════════════
+   One section's open form: kept in the browser as a draft while it is being
+   typed (so a reload or a closed tab loses nothing), offered to the page's
+   tab switcher so it is saved to the server before the teacher moves on, and
+   restored — still open, still filled in — if that save did not go through.
+   Drafts are per user, per student, per section. */
+function useAutoSave({ section, data, can, open, form, editingId, isDirty, submit, restore, registerPending }) {
+  const key = `wen.sp-draft:${can?.my_user_id || 0}:${data?.student?.id || 0}:${section}`;
+  const latest = useRef({});
+  latest.current = { open, isDirty, submit };
+
+  // Restore a draft left behind last time.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) { const d = JSON.parse(raw); restore(d.form, d.editingId || null); }
+    } catch { /* storage blocked — nothing to restore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  // Keep the draft in step with the form.
+  useEffect(() => {
+    try {
+      if (open && isDirty()) localStorage.setItem(key, JSON.stringify({ form, editingId }));
+      else localStorage.removeItem(key);
+    } catch { /* storage blocked — the tab-switch save still works */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, open, form, editingId]);
+
+  // Offer this form to the tab switcher.
+  useEffect(() => {
+    if (!registerPending) return undefined;
+    registerPending({
+      dirty: () => Boolean(latest.current.open && latest.current.isDirty()),
+      flush: async () => latest.current.submit(),
+    });
+    return () => registerPending(null);
+  }, [registerPending]);
+
+  return { clearDraft: () => { try { localStorage.removeItem(key); } catch { /* ignore */ } } };
+}
+const sameForm = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const DraftNote = () => (
+  <p className="text-[10px] text-gray-500">💾 Auto-saved when you move to another tab — and kept as a draft until then.</p>
+);
+
 /* ════════════════ generic append-log section ════════════════ */
-function LogSection({ title, subtitle, items = [], path, dateKey, fields, context, sensitive, save, saving, can, canAdd }) {
+function LogSection({ title, subtitle, items = [], path, dateKey, fields, context, sensitive, save, saving, can, canAdd, data, registerPending }) {
   // Most logs are the class supervisor's to write; the parent/home one is open
   // to every teacher of the child, so it passes its own flag.
   const mayAdd = canAdd ?? can.update;
@@ -539,9 +686,13 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const list = Array.isArray(items) ? items : items ? [items] : [];
 
-  const close = () => { setForm(blank()); setEditingId(null); setAdding(false); };
+  // What the form looked like when it opened — "dirty" means changed from this.
+  const baseline = useRef(blank());
+  const close = () => { setForm(blank()); setEditingId(null); setAdding(false); baseline.current = blank(); clearDraft(); };
   const startEdit = (row) => {
-    setForm(fromRow(row, fields, context));
+    const values = fromRow(row, fields, context);
+    baseline.current = values;
+    setForm(values);
     setEditingId(row.id);
     setAdding(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -552,7 +703,13 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
       ? await save("put", `/entries${path}/${editingId}`, form, "Record updated")
       : await save("post", path, form, "Recorded");
     if (ok) close();
+    return ok;
   };
+  const { clearDraft } = useAutoSave({
+    section: path, data, can, open: adding, form, editingId,
+    isDirty: () => !sameForm(form, baseline.current), submit, registerPending,
+    restore: (f, id) => { setForm({ ...blank(), ...f }); setEditingId(id); setAdding(true); },
+  });
 
   return (
     <div className="space-y-4">
@@ -562,6 +719,7 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
         {adding && (mayAdd || editingId) && (
           <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
             {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
+            <DraftNote />
             {context && <Seg label="Context" value={form.context} onChange={(v) => set("context", v)} options={[["intake", "Intake"], ["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]]} />}
             {fields.map((f) => <FieldInput key={f.name} f={f} value={form[f.name]} onChange={(v) => set(f.name, v)} />)}
             <div className="flex justify-end gap-2">
@@ -673,16 +831,19 @@ function relativeTime(v) {
 }
 
 /* ════════════════ 4D ratings (history + add) ════════════════ */
-function FourD({ data, save, saving, can }) {
+function FourD({ data, save, saving, can, registerPending }) {
   const ratings = data.four_d_self_ratings || [];
   const [adding, setAdding] = useState(false);
   const blank = { rated_by: "student", context: "intake", evidence: "", ...Object.fromEntries(DIMS.flatMap((d) => [[`${d.key}_score`, ""], [`${d.key}_note`, ""]])) };
   const [form, setForm] = useState(blank);
   const [editingId, setEditingId] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const close = () => { setForm(blank); setEditingId(null); setAdding(false); };
+  const baseline = useRef(blank);
+  const close = () => { setForm(blank); setEditingId(null); setAdding(false); baseline.current = blank; clearDraft(); };
   const startEdit = (r) => {
-    setForm(Object.fromEntries(Object.keys(blank).map((k) => [k, r[k] ?? blank[k]])));
+    const values = Object.fromEntries(Object.keys(blank).map((k) => [k, r[k] ?? blank[k]]));
+    baseline.current = values;
+    setForm(values);
     setEditingId(r.id); setAdding(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -691,7 +852,13 @@ function FourD({ data, save, saving, can }) {
       ? await save("put", `/entries/4d-rating/${editingId}`, form, "Record updated")
       : await save("post", "/4d-rating", form, "Rating recorded");
     if (ok) close();
+    return ok;
   };
+  const { clearDraft } = useAutoSave({
+    section: "4d-rating", data, can, open: adding, form, editingId,
+    isDirty: () => !sameForm(form, baseline.current), submit, registerPending,
+    restore: (f, id) => { setForm({ ...blank, ...f }); setEditingId(id); setAdding(true); },
+  });
 
   return (
     <Card title="4D Self-Rating · ارزیابی چهاربعدی"
@@ -699,6 +866,7 @@ function FourD({ data, save, saving, can }) {
       {adding && (can.update || editingId) && (
         <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
           {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
+          <DraftNote />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Seg label="Rated by" value={form.rated_by} onChange={(v) => set("rated_by", v)} options={[["student", "Student"], ["parent", "Parent"], ["mentor", "Mentor"]]} />
             <Seg label="Context" value={form.context} onChange={(v) => set("context", v)} options={[["intake", "Intake"], ["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]]} />
@@ -772,16 +940,19 @@ const HABITS = [
   ["habit_teeth", "برس دندان", "🦷"], ["habit_bed", "آماده کردن بستر", "🛏️"], ["habit_clothes", "منظم کردن لباس", "👕"],
   ["habit_quran", "تلاوت قرآن", "📖"], ["habit_prayers", "نمازهای روزانه", "🕌"], ["habit_mosque_father", "مسجد با پدر", "🕋"],
 ];
-function Habits({ data, save, saving, can }) {
+function Habits({ data, save, saving, can, registerPending }) {
   const list = data.daily_habits || [];
   const [adding, setAdding] = useState(false);
   const blank = { sleep_time: "", wake_time: "", ...Object.fromEntries(HABITS.map((h) => [h[0], false])) };
   const [form, setForm] = useState(blank);
   const [editingId, setEditingId] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const close = () => { setForm(blank); setEditingId(null); setAdding(false); };
+  const baseline = useRef(blank);
+  const close = () => { setForm(blank); setEditingId(null); setAdding(false); baseline.current = blank; clearDraft(); };
   const startEdit = (h) => {
-    setForm(Object.fromEntries(Object.keys(blank).map((k) => [k, typeof blank[k] === "boolean" ? !!h[k] : (h[k] ?? "")])));
+    const values = Object.fromEntries(Object.keys(blank).map((k) => [k, typeof blank[k] === "boolean" ? !!h[k] : (h[k] ?? "")]));
+    baseline.current = values;
+    setForm(values);
     setEditingId(h.id); setAdding(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -790,13 +961,20 @@ function Habits({ data, save, saving, can }) {
       ? await save("put", `/entries/habits/${editingId}`, form, "Record updated")
       : await save("post", "/habits", form, "Recorded");
     if (ok) close();
+    return ok;
   };
+  const { clearDraft } = useAutoSave({
+    section: "habits", data, can, open: adding, form, editingId,
+    isDirty: () => !sameForm(form, baseline.current), submit, registerPending,
+    restore: (f, id) => { setForm({ ...blank, ...f }); setEditingId(id); setAdding(true); },
+  });
   return (
     <Card title="Daily Habits · عادت‌های روزانه"
       action={(can.update || editingId) && <button onClick={() => (adding ? close() : setAdding(true))} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
       {adding && (can.update || editingId) && (
         <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
           {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
+          <DraftNote />
           <div className="grid grid-cols-2 gap-2">
             <LblInput label="Sleep time" value={form.sleep_time} onChange={(v) => set("sleep_time", v)} placeholder="e.g. 22:00" />
             <LblInput label="Wake time" value={form.wake_time} onChange={(v) => set("wake_time", v)} placeholder="e.g. 05:30" />
@@ -955,10 +1133,20 @@ function Observations({ data }) {
   );
 }
 
-function Portrait({ data, save, saving, can }) {
+function Portrait({ data, save, saving, can, registerPending }) {
   const portraits = data.character_portraits || [];
   const approved = portraits.find((p) => p.status === "approved");
   const [notes, setNotes] = useState(""); const [draft, setDraft] = useState("");
+  const submitDraft = async () => {
+    const ok = await save("post", "/portrait", { raw_teacher_notes: notes, draft_portrait_dari: draft, context: "term_end" }, "Draft saved");
+    if (ok) { setNotes(""); setDraft(""); clearDraft(); }
+    return ok;
+  };
+  const { clearDraft } = useAutoSave({
+    section: "portrait", data, can, open: Boolean(can.update), form: { notes, draft }, editingId: null,
+    isDirty: () => Boolean(notes.trim() || draft.trim()), submit: submitDraft, registerPending,
+    restore: (f) => { setNotes(f?.notes || ""); setDraft(f?.draft || ""); },
+  });
   const [approveTarget, setApproveTarget] = useState(null); const [approveText, setApproveText] = useState("");
   const doApprove = async () => { if (await save("put", `/portrait/${approveTarget.id}/approve`, { approved_portrait_dari: approveText }, "Portrait approved")) setApproveTarget(null); };
   return (
@@ -974,7 +1162,7 @@ function Portrait({ data, save, saving, can }) {
           <p className="text-[11px] text-gray-500 mb-2">Raw notes (later: AI drafts the سیما). For now write the draft, then approve.</p>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Raw teacher notes" className={txt} dir="auto" rows={2} />
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Draft portrait (Dari)" className={`${txt} mt-2`} dir="auto" rows={3} />
-          <div className="flex justify-end mt-2"><button disabled={saving || (!notes && !draft)} onClick={async () => { if (await save("post", "/portrait", { raw_teacher_notes: notes, draft_portrait_dari: draft, context: "term_end" }, "Draft saved")) { setNotes(""); setDraft(""); } }} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Save draft</button></div>
+          <div className="flex justify-end mt-2"><button disabled={saving || (!notes && !draft)} onClick={submitDraft} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Save draft</button></div>
         </Card>
       )}
       {can.update && portraits.filter((p) => p.status === "draft").map((p) => (

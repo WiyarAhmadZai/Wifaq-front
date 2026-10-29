@@ -85,6 +85,8 @@ const RULES = [
 
   // Education & Formation — student observation
   { prefix: "/education/4d-self-rating", permission: "student-profiles.view" },
+  // The شناسنامه finder under Student Development — granted by the super-admin.
+  { prefix: "/education/student-profiles", permission: "student-profiles.browse" },
   { prefix: "/education/dashboard", permission: "student-observations.view" },
   { prefix: "/education/observations", permission: "student-observations.view" },
   { prefix: "/education/observation-reports", permission: "student-observations.view" },

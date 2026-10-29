@@ -89,6 +89,7 @@ const DOCUMENT_TYPES = {
   identity_document: { label: "Identity Document", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2", color: "teal" },
   educational_document: { label: "Educational Document", icon: "M12 14l9-5-9-5-9 5 9 5z", color: "teal" },
   work_samples: { label: "Work Samples", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", color: "cyan" },
+  voice_introduction: { label: "Voice Introduction", icon: "M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 18v3m-3 0h6", color: "emerald" },
 };
 
 const SCREENING_CHECKLIST = [
@@ -3145,6 +3146,14 @@ export default function ApplicationShow() {
                   alt="Document"
                   className="max-w-full max-h-[70vh] rounded-lg shadow-lg"
                 />
+              ) : viewingDoc.document_type === "voice_introduction" || viewingDoc.file_url?.match(/\.(webm|ogg|m4a|mp3|wav|aac)$/i) ? (
+                <div className="w-full max-w-xl text-center p-8 bg-white rounded-xl shadow-sm">
+                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 18v3m-3 0h6" /></svg>
+                  </div>
+                  <p className="text-gray-700 font-medium mb-4">Voice Introduction</p>
+                  <audio controls src={getDocumentUrl(viewingDoc.file_url)} className="w-full" />
+                </div>
               ) : (
                 <div className="text-center p-8">
                   <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">

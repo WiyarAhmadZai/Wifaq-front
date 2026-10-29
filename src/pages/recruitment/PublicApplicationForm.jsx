@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { DateField } from "../../components/hr/HrUI";
@@ -117,6 +117,15 @@ const L = {
     submit_failed: "Submission failed", went_wrong: "Something went wrong. Please try again.",
     motivation_title: "Motivation & Self-Introduction",
     additional_comments: "Additional Comments", ph_comments: "Anything else you'd like us to know…",
+    step_voice: "Your Voice", step_voiced: "Answer out loud, in your own words",
+    voice_q: "Say in your own voice and words: what are the skills and character traits that make the best candidate for this job?",
+    voice_hint: "Speak naturally — there is no script and no right answer. Two to three minutes is plenty.",
+    voice_why: "This recording lets us get a direct sense of how you think and express yourself, in your own voice and without AI.",
+    voice_record: "Record your answer", voice_stop: "Stop recording", voice_recording: "Recording\u2026",
+    voice_re_record: "Record again", voice_playback: "Your recording", voice_listening: "Listening \u2014 speak clearly\u2026",
+    voice_mic_denied: "We could not reach your microphone. Allow microphone access and try again.",
+    voice_too_long: "Recording is limited to {n} seconds.", voice_required: "Please record a short voice answer.",
+    voice_sec: "{n}s", voice_uploading: "Uploading your recording\u2026",
   },
   ps: {
     now_hiring: "اوس استخدام", hero_title: "د وفاق کورنۍ سره یوځای شئ",
@@ -215,6 +224,15 @@ const L = {
     submit_failed: "لېږل ناکام شول", went_wrong: "یوه ستونزه رامنځته شوه. بیا هڅه وکړئ.",
     motivation_title: "انګیزه او پیژندنه",
     additional_comments: "اضافي نظرونه", ph_comments: "بل څه چې غواړئ موږ پرې وپوهېږو…",
+    step_voice: "ستاسو غږ", step_voiced: "په خپله خبره، لوړ آواز ځواب درکړئ",
+    voice_q: "کومه نوعه شخصي ځانګړتیاوې او مسلکی مهارتونه د دې وظیفې لپاره تر ټولو ښه کاندید ته اړین دي؟ (په خپل غږ او خپله خبره ووایاست)",
+    voice_hint: "په طبیعي ډول خبرې وکړئ — هیڅ متن یا سم ځواب نشته. دوه تر درې دقیقې بسنه کوي.",
+    voice_why: "دا غږیز ریکارډ زموږ سره مرسته کوي چې ستاسو د فکر او څرګندولو شیوه په خپل غږ او پرته له AI په مستقیم ډول درک کړو.",
+    voice_record: "خپل ځواب ریکارډ کړئ", voice_stop: "ریکارډ درول", voice_recording: "ریکارډ کیږي…",
+    voice_re_record: "بیا ریکارډ کول", voice_playback: "ستاسو ریکارډ", voice_listening: "اوریدل کیږي — روښانه خبرې وکړئ…",
+    voice_mic_denied: "زموږ ستاسو مایکروفون ته لاسرسی ونه موند. د مایکروفون اجازه ورکړئ او بیا هڅه وکړئ.",
+    voice_too_long: "ریکارډ تر {n} ثانیو پورې محدود دی.", voice_required: "مهرباني وکړئ لنډ غږیز ځواب ریکارډ کړئ.",
+    voice_sec: "{n} ثانیې", voice_uploading: "ستاسو ریکارډ پورته کیږي…",
   },
   fa: {
     now_hiring: "در حال استخدام", hero_title: "به خانواده وفاق بپیوندید",
@@ -313,6 +331,15 @@ const L = {
     submit_failed: "ارسال ناموفق بود", went_wrong: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید.",
     motivation_title: "انگیزه و معرفی",
     additional_comments: "نظرات اضافی", ph_comments: "هر چیز دیگری که می‌خواهید بدانیم…",
+    step_voice: "صدای شما", step_voiced: "با کلمات خودتان، بلند پاسخ دهید",
+    voice_q: "به چه نوع ویژگی‌های شخصی و مهارت‌های مسلکی برای بهترین کاندید برای این وظیفه در نظر شما نیاز است؟ (با صدای خودتان بیان کنید)",
+    voice_hint: "به‌طور طبیعی صحبت کنید — هیچ متن یا پاسخ درست وجود ندارد. دو تا سه دقیقه کافی است.",
+    voice_why: "این ضبط صوتی به ما اجازه می‌دهد طرز فکر و بیان شما را به‌طور مستقیم، با صدای خودتان و بدون هوش مصنوعی درک کنیم.",
+    voice_record: "پاسخ خود را ضبط کنید", voice_stop: "توقف ضبط", voice_recording: "در حال ضبط…",
+    voice_re_record: "ضبط دوباره", voice_playback: "ضبط شما", voice_listening: "در حال گوش دادن — واضح صحبت کنید…",
+    voice_mic_denied: "ما نتوانستیم به میکروفون شما دسترسی پیدا کنیم. دسترسی میکروفون را اجازه دهید و دوباره تلاش کنید.",
+    voice_too_long: "ضبط تا {n} ثانیه محدود است.", voice_required: "لطفاً یک پاسخ صوتی کوتاه ضبط کنید.",
+    voice_sec: "{n} ثانیه", voice_uploading: "ضبط شما بارگذاری می‌شود…",
   },
 };
 
@@ -325,6 +352,7 @@ const STEP_ICONS = [
   "M12 14l9-5-9-5-9 5 9 5z",
   "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
   "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+  "M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 18v3m-3 0h6",
 ];
 
 /* Spec caps the form at three job entries. Existing records are never
@@ -354,6 +382,9 @@ const SECTIONS = [
   { key: "talents",    icon: STEP_ICONS[4], labelKey: "step9",         descKey: "step9d" },
   { key: "wifaq",      icon: STEP_ICONS[0], labelKey: "step10",        descKey: "step10d" },
   { key: "values",     icon: STEP_ICONS[2], labelKey: "step11",        descKey: "step11d" },
+  // The spoken answer sits last among the questions, right before the uploads:
+  // the applicant has already written how they think, now they say it aloud.
+  { key: "voice",      icon: STEP_ICONS[8], labelKey: "step_voice",    descKey: "step_voiced" },
   { key: "documents",  icon: STEP_ICONS[7], labelKey: "step8",         descKey: "step8d" },
   { key: "social",     icon: STEP_ICONS[3], labelKey: "step4",         descKey: "step4d" },
 ];
@@ -464,6 +495,9 @@ export default function PublicApplicationForm() {
   const [workExperiences, setWorkExperiences] = useState([{ company_name: "", job_title: "", duration: "", responsibilities: "" }]);
   const [metRequirements, setMetRequirements] = useState([]);
   const [documents, setDocuments] = useState({ work_samples: null, identity_document: null, educational_document: null, cv_resume: null });
+  // The spoken answer, kept as a File until submission, then uploaded as a
+  // voice_introduction document alongside CV/ID/certificates.
+  const [voiceRecording, setVoiceRecording] = useState(null);
 
   const STEPS = SECTIONS.map((s, i) => ({ num: i + 1, key: s.key, icon: s.icon, label: t(s.labelKey), short: t(s.shortKey || s.labelKey), desc: t(s.descKey) }));
   const cur = STEPS.find((s) => s.num === step) || STEPS[0];
@@ -606,6 +640,8 @@ export default function PublicApplicationForm() {
       if (!formData.responsibility_definition?.trim()) e.responsibility_definition = t("e_required", { x: t("responsibility_def") });
       if (!formData.beyond_duty_example?.trim()) e.beyond_duty_example = t("e_required", { x: t("beyond_duty") });
     }
+    // The voice answer is the point of this step — no recording, no advance.
+    if (k === "voice" && !voiceRecording) e.voice_recording = t("voice_required");
     if (k === "documents") DOC_TYPES.forEach((d) => { if (d.required && !documents[d.key]) e[d.key] = t("e_required", { x: t(d.labelKey) }); });
     setErrors(e);
     // Failing in place is no better than failing silently — show them which one.
@@ -623,6 +659,7 @@ export default function PublicApplicationForm() {
     if (k === "talents") return !!formData.key_skills?.trim();
     if (k === "wifaq") return !!formData.how_heard && !!formData.about_wifaq?.trim() && !!formData.known_person?.trim();
     if (k === "values") return !!formData.scenario_answer && !!formData.responsibility_definition?.trim() && !!formData.beyond_duty_example?.trim();
+    if (k === "voice") return !!voiceRecording;
     return true;
   };
   /* Runs after the erroring section is on screen. Scrolls the field to the
@@ -675,6 +712,17 @@ export default function PublicApplicationForm() {
           try { await post("/public/recruitment/application-documents", fd, { headers: { "Content-Type": "multipart/form-data" } }); }
           catch (e) { console.error(`Failed to upload ${docType}`, e); }
         }
+      }
+      // The spoken answer rides along as a voice_introduction document. It is
+      // uploaded after the record exists, so the server can authorise it with
+      // the same one-time token the file uploads use.
+      if (voiceRecording && applicationId) {
+        const vfd = new FormData();
+        vfd.append("document_type", "voice_introduction"); vfd.append("file", voiceRecording, voiceRecording.name);
+        vfd.append("application_id", applicationId);
+        if (uploadToken) vfd.append("upload_token", uploadToken);
+        try { await post("/public/recruitment/application-documents", vfd, { headers: { "Content-Type": "multipart/form-data" } }); }
+        catch (e) { console.error("Failed to upload voice recording", e); }
       }
       setReferenceId(applicationId); setSubmitted(true); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -1129,6 +1177,19 @@ export default function PublicApplicationForm() {
             </div>
           )}
 
+          {cur.key === "voice" && (
+            <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
+              <div>
+                <Label required>{t("voice_q")}</Label>
+                <Hint>{t("voice_hint")}</Hint>
+                {/* Why we ask: the tone of a live voice tells us something a
+                  * written answer (or an AI one) cannot. */}
+                <p className="text-[12px] leading-relaxed text-teal-800 bg-teal-50 border border-teal-100 rounded-xl px-3.5 py-2.5 mb-4">{t("voice_why")}</p>
+                <VoiceRecorder t={t} dir={dir} value={voiceRecording} onChange={setVoiceRecording} error={errors.voice_recording} />
+              </div>
+            </StepCard>
+          )}
+
           {cur.key === "documents" && (
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               <div className="space-y-3">
@@ -1189,6 +1250,130 @@ export default function PublicApplicationForm() {
       </div>
       <PublicFooter t={t} />
     </>
+  );
+}
+
+/* Voice introduction recorder.
+ *
+ * Captures a spoken answer with the browser's MediaRecorder and hands the
+ * resulting audio File back to the form, which uploads it as a
+ * voice_introduction document on submit. Everything is local until then —
+ * the clip is never sent while the applicant is still deciding to re-record.
+ */
+function VoiceRecorder({ t, dir, value, onChange, error }) {
+  const MAX_SECONDS = 180;
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+  // Object URL for the recorded take. Seeded from `value` so returning to this
+  // step from an earlier one still shows the clip; mirrored into previewRef
+  // (written in an effect, never read during render) so it can be revoked the
+  // moment a new take replaces it or the step unmounts.
+  const [previewUrl, setPreviewUrl] = useState(() => (value ? URL.createObjectURL(value) : null));
+  const previewRef = useRef(null);
+
+  const setPreview = (file) => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    setPreviewUrl(file ? URL.createObjectURL(file) : null);
+  };
+
+  const releaseStream = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach((tr) => tr.stop()); streamRef.current = null; }
+  };
+
+  useEffect(() => { previewRef.current = previewUrl; }, [previewUrl]);
+  // Free the mic stream and the preview blob when the step unmounts.
+  useEffect(() => () => { releaseStream(); if (previewRef.current) URL.revokeObjectURL(previewRef.current); }, []);
+
+  const pickMime = () => {
+    if (typeof MediaRecorder === "undefined") return "";
+    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+    return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || "";
+  };
+  const extFor = (mime) => (mime.includes("ogg") ? "ogg" : mime.includes("mp4") ? "m4a" : "webm");
+
+  const stop = () => { if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop(); };
+
+  // Hard cap: stop automatically rather than let a rambling answer balloon
+  // the upload past the size the endpoint allows.
+  useEffect(() => { if (recording && seconds >= MAX_SECONDS) stop(); }, [seconds, recording]);
+
+  const start = async () => {
+    onChange(null);
+    setSeconds(0);
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      Swal.fire(t("voice_record"), t("voice_mic_denied"), "error");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mime = pickMime();
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        const type = rec.mimeType || mime || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        const file = new File([blob], `voice-introduction.${extFor(type)}`, { type });
+        releaseStream();
+        setRecording(false);
+        onChange(file);
+        setPreview(file);
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    } catch {
+      releaseStream();
+      setRecording(false);
+      Swal.fire(t("voice_record"), t("voice_mic_denied"), "error");
+    }
+  };
+
+  const clear = () => { onChange(null); setSeconds(0); setPreview(null); };
+
+  return (
+    <div dir={dir} data-field="voice_recording">
+      {!recording && !value && (
+        <button type="button" onClick={start}
+          className={`w-full flex items-center justify-center gap-2 px-5 py-3.5 text-sm font-semibold rounded-xl transition-colors ${error ? "bg-red-50 text-red-600 border border-red-300 hover:bg-red-100" : "bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100"}`}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 18v3m-3 0h6" /></svg>
+          {t("voice_record")}
+        </button>
+      )}
+
+      {recording && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl">
+          <span className="flex items-center gap-2.5 text-sm font-medium text-red-600">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+            </span>
+            {t("voice_listening")} <span className="tabular-nums" dir="ltr">{t("voice_sec", { n: seconds })}</span>
+          </span>
+          <button type="button" onClick={stop} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors">{t("voice_stop")}</button>
+        </div>
+      )}
+
+      {!recording && value && (
+        <div className="space-y-3">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{t("voice_playback")}</p>
+          <audio controls src={previewUrl} className="w-full" />
+          <button type="button" onClick={clear} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-600 bg-teal-50 hover:bg-teal-100 rounded-xl transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 18v3m-3 0h6" /></svg>
+            {t("voice_re_record")}
+          </button>
+        </div>
+      )}
+
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
   );
 }
 

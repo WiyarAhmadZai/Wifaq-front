@@ -1,4 +1,5 @@
 import CrudPage from "../../components/CrudPage";
+import { STAFF_GROUPS } from "../../api/positionTitles";
 
 export default function PositionTitles() {
   return (
@@ -11,6 +12,17 @@ export default function PositionTitles() {
         { key: "name", label: "Title" },
         { key: "code", label: "Code" },
         { key: "label_native", label: "Bilingual label" },
+        {
+          // Which group the Staff page lists this title's holders under.
+          key: "category",
+          label: "Staff group",
+          render: (val) => {
+            const g = STAFF_GROUPS.find((x) => x.key === val);
+            return g
+              ? <span className="px-2 py-1 text-xs font-medium rounded-full bg-teal-50 text-teal-700">{g.label}</span>
+              : <span className="text-xs text-amber-600">Not set</span>;
+          },
+        },
         {
           key: "is_active",
           label: "Status",

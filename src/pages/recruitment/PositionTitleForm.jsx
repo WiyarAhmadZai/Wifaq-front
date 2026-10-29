@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { peekCache } from "../../api/axios";
 import RichTextField from "../../components/RichTextField";
 import {
+  STAFF_GROUPS,
   createPositionTitle,
   getPositionTitle,
   updatePositionTitle,
@@ -27,6 +28,7 @@ const EMPTY = {
   name: "",
   code: "",
   label_native: "",
+  category: "",
   description: "",
   is_active: true,
 };
@@ -56,6 +58,7 @@ export default function PositionTitleForm() {
           name: __row?.name || "",
           code: __row?.code || "",
           label_native: __row?.label_native || "",
+          category: __row?.category || "",
           description: __row?.description || "",
           is_active: __row?.is_active !== false,
         });
@@ -69,6 +72,7 @@ export default function PositionTitleForm() {
           name: row?.name || "",
           code: row?.code || "",
           label_native: row?.label_native || "",
+          category: row?.category || "",
           description: row?.description || "",
           is_active: row?.is_active !== false,
         });
@@ -113,6 +117,7 @@ export default function PositionTitleForm() {
         ...formData,
         code: formData.code?.trim() || null,
         label_native: formData.label_native?.trim() || null,
+        category: formData.category || null,
         description: formData.description?.trim() || null,
       };
       if (isEdit) {
@@ -227,6 +232,21 @@ export default function PositionTitleForm() {
               <p className="text-[11px] text-gray-500 mt-1">
                 Shown in dropdowns and on emails when present; falls back to the English title.
               </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Staff group
+              </label>
+              <select name="category" value={formData.category} onChange={onChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                <option value="">— Not set (listed under Other) —</option>
+                {STAFF_GROUPS.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+              </select>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Everyone with this title is listed under this group on the Staff page.
+              </p>
+              {errors.category && <p className="text-xs text-red-600 mt-1">{errors.category}</p>}
             </div>
 
             <div className="md:col-span-2">

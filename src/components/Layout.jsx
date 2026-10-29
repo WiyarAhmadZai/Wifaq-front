@@ -1562,6 +1562,9 @@ export default function Layout() {
   ];
   const educationMenus = [
     { label: "Dashboard", path: "/education/dashboard", permission: "student-observations.view" },
+    // Straight to a child's شناسنامه. Its own permission, so the super-admin
+    // chooses who has the menu (Users & Access → student-profiles.browse).
+    { label: "Student Profiles · شناسنامه", path: "/education/student-profiles", permission: "student-profiles.browse" },
     { label: "Daily Observation", path: "/education/observations", permission: "student-observations.view" },
     { label: "Case Library", path: "/education/case-library", permission: "student-observations.view" },
     // Per-student PDF of observations + cards; one, or all as a ZIP.

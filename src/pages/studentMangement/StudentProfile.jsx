@@ -205,6 +205,11 @@ function StudentProfileView() {
    * the work of the class supervisor (or whoever the backend attributes it to). */
   const { map: fileRating } = useBulkRatings("student_profile", [id]);
 
+  // Auto-save registry (see switchTab). Hooks stay above every early return —
+  // below them, the loading render and the loaded one would run different hooks.
+  const pendingRef = useRef(null);
+  const registerPending = useCallback((entry) => { pendingRef.current = entry; }, []);
+
   const load = useCallback(() => {
     setLoading(true);
     const __cached = peekCache(`/student-management/students/${id}/profile`);
@@ -425,8 +430,6 @@ function StudentProfileView() {
    * to another tab saves it first, so a teacher who clicks on without pressing
    * Save no longer loses what they typed. A save the server rejects stays as a
    * draft in the browser and reopens, filled in, when they come back. */
-  const pendingRef = useRef(null);
-  const registerPending = useCallback((entry) => { pendingRef.current = entry; }, []);
   const switchTab = async (key) => {
     const pending = pendingRef.current;
     if (key !== tab && pending?.dirty()) {

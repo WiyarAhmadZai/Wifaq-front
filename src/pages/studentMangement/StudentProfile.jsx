@@ -534,42 +534,69 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
       f.bool ? false : f.date ? new Date().toISOString().slice(0, 10) : f.sel ? f.sel[0][0] : ""])
       .concat(context ? [["context", "intake"]] : []));
   const [form, setForm] = useState(blank());
+  // The record being corrected, or null while adding a new one.
+  const [editingId, setEditingId] = useState(null);
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const list = Array.isArray(items) ? items : items ? [items] : [];
 
+  const close = () => { setForm(blank()); setEditingId(null); setAdding(false); };
+  const startEdit = (row) => {
+    setForm(fromRow(row, fields, context));
+    setEditingId(row.id);
+    setAdding(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const submit = async () => {
-    if (await save("post", path, form, "Recorded")) { setForm(blank()); setAdding(false); }
+    const ok = editingId
+      ? await save("put", `/entries${path}/${editingId}`, form, "Record updated")
+      : await save("post", path, form, "Recorded");
+    if (ok) close();
   };
 
   return (
     <div className="space-y-4">
       <Card title={title} subtitle={subtitle} sensitive={sensitive}
-        action={mayAdd && <button onClick={() => setAdding((a) => !a)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
+        action={(mayAdd || editingId) && <button onClick={() => (adding ? close() : setAdding(true))} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
         {sensitive && <SensitiveBanner />}
-        {adding && mayAdd && (
-          <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 mb-4 space-y-3">
+        {adding && (mayAdd || editingId) && (
+          <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
+            {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
             {context && <Seg label="Context" value={form.context} onChange={(v) => set("context", v)} options={[["intake", "Intake"], ["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]]} />}
             {fields.map((f) => <FieldInput key={f.name} f={f} value={form[f.name]} onChange={(v) => set(f.name, v)} />)}
             <div className="flex justify-end gap-2">
-              <button onClick={() => { setForm(blank()); setAdding(false); }} className="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 text-gray-500">Cancel</button>
-              <button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Save record</button>
+              <button onClick={close} className="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 text-gray-500">Cancel</button>
+              <button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">{editingId ? "Save changes" : "Save record"}</button>
             </div>
           </div>
         )}
         {list.length === 0 ? (
           <EmptyState title="No records yet" hint={mayAdd ? "Add the first record — it'll start the timeline below." : "Nothing has been recorded for this student."} />
         ) : (
-          <Timeline list={list} fields={fields} dateKey={dateKey} />
+          <Timeline list={list} fields={fields} dateKey={dateKey}
+            isMine={(row) => isMine(row, can)} onEdit={startEdit} />
         )}
       </Card>
     </div>
   );
 }
+/* Only the person who wrote a record may correct it — the server enforces the
+   same rule; this just keeps the ✎ off everybody else's records. */
+const isMine = (row, can) => Boolean(row?.recorded_by?.id && can?.my_user_id && Number(row.recorded_by.id) === Number(can.my_user_id));
+/* A saved row back into form values: nulls to "", dates to YYYY-MM-DD. */
+const fromRow = (row, fields, context) => Object.fromEntries(
+  fields.map((f) => [f.name,
+    f.bool ? !!row[f.name] : f.date ? String(row[f.name] || "").slice(0, 10) : (row[f.name] ?? (f.sel ? f.sel[0][0] : ""))])
+    .concat(context ? [["context", row.context || "intake"]] : []));
+const EditBtn = ({ onClick }) => (
+  <button type="button" onClick={onClick} title="Edit this record — only you can, because you wrote it"
+    className="px-2 py-0.5 rounded-lg text-[10px] font-bold border border-amber-300 text-amber-700 bg-white hover:bg-amber-50">✎ Edit</button>
+);
 const labelFor = (f, v) => f.sel ? (f.sel.find((o) => o[0] === v)?.[1] || v) : v;
 const hasVal = (f, row) => f.bool ? !!row[f.name] : (row[f.name] !== null && row[f.name] !== "" && row[f.name] !== undefined);
 
 /* A vertical thread of dated record cards — narrative featured, short values as chips. */
-function Timeline({ list, fields, dateKey }) {
+function Timeline({ list, fields, dateKey, isMine: mine = () => false, onEdit }) {
   return (
     <div className="relative">
       <span className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-teal-200 via-gray-200 to-transparent" aria-hidden />
@@ -595,6 +622,7 @@ function Timeline({ list, fields, dateKey }) {
                     <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{row.recorded_by.name}</span></span>
                   )}
                   <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(date)}</span>
+                  {onEdit && mine(row) && <EditBtn onClick={() => onEdit(row)} />}
                 </div>
                 <div className="p-4 space-y-3">
                   {chips.length > 0 && (
@@ -650,14 +678,27 @@ function FourD({ data, save, saving, can }) {
   const [adding, setAdding] = useState(false);
   const blank = { rated_by: "student", context: "intake", evidence: "", ...Object.fromEntries(DIMS.flatMap((d) => [[`${d.key}_score`, ""], [`${d.key}_note`, ""]])) };
   const [form, setForm] = useState(blank);
+  const [editingId, setEditingId] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const submit = async () => { if (await save("post", "/4d-rating", form, "Rating recorded")) { setForm(blank); setAdding(false); } };
+  const close = () => { setForm(blank); setEditingId(null); setAdding(false); };
+  const startEdit = (r) => {
+    setForm(Object.fromEntries(Object.keys(blank).map((k) => [k, r[k] ?? blank[k]])));
+    setEditingId(r.id); setAdding(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const submit = async () => {
+    const ok = editingId
+      ? await save("put", `/entries/4d-rating/${editingId}`, form, "Record updated")
+      : await save("post", "/4d-rating", form, "Rating recorded");
+    if (ok) close();
+  };
 
   return (
     <Card title="4D Self-Rating · ارزیابی چهاربعدی"
-      action={can.update && <button onClick={() => setAdding((a) => !a)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add rating"}</button>}>
-      {adding && can.update && (
-        <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 mb-4 space-y-3">
+      action={(can.update || editingId) && <button onClick={() => (adding ? close() : setAdding(true))} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add rating"}</button>}>
+      {adding && (can.update || editingId) && (
+        <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
+          {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Seg label="Rated by" value={form.rated_by} onChange={(v) => set("rated_by", v)} options={[["student", "Student"], ["parent", "Parent"], ["mentor", "Mentor"]]} />
             <Seg label="Context" value={form.context} onChange={(v) => set("context", v)} options={[["intake", "Intake"], ["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]]} />
@@ -672,7 +713,7 @@ function FourD({ data, save, saving, can }) {
             </div>
           ))}
           <textarea value={form.evidence} onChange={(e) => set("evidence", e.target.value)} placeholder="Evidence (for parent/mentor)" className={txt} dir="auto" rows={2} />
-          <div className="flex justify-end"><button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Record rating</button></div>
+          <div className="flex justify-end"><button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">{editingId ? "Save changes" : "Record rating"}</button></div>
         </div>
       )}
       {ratings.length === 0 ? (
@@ -694,6 +735,7 @@ function FourD({ data, save, saving, can }) {
                       <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{r.recorded_by.name}</span></span>
                     )}
                     <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(r.rated_at || r.created_at)}</span>
+                    {isMine(r, can) && <EditBtn onClick={() => startEdit(r)} />}
                   </div>
                   <div className="p-4 space-y-2.5">
                     {DIMS.map((d) => {
@@ -735,13 +777,26 @@ function Habits({ data, save, saving, can }) {
   const [adding, setAdding] = useState(false);
   const blank = { sleep_time: "", wake_time: "", ...Object.fromEntries(HABITS.map((h) => [h[0], false])) };
   const [form, setForm] = useState(blank);
+  const [editingId, setEditingId] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const submit = async () => { if (await save("post", "/habits", form, "Recorded")) { setForm(blank); setAdding(false); } };
+  const close = () => { setForm(blank); setEditingId(null); setAdding(false); };
+  const startEdit = (h) => {
+    setForm(Object.fromEntries(Object.keys(blank).map((k) => [k, typeof blank[k] === "boolean" ? !!h[k] : (h[k] ?? "")])));
+    setEditingId(h.id); setAdding(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const submit = async () => {
+    const ok = editingId
+      ? await save("put", `/entries/habits/${editingId}`, form, "Record updated")
+      : await save("post", "/habits", form, "Recorded");
+    if (ok) close();
+  };
   return (
     <Card title="Daily Habits · عادت‌های روزانه"
-      action={can.update && <button onClick={() => setAdding((a) => !a)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
-      {adding && can.update && (
-        <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 mb-4 space-y-3">
+      action={(can.update || editingId) && <button onClick={() => (adding ? close() : setAdding(true))} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
+      {adding && (can.update || editingId) && (
+        <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
+          {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
           <div className="grid grid-cols-2 gap-2">
             <LblInput label="Sleep time" value={form.sleep_time} onChange={(v) => set("sleep_time", v)} placeholder="e.g. 22:00" />
             <LblInput label="Wake time" value={form.wake_time} onChange={(v) => set("wake_time", v)} placeholder="e.g. 05:30" />
@@ -753,7 +808,7 @@ function Habits({ data, save, saving, can }) {
               </label>
             ))}
           </div>
-          <div className="flex justify-end"><button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Record</button></div>
+          <div className="flex justify-end"><button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">{editingId ? "Save changes" : "Record"}</button></div>
         </div>
       )}
       {list.length === 0 ? <Empty>No records yet.</Empty> : (
@@ -766,6 +821,7 @@ function Habits({ data, save, saving, can }) {
                   <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{h.recorded_by.name}</span></span>
                 )}
                 <span className="text-[11px] text-gray-400 ml-auto">{fmtDateTime(h.recorded_at || h.created_at)}</span>
+                {isMine(h, can) && <EditBtn onClick={() => startEdit(h)} />}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                 {HABITS.map(([k, ar, ico]) => (

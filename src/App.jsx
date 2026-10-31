@@ -11,6 +11,7 @@ import Layout from "./components/Layout";
 import { AuthProvider } from "./admin/context/AuthContext";
 import { I18nProvider } from "./i18n/I18nContext";
 import { ChatProvider } from "./chat/ChatContext";
+import CallManager from "./chat/CallManager";
 import Protected from "./admin/guards/Protected";
 import BroadcastModal from "./components/BroadcastModal";
 
@@ -403,6 +404,8 @@ function App() {
       <I18nProvider>
       <AuthProvider>
         <ChatProvider>
+        {/* Audio/video calls — rings on any page, not only the chat. */}
+        <CallManager />
         <Suspense fallback={<PageLoader />}>
           {/* The day's announcement, also on the sign-in page. Self-gating: it
               draws nothing unless a live broadcast exists, and falls back to

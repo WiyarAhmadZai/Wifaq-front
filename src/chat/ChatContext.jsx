@@ -198,6 +198,12 @@ export function ChatProvider({ children }) {
       }
     });
 
+    // An audio/video call ringing for us — handed to <CallManager>, which
+    // rings on whatever page this tab is showing.
+    channel.listen('.call.incoming', (payload) => {
+      window.dispatchEvent(new CustomEvent('wen:call-incoming', { detail: payload }));
+    });
+
     return () => {
       try { echo.leave(`chat.user.${myId}`); } catch { /* ignore */ }
     };

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { FiArrowLeft, FiMessageSquare, FiInfo } from 'react-icons/fi';
+import { FiArrowLeft, FiMessageSquare, FiInfo, FiPhone, FiVideo } from 'react-icons/fi';
 import { useChat } from '../ChatContext';
 import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
@@ -136,6 +136,21 @@ export default function ChatWindow({ onBack, controlsWidth = 1 }) {
         {/* The drawer floats its window controls over this row; the margin is
             what keeps this button clear of them. The standalone /mailbox page
             has no floating controls, so it passes controlsWidth={0}. */}
+        {/* Voice and video calls — one-to-one chats; <CallManager> does the rest. */}
+        {!isGroup && !activeConversation.is_self && other && (
+          <>
+            <button type="button" title="Voice call"
+              onClick={() => window.dispatchEvent(new CustomEvent('wen:call-start', { detail: { conversationId: activeConversation.id, media: 'audio', peer: other } }))}
+              className="p-2 rounded-full text-gray-500 hover:text-teal-600 hover:bg-teal-50">
+              <FiPhone className="w-5 h-5" />
+            </button>
+            <button type="button" title="Video call"
+              onClick={() => window.dispatchEvent(new CustomEvent('wen:call-start', { detail: { conversationId: activeConversation.id, media: 'video', peer: other } }))}
+              className="p-2 rounded-full text-gray-500 hover:text-teal-600 hover:bg-teal-50">
+              <FiVideo className="w-5 h-5" />
+            </button>
+          </>
+        )}
         <button onClick={() => setShowInfo((v) => !v)} title="Details"
           className={`p-1.5 rounded-full text-gray-400 hover:text-teal-600 hover:bg-gray-100 ${
             controlsWidth ? 'me-8 md:me-24' : ''

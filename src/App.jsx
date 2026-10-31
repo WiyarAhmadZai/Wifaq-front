@@ -258,6 +258,8 @@ const FoundationRequestShow = lazy(() => import("./pages/studentMangement/Founda
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
 const StudentShow = lazy(() => import("./pages/studentMangement/StudentShow"));
 const StudentProfile = lazy(() => import("./pages/studentMangement/StudentProfile"));
+const PostsFeed = lazy(() => import("./pages/posts/PostsFeed"));
+const PostPage = lazy(() => import("./pages/posts/PostPage"));
 const StudentGallery = lazy(() => import("./pages/studentMangement/StudentGallery"));
 const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEnrollments"));
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
@@ -441,6 +443,10 @@ function App() {
                 submit for that child. */}
             <Route path="/fee-extension/:token" element={<Suspense fallback={<PageLoader />}><PublicFeeExtension /></Suspense>} />
 
+            {/* One post on its own page — the link Share copies. Outside the
+                app shell: a public post opens for anyone, signed in or not. */}
+            <Route path="/post/:id" element={<Suspense fallback={<PageLoader />}><PostPage /></Suspense>} />
+
             {/* Messages as a page of its own — what the drawer's "open in a
                 separate window" button opens. Outside the Layout on purpose:
                 a window opened for mail carries no system navigation. */}
@@ -607,6 +613,7 @@ function App() {
             <Route path="education/elicitation" element={<Suspense fallback={<PageLoader />}><Elicitation /></Suspense>} />
             <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
             <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />
+            <Route path="posts" element={<Suspense fallback={<PageLoader />}><PostsFeed /></Suspense>} />
             <Route path="education/4d-self-rating" element={<Suspense fallback={<PageLoader />}><QuickFourD /></Suspense>} />
             {/* No id: StudentProfile shows its student finder. */}
             <Route path="education/student-profiles" element={<Suspense fallback={<PageLoader />}><StudentProfile /></Suspense>} />

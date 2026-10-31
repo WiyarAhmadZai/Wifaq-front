@@ -85,6 +85,8 @@ const RULES = [
 
   // Education & Formation — student observation
   { prefix: "/education/4d-self-rating", permission: "student-profiles.view" },
+  // The Posts feed (header icon). Single posts at /post/:id are outside the app shell.
+  { prefix: "/posts", permission: "posts.view" },
   // The شناسنامه finder under Student Development — granted by the super-admin.
   { prefix: "/education/student-profiles", permission: "student-profiles.browse" },
   { prefix: "/education/dashboard", permission: "student-observations.view" },

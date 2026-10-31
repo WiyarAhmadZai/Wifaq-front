@@ -7,6 +7,8 @@ import { permissionForPath } from "../admin/utils/pathPermissions";
 import ErrorBoundary from "./ErrorBoundary";
 import ScrollMemory from "./ScrollMemory";
 import MessagesButton from "../chat/components/MessagesButton";
+import { PostsButton, CreatePostButton } from "./posts/HeaderButtons";
+import PostComposer from "./posts/PostComposer";
 import ChatDrawer from "../chat/components/ChatDrawer";
 import WelcomeLetterModal from "./WelcomeLetterModal";
 import ExperienceLetterModal from "./ExperienceLetterModal";
@@ -2526,8 +2528,10 @@ export default function Layout() {
             </div>
             <div className="flex items-center gap-2">
               <LanguageSwitcher />
+              <PostsButton />
               <MessagesButton />
               <NotificationBell />
+              <CreatePostButton />
               <ProfileButton />
             </div>
           </div>
@@ -2548,6 +2552,9 @@ export default function Layout() {
       {/* Real-time chat drawer (WhatsApp-style). Global overlay — the user never
           leaves the current page. */}
       <ChatDrawer />
+
+      {/* Posts composer — photo/video, text, story; opened by the header ＋. */}
+      <PostComposer />
 
       {/* First sign-in: the leadership team's welcome letter, once. Dismissing
           it stamps welcome_letter_seen_at server-side so it never returns. */}

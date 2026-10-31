@@ -133,8 +133,9 @@ api.interceptors.response.use(
       // A lost session belongs to the previous user — never leak their cached
       // rows to whoever logs in next.
       apiCache.clearAll();
-      // Avoid redirect loop if already on /login
-      if (!window.location.pathname.startsWith('/login')) {
+      // Avoid redirect loop if already on /login. A shared post link (/post/:id)
+      // stays put: with the stale session gone it shows the public copy instead.
+      if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/post/')) {
         window.location.href = '/login';
       }
     }

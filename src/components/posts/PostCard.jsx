@@ -5,7 +5,8 @@ import {
   FiHeart, FiMessageCircle, FiShare2, FiMoreHorizontal, FiGlobe, FiUsers, FiX, FiChevronLeft, FiChevronRight, FiSend,
 } from "react-icons/fi";
 import Avatar from "../../chat/components/Avatar";
-import { postsApi, POST_BACKGROUNDS, timeAgo, openComposer, sharePost, COMMENT_REACTIONS } from "../../api/posts";
+import { postsApi, POST_BACKGROUNDS, timeAgo, openComposer, sharePost, COMMENT_REACTIONS, plainText } from "../../api/posts";
+import { RichTextView } from "../RichTextField";
 import { useChat } from "../../chat/ChatContext";
 import SendToChat from "./SendToChat";
 
@@ -250,8 +251,9 @@ export default function PostCard({ post, canManage = false, readOnly = false, de
   };
 
   const textOnly = !p.media?.length;
-  const bigText = textOnly && p.background && (p.body || "").length <= 220;
-  const long = (p.body || "").length > 400 && !expanded;
+  const words = plainText(p.body);
+  const bigText = textOnly && p.background && words.length <= 220;
+  const long = words.length > 400 && !expanded;
 
   return (
     <article className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -287,11 +289,13 @@ export default function PostCard({ post, canManage = false, readOnly = false, de
       {/* body */}
       {bigText ? (
         <div className={`mx-0 min-h-[220px] bg-gradient-to-br ${POST_BACKGROUNDS[p.background] || POST_BACKGROUNDS.teal} text-white grid place-items-center px-8 py-10`}>
-          <p className="text-2xl font-semibold text-center leading-relaxed whitespace-pre-wrap" dir="auto" data-no-i18n>{p.body}</p>
+          <p className="text-2xl font-semibold text-center leading-relaxed whitespace-pre-wrap" dir="auto" data-no-i18n>{words}</p>
         </div>
       ) : p.body ? (
         <div className="px-4 pb-3">
-          <p className={`text-[15px] text-gray-800 whitespace-pre-wrap break-words leading-relaxed ${long ? "line-clamp-6" : ""}`} dir="auto" data-no-i18n>{p.body}</p>
+          <div className={`text-[15px] text-gray-800 break-words leading-relaxed ${long ? "line-clamp-6" : ""}`} data-no-i18n>
+            <RichTextView html={p.body} />
+          </div>
           {long && <button type="button" onClick={() => setExpanded(true)} className="text-sm font-semibold text-teal-700 mt-1">See more</button>}
         </div>
       ) : null}

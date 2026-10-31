@@ -3,7 +3,8 @@ import Swal from "sweetalert2";
 import { FiImage, FiX, FiGlobe, FiUsers } from "react-icons/fi";
 import Avatar from "../../chat/components/Avatar";
 import { useAuth } from "../../admin/context/AuthContext";
-import { postsApi, POST_BACKGROUNDS } from "../../api/posts";
+import { postsApi, POST_BACKGROUNDS, plainText } from "../../api/posts";
+import RichTextField from "../RichTextField";
 
 const MAX_FILES = 10;
 const MAX_MB = 25;
@@ -60,7 +61,7 @@ export default function PostComposer() {
   };
 
   const submit = async () => {
-    if (!body.trim() && files.length === 0 && !isEdit) {
+    if (!plainText(body) && files.length === 0 && !isEdit) {
       Swal.fire("Empty", "Write something or add a photo or video.", "info");
       return;
     }
@@ -71,7 +72,7 @@ export default function PostComposer() {
       } else {
         const fd = new FormData();
         fd.append("kind", isStory ? "story" : "post");
-        if (body.trim()) fd.append("body", body.trim());
+        if (plainText(body)) fd.append("body", body);
         if (!files.length) fd.append("background", background);
         if (!isStory) fd.append("visibility", visibility);
         files.forEach((f) => fd.append("media[]", f.file));
@@ -122,9 +123,14 @@ export default function PostComposer() {
                 className="flex-1 bg-transparent text-white placeholder-white/70 text-xl font-semibold text-center resize-none outline-none" />
             </div>
           ) : (
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} dir="auto" rows={3}
-              placeholder={isStory ? "Add a caption…" : "Say something about this…"}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-300" />
+            isStory ? (
+              <textarea value={body} onChange={(e) => setBody(e.target.value)} dir="auto" rows={2}
+                placeholder="Add a caption…"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-300" />
+            ) : (
+              // A post's caption is rich text — bold, lists, links — like the rest of WEN.
+              <RichTextField value={body} onChange={setBody} rows={4} placeholder="Say something about this…" />
+            )
           )}
 
           {showBackground && (

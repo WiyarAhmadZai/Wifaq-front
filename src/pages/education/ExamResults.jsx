@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { FiDownload, FiPrinter } from "react-icons/fi";
 import {
   examResultFormData,
@@ -597,7 +598,7 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
           </tr>)}</tbody>
         </table>
       </div>
-      <section className={`report-print-area doc-${activeDocument.key} ${viewStudentId ? "screen-preview" : ""}`}>
+      {createPortal(<section className={`report-print-area doc-${activeDocument.key} ${viewStudentId ? "screen-preview" : ""}`}>
         {viewStudentId && <div className="screen-preview-toolbar no-print">
           <strong>{students.find((student) => student.student_id === viewStudentId)?.name}</strong>
           <span className="doc-switch">{DOCUMENTS.map((item) => <button key={item.key} type="button" className={documentType === item.key ? "active" : ""} onClick={() => setDocumentType(item.key)}>{item.label}</button>)}</span>
@@ -608,7 +609,7 @@ export function ReportCardsPage({ examType = "chaharnima" }) {
         {(shownStudentId ? students.filter((student) => student.student_id === shownStudentId) : students).map((student) => <article className="report-card" key={student.student_id} dir="rtl" lang="fa-AF">
           <DocumentView student={student} report={report} activeClass={activeClass} examType={examType} />
         </article>)}
-      </section>
+      </section>, document.body)}
     </>}
     {!loading && reportReady && !students.length && <Card><p className="py-8 text-center text-sm text-gray-500">No students or report data are available for this class and year.</p></Card>}
     <style>{`@media print { @page { size: A4 ${activeDocument.orientation}; margin: ${activeDocument.key === "certificate" ? "0" : "7mm"}; } }`}</style>
@@ -712,13 +713,17 @@ const REPORT_STYLES = `
   .sh-signs .sh-seal { display:grid; place-items:center; justify-self:center; width:22mm; height:22mm; border:.4mm dashed #d4a62d; color:#c9b27a; }
 
   @media print {
-    html,body,#root { height:auto!important; min-height:0!important; overflow:visible!important; background:white!important; }
-    body * { visibility:hidden!important; }
-    .report-print-area, .report-print-area * { visibility:visible!important; }
-    .report-print-area { display:block!important; position:absolute!important; inset:0 auto auto 0!important; width:auto!important; margin:0!important; padding:0!important; overflow:visible!important; background:white!important; }
+    /* The documents sit directly under <body> (portal); everything else is removed
+       from layout, not just hidden, so it cannot push out an extra blank page. */
+    html, body { height:auto!important; min-height:0!important; margin:0!important; padding:0!important; overflow:visible!important; background:white!important; }
+    body > *:not(.report-print-area) { display:none!important; }
+    .report-print-area { display:block!important; position:static!important; inset:auto!important; width:auto!important; margin:0!important; padding:0!important; overflow:visible!important; background:white!important; }
     .screen-preview-toolbar, .no-print { display:none!important; }
-    .report-card { display:block!important; margin:0!important; box-shadow:none!important; break-after:page; page-break-after:always; }
+    .report-card { display:block!important; width:auto!important; margin:0!important; box-shadow:none!important; break-after:page; page-break-after:always; break-inside:avoid; }
     .report-card:last-child { break-after:auto; page-break-after:auto; }
-      .rs-page, .sh-page { overflow:hidden; } .rs-page { height:283mm; }
+    /* A hair under the printable area so browser rounding never spills onto a second sheet. */
+    .rs-page { height:281mm; min-height:0; overflow:hidden; }
+    .sh-page { height:281mm; overflow:hidden; }
+    .cert-page { height:209mm; overflow:hidden; }
   }
 `;

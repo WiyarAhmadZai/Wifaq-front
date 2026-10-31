@@ -22,6 +22,16 @@ const ORIGIN = (API_BASE_URL || 'http://localhost:8000').replace(/\/api\/?$/, ''
 // backend .env defaults so real-time still works even if the Vite dev server
 // was started BEFORE VITE_REVERB_* were added (env is only read at dev-server
 // start — restart `npm run dev` after changing it). Change these in .env for prod.
+/* Which live server: 'reverb' (our own, `php artisan reverb:start`) or
+ * 'pusher' (hosted Pusher Channels — for hosting that cannot keep a websocket
+ * server running, such as shared hosting). Pusher needs VITE_PUSHER_APP_KEY
+ * and VITE_PUSHER_APP_CLUSTER, and the backend BROADCAST_CONNECTION=pusher. */
+const BROADCASTER = String(import.meta.env.VITE_BROADCASTER || 'reverb').toLowerCase();
+const PUSHER = {
+  key: import.meta.env.VITE_PUSHER_APP_KEY,
+  cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'mt1',
+};
+
 const REVERB = {
   key: import.meta.env.VITE_REVERB_APP_KEY || 'wifaqchatkey',
   host: import.meta.env.VITE_REVERB_HOST || '127.0.0.1',
@@ -37,7 +47,9 @@ const REVERB = {
  * VITE_REVERB_HOST/PORT/SCHEME to the public Reverb endpoint to enable it. */
 const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '::1', '[::1]', '0.0.0.0'];
 const isLoopback = (h) => LOOPBACK_HOSTS.includes(String(h || '').toLowerCase());
-const REVERB_UNREACHABLE = isLoopback(REVERB.host) && !isLoopback(window.location.hostname);
+const REVERB_UNREACHABLE = BROADCASTER === 'pusher'
+  ? !PUSHER.key
+  : isLoopback(REVERB.host) && !isLoopback(window.location.hostname);
 let warnedUnreachable = false;
 
 let echoInstance = null;
@@ -69,7 +81,9 @@ export async function ensureEcho() {
   if (REVERB_UNREACHABLE) {
     if (!warnedUnreachable) {
       warnedUnreachable = true;
-      console.info(`[chat] Live chat off: VITE_REVERB_HOST is "${REVERB.host}", which is not reachable from ${window.location.hostname}. Point it at the public Reverb endpoint to enable real-time updates.`);
+      console.info(BROADCASTER === 'pusher'
+        ? '[chat] Live chat off: VITE_BROADCASTER is "pusher" but VITE_PUSHER_APP_KEY is empty.'
+        : `[chat] Live chat off: VITE_REVERB_HOST is "${REVERB.host}", which is not reachable from ${window.location.hostname}. Point it at the public Reverb endpoint, or use hosted Pusher (VITE_BROADCASTER=pusher), to enable real-time updates and calls.`);
     }
     return null;
   }
@@ -92,14 +106,19 @@ export async function ensureEcho() {
 }
 
 function buildEcho(Echo) {
+  const server = BROADCASTER === 'pusher'
+    ? { broadcaster: 'pusher', key: PUSHER.key, cluster: PUSHER.cluster, forceTLS: true }
+    : {
+        broadcaster: 'reverb',
+        key: REVERB.key,
+        wsHost: REVERB.host,
+        wsPort: REVERB.port,
+        wssPort: REVERB.port,
+        forceTLS: REVERB.scheme === 'https',
+        enabledTransports: ['ws', 'wss'],
+      };
   const instance = new Echo({
-    broadcaster: 'reverb',
-    key: REVERB.key,
-    wsHost: REVERB.host,
-    wsPort: REVERB.port,
-    wssPort: REVERB.port,
-    forceTLS: REVERB.scheme === 'https',
-    enabledTransports: ['ws', 'wss'],
+    ...server,
     // Custom token-based channel authorization.
     authorizer: (channel) => ({
       authorize: (socketId, callback) => {
@@ -119,11 +138,12 @@ function buildEcho(Echo) {
   try {
     const conn = instance.connector?.pusher?.connection;
     if (conn) {
-      conn.bind('connected', () => console.info('[chat] Reverb connected'));
-      conn.bind('disconnected', () => console.warn('[chat] Reverb disconnected'));
-      conn.bind('error', (e) => console.warn('[chat] Reverb connection error', e));
-      conn.bind('unavailable', () =>
-        console.warn(`[chat] Reverb unavailable at ${REVERB.scheme}://${REVERB.host}:${REVERB.port} — is "php artisan reverb:start" running?`));
+      conn.bind('connected', () => console.info(`[chat] ${BROADCASTER} connected`));
+      conn.bind('disconnected', () => console.warn(`[chat] ${BROADCASTER} disconnected`));
+      conn.bind('error', (e) => console.warn(`[chat] ${BROADCASTER} connection error`, e));
+      conn.bind('unavailable', () => console.warn(BROADCASTER === 'pusher'
+        ? `[chat] Pusher unavailable (cluster ${PUSHER.cluster}) — check the key/cluster and the network.`
+        : `[chat] Reverb unavailable at ${REVERB.scheme}://${REVERB.host}:${REVERB.port} — is "php artisan reverb:start" running?`));
     }
   } catch { /* ignore */ }
 

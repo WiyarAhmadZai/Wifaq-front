@@ -4,6 +4,8 @@ import { get, post, put, del } from "./axios";
 /** Posts — feed, stories, likes, threaded comments. See PostController. */
 export const postsApi = {
   feed: (page = 1) => get("/posts/feed", { cache: false, params: { page } }),
+  /** One person's posts — their profile grid. */
+  feedOf: (userId, page = 1) => get("/posts/feed", { cache: false, params: { user_id: userId, page, per_page: 30 } }),
   stories: () => get("/posts/stories", { cache: false }),
   show: (id) => get(`/posts/${id}`, { cache: false }),
   publicShow: (id) => get(`/public/posts/${id}`, { cache: false }),
@@ -39,6 +41,14 @@ export const POST_BACKGROUNDS = {
 /** The link anyone can open — public posts even without signing in. */
 export const postLink = (id) => `${window.location.origin}/post/${id}`;
 
+/** A post body as plain words — captions are rich text (HTML) now. */
+export const plainText = (html) => {
+  if (!html) return "";
+  // DOMParser parses inertly — no images load, no handlers run.
+  const text = new DOMParser().parseFromString(html, "text/html").body.textContent || "";
+  return text.replace(/\s+/g, " ").trim();
+};
+
 export const timeAgo = (iso) => {
   if (!iso) return "";
   const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -59,7 +69,7 @@ export async function sharePost(p) {
   const url = postLink(p.id);
   try {
     if (navigator.share) {
-      await navigator.share({ title: p.author?.name || "Post", text: (p.body || "").slice(0, 120), url });
+      await navigator.share({ title: p.author?.name || "Post", text: plainText(p.body).slice(0, 120), url });
       return;
     }
   } catch { /* cancelled — fall through to copying */ }

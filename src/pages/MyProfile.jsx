@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
+import ProfilePosts from "../components/profile/ProfilePosts";
+import ProfileInsights from "../components/profile/ProfileInsights";
 import ImageLightbox from "../components/user/ImageLightbox";
 import WelcomeLetterDownload from "../components/WelcomeLetterDownload";
 import { get, put, post, del, peekCache } from '../api/axios';
@@ -20,6 +22,8 @@ const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 export default function MyProfile() {
   const navigate = useNavigate();
   const { userId } = useParams();
+  // "More info" — attendance, leave, tasks, ratings (self / admin).
+  const [showInsights, setShowInsights] = useState(false);
   const { user: authUser, hasRole } = useAuth();
 
   const [profile, setProfile] = useState(null);
@@ -154,9 +158,11 @@ export default function MyProfile() {
 
   return (
     <div className="min-h-screen bg-gray-50/60">
-      {/* Header */}
-      <div className="bg-teal-600 px-5 py-6">
-        <div className="max-w-full mx-auto">
+      {/* Header — a soft cover with the person at its centre */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-teal-700 via-teal-600 to-emerald-500 px-5 pt-6 pb-8">
+        <span className="pointer-events-none absolute -top-16 -end-10 w-64 h-64 rounded-full bg-white/10 blur-2xl" aria-hidden />
+        <span className="pointer-events-none absolute -bottom-24 start-1/3 w-72 h-72 rounded-full bg-emerald-300/20 blur-3xl" aria-hidden />
+        <div className="relative max-w-full mx-auto">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <button onClick={() => navigate(-1)} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
@@ -199,14 +205,14 @@ export default function MyProfile() {
               <div
                 onClick={() => photoUrl && setPhotoOpen(true)}
                 title={photoUrl ? "View photo full size" : undefined}
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black overflow-hidden bg-white/20 ${photoUrl ? "cursor-zoom-in hover:ring-2 hover:ring-white/60 transition" : ""}`}>
+                className={`w-24 h-24 rounded-full ring-4 ring-white/80 shadow-xl flex items-center justify-center text-white text-3xl font-black overflow-hidden bg-white/20 ${photoUrl ? "cursor-zoom-in hover:ring-white transition" : ""}`}>
                 {photoUrl ? <img src={photoUrl} alt={u.name} className="w-full h-full object-cover" /> : (u.name?.charAt(0) || 'U')}
               </div>
               {isSelf && (
                 <>
                   <button onClick={() => document.getElementById('profile-photo-upload').click()}
                     disabled={saving}
-                    className="absolute bottom-0 right-0 w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center text-white hover:bg-teal-700 transition-colors shadow-lg disabled:opacity-50"
+                    className="absolute bottom-1 end-1 w-7 h-7 bg-teal-600 ring-2 ring-white rounded-full flex items-center justify-center text-white hover:bg-teal-700 transition-colors shadow-lg disabled:opacity-50"
                     title="Update profile photo">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   </button>
@@ -216,7 +222,7 @@ export default function MyProfile() {
               )}
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-black text-white">{u.name || 'N/A'}</h2>
+              <h2 className="text-2xl font-black text-white tracking-tight">{u.name || 'N/A'}</h2>
               <p className="text-xs text-teal-100 mt-0.5">
                 {s.role_title_en || (profile.type === 'user' ? 'User' : profile.type)}
                 {s.department && ` · ${s.department}`}
@@ -228,7 +234,14 @@ export default function MyProfile() {
                 )}
                 {s.status && <span className="px-2.5 py-0.5 bg-white/30 text-white text-[11px] font-semibold rounded-full capitalize">{s.status}</span>}
               </div>
+              {u.bio && <p className="text-sm text-white/90 mt-2 max-w-xl" dir="auto">{u.bio}</p>}
             </div>
+            {canSeePrivate && profile.type === 'staff' && (
+              <button type="button" onClick={() => setShowInsights(true)}
+                className="self-start sm:self-center shrink-0 px-4 py-2 rounded-xl bg-white text-teal-700 text-xs font-bold shadow-md hover:bg-teal-50 transition flex items-center gap-1.5">
+                📊 <span>More info</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -245,6 +258,9 @@ export default function MyProfile() {
                 </p>
               </div>
             )}
+
+            {/* Their posts — Instagram-style grid. */}
+            <ProfilePosts userId={u.id} isSelf={isSelf} />
 
             {/* Personal — private */}
             {canSeePrivate && (
@@ -414,6 +430,8 @@ export default function MyProfile() {
       {photoOpen && (
         <ImageLightbox src={photoUrl} alt={u.name} onClose={() => setPhotoOpen(false)} />
       )}
+
+      {showInsights && <ProfileInsights userId={u.id} name={u.name} onClose={() => setShowInsights(false)} />}
     </div>
   );
 }

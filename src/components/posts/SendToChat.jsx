@@ -4,7 +4,7 @@ import { FiX, FiSearch, FiCheck } from "react-icons/fi";
 import { useChat } from "../../chat/ChatContext";
 import chatApi from "../../chat/chatApi";
 import Avatar from "../../chat/components/Avatar";
-import { postLink } from "../../api/posts";
+import { postLink, plainText } from "../../api/posts";
 
 /**
  * Send a post into one or more chats. The message carries who posted it, the
@@ -29,10 +29,11 @@ export default function SendToChat({ post, onClose }) {
   const send = async () => {
     if (!picked.length) return;
     setBusy(true);
-    const snippet = (post.body || "").slice(0, 140);
+    const words = plainText(post.body);
+    const snippet = words.slice(0, 140);
     const body = [
       note.trim(),
-      `📄 ${post.author?.name || ""}${snippet ? `: ${snippet}${(post.body || "").length > 140 ? "…" : ""}` : ""}`,
+      `📄 ${post.author?.name || ""}${snippet ? `: ${snippet}${words.length > 140 ? "…" : ""}` : ""}`,
       postLink(post.id),
     ].filter(Boolean).join("\n");
     const results = await Promise.allSettled(picked.map((id) => chatApi.sendMessage(id, { body })));

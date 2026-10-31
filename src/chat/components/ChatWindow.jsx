@@ -136,16 +136,16 @@ export default function ChatWindow({ onBack, controlsWidth = 1 }) {
         {/* The drawer floats its window controls over this row; the margin is
             what keeps this button clear of them. The standalone /mailbox page
             has no floating controls, so it passes controlsWidth={0}. */}
-        {/* Voice and video calls — one-to-one chats; <CallManager> does the rest. */}
-        {!isGroup && !activeConversation.is_self && other && (
+        {/* Voice and video calls — one-to-one and group; <CallManager> does the rest. */}
+        {!activeConversation.is_self && (isGroup || other) && (
           <>
-            <button type="button" title="Voice call"
-              onClick={() => window.dispatchEvent(new CustomEvent('wen:call-start', { detail: { conversationId: activeConversation.id, media: 'audio', peer: other } }))}
+            <button type="button" title={isGroup ? 'Group voice call' : 'Voice call'}
+              onClick={() => window.dispatchEvent(new CustomEvent('wen:call-start', { detail: { conversationId: activeConversation.id, media: 'audio', peer: other, group: isGroup, title: activeConversation.title } }))}
               className="p-2 rounded-full text-gray-500 hover:text-teal-600 hover:bg-teal-50">
               <FiPhone className="w-5 h-5" />
             </button>
-            <button type="button" title="Video call"
-              onClick={() => window.dispatchEvent(new CustomEvent('wen:call-start', { detail: { conversationId: activeConversation.id, media: 'video', peer: other } }))}
+            <button type="button" title={isGroup ? 'Group video call' : 'Video call'}
+              onClick={() => window.dispatchEvent(new CustomEvent('wen:call-start', { detail: { conversationId: activeConversation.id, media: 'video', peer: other, group: isGroup, title: activeConversation.title } }))}
               className="p-2 rounded-full text-gray-500 hover:text-teal-600 hover:bg-teal-50">
               <FiVideo className="w-5 h-5" />
             </button>

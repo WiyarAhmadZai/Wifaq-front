@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../admin/context/AuthContext';
 import { chatApi } from './chatApi';
 import { ensureEcho, disconnectEcho, isRealtimeLive } from './echo';
+import { pollParams, receiveSignals } from './callSignals';
 import { API_BASE_URL } from '../api/axios';
 import { richTextToPlain } from '../utils/richText';
 import Swal from 'sweetalert2';
@@ -535,8 +536,11 @@ export function ChatProvider({ children }) {
       let ok = true;
 
       try {
-        const res = await chatApi.listConversations();
+        // The same request also brings any waiting call signals (a ring, an
+        // answer) — so an idle browser hears a call without asking separately.
+        const res = await chatApi.listConversations(pollParams());
         if (stopped) return;
+        receiveSignals(res.data?.calls);
         setConversations(res.data?.data || []);
         if (typeof res.data?.unread_total === 'number') setUnreadTotal(res.data.unread_total);
       } catch { ok = false; /* offline or 401 — the next tick retries */ }

@@ -1590,6 +1590,7 @@ export default function Layout() {
     { label: "Record 4D Rating", path: "/education/4d-self-rating", permission: "student-profiles.update" },
     { label: "Student Cards", path: "/education/cards", permission: "student-cards.view" },
     { label: "Card Rankings", path: "/education/card-rankings", permission: "student-card-rankings.view" },
+    { label: "Science Projects", path: "/education/science-projects", permission: "science-projects.view" },
     // Weekly Recognition — the weekly, topic-scoped version of the recognition
     // already done monthly. Same four areas, same student history.
     { label: "Weekly Topic", path: "/education/weekly-recognition", permission: "weekly-recognition.view" },

@@ -295,7 +295,6 @@ const DOCUMENTS = [
   { key: "certificate", label: "Certificate", orientation: "landscape" },
   { key: "shahadatnama", label: "Shahadatnama", orientation: "portrait" },
 ];
-const GRADE_COLORS = { "A+": "#0b3d3a", A: "#0f6b64", B: "#3aa59a", C: "#d4a62d", D: "#e2b866", F: "#c9685e" };
 const num = (value) => (value === null || value === undefined ? "—" : formatResultNumber(Math.round(Number(value) * 10) / 10));
 const passLabel = (passed) => (passed === null ? "نا مکمل" : passed ? "کامیاب" : "ناکام");
 
@@ -321,28 +320,19 @@ function Stars({ score }) {
   return <span className="rs-stars" aria-label={`${filled}/5`}>{[0, 1, 2, 3, 4].map((index) => <span key={index} className={index < filled ? "on" : ""}>★</span>)}</span>;
 }
 
-function averageOf(values) {
-  const present = values.filter((value) => value !== null && value !== undefined);
-  return present.length ? present.reduce((sum, value) => sum + Number(value), 0) / present.length : null;
-}
+const LEVEL_TONE = { "عالی": "lvl-4", "خیلی خوب": "lvl-3", "خوب": "lvl-2", "فعال": "lvl-1" };
 
+/* One A4 page: who, the marks, attendance, the four dimensions, school
+ * activities (levels worked out from the records), honours (attendance and
+ * discipline against the class), and the three comments. */
 function ResultSheetDoc({ student, report, activeClass, examType }) {
   const isSalana = examType === "salana";
   const subjects = student.subjects;
   const components = Object.fromEntries((report.components || []).map((item) => [item.component_key, Number(item.max_marks)]));
   const subjectMax = subjects[0]?.max_score ?? 0;
-  const gradeCounts = subjects.reduce((counts, subject) => (subject.grade ? { ...counts, [subject.grade]: (counts[subject.grade] || 0) + 1 } : counts), {});
-  const graded = Object.values(gradeCounts).reduce((sum, count) => sum + count, 0);
-  const points = isSalana
-    ? [["چهارنیمه", averageOf(subjects.map((s) => s.chaharnima_percentage))], ["سالانه", averageOf(subjects.map((s) => s.salana_percentage))], ["نتیجه نهایی", student.has_marks ? student.percentage : null]]
-    : [["homework", "کارخانگی"], ["performance", "فعالیت صنفی"], ["paper", "امتحان تحریری"]].map(([key, label]) => {
-      const average = averageOf(subjects.map((s) => s[`${key}_score`]));
-      return [label, components[key] && average !== null ? (average / components[key]) * 100 : null];
-    });
-  const lineW = 264, lineH = 100, step = lineW / points.length;
-  const coords = points.map(([, value], index) => (value === null ? null : [lineW - (index + 0.5) * step, lineH - 6 - ((lineH - 16) * Math.max(0, Math.min(100, value))) / 100])).filter(Boolean);
-  let angle = 0;
   const attendance = student.attendance;
+  const honours = student.honours || {};
+  const ahead = (value) => (value === null || value === undefined ? null : `بهتر از ${formatResultNumber(value)}٪ همصنفان`);
 
   return <div className="rs-page">
     <header className="rs-band">
@@ -362,51 +352,14 @@ function ResultSheetDoc({ student, report, activeClass, examType }) {
       <div className="rs-card rs-kpi"><small>حضور</small>{attendance.rate === null ? <><b>—</b><span>حاضری ثبت نشده</span></> : <Ring value={attendance.rate} color="#2e8b57" />}</div>
     </section>
 
-    <section className="rs-row rs-charts">
-      <div className="rs-card"><h2 className="teal">{isSalana ? "مقایسه چهارنیمه و سالانه" : "نمرات مضامین (فیصدی)"}</h2>
-        <div className="rs-bars">{subjects.map((subject) => <div key={subject.subject_id} className="rs-bar-group">
-          <div className="rs-bar-pair">
-            {isSalana && <i style={{ height: `${subject.chaharnima_percentage ?? 0}%`, background: "#d9cfb8" }} />}
-            <i style={{ height: `${(isSalana ? subject.salana_percentage : subject.percentage) ?? 0}%`, background: "#0f5f5b" }} />
-          </div>
-          <span>{subject.subject_name}</span>
-        </div>)}</div>
-        {isSalana && <div className="rs-legend"><span><i style={{ background: "#0f5f5b" }} /> سالانه</span><span><i style={{ background: "#d9cfb8" }} /> چهارنیمه</span></div>}
-      </div>
-      <div className="rs-card"><h2 className="teal">{isSalana ? "نمودار پیشرفت کل" : "عملکرد در اجزای نمره"}</h2>
-        <svg viewBox={`0 0 ${lineW} ${lineH}`} className="rs-line" aria-hidden>
-          {[25, 50, 75].map((grid) => { const y = lineH - 6 - ((lineH - 16) * grid) / 100; return <line key={grid} x1="0" x2={lineW} y1={y} y2={y} stroke="#efe9da" />; })}
-          {coords.length > 1 && <polyline points={coords.map((c) => c.join(",")).join(" ")} fill="none" stroke="#d4a62d" strokeWidth="2.5" />}
-          {coords.map(([x, y]) => <circle key={x} cx={x} cy={y} r="4" fill="#fff" stroke="#d4a62d" strokeWidth="2" />)}
-        </svg>
-        <div className="rs-line-labels">{points.map(([label, value]) => <span key={label}>{label}<b>{value === null ? "—" : `${num(value)}٪`}</b></span>)}</div>
-      </div>
-      <div className="rs-card"><h2 className="gold">توزیع نمرات</h2>
-        <div className="rs-donut">
-          <svg viewBox="0 0 100 100" aria-hidden>
-            <circle cx="50" cy="50" r="34" fill="none" stroke="#efe9da" strokeWidth="18" />
-            {Object.entries(GRADE_COLORS).map(([grade, color]) => {
-              if (!gradeCounts[grade]) return null;
-              const sweep = (360 * gradeCounts[grade]) / graded;
-              const path = <path key={grade} d={arcPath(50, 50, 34, angle, angle + sweep)} fill="none" stroke={color} strokeWidth="18" />;
-              angle += sweep;
-              return path;
-            })}
-          </svg>
-          <ul>{Object.entries(GRADE_COLORS).filter(([grade]) => gradeCounts[grade]).map(([grade, color]) => <li key={grade}><i style={{ background: color }} />{grade}<span>{formatResultNumber(gradeCounts[grade])} مضمون</span></li>)}
-            {!graded && <li>نمره ثبت نشده</li>}</ul>
-        </div>
-      </div>
-    </section>
-
     <section className="rs-row rs-marks-row">
       <div className="rs-card"><h2 className="dark">نمرات مضامین</h2>
         <table className="rs-marks">
           <thead><tr><th>مضمون</th><th>کارخانگی ({formatResultNumber(components.homework || 0)})</th><th>فعالیت صنفی ({formatResultNumber(components.performance || 0)})</th><th>تحریری ({formatResultNumber(components.paper || 0)})</th>
-            {isSalana && <><th>سالانه (۶۰)</th><th>چهارنیمه (۴۰)</th></>}<th>مجموع ({formatResultNumber(subjectMax)})</th><th>درجه</th></tr></thead>
+            {isSalana && <><th>سالانه (۶۰)</th><th>چهارنیمه (۴۰)</th></>}<th>مجموع ({formatResultNumber(subjectMax)})</th></tr></thead>
           <tbody>{subjects.map((subject) => <tr key={subject.subject_id}><td>{subject.subject_name}</td><td>{num(subject.homework_score)}</td><td>{num(subject.performance_score)}</td><td>{num(subject.paper_score)}</td>
-            {isSalana && <><td>{num(subject.salana_score)}</td><td>{num(subject.chaharnima_score)}</td></>}<td><b>{num(subject.total_score)}</b></td><td className={subject.grade === "F" ? "fail" : "grade"}>{subject.grade || "—"}</td></tr>)}</tbody>
-          <tfoot><tr><td>معدل</td><td colSpan={isSalana ? 5 : 3}>{num(student.total_score)} از {formatResultNumber(student.maximum_score)} · {num(student.percentage)}٪</td><td>{num(student.average_score)}</td><td className="grade">{student.grade || "—"}</td></tr></tfoot>
+            {isSalana && <><td>{num(subject.salana_score)}</td><td>{num(subject.chaharnima_score)}</td></>}<td><b>{num(subject.total_score)}</b></td></tr>)}</tbody>
+          <tfoot><tr><td>معدل</td><td colSpan={isSalana ? 5 : 3}>{num(student.total_score)} از {formatResultNumber(student.maximum_score)} · {num(student.percentage)}٪</td><td>{num(student.average_score)}</td></tr></tfoot>
         </table>
       </div>
       <div className="rs-card"><h2 className="dark">حضور و غیاب</h2>
@@ -422,23 +375,22 @@ function ResultSheetDoc({ student, report, activeClass, examType }) {
     </section>
 
     <section className="rs-row rs-thirds">
-      <div className="rs-card"><h2 className="green">ارزیابی چهارگانه</h2><dl className="rs-list">
+      <div className="rs-card"><h2 className="green">ارزیابی چهاربعدی</h2><dl className="rs-list">
         {[["intellectual", "ذهنی"], ["character", "اخلاقی‌معنوی"], ["practical", "عملی"], ["social", "اجتماعی"]].map(([key, label]) => <div key={key}><dt className="green-text">{label}</dt><dd><Stars score={student.four_d?.[key]} /></dd></div>)}
       </dl></div>
-      <div className="rs-card"><h2 className="teal">مهارت‌های قرن ۲۱</h2><dl className="rs-list">
-        {["حل مسئله", "تفکر انتقادی", "خلاقیت", "کار گروهی"].map((skill) => <div key={skill}><dt>{skill}</dt><dd className="rs-circles">○○○○○</dd></div>)}
+      <div className="rs-card"><h2 className="gold">فعالیت‌های ویژهٔ مکتب</h2><dl className="rs-list">
+        {(student.activities || []).map((a) => <div key={a.key}><dt>{a.label}</dt><dd className={a.level ? `rs-level ${LEVEL_TONE[a.level]}` : "muted"}>{a.level || "—"}</dd></div>)}
       </dl></div>
-      <div className="rs-card"><h2 className="gold">فعالیت‌های فوق برنامه</h2><div className="rs-blanks">{[0, 1, 2, 3].map((line) => <span key={line} />)}</div></div>
+      <div className="rs-card"><h2 className="green">افتخارات</h2><ul className="rs-awards">
+        <li>حاضری: <b>{honours.attendance_rate === null || honours.attendance_rate === undefined ? "—" : `${num(honours.attendance_rate)}٪`}</b>{ahead(honours.attendance_ahead_of) && <small> · {ahead(honours.attendance_ahead_of)}</small>}</li>
+        <li>نظم و دسپلین: <b>{honours.discipline_rate === null || honours.discipline_rate === undefined ? "—" : `${num(honours.discipline_rate)}٪`}</b>{ahead(honours.discipline_ahead_of) && <small> · {ahead(honours.discipline_ahead_of)}</small>}</li>
+        <li>برندهٔ موضوع هفته: <b>{formatResultNumber(honours.weekly_wins || 0)} بار</b>{ahead(honours.wins_ahead_of) && <small> · {ahead(honours.wins_ahead_of)}</small>}</li>
+        {(student.awards || []).slice(0, 2).map((award) => <li key={award}>⭐ {award}</li>)}
+      </ul></div>
     </section>
 
     <section className="rs-row rs-thirds">
-      <div className="rs-card"><h2 className="gold">افتخارات</h2>{student.awards?.length ? <ul className="rs-awards">{student.awards.map((award) => <li key={award}>{award}</li>)}</ul> : <div className="rs-blanks">{[0, 1, 2].map((line) => <span key={line} />)}</div>}</div>
-      <div className="rs-card"><h2 className="teal">اهداف {isSalana ? "سال آینده" : "نیمسال بعد"}</h2><div className="rs-blanks">{[0, 1, 2].map((line) => <span key={line}>•</span>)}</div></div>
-      <div className="rs-card"><h2 className="green">قوت و نیاز</h2><div className="rs-blanks"><span><b className="green-text">قوت:</b></span><span /><span><b className="bad">نیاز:</b></span></div></div>
-    </section>
-
-    <section className="rs-row rs-thirds">
-      {["نظر استاد راهنما", "نظر مدیر ترتیبی", "نظر والدین"].map((title) => <div key={title} className="rs-card rs-comment"><b>{title}</b><small>امضا</small></div>)}
+      {["نظر استاد راهنما", "نظر مدیر تربیتی", "نظر و امضای والدین"].map((title) => <div key={title} className="rs-card rs-comment"><b>{title}</b><small>امضا</small></div>)}
     </section>
     <footer className="rs-foot"><span>WEN · {report.academic_term?.name} · اطلاعنامهٔ پیشرفت تحصیلی</span><span dir="ltr">Wifaq Education Network</span></footer>
   </div>;
@@ -631,6 +583,13 @@ const REPORT_STYLES = `
 
   /* اطلاعنامه — A4 portrait dashboard */
   .rs-page { width:196mm; min-height:283mm; padding:3mm; background:#f7f3ea; font-size:7.6pt; }
+  /* Never more than one A4 page when printed. */
+  @media print { .rs-page { height:283mm; overflow:hidden; page-break-after:always; break-inside:avoid; } }
+  .rs-level { padding:.3mm 2mm; border-radius:2mm; font-weight:700; }
+  .lvl-4 { background:#0f5f5b; color:#fff !important; } .lvl-3 { background:#3aa59a; color:#fff !important; }
+  .lvl-2 { background:#e6f3f1; color:#0f5f5b !important; } .lvl-1 { background:#fbf3dc; color:#a07a14 !important; }
+  .rs-list .muted { color:#b8b0a0; font-weight:400; }
+  .rs-awards small { color:#7c7465; font-weight:400; }
   .rs-band { display:grid; grid-template-columns:62mm 1fr 22mm; align-items:center; gap:3mm; padding:3mm 4mm; background:#0b4f4c; color:#fff; }
   .rs-brand { display:flex; align-items:center; gap:3mm; }
   .rs-brand b { display:block; font-size:13pt; } .rs-brand small { color:#e5c76b; font-size:7pt; }

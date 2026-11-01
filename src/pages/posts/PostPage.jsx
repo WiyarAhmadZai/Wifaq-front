@@ -63,7 +63,7 @@ export default function PostPage() {
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-sm text-gray-500">{state.error}</div>
         ) : (
           <>
-            <PostCard post={state.post} canManage={state.can.manage} readOnly={state.readOnly} defaultComments
+            <PostCard post={state.post} canPin={state.can.pin} readOnly={state.readOnly} defaultComments
               onRemoved={() => { window.location.href = "/posts"; }} />
             {state.readOnly && (
               <p className="text-center text-xs text-gray-400 mt-4">Sign in to like, comment and see more posts.</p>

@@ -47,3 +47,9 @@
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 </IfModule>
+
+# Compress text before sending — the app's JavaScript and CSS shrink by about
+# three quarters on the wire. Harmless where the host already compresses.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript application/json image/svg+xml
+</IfModule>

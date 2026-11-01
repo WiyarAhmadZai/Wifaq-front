@@ -78,7 +78,7 @@ export default function PostsFeed() {
         )}
 
         {posts.map((p) => (
-          <PostCard key={p.id} post={p} canManage={can.manage}
+          <PostCard key={p.id} post={p} canPin={can.pin}
             onChanged={() => load(1)}
             onRemoved={(id) => setPosts((cur) => cur.filter((x) => x.id !== id))} />
         ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { lazy, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
@@ -7,9 +7,12 @@ import { permissionForPath } from "../admin/utils/pathPermissions";
 import ErrorBoundary from "./ErrorBoundary";
 import ScrollMemory from "./ScrollMemory";
 import MessagesButton from "../chat/components/MessagesButton";
+import { useChat } from "../chat/ChatContext";
 import { PostsButton, CreatePostButton } from "./posts/HeaderButtons";
 import PostComposer from "./posts/PostComposer";
-import ChatDrawer from "../chat/components/ChatDrawer";
+// The chat window's screens load the first time chat is opened; the chat
+// itself (badge, new messages, calls) runs from ChatProvider regardless.
+const ChatDrawer = lazy(() => import("../chat/components/ChatDrawer"));
 import WelcomeLetterModal from "./WelcomeLetterModal";
 import ExperienceLetterModal from "./ExperienceLetterModal";
 import { isRealtimeLive } from "../chat/echo";
@@ -1333,6 +1336,15 @@ function usePortalLabel() {
   return ROLE_PORTAL_LABELS[singleRole] || prettyRolePortal(singleRole);
 }
 
+/* Mounts the chat drawer once it is first opened, then keeps it (for its
+ * slide animation). Before that, not a byte of the chat screens is downloaded. */
+function LazyChatDrawer() {
+  const { open } = useChat();
+  const [wanted, setWanted] = useState(false);
+  if (open && !wanted) setWanted(true);
+  return wanted ? <Suspense fallback={null}><ChatDrawer /></Suspense> : null;
+}
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -2551,7 +2563,7 @@ export default function Layout() {
 
       {/* Real-time chat drawer (WhatsApp-style). Global overlay — the user never
           leaves the current page. */}
-      <ChatDrawer />
+      <LazyChatDrawer />
 
       {/* Posts composer — photo/video, text, story; opened by the header ＋. */}
       <PostComposer />

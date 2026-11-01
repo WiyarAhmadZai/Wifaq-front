@@ -86,7 +86,7 @@ export default function ProfilePosts({ userId, isSelf }) {
           <div className="relative w-full max-w-xl my-6" onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => setOpen(null)} title="Close"
               className="absolute -top-3 -end-3 z-10 w-9 h-9 rounded-full bg-white shadow grid place-items-center text-gray-600"><FiX /></button>
-            <PostCard post={open} canManage={can.manage} defaultComments
+            <PostCard post={open} canPin={can.pin} defaultComments
               onRemoved={(id) => { setOpen(null); setPosts((cur) => cur.filter((x) => x.id !== id)); }} />
           </div>
         </div>

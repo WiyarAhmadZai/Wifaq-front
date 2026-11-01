@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FiCheck, FiMoreHorizontal, FiCornerUpLeft, FiCornerUpRight,
   FiEdit2, FiTrash2, FiCopy, FiFile, FiDownload, FiSmile, FiPlus,
 } from 'react-icons/fi';
-import EmojiPicker from 'emoji-picker-react';
+// The full picker is a third of the app's code, and most people never open
+// it — so it is fetched the first time someone does, not on every page.
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { formatTime, formatSize, fileUrl } from '../utils';
 import ImageLightbox from './ImageLightbox';
 import { RichTextView } from '../../components/RichTextField';
@@ -293,6 +295,7 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                 style={{ top: pickerPosition.top, left: pickerPosition.left }}
               >
                 {showAllEmojis ? (
+                  <Suspense fallback={<div className="w-[300px] h-[360px] rounded-xl bg-white shadow-xl border border-gray-200 grid place-items-center text-xs text-gray-400">…</div>}>
                   <EmojiPicker
                     onEmojiClick={(item) => { onReact?.(message.id, item.emoji); setEmojiOpen(false); }}
                     width={300}
@@ -301,6 +304,7 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
                     previewConfig={{ showPreview: false }}
                     skinTonesDisabled
                   />
+                  </Suspense>
                 ) : (
                   <div className="flex items-center gap-1 p-2 rounded-full bg-white shadow-xl border border-gray-200">
                     {quickReactions.map(({ emoji, label }) => {

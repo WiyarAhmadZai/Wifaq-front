@@ -212,7 +212,7 @@ export function CommentSection({ postId, initial = null, readOnly = false, onCou
 }
 
 /* ════════════ the card ════════════ */
-export default function PostCard({ post, canManage = false, readOnly = false, defaultComments = false, onChanged, onRemoved }) {
+export default function PostCard({ post, canPin = false, readOnly = false, defaultComments = false, onChanged, onRemoved }) {
   const [p, setP] = useState(post);
   const [viewer, setViewer] = useState(null);
   const [showComments, setShowComments] = useState(defaultComments);
@@ -271,12 +271,12 @@ export default function PostCard({ post, canManage = false, readOnly = false, de
           </div>
         </div>
         {p.is_pinned && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">📌 <span>Pinned</span></span>}
-        {!readOnly && (p.can_edit || canManage) && (
+        {!readOnly && (p.can_edit || canPin) && (
           <div className="relative">
             <button type="button" onClick={() => setMenu((v) => !v)} className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500 grid place-items-center"><FiMoreHorizontal /></button>
             {menu && (
               <div className="absolute end-0 top-9 z-20 w-44 rounded-xl border border-gray-100 bg-white shadow-lg py-1 text-sm" onMouseLeave={() => setMenu(false)}>
-                {canManage && <button type="button" onClick={pin} className="w-full text-start px-3 py-2 hover:bg-gray-50">{p.is_pinned ? "Unpin from top" : "📌 Pin to top"}</button>}
+                {canPin && <button type="button" onClick={pin} className="w-full text-start px-3 py-2 hover:bg-gray-50">{p.is_pinned ? "Unpin from top" : "📌 Pin to top"}</button>}
                 {p.can_edit && <button type="button" onClick={() => { setMenu(false); openComposer("edit", p); }} className="w-full text-start px-3 py-2 hover:bg-gray-50">Edit post</button>}
                 <button type="button" onClick={() => { setMenu(false); sharePost(p); }} className="w-full text-start px-3 py-2 hover:bg-gray-50">Copy link</button>
                 {p.can_edit && <button type="button" onClick={remove} className="w-full text-start px-3 py-2 hover:bg-rose-50 text-rose-600">Delete post</button>}

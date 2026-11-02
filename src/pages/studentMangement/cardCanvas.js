@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import wifaqLogo from "../../assets/wifaq-logo.png";
+import cardBackground from "../../assets/student-card-bg.jpg";
 
 /**
  * The student ID card, drawn onto a canvas.
@@ -10,22 +11,21 @@ import wifaqLogo from "../../assets/wifaq-logo.png";
  * printing one means printing a single image — no print stylesheet fighting
  * the rest of the application for what reaches the paper.
  *
- * Sizes are in millimetres and converted once, so the card is a true 85.6×54mm
- * at 300dpi: what comes out of a card printer is the right size, and what is
+ * The artwork is the school's own design (assets/student-card-bg.jpg); the
+ * card fills it in. Positions are fractions of that artwork, so they hold at
+ * any resolution. Portrait, a true 54×85.6mm at 300dpi: what comes out of a card printer is the right size, and what is
  * downloaded is sharp enough to send to a print shop.
  */
 
 const TEAL = "#0D5C63";
-const TEAL_LIGHT = "#19A79B";
-const GOLD = "#E8A33D";
+const GOLD = "#C99A12";
 const INK = "#0A3A3E";
 
-export const CARD_MM = { w: 85.6, h: 54 };
+export const CARD_MM = { w: 54, h: 85.6 };
 const DPI = 300;
 const MM = DPI / 25.4;                      // one millimetre, in pixels
 export const CARD_PX = { w: Math.round(CARD_MM.w * MM), h: Math.round(CARD_MM.h * MM) };
 
-const mm = (v) => v * MM;
 
 /** The Arabic-script face the card is set in — the same one the app uses. */
 const FONT = '"Vazirmatn", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif';
@@ -96,177 +96,102 @@ export async function drawCard(card, opts = {}) {
   canvas.width = CARD_PX.w;
   canvas.height = CARD_PX.h;
   const ctx = canvas.getContext("2d");
+  const W = canvas.width;
+  const H = canvas.height;
+  const X = (f) => f * W;               // fractions of the artwork → pixels
+  const Y = (f) => f * H;
 
-  const [logo, photo, qr] = await Promise.all([
+  const [background, logo, photo, qr] = await Promise.all([
+    loadImage(cardBackground),
     opts.logo !== undefined ? Promise.resolve(opts.logo) : loadImage(wifaqLogo),
     withPhoto ? loadImage(card.photo_url) : Promise.resolve(null),
     card.scan_url
       ? QRCode.toDataURL(card.scan_url, {
-          errorCorrectionLevel: "H",       // survives a scratched corner
+          errorCorrectionLevel: "M",       // fewer, larger modules: reads off plastic
           margin: 0,
           width: 600,
-          color: { dark: INK, light: "#FFFFFF" },
+          color: { dark: "#000000", light: "#FFFFFF" },
         }).then(loadImage)
       : Promise.resolve(null),
   ]);
 
-  /* ── the card body ─────────────────────────────────────────────────────── */
   ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, W, H);
+  if (background) ctx.drawImage(background, 0, 0, W, H);
 
-  /* ── the wave along the bottom ─────────────────────────────────────────── */
-  const waveTop = canvas.height - mm(15);
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(0, waveTop + mm(5));
-  ctx.bezierCurveTo(
-    canvas.width * 0.25, waveTop - mm(4),
-    canvas.width * 0.55, waveTop + mm(8),
-    canvas.width, waveTop - mm(2),
-  );
-  ctx.lineTo(canvas.width, canvas.height);
-  ctx.lineTo(0, canvas.height);
-  ctx.closePath();
-  ctx.fillStyle = TEAL;
+  /* The sample's own name and QR code are part of the artwork: paint them out. */
+  ctx.fillStyle = "#FFFFFF";
+  roundRect(ctx, X(0.215), Y(0.521), X(0.6), Y(0.056), X(0.03));
+  ctx.fill();
+  roundRect(ctx, X(0.4235), Y(0.8342), X(0.1766), Y(0.1173), X(0.03));
   ctx.fill();
 
-  // Its gold edge.
-  ctx.beginPath();
-  ctx.moveTo(0, waveTop + mm(5));
-  ctx.bezierCurveTo(
-    canvas.width * 0.25, waveTop - mm(4),
-    canvas.width * 0.55, waveTop + mm(8),
-    canvas.width, waveTop - mm(2),
-  );
-  ctx.lineWidth = mm(0.7);
-  ctx.strokeStyle = GOLD;
-  ctx.stroke();
-  ctx.restore();
-
-  /* ── the border, drawn inside so nothing is clipped at the page edge ───── */
-  ctx.lineWidth = mm(1.2);
-  ctx.strokeStyle = GOLD;
-  roundRect(ctx, mm(0.6), mm(0.6), canvas.width - mm(1.2), canvas.height - mm(1.2), mm(3));
-  ctx.stroke();
-
-  ctx.lineWidth = mm(0.5);
-  ctx.strokeStyle = TEAL_LIGHT;
-  roundRect(ctx, mm(1.6), mm(1.6), canvas.width - mm(3.2), canvas.height - mm(3.2), mm(2.4));
-  ctx.stroke();
-
-  /* ── the logo, top-left ────────────────────────────────────────────────── */
+  /* ── the Wifaq logo, top corner ────────────────────────────────────────── */
   if (logo) {
-    const h = mm(8);
-    const w = (logo.width / logo.height) * h;
-    ctx.drawImage(logo, mm(4), mm(3), w, h);
-  } else {
-    ctx.textAlign = "left";
-    ctx.fillStyle = TEAL;
-    ctx.font = `800 ${mm(4)}px ${FONT}`;
-    ctx.fillText("WIFAQ", mm(4), mm(8));
+    const w = X(0.22);
+    const h = (logo.height / logo.width) * w;
+    ctx.drawImage(logo, X(0.95) - w, Y(0.035), w, h);
   }
 
-  /* ── the photo, top-right — omitted entirely on the conference card ────── */
-  const pw = mm(18);
-  const ph = mm(22);
-  const px = canvas.width - mm(4) - pw;
-  const py = mm(12);
-
-  if (withPhoto) {
+  /* ── the photo, inside the frame — or the logo on the conference card ──── */
+  const fx = X(0.357), fy = Y(0.140), fw = X(0.333), fh = Y(0.266);
   ctx.save();
-  roundRect(ctx, px, py, pw, ph, mm(1.8));
+  roundRect(ctx, fx, fy, fw, fh, X(0.045));
   ctx.clip();
   if (photo) {
     // Cover, not stretch — a squashed face on an ID card is worse than a crop.
-    const scale = Math.max(pw / photo.width, ph / photo.height);
+    const scale = Math.max(fw / photo.width, fh / photo.height);
     const dw = photo.width * scale;
     const dh = photo.height * scale;
-    ctx.drawImage(photo, px + (pw - dw) / 2, py + (ph - dh) / 2, dw, dh);
+    ctx.drawImage(photo, fx + (fw - dw) / 2, fy + (fh - dh) / 2, dw, dh);
+  } else if (!withPhoto && logo) {
+    const w = fw * 0.8;
+    const h = (logo.height / logo.width) * w;
+    ctx.drawImage(logo, fx + (fw - w) / 2, fy + (fh - h) / 2, w, h);
   } else {
-    ctx.fillStyle = "#EEF3F3";
-    ctx.fillRect(px, py, pw, ph);
     ctx.fillStyle = "#B6C6C6";
-    ctx.font = `600 ${mm(2.6)}px ${FONT}`;
+    ctx.font = `600 ${X(0.05)}px ${FONT}`;
     ctx.textAlign = "center";
-    ctx.fillText("عکس", px + pw / 2, py + ph / 2);
+    ctx.textBaseline = "middle";
+    ctx.fillText("عکس", fx + fw / 2, fy + fh / 2);
   }
   ctx.restore();
 
-  ctx.lineWidth = mm(0.45);
-  ctx.strokeStyle = TEAL;
-  roundRect(ctx, px, py, pw, ph, mm(1.8));
-  ctx.stroke();
+  ctx.direction = "rtl";
+  ctx.textBaseline = "middle";
+
+  /* ── the name, larger than everything else, in the sample's gold ───────── */
+  if (card.full_name) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = GOLD;
+    const size = fitText(ctx, card.full_name, X(0.56), Y(0.036), "800");
+    ctx.font = `800 ${size}px ${FONT}`;
+    ctx.fillText(card.full_name, X(0.514), Y(0.551));
   }
 
-  /* ── the four fields, right-aligned like the rest of the card ──────────── */
-  const rows = [
-    ["اسم", card.full_name, true],
-    ["ولد", card.father_name, false],
-    ["تاریخ تولد", card.date_of_birth, false],
-    ["ایدی نمبر کارت", card.student_id, true],
-  ];
-
-  // With a photo the labels hug it; without one they take the full width, so
-  // a long name has room instead of being shrunk to fit a gap that is not there.
-  const labelRight = withPhoto ? px - mm(2.5) : canvas.width - mm(5);
-  const valueLeft = mm(4.5);
-  let y = mm(17);                       // last row lands at 33.5mm, clear of the wave
-
-  ctx.textBaseline = "alphabetic";
-  rows.forEach(([label, value, strong]) => {
-    ctx.direction = "rtl";
+  /* ── the values, written after the printed labels ──────────────────────── */
+  [
+    [card.father_name, 0.718, 0.640, 0.19],
+    [card.date_of_birth, 0.608, 0.710, 0.19],
+    [card.student_id, 0.532, 0.783, 0.24],
+  ].forEach(([value, right, y, left]) => {
+    if (!value) return;
     ctx.textAlign = "right";
-    ctx.fillStyle = TEAL;
-    ctx.font = `700 ${mm(2.7)}px ${FONT}`;
-    const labelText = `${label}:`;
-    ctx.fillText(labelText, labelRight, y);
-    const labelWidth = ctx.measureText(labelText).width;
-
-    // The dotted rule the sample writes on.
-    const lineRight = labelRight - labelWidth - mm(1.5);
-    ctx.save();
-    ctx.setLineDash([mm(0.5), mm(0.5)]);
-    ctx.lineWidth = mm(0.25);
-    ctx.strokeStyle = "#9CCBCB";
-    ctx.beginPath();
-    ctx.moveTo(valueLeft, y + mm(1.1));
-    ctx.lineTo(lineRight, y + mm(1.1));
-    ctx.stroke();
-    ctx.restore();
-
-    if (value) {
-      ctx.fillStyle = INK;
-      const size = fitText(ctx, String(value), lineRight - valueLeft - mm(2),
-        mm(strong ? 3 : 2.8), strong ? "800" : "600");
-      ctx.font = `${strong ? "800" : "600"} ${size}px ${FONT}`;
-      ctx.fillText(String(value), lineRight - mm(1), y);
-    }
-
-    y += mm(5.5);
+    ctx.fillStyle = INK;
+    const size = fitText(ctx, String(value), X(right - left), Y(0.021), "700");
+    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.fillText(String(value), X(right), Y(y));
   });
 
-  /* ── the QR code, on the wave ──────────────────────────────────────────── */
+  /* ── the QR code, in its box ───────────────────────────────────────────── */
   if (qr) {
-    const q = mm(12);
-    const qx = mm(4);
-    const qy = canvas.height - q - mm(1.8);
-    ctx.fillStyle = "#FFFFFF";
-    roundRect(ctx, qx - mm(0.8), qy - mm(0.8), q + mm(1.6), q + mm(1.6), mm(1));
-    ctx.fill();
-    ctx.drawImage(qr, qx, qy, q, q);
-  }
-
-  /* ── the class, on the wave opposite the code ──────────────────────────── */
-  if (card.class) {
-    ctx.direction = "rtl";
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = `700 ${mm(2.9)}px ${FONT}`;
-    ctx.fillText(`صنف: ${card.class}`, canvas.width - mm(4.5), canvas.height - mm(7.5));
-
-    ctx.font = `600 ${mm(2.1)}px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.fillText("مکتب وفاق — رشد همه جانبه انسان", canvas.width - mm(4.5), canvas.height - mm(3.5));
+    const q = X(0.156);
+    ctx.drawImage(qr, X(0.5117) - q / 2, Y(0.8928) - q / 2, q, q);
+  } else {
+    ctx.fillStyle = TEAL;
+    ctx.font = `600 ${X(0.03)}px ${FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText("QR", X(0.5117), Y(0.8928));
   }
 
   return canvas;

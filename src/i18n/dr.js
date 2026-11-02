@@ -6861,4 +6861,5 @@ export default {
   "New science project": "پروژهٔ ساینسی جدید",
   "Project title *": "عنوان پروژه *",
   "Pick a student first.": "اول شاگرد را انتخاب کنید.",
+  "Family Number": "نمبر فامیل",
 };

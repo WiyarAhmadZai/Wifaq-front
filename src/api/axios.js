@@ -135,7 +135,9 @@ api.interceptors.response.use(
       apiCache.clearAll();
       // Avoid redirect loop if already on /login. A shared post link (/post/:id)
       // stays put: with the stale session gone it shows the public copy instead.
-      if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/post/')) {
+      if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/post/')
+        // A scanned card falls back to the public check instead of losing the scan.
+        && !window.location.pathname.startsWith('/s/')) {
         window.location.href = '/login';
       }
     }

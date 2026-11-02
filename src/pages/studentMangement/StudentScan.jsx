@@ -36,13 +36,17 @@ export default function StudentScan() {
   useEffect(() => {
     // Nobody signed in: the public check, which only confirms the card.
     const signedIn = !!localStorage.getItem("token");
-    const url = signedIn ? `/student-card/scan/${token}` : `/public/student-card/verify/${token}`;
+    const url = `/student-card/scan/${token}`;
 
     let alive = true;
-    get(url, { cache: false })
-      .then((res) => alive && setState(signedIn
-        ? { loading: false, data: res.data?.data }
-        : { loading: false, verified: res.data?.data }))
+    const verify = () => get(`/public/student-card/verify/${token}`, { cache: false })
+      .then((res) => ({ loading: false, verified: res.data?.data }));
+    (signedIn
+      ? get(url, { cache: false }).then((res) => ({ loading: false, data: res.data?.data }))
+        // An expired session on this phone: show the public check rather than fail.
+        .catch((e) => (e.response?.status === 401 ? verify() : Promise.reject(e)))
+      : verify())
+      .then((next) => alive && setState(next))
       .catch((e) => alive && setState({
         loading: false,
         error: e.response?.status === 404
@@ -80,6 +84,8 @@ export default function StudentScan() {
           <Row label="Father's Name" value={v.father_name} />
           <Row label="Student ID" value={v.student_id} />
           <Row label="Class" value={v.class} />
+          <Row label="Family Number" value={v.family_number} />
+          <Row label="School" value={v.school} />
         </dl>
 
         <p className="text-xs text-gray-400">Staff or parent?</p>

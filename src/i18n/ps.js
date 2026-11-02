@@ -6861,4 +6861,5 @@ export default {
   "New science project": "نوې ساینسي پروژه",
   "Project title *": "د پروژې سرلیک *",
   "Pick a student first.": "لومړی زده کوونکی وټاکئ.",
+  "Family Number": "د کورنۍ نمبر",
 };

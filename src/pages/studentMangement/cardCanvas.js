@@ -126,15 +126,8 @@ export async function drawCard(card, opts = {}) {
   roundRect(ctx, X(0.4235), Y(0.8342), X(0.1766), Y(0.1173), X(0.03));
   ctx.fill();
 
-  /* ── the Wifaq logo, top corner ────────────────────────────────────────── */
-  if (logo) {
-    const w = X(0.22);
-    const h = (logo.height / logo.width) * w;
-    ctx.drawImage(logo, X(0.95) - w, Y(0.035), w, h);
-  }
-
   /* ── the photo, inside the frame — or the logo on the conference card ──── */
-  const fx = X(0.357), fy = Y(0.140), fw = X(0.333), fh = Y(0.266);
+  const fx = X(0.357), fy = Y(0.1975), fw = X(0.333), fh = Y(0.268);
   ctx.save();
   roundRect(ctx, fx, fy, fw, fh, X(0.045));
   ctx.clip();

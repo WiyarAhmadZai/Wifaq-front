@@ -329,8 +329,43 @@ export function WeeklyTopicCard() {
         <div className="text-base font-bold break-words" style={{ color: TEXT }} dir="auto">{topic.title}</div>
         {topic.description && <p className="text-xs mt-0.5 line-clamp-2" style={{ color: MUTED }} dir="auto">{topic.description}</p>}
         {topic.poster_url && <button onClick={() => setZoom(true)} className="text-[11px] font-semibold mt-1" style={{ color: TEAL }}>View poster</button>}
+        <TopicPlan topic={topic} />
       </div>
       {zoom && <PosterLightbox src={topic.poster_url} onClose={() => setZoom(false)} />}
+    </div>
+  );
+}
+
+export const GOAL_LABELS = ["Goal 1", "Goal 2", "Goal 3"];
+export const DAY_LABELS = ["Day 1", "Day 2", "Day 3", "Day 4", "Day 5"];
+
+/** The week's goals and daily activities — only the filled ones, folded by default. */
+export function TopicPlan({ topic, light = false }) {
+  const [open, setOpen] = useState(false);
+  const pick = (items, labels) => (items || []).map((x, i) => ({ ...x, label: labels[i] })).filter((x) => x.title || x.description);
+  const goals = pick(topic?.goals, GOAL_LABELS);
+  const days = pick(topic?.daily_activities, DAY_LABELS);
+  if (!goals.length && !days.length) return null;
+  const fg = light ? "#FFFFFF" : TEXT;
+  const sub = light ? "rgba(255,255,255,0.85)" : MUTED;
+  const block = (heading, list) => list.length > 0 && (
+    <div className="mt-2">
+      <div className="text-[11px] font-bold" style={{ color: fg }}>{heading}</div>
+      {list.map((x) => (
+        <div key={x.label} className="mt-1 text-xs" dir="auto">
+          <span className="font-semibold" style={{ color: fg }}>{x.label}{x.title ? ": " : ""}</span>
+          <span className="font-semibold" style={{ color: fg }}>{x.title}</span>
+          {x.description && <div className="whitespace-pre-line" style={{ color: sub }}>{x.description}</div>}
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div className="mt-2">
+      <button onClick={() => setOpen((o) => !o)} className="text-[11px] font-semibold underline" style={{ color: light ? "#FFFFFF" : TEAL }}>
+        {open ? "Hide goals & daily activities" : "Show goals & daily activities"}
+      </button>
+      {open && <>{block("Weekly goals", goals)}{block("Daily activities", days)}</>}
     </div>
   );
 }

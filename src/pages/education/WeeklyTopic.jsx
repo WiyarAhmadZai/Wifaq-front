@@ -3,9 +3,35 @@ import { useNavigate } from "react-router-dom";
 import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
-import { DIMS, DimPill, Spinner, describeError, TEAL, PosterLightbox } from "./weeklyUi";
+import { DIMS, DimPill, Spinner, describeError, TEAL, PosterLightbox, TopicPlan, GOAL_LABELS, DAY_LABELS } from "./weeklyUi";
 
 /** Monday-based start of the week containing `d`, as YYYY-MM-DD. */
+/* A fixed-length list of {title, description} — 3 goals, 5 daily activities. */
+const blankPlan = (n, saved = []) => Array.from({ length: n }, (_, i) => ({
+  title: saved?.[i]?.title || "", description: saved?.[i]?.description || "",
+}));
+const trimPlan = (items) => items.map((x) => ({ title: x.title.trim(), description: x.description.trim() }));
+
+function PlanEditor({ heading, labels, items, onChange }) {
+  const set = (i, key, val) => onChange(items.map((x, j) => (j === i ? { ...x, [key]: val } : x)));
+  return (
+    <div className="mt-4">
+      <div className="text-xs font-bold text-[#0B4D52] mb-2">{heading}</div>
+      <div className="space-y-2">
+        {items.map((x, i) => (
+          <div key={i} className="rounded-xl border border-[#D0E0E0] p-2.5 bg-[#FAFCFC]">
+            <div className="text-[10px] font-semibold text-[#5A7A7E] mb-1">{labels[i]}</div>
+            <input value={x.title} onChange={(e) => set(i, "title", e.target.value)} placeholder="Title" dir="auto"
+              className="w-full px-3 py-1.5 border border-[#D0E0E0] rounded-lg text-sm bg-white mb-1.5" />
+            <textarea rows={2} value={x.description} onChange={(e) => set(i, "description", e.target.value)} placeholder="Description" dir="auto"
+              className="w-full px-3 py-1.5 border border-[#D0E0E0] rounded-lg text-sm bg-white" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const weekBounds = (d = new Date()) => {
   const start = new Date(d);
   const day = (start.getDay() + 6) % 7; // Mon=0
@@ -24,6 +50,7 @@ export default function WeeklyTopic() {
 
   const [form, setForm] = useState({
     title: "", description: "", week_start: "", week_end: "", primary_dimension: null,
+    goals: blankPlan(3), daily_activities: blankPlan(5),
   });
   // The topic's designed poster: a new file, a past topic's poster reused, or removed.
   const [poster, setPoster] = useState({ file: null, preview: null, from: null, remove: false });
@@ -40,6 +67,7 @@ export default function WeeklyTopic() {
       week_start: t?.week_start || wb.start,
       week_end: t?.week_end || wb.end,
       primary_dimension: t?.primary_dimension || null,
+      goals: blankPlan(3, t?.goals), daily_activities: blankPlan(5, t?.daily_activities),
     });
     setPoster({ file: null, preview: null, from: null, remove: false });
     // Past topics, to bring one (and its poster) back for a new week.
@@ -72,6 +100,8 @@ export default function WeeklyTopic() {
       body.append("week_start", form.week_start);
       body.append("week_end", form.week_end);
       if (form.primary_dimension) body.append("primary_dimension", form.primary_dimension);
+      body.append("goals", JSON.stringify(trimPlan(form.goals)));
+      body.append("daily_activities", JSON.stringify(trimPlan(form.daily_activities)));
       if (poster.file) body.append("poster", poster.file);
       else if (poster.from) body.append("poster_from", poster.from);
       else if (poster.remove) body.append("remove_poster", "1");
@@ -151,6 +181,7 @@ export default function WeeklyTopic() {
                 {topic.primary_dimension && (
                   <div className="mt-2"><DimPill d={topic.primary_dimension} /></div>
                 )}
+                <TopicPlan topic={topic} light />
                 {statusChip && (
                   <span className="inline-block mt-2 px-2.5 py-1 rounded-full text-[11px] font-bold"
                     style={{ background: statusChip.bg, color: statusChip.fg }}>
@@ -201,7 +232,8 @@ export default function WeeklyTopic() {
                 <select value="" onChange={(e) => {
                   const t = library.find((x) => String(x.id) === e.target.value);
                   if (!t) return;
-                  setForm((f) => ({ ...f, title: t.title, description: t.description || "", primary_dimension: t.primary_dimension || null }));
+                  setForm((f) => ({ ...f, title: t.title, description: t.description || "", primary_dimension: t.primary_dimension || null,
+                    goals: blankPlan(3, t.goals), daily_activities: blankPlan(5, t.daily_activities) }));
                   setPoster({ file: null, preview: t.poster_url, from: t.poster_url ? t.id : null, remove: false });
                 }} className="w-full px-3 py-2 border border-[#D0E0E0] rounded-xl text-sm bg-white">
                   <option value="">— choose a topic used before —</option>
@@ -272,6 +304,11 @@ export default function WeeklyTopic() {
                 placeholder="What should teachers be noticing this week?"
                 className="w-full px-3 py-2 border border-[#D0E0E0] rounded-xl text-sm focus:ring-2 focus:ring-[#9CCBCB] focus:outline-none" />
             </div>
+
+            <PlanEditor heading="Weekly goals" labels={GOAL_LABELS} items={form.goals}
+              onChange={(goals) => setForm((f) => ({ ...f, goals }))} />
+            <PlanEditor heading="Daily activities" labels={DAY_LABELS} items={form.daily_activities}
+              onChange={(daily_activities) => setForm((f) => ({ ...f, daily_activities }))} />
 
             <div className="flex items-center gap-2 flex-wrap mt-4">
               <button onClick={save} disabled={saving}

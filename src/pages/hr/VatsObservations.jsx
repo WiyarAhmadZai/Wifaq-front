@@ -175,7 +175,7 @@ export default function VatsObservations() {
               size="sm"
               value={filter.staff_id}
               onChange={(v) => setFilter({ ...filter, staff_id: v })}
-              options={staff.map(s => ({ value: s.id, label: s.application?.full_name || s.employee_id }))}
+              options={staff.map(s => ({ value: s.id, label: s.full_name || s.application?.full_name || s.employee_id }))}
               placeholder="All staff"
             />
           </div>
@@ -336,7 +336,7 @@ function ObservationForm({ staff, editing = null, onClose, onSaved }) {
             <Select2
               value={form.staff_id}
               onChange={(v) => setForm({ ...form, staff_id: v })}
-              options={staff.map(s => ({ value: s.id, label: s.application?.full_name || s.employee_id }))}
+              options={staff.map(s => ({ value: s.id, label: s.full_name || s.application?.full_name || s.employee_id }))}
               placeholder="Search staff…"
               required
               disabled={!!editing}

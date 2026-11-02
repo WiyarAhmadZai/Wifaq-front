@@ -40,3 +40,13 @@ export const submitQuiz = (payload) => post("/profile/onboarding/quiz", payload)
  * { self_check: { key: "yes" | "not_yet" } }, or { complete: true }.
  */
 export const saveOrientation = (payload) => post("/profile/onboarding/orientation", payload);
+
+/**
+ * Staff profile form — the third onboarding step. The schema (sections, fields,
+ * blank template) and the caller's saved answers come from the GET; the POST
+ * saves a draft or, with submit: true, marks it submitted.
+ */
+export const getStaffForm = () => get("/profile/staff-form", { cache: false });
+
+export const saveStaffForm = (answers, submit = false) =>
+  post("/profile/staff-form", { answers, submit });

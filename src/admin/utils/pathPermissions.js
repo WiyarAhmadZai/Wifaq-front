@@ -251,6 +251,10 @@ const PUBLIC_PATHS = new Set([
   "/onboarding",
   "/onboarding/quiz",
   "/onboarding/orientation",
+  // Own staff profile form — the third onboarding step. The backend scopes it
+  // to the caller's own staff seat (/profile/staff-form), so any signed-in user
+  // may open it.
+  "/onboarding/profile-form",
   "/403",
   "/support",
   "/dashboard",

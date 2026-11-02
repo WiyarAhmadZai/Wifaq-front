@@ -63,15 +63,17 @@ export default function MyOnboarding() {
 
   const quiz = data?.quiz || {};
   const orientation = data?.orientation || {};
+  const staffForm = data?.staff_form || {};
   const guideDone = !!orientation.progress?.completed_at;
   const done = quiz.passed;
+  const formDone = !!staffForm.submitted;
   const hasGuide = (orientation.articles || []).length > 0;
 
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-5">
       <header>
         <h1 className="text-lg font-bold text-gray-900">Your onboarding</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Two steps before your first day. Do them in order.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Three steps before your first day. Do them in order.</p>
       </header>
 
       {/* Progress strip */}
@@ -94,6 +96,16 @@ export default function MyOnboarding() {
           }`}
         >
           2 · Quiz {done ? "· passed" : "· pending"}
+        </span>
+        <span className="flex-1 h-px bg-gray-200" />
+        <span
+          className={`px-2.5 py-1 rounded-full border ${
+            formDone
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              : "bg-amber-50 text-amber-700 border-amber-200"
+          }`}
+        >
+          3 · Profile form {formDone ? "· submitted" : "· pending"}
         </span>
       </div>
 
@@ -229,6 +241,45 @@ export default function MyOnboarding() {
             </ul>
           </div>
         )}
+      </section>
+
+      {/* 3 — staff profile form */}
+      <section
+        className={`rounded-xl border p-5 ${
+          formDone ? "border-emerald-300 bg-emerald-50/40" : "border-teal-300 bg-teal-50/40"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">3. Staff profile form</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              A comprehensive form about you — contact, family, education, experience and your expectations.
+              It saves as you go, so nothing is lost between sections.
+            </p>
+          </div>
+          {formDone && (
+            <span className="shrink-0 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold">
+              Submitted
+            </span>
+          )}
+        </div>
+
+        <dl className="mt-3 grid grid-cols-2 gap-2 text-center">
+          <Stat label="Required done" value={`${staffForm.completion ?? 0}%`} />
+          <Stat
+            label="Status"
+            value={formDone ? "Submitted" : staffForm.exists ? "Draft" : "Not started"}
+          />
+        </dl>
+
+        <div className="mt-4">
+          <Link
+            to="/onboarding/profile-form"
+            className="inline-block px-4 py-2 text-xs font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+          >
+            {formDone ? "Review & update" : staffForm.exists ? "Continue your form" : "Fill the profile form"}
+          </Link>
+        </div>
       </section>
     </div>
   );

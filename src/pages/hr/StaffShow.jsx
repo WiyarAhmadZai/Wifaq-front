@@ -614,6 +614,7 @@ function OnboardingSection({ staffId, staffName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [compose, setCompose] = useState(false);
+  const [showFormAnswers, setShowFormAnswers] = useState(false);
 
   // No synchronous setState here: `loading` starts true and is only cleared
   // once the request settles, which keeps this callable straight from an
@@ -631,6 +632,7 @@ function OnboardingSection({ staffId, staffName }) {
 
   const quiz = data?.quiz;
   const orientation = data?.orientation;
+  const staffForm = data?.staff_form;
   const messages = data?.messages || [];
   const last = messages[0];
 
@@ -746,6 +748,70 @@ function OnboardingSection({ staffId, staffName }) {
             </div>
           )}
         </div>
+
+        {/* Staff profile form — the comprehensive intake the person fills as
+            the third onboarding step. HR reads status here and can expand the
+            answers. */}
+        <div className={`p-3.5 rounded-xl border ${
+          staffForm?.submitted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              staffForm?.submitted ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'
+            }`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Staff profile form</p>
+              <p className="text-[10px] text-gray-500">
+                {staffForm?.submitted
+                  ? `Submitted ${fmtDate(staffForm.submitted_at)} · ${staffForm.completion}% of required answered`
+                  : staffForm?.exists
+                  ? `Draft · ${staffForm.completion}% of required answered`
+                  : 'Not started'}
+              </p>
+            </div>
+            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${
+              staffForm?.submitted
+                ? 'bg-emerald-100 text-emerald-700'
+                : staffForm?.exists
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              {staffForm?.submitted ? 'Submitted' : staffForm?.exists ? 'Draft' : 'Pending'}
+            </span>
+          </div>
+
+          {staffForm?.answers && Object.keys(staffForm.answers).length > 0 && (
+            <>
+              <button
+                onClick={() => setShowFormAnswers((v) => !v)}
+                className="mt-2.5 text-[11px] font-semibold text-teal-700 hover:underline"
+              >
+                {showFormAnswers ? 'Hide answers' : 'View answers'}
+              </button>
+              {showFormAnswers && (
+                <div className="mt-2 rounded-lg bg-white border border-gray-200 p-3 max-h-80 overflow-y-auto">
+                  <dl className="space-y-2">
+                    {(staffForm.schema || []).flatMap((sec) =>
+                      (sec.fields || []).map((f) => {
+                        const raw = staffForm.answers[f.key];
+                        const shown = formatAnswer(f, raw);
+                        if (!shown) return [];
+                        return (
+                          <div key={f.key} className="text-xs">
+                            <dt className="font-semibold text-gray-500">{f.label}</dt>
+                            <dd className="text-gray-800">{shown}</dd>
+                          </div>
+                        );
+                      })
+                    )}
+                  </dl>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {compose && (
@@ -758,6 +824,37 @@ function OnboardingSection({ staffId, staffName }) {
       )}
     </Section>
   );
+}
+
+/**
+ * Render one stored answer for HR as readable text, using the schema field to
+ * map coded choices to labels and to flatten repeatable groups. Returns '' for
+ * an unanswered field so the view can skip it.
+ */
+function formatAnswer(field, raw) {
+  const labelFor = (v) => field.options?.[v] ?? v;
+  switch (field.type) {
+    case 'checkbox':
+      return raw ? 'Yes' : '';
+    case 'multiselect':
+      return Array.isArray(raw) && raw.length ? raw.map(labelFor).join(', ') : '';
+    case 'group': {
+      if (!Array.isArray(raw) || !raw.length) return '';
+      const sub = field.fields || [];
+      return raw
+        .map((row) =>
+          sub
+            .map((f) => `${f.label}: ${row[f.key] || '—'}`)
+            .join(' · ')
+        )
+        .join('\n');
+    }
+    case 'select':
+    case 'radio':
+      return raw ? labelFor(raw) : '';
+    default:
+      return raw == null ? '' : String(raw);
+  }
 }
 
 /**

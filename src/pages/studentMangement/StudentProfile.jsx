@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { get, put, post, peekCache } from "../../api/axios";
+import { get, put, post, del, peekCache } from "../../api/axios";
 import { toastSuccess, toastError } from "../../utils/toast";
 import Modal from "../../components/Modal";
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -242,6 +242,22 @@ function StudentProfileView() {
     } finally { setSaving(false); }
   };
 
+  /* Remove a logged record. Gated on the server by student-profiles.delete and
+   * limited to the record's author (or leadership), so this only ever clears a
+   * mistake the caller is allowed to clear. */
+  const remove = async (path, msg = "Record deleted") => {
+    setSaving(true);
+    try {
+      await del(`/student-management/students/${id}/profile${path}`);
+      toastSuccess(msg);
+      load();
+      return true;
+    } catch (e) {
+      toastError(e.response?.data?.message || "Failed to delete");
+      return false;
+    } finally { setSaving(false); }
+  };
+
   /* The report, over a period, in the format the reader needs.
    *
    * One dialog rather than two buttons: the period is the question people
@@ -438,7 +454,7 @@ function StudentProfileView() {
     }
     changeTab(key);
   };
-  const ctx = { data, save, saving, can, registerPending };
+  const ctx = { data, save, remove, saving, can, registerPending };
 
   return (
     <div className="min-h-screen bg-gray-50/60 pb-10">
@@ -672,7 +688,7 @@ const DraftNote = () => (
 );
 
 /* ════════════════ generic append-log section ════════════════ */
-function LogSection({ title, subtitle, items = [], path, dateKey, fields, context, sensitive, save, saving, can, canAdd, data, registerPending }) {
+function LogSection({ title, subtitle, items = [], path, dateKey, fields, context, sensitive, save, remove, saving, can, canAdd, data, registerPending }) {
   // Most logs are the class supervisor's to write; the parent/home one is open
   // to every teacher of the child, so it passes its own flag.
   const mayAdd = canAdd ?? can.update;
@@ -708,6 +724,10 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
     if (ok) close();
     return ok;
   };
+  const doDelete = async (row) => {
+    if (!(await confirmDelete())) return;
+    await remove(`/entries${path}/${row.id}`, "Record deleted");
+  };
   const { clearDraft } = useAutoSave({
     section: path, data, can, open: adding, form, editingId,
     isDirty: () => !sameForm(form, baseline.current), submit, registerPending,
@@ -735,7 +755,8 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
           <EmptyState title="No records yet" hint={mayAdd ? "Add the first record — it'll start the timeline below." : "Nothing has been recorded for this student."} />
         ) : (
           <Timeline list={list} fields={fields} dateKey={dateKey}
-            isMine={(row) => isMine(row, can)} onEdit={startEdit} />
+            isMine={(row) => isMine(row, can)} onEdit={startEdit}
+            onDelete={remove ? doDelete : undefined} canDelete={(row) => mayDeleteRow(row, can)} />
         )}
       </Card>
     </div>
@@ -753,11 +774,28 @@ const EditBtn = ({ onClick }) => (
   <button type="button" onClick={onClick} title="Edit this record — only you can, because you wrote it"
     className="px-2 py-0.5 rounded-lg text-[10px] font-bold border border-amber-300 text-amber-700 bg-white hover:bg-amber-50">✎ Edit</button>
 );
+const DeleteBtn = ({ onClick }) => (
+  <button type="button" onClick={onClick} title="Delete this record"
+    className="px-2 py-0.5 rounded-lg text-[10px] font-bold border border-red-300 text-red-700 bg-white hover:bg-red-50">🗑 Delete</button>
+);
+/* Who may remove a logged record: its author (or leadership) who also holds
+ * the delete grant. Mirrors the server's rule so the button never offers a
+ * delete the API would refuse. */
+const mayDeleteRow = (row, can) => Boolean(can?.delete_record) && (isMine(row, can) || Boolean(can?.manage_access));
+/* Ask before deleting — a removed record is gone, not filed away. */
+const confirmDelete = async () => {
+  const r = await Swal.fire({
+    title: "Delete this record?",
+    text: "It will be removed from the شناسنامه. This cannot be undone.",
+    icon: "warning", showCancelButton: true, confirmButtonColor: "#B83230", confirmButtonText: "Delete",
+  });
+  return r.isConfirmed;
+};
 const labelFor = (f, v) => f.sel ? (f.sel.find((o) => o[0] === v)?.[1] || v) : v;
 const hasVal = (f, row) => f.bool ? !!row[f.name] : (row[f.name] !== null && row[f.name] !== "" && row[f.name] !== undefined);
 
 /* A vertical thread of dated record cards — narrative featured, short values as chips. */
-function Timeline({ list, fields, dateKey, isMine: mine = () => false, onEdit }) {
+function Timeline({ list, fields, dateKey, isMine: mine = () => false, onEdit, onDelete, canDelete = () => false }) {
   return (
     <div className="relative">
       <span className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-teal-200 via-gray-200 to-transparent" aria-hidden />
@@ -784,6 +822,7 @@ function Timeline({ list, fields, dateKey, isMine: mine = () => false, onEdit })
                   )}
                   <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(date)}</span>
                   {onEdit && mine(row) && <EditBtn onClick={() => onEdit(row)} />}
+                  {onDelete && canDelete(row) && <DeleteBtn onClick={() => onDelete(row)} />}
                 </div>
                 <div className="p-4 space-y-3">
                   {chips.length > 0 && (
@@ -834,7 +873,7 @@ function relativeTime(v) {
 }
 
 /* ════════════════ 4D ratings (history + add) ════════════════ */
-function FourD({ data, save, saving, can, registerPending }) {
+function FourD({ data, save, remove, saving, can, registerPending }) {
   const ratings = data.four_d_self_ratings || [];
   const [adding, setAdding] = useState(false);
   const blank = { rated_by: "student", context: "intake", evidence: "", ...Object.fromEntries(DIMS.flatMap((d) => [[`${d.key}_score`, ""], [`${d.key}_note`, ""]])) };
@@ -856,6 +895,10 @@ function FourD({ data, save, saving, can, registerPending }) {
       : await save("post", "/4d-rating", form, "Rating recorded");
     if (ok) close();
     return ok;
+  };
+  const doDelete = async (r) => {
+    if (!(await confirmDelete())) return;
+    await remove(`/entries/4d-rating/${r.id}`, "Record deleted");
   };
   const { clearDraft } = useAutoSave({
     section: "4d-rating", data, can, open: adding, form, editingId,
@@ -907,6 +950,7 @@ function FourD({ data, save, saving, can, registerPending }) {
                     )}
                     <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(r.rated_at || r.created_at)}</span>
                     {isMine(r, can) && <EditBtn onClick={() => startEdit(r)} />}
+                    {remove && mayDeleteRow(r, can) && <DeleteBtn onClick={() => doDelete(r)} />}
                   </div>
                   <div className="p-4 space-y-2.5">
                     {DIMS.map((d) => {
@@ -943,7 +987,7 @@ const HABITS = [
   ["habit_teeth", "برس دندان", "🦷"], ["habit_bed", "آماده کردن بستر", "🛏️"], ["habit_clothes", "منظم کردن لباس", "👕"],
   ["habit_quran", "تلاوت قرآن", "📖"], ["habit_prayers", "نمازهای روزانه", "🕌"], ["habit_mosque_father", "مسجد با پدر", "🕋"],
 ];
-function Habits({ data, save, saving, can, registerPending }) {
+function Habits({ data, save, remove, saving, can, registerPending }) {
   const list = data.daily_habits || [];
   const [adding, setAdding] = useState(false);
   const blank = { sleep_time: "", wake_time: "", ...Object.fromEntries(HABITS.map((h) => [h[0], false])) };
@@ -965,6 +1009,10 @@ function Habits({ data, save, saving, can, registerPending }) {
       : await save("post", "/habits", form, "Recorded");
     if (ok) close();
     return ok;
+  };
+  const doDelete = async (h) => {
+    if (!(await confirmDelete())) return;
+    await remove(`/entries/habits/${h.id}`, "Record deleted");
   };
   const { clearDraft } = useAutoSave({
     section: "habits", data, can, open: adding, form, editingId,
@@ -1003,6 +1051,7 @@ function Habits({ data, save, saving, can, registerPending }) {
                 )}
                 <span className="text-[11px] text-gray-400 ml-auto">{fmtDateTime(h.recorded_at || h.created_at)}</span>
                 {isMine(h, can) && <EditBtn onClick={() => startEdit(h)} />}
+                {remove && mayDeleteRow(h, can) && <DeleteBtn onClick={() => doDelete(h)} />}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                 {HABITS.map(([k, ar, ico]) => (

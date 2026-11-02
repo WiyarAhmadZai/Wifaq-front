@@ -6845,4 +6845,7 @@ export default {
   "Project title *": "Project title *",
   "Pick a student first.": "Pick a student first.",
   "Family Number": "Family Number",
+  "🔗 Copy link": "🔗 Copy link",
+  "Could not open this talking point.": "Could not open this talking point.",
+  "← Talking Points": "← Talking Points",
 };

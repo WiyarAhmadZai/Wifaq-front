@@ -6862,4 +6862,7 @@ export default {
   "Project title *": "عنوان پروژه *",
   "Pick a student first.": "اول شاگرد را انتخاب کنید.",
   "Family Number": "نمبر فامیل",
+  "🔗 Copy link": "🔗 کاپی لینک",
+  "Could not open this talking point.": "این نکته باز نشد.",
+  "← Talking Points": "← نکات گفتگو",
 };

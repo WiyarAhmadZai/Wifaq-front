@@ -213,7 +213,7 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
 
   if (loading) return <Loading />;
   const selectedPair = pairs.find((pair) => String(pair.subject_id) === String(subjectId));
-  const canSave = hasPermission("subject-marks.create") || hasPermission("subject-marks.update") || hasPermission("subject-marks.manage") || isSuperAdmin;
+  const canSave = hasPermission(`${examType}-marks.create`) || hasPermission(`${examType}-marks.update`) || hasPermission("subject-marks.manage") || isSuperAdmin;
   const canConfigure = meta?.can_configure && hasPermission("subject-marks.manage");
 
   return (

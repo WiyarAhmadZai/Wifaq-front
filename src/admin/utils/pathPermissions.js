@@ -108,8 +108,11 @@ const RULES = [
   // /edit → .update via action-swap. Backend additionally enforces
   // lesson-plans.review / .analyze on those endpoints.
   { prefix: "/education/lesson-plans", permission: "lesson-plans.view" },
-  { prefix: "/education/subject-marks", permission: "subject-marks.view" },
-  { prefix: "/education/report-cards", permission: "report-cards.view" },
+  // One permission per exam: Chaharnima and Salana are granted separately.
+  { prefix: "/education/subject-marks/chaharnima", permission: "chaharnima-marks.view" },
+  { prefix: "/education/subject-marks/salana", permission: "salana-marks.view" },
+  { prefix: "/education/report-cards/chaharnima", permission: "chaharnima-report-cards.view" },
+  { prefix: "/education/report-cards/salana", permission: "salana-report-cards.view" },
   // Gradebook has its own permission family. Without this it fell through to
   // the catch-all /education rule and demanded student-observations.view, so a
   // teacher holding gradebook.view was bounced to /403.

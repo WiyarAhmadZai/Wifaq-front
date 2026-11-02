@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { get, post, put, del } from "../../api/axios";
 import Swal from "sweetalert2";
 import { PageHeader, Spinner, EmptyState } from "../../components/hr/HrUI";
@@ -36,7 +37,11 @@ export default function TalkingPoints() {
   const [tab, setTab] = useState("open");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(null);   // { mode: "new" } | { mode: "edit", tp } | { mode: "view", tp }
+  const [modal, setModal] = useState(null);   // { mode: "new" } | { mode: "edit", tp }
+  // Each entry has its own address, /hr/talking-points/:id — the open one is read from the URL.
+  const { id: openId } = useParams();
+  const navigate = useNavigate();
+  const [fetched, setFetched] = useState(null);
   const [convertTarget, setConvertTarget] = useState(null);
   // One person's talking points, gathered from wherever they are scattered:
   // "u:12" an employee, "g:3" a registered guest. Plus free text, which also
@@ -86,8 +91,48 @@ export default function TalkingPoints() {
   }, [tab]);
   useEffect(() => { load(); }, [load]);
 
+  const openTp = openId ? (rows.find((r) => String(r.id) === openId) || (String(fetched?.id) === openId ? fetched : null)) : null;
+  const openView = (tp) => navigate(`/hr/talking-points/${tp.id}`);
+  const closeView = () => navigate("/hr/talking-points");
+
+  // A link to an entry not in this tab (completed, or not loaded yet): fetch it on its own.
+  useEffect(() => {
+    if (!openId || loading || rows.some((r) => String(r.id) === openId) || String(fetched?.id) === openId) return;
+    get(`/hr/talking-points/${openId}`, { cache: false })
+      .then((r) => setFetched(r.data?.data || null))
+      .catch((e) => {
+        Swal.fire("Error", e.response?.data?.message || "Could not open this talking point.", "error");
+        navigate("/hr/talking-points", { replace: true });
+      });
+  }, [openId, loading, rows, fetched, navigate]);
+
+  const refresh = () => { load(); setFetched(null); };
+  const toggleComplete = (tp) => Swal.fire({
+    title: tp.status === "completed" ? "Reopen?" : "Mark completed?",
+    icon: "question", showCancelButton: true,
+    confirmButtonText: tp.status === "completed" ? "Reopen" : "Complete",
+  }).then((x) => {
+    if (!x.isConfirmed) return;
+    post(`/hr/talking-points/${tp.id}/complete`, { complete: tp.status !== "completed" })
+      .then(refresh)
+      .catch((e) => Swal.fire("Error", e.response?.data?.message || "Could not update.", "error"));
+  });
+
   return (
     <div className="px-4 py-5 space-y-4">
+      {openId ? (
+        // The show page — one talking point at its own address.
+        <div className="max-w-3xl mx-auto space-y-3">
+          <button onClick={closeView} className="text-xs font-semibold text-teal-700 hover:underline">← Talking Points</button>
+          {openTp ? (
+            <ViewModal key={openTp.id} asPage tp={openTp} onClose={closeView} onChanged={refresh} actions={isSuperAdmin && (<>
+              <button onClick={() => setModal({ mode: "edit", tp: openTp })} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Edit</button>
+              <button onClick={() => toggleComplete(openTp)} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">{openTp.status === "completed" ? "Reopen" : "Complete"}</button>
+              {!openTp.task_id && <button onClick={() => setConvertTarget(openTp)} className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">Convert to task or appointment</button>}
+            </>)} />
+          ) : <Spinner />}
+        </div>
+      ) : (<>
       <PageHeader title="Talking Points" subtitle={isSuperAdmin
         ? "Notes, reminders and talking points — one place for all of them"
         : "Talking points shared with you"}
@@ -184,9 +229,9 @@ export default function TalkingPoints() {
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
-                  <button onClick={() => setModal({ mode: "view", tp })}
+                  <button onClick={() => openView(tp)}
                     className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">View</button>
-                  <button onClick={() => setModal({ mode: "view", tp })}
+                  <button onClick={() => openView(tp)}
                     className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">
                     💬 Reply{tp.replies?.length ? ` (${tp.replies.length})` : ""}
                   </button>
@@ -222,18 +267,17 @@ export default function TalkingPoints() {
         </div>
       )}
 
-      {modal && modal.mode === "view" ? (
-        <ViewModal tp={modal.tp} onClose={() => setModal(null)} onChanged={load} />
-      ) : modal ? (
+      </>)}
+      {modal ? (
         <TpModal key={modal.tp?.id || "new"} modal={modal}
-          onClose={() => setModal(null)} onSaved={() => { setModal(null); load(); }} />
+          onClose={() => setModal(null)} onSaved={() => { setModal(null); refresh(); }} />
       ) : null}
       {convertTarget && (
         <ConvertModal tp={convertTarget}
           onClose={() => setConvertTarget(null)}
           onConverted={(result) => {
             setConvertTarget(null);
-            load();
+            refresh();
             if (result.kind === "appointment") {
               Swal.fire({
                 icon: "success", title: "Booked as an appointment",
@@ -630,7 +674,7 @@ function ConvertModal({ tp, onClose, onConverted }) {
  *  involved, what it became, and the reply-back thread where the
  *  people it was shared with can answer. Anyone who can see the
  *  entry may reply; a reply can be removed by its author. */
-function ViewModal({ tp, onClose, onChanged }) {
+function ViewModal({ tp, onClose, onChanged, asPage = false, actions = null }) {
   const { user, isSuperAdmin } = useAuth();
   const [replies, setReplies] = useState(tp.replies || []);
   const [text, setText] = useState("");
@@ -663,8 +707,8 @@ function ViewModal({ tp, onClose, onChanged }) {
   const canDelete = (r) => isSuperAdmin || (user && r.user_id === user.id);
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className={asPage ? "" : "fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"} onClick={asPage ? undefined : onClose}>
+      <div className={asPage ? "bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col" : "bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col"} onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-bold text-gray-900" data-no-i18n>{tp.title}</h2>
@@ -675,7 +719,11 @@ function ViewModal({ tp, onClose, onChanged }) {
                 && <span> · completed {fmtDay(tp.completed_at.slice(0, 10))}</span>}
             </div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+          {actions && <div className="flex flex-wrap gap-1.5 justify-end">{actions}</div>}
+          <button onClick={() => navigator.clipboard?.writeText(window.location.origin + `/hr/talking-points/${tp.id}`)
+            .then(() => Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Link copied", timer: 1500, showConfirmButton: false }))}
+            className="px-2 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">🔗 Copy link</button>
+          {!asPage && <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>}
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto">

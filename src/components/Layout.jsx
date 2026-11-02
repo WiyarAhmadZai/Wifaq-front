@@ -1646,12 +1646,12 @@ export default function Layout() {
     { label: "Analytics", path: "/education/gradebook/analytics", permission: "gradebook.analyze" },
   ];
   const reportCardMenus = [
-    { label: "Chaharnima Report Card", path: "/education/report-cards/chaharnima", permission: "report-cards.view" },
-    { label: "Salana (Annual) Report Card", path: "/education/report-cards/salana", permission: "report-cards.view" },
+    { label: "Chaharnima Report Card", path: "/education/report-cards/chaharnima", permission: "chaharnima-report-cards.view" },
+    { label: "Salana (Annual) Report Card", path: "/education/report-cards/salana", permission: "salana-report-cards.view" },
   ];
   const subjectMarksMenus = [
-    { label: "Chaharnima Marks", path: "/education/subject-marks/chaharnima", permission: "subject-marks.view" },
-    { label: "Salana Marks", path: "/education/subject-marks/salana", permission: "subject-marks.view" },
+    { label: "Chaharnima Marks", path: "/education/subject-marks/chaharnima", permission: "chaharnima-marks.view" },
+    { label: "Salana Marks", path: "/education/subject-marks/salana", permission: "salana-marks.view" },
   ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },

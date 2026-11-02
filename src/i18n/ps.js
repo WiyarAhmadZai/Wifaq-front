@@ -6862,4 +6862,7 @@ export default {
   "Project title *": "د پروژې سرلیک *",
   "Pick a student first.": "لومړی زده کوونکی وټاکئ.",
   "Family Number": "د کورنۍ نمبر",
+  "🔗 Copy link": "🔗 لینک کاپي کړئ",
+  "Could not open this talking point.": "دا ټکی خلاص نه شو.",
+  "← Talking Points": "← د خبرو ټکي",
 };

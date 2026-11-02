@@ -604,6 +604,7 @@ function App() {
             <Route path="hr/team-overview" element={<Suspense fallback={<PageLoader />}><TeamOverview /></Suspense>} />
             <Route path="hr/task-leaderboard" element={<Suspense fallback={<PageLoader />}><TaskLeaderboard /></Suspense>} />
             <Route path="hr/talking-points" element={<Suspense fallback={<PageLoader />}><TalkingPoints /></Suspense>} />
+            <Route path="hr/talking-points/:id" element={<Suspense fallback={<PageLoader />}><TalkingPoints /></Suspense>} />
             <Route path="hr/daily-works" element={<Suspense fallback={<PageLoader />}><DailyWorks /></Suspense>} />
             <Route path="education/dashboard" element={<Suspense fallback={<PageLoader />}><EduDashboard /></Suspense>} />
             <Route path="education/observations" element={<Suspense fallback={<PageLoader />}><DailyObservation /></Suspense>} />

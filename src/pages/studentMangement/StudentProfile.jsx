@@ -764,7 +764,9 @@ function LogSection({ title, subtitle, items = [], path, dateKey, fields, contex
 }
 /* Only the person who wrote a record may correct it — the server enforces the
    same rule; this just keeps the ✎ off everybody else's records. */
-const isMine = (row, can) => Boolean(row?.recorded_by?.id && can?.my_user_id && Number(row.recorded_by.id) === Number(can.my_user_id));
+// Super-admin may edit/delete every record; everyone else only their own.
+const isMine = (row, can) => Boolean(can?.super_admin)
+  || Boolean(row?.recorded_by?.id && can?.my_user_id && Number(row.recorded_by.id) === Number(can.my_user_id));
 /* A saved row back into form values: nulls to "", dates to YYYY-MM-DD. */
 const fromRow = (row, fields, context) => Object.fromEntries(
   fields.map((f) => [f.name,

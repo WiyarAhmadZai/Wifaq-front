@@ -1,5 +1,44 @@
-import { useCallback, useEffect, useState } from "react";
-import { fileObjectUrl, previewKind, embedUrl, KIND_LABEL } from "./mediaPreview";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fileObjectUrl, previewKind, embedUrl, KIND_LABEL, copyItemLink } from "./mediaPreview";
+import { fileRawBlob } from "../../api/drive";
+
+/** A Word (.docx) file drawn in the browser — the bytes never leave the school's server. */
+function WordPreview({ item, src }) {
+  const box = useRef(null);
+  const [state, setState] = useState("loading");
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        // The signed url first; the authenticated blob if that fetch is refused.
+        let blob;
+        try {
+          const r = await fetch(src);
+          if (!r.ok) throw new Error(String(r.status));
+          blob = await r.blob();
+        } catch {
+          blob = (await fileRawBlob(item.id)).data;
+        }
+        const { renderAsync } = await import("docx-preview");
+        if (!alive || !box.current) return;
+        box.current.innerHTML = "";
+        await renderAsync(blob, box.current, undefined, { inWrapper: true, ignoreLastRenderedPageBreak: true });
+        if (alive) setState("ok");
+      } catch {
+        if (alive) setState("error");
+      }
+    })();
+    return () => { alive = false; };
+  }, [item, src]);
+  return (
+    <div className="w-full h-full overflow-auto bg-gray-200">
+      {state === "loading" && <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-9 w-9 border-4 border-gray-300 border-t-teal-500" /></div>}
+      {state === "error" && <p className="text-sm text-red-600 text-center py-10">Could not show this Word file. Download it instead.</p>}
+      <div ref={box} />
+    </div>
+  );
+}
+
 
 /**
  * Full-size preview for a catalogue item.
@@ -113,6 +152,8 @@ export default function MediaPreviewModal({ item, onClose, onDownload }) {
     );
   } else if (kind === "pdf") {
     body = <iframe src={src} title={item.name} className="w-full h-full border-0 bg-white" />;
+  } else if (/\.docx$/i.test(item.name || "")) {
+    body = <WordPreview item={item} src={src} />;
   } else {
     body = (
       <Frame>
@@ -154,6 +195,11 @@ export default function MediaPreviewModal({ item, onClose, onDownload }) {
           {external && (
             <button onClick={openExternal} className="text-[11px] font-semibold text-teal-300 hover:text-teal-200 px-2 shrink-0">
               Open ↗
+            </button>
+          )}
+          {(item.is_link || item.url) && (
+            <button onClick={() => copyItemLink(item)} className="text-[11px] font-semibold text-teal-300 hover:text-teal-200 px-2 shrink-0">
+              Copy link
             </button>
           )}
           {!item.is_link && (

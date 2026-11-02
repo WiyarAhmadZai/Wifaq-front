@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { get, post } from "../../api/axios";
-import { uploadAnswerFile } from "../../api/questionnaires";
+import { uploadAnswerFile, questionNumber } from "../../api/questionnaires";
+import { SectionHead, ExtraAnswer } from "../questionnaire/questionTypes";
 import Swal from "sweetalert2";
 
 const TEAL = "#0d9488";
@@ -30,13 +31,19 @@ export default function PublicQuestionnaire() {
   };
 
   useEffect(() => {
-    get("/public/questionnaire/latest")
+    // ?id= opens that questionnaire's own link; without it, the latest one.
+    const id = new URLSearchParams(window.location.search).get("id");
+    get(id && /^\d+$/.test(id) ? `/public/questionnaire/${id}` : "/public/questionnaire/latest")
       .then((r) => setQ(r.data?.data || null))
       .catch(() => setQ(null))
       .finally(() => setLoading(false));
   }, []);
 
-  const setAnswer = (qid, val) => setAnswers((p) => ({ ...p, [qid]: val }));
+  const setAnswer = (qid, val) => setAnswers((p) => {
+    const next = { ...p };
+    if (val) next[qid] = val; else delete next[qid];
+    return next;
+  });
 
   const submit = async () => {
     if (!meta.student_name.trim()) {
@@ -105,9 +112,10 @@ export default function PublicQuestionnaire() {
 
       {/* Questions */}
       <div className="space-y-4">
-        {(q.questions || []).map((qq, idx) => (
+        {(q.questions || []).map((qq) => qq.type === "section" ? <SectionHead key={qq.id} text={qq.text} /> : (
           <div key={qq.id} className="rounded-xl border border-gray-150 bg-gray-50/60 p-4">
-            <p className="text-sm font-bold text-gray-800 mb-3">{idx + 1}. {qq.text}</p>
+            <p className="text-sm font-bold text-gray-800 mb-3">{questionNumber(q.questions, qq)}. {qq.text}</p>
+            <ExtraAnswer qq={qq} answer={answers[qq.id]} setAnswer={setAnswer} inputCls={inputCls} accent={TEAL} />
             {qq.type === "choice" && (
               <div className="flex flex-wrap gap-2">
                 {(qq.options || []).map((o) => {

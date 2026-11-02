@@ -1,3 +1,4 @@
+import Swal from "sweetalert2";
 import { fileRawBlob } from "../../api/drive";
 
 /**
@@ -219,3 +220,15 @@ export const KIND_LABEL = {
   link: "Link",
   file: "File",
 };
+
+/** The exact link to this file (a link item's address, or the file's own url). */
+export async function copyItemLink(item) {
+  const link = item?.is_link ? item.external_url : item?.url;
+  if (!link) return;
+  try {
+    await navigator.clipboard.writeText(link);
+    Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Link copied", timer: 1200, showConfirmButton: false });
+  } catch {
+    Swal.fire({ title: "Link", input: "text", inputValue: link, showConfirmButton: false, showCloseButton: true });
+  }
+}

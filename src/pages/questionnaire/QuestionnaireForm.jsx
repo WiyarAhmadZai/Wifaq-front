@@ -22,6 +22,7 @@ const blankQuestion = (type = "choice") => ({
   type,
   options: type === "choice" ? ["همیشه", "بیشتر اوقات", "گاهی", "هرگز"] : [],
 });
+const hasOptions = (type) => type === "choice" || type === "multi";
 
 export default function QuestionnaireForm() {
   const { id } = useParams();
@@ -54,7 +55,7 @@ export default function QuestionnaireForm() {
       });
       setQuestions((q.questions || []).length ? q.questions.map((qq) => ({
         text: qq.text, type: qq.type,
-        options: qq.type === "choice" ? (qq.options || []).map((o) => o.text) : [],
+        options: hasOptions(qq.type) ? (qq.options || []).map((o) => o.text) : [],
       })) : [blankQuestion()]);
     };
     const __cached = peekCache(`/questionnaires/${id}`);
@@ -70,7 +71,7 @@ export default function QuestionnaireForm() {
         });
         setQuestions((q.questions || []).length ? q.questions.map((qq) => ({
           text: qq.text, type: qq.type,
-          options: qq.type === "choice" ? (qq.options || []).map((o) => o.text) : [],
+          options: hasOptions(qq.type) ? (qq.options || []).map((o) => o.text) : [],
         })) : [blankQuestion()]);
       }
     }).catch(() => Swal.fire("Error", "Could not load.", "error")).finally(() => setLoading(false));
@@ -78,7 +79,7 @@ export default function QuestionnaireForm() {
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const updQ = (i, patch) => setQuestions((qs) => qs.map((q, idx) => idx === i ? { ...q, ...patch } : q));
-  const changeType = (i, type) => updQ(i, { type, options: type === "choice" ? (questions[i].options.length ? questions[i].options : ["همیشه", "بیشتر اوقات", "گاهی", "هرگز"]) : [] });
+  const changeType = (i, type) => updQ(i, { type, options: hasOptions(type) ? (questions[i].options.length ? questions[i].options : ["همیشه", "بیشتر اوقات", "گاهی", "هرگز"]) : [] });
   const setOpt = (qi, oi, val) => setQuestions((qs) => qs.map((q, idx) => idx === qi ? { ...q, options: q.options.map((o, j) => j === oi ? val : o) } : q));
   const addOpt = (qi) => setQuestions((qs) => qs.map((q, idx) => idx === qi ? { ...q, options: [...q.options, ""] } : q));
   const removeOpt = (qi, oi) => setQuestions((qs) => qs.map((q, idx) => idx === qi ? { ...q, options: q.options.filter((_, j) => j !== oi) } : q));
@@ -88,7 +89,7 @@ export default function QuestionnaireForm() {
     if (!form.target_audiences.length) { Swal.fire("Choose who answers", "Pick at least one group (families, teachers or staff) who should see this questionnaire.", "warning"); return; }
     const clean = questions
       .filter((q) => q.text.trim())
-      .map((q) => ({ text: q.text, type: q.type, options: q.type === "choice" ? q.options.filter((o) => o.trim()) : [] }));
+      .map((q) => ({ text: q.text, type: q.type, options: hasOptions(q.type) ? q.options.filter((o) => o.trim()) : [] }));
     if (clean.length === 0) { Swal.fire("Add a question", "Add at least one question.", "warning"); return; }
 
     setSaving(true);
@@ -167,16 +168,19 @@ export default function QuestionnaireForm() {
               <input className={input} value={q.text} onChange={(e) => updQ(i, { text: e.target.value })} placeholder="Question text…" />
               <select className="px-2 py-2 border border-gray-200 rounded-lg text-xs" value={q.type} onChange={(e) => changeType(i, e.target.value)}>
                 <option value="choice">Multiple choice</option>
+                <option value="multi">Checkboxes (pick several)</option>
                 <option value="yesno">Yes / No</option>
                 <option value="text">Short answer</option>
+                <option value="number">Number</option>
                 <option value="file">File / image upload</option>
+                <option value="section">Section heading</option>
               </select>
               {questions.length > 1 && <button onClick={() => setQuestions((qs) => qs.filter((_, idx) => idx !== i))} className="text-red-500 text-xs font-semibold px-2 py-2">✕</button>}
             </div>
 
-            {q.type === "choice" && (
+            {hasOptions(q.type) && (
               <div className="pl-6 space-y-1.5">
-                <p className="text-[10px] text-gray-400">Options (top = best = 100%, bottom = 0%)</p>
+                <p className="text-[10px] text-gray-400">{q.type === "multi" ? "Options (not scored)" : "Options (top = best = 100%, bottom = 0%)"}</p>
                 {q.options.map((o, oi) => (
                   <div key={oi} className="flex items-center gap-2">
                     <input className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs" value={o} onChange={(e) => setOpt(i, oi, e.target.value)} placeholder={`Option ${oi + 1}`} />

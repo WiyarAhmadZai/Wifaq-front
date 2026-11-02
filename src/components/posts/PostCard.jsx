@@ -92,6 +92,30 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
   const rxTotal = Object.values(rx.reactions).reduce((a, b) => a + b, 0);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(node.body);
+
+  const saveEdit = async () => {
+    if (!draft.trim()) return;
+    setBusy(true);
+    try {
+      const r = await postsApi.updateComment(node.id, draft.trim());
+      onTree(r.data.data, r.data.comments_count);
+      setEditing(false);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not save.", "error");
+    } finally { setBusy(false); }
+  };
+  const togglePin = async () => {
+    setMenu(false);
+    try {
+      const r = await postsApi.pinComment(node.id);
+      onTree(r.data.data, r.data.comments_count);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not pin.", "error");
+    }
+  };
 
   const reply = async () => {
     if (!text.trim()) return;
@@ -105,6 +129,7 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
     } finally { setBusy(false); }
   };
   const remove = async () => {
+    setMenu(false);
     const ok = await Swal.fire({ icon: "warning", title: "Delete this comment?", text: "Its replies are removed too.", showCancelButton: true, confirmButtonText: "Delete", confirmButtonColor: "#e11d48" });
     if (!ok.isConfirmed) return;
     const r = await postsApi.removeComment(node.id);
@@ -116,6 +141,17 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
       <div className="flex gap-2">
         <Avatar user={node.author} size={depth > 0 ? 28 : 34} linkable={!readOnly} />
         <div className="min-w-0 flex-1">
+          {node.is_pinned && <div className="text-[11px] font-semibold text-amber-700 mb-0.5 ps-1">📌 <span>Pinned by author</span></div>}
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus dir="auto"
+                onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(false); }}
+                className="flex-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300" />
+              <button type="button" onClick={saveEdit} disabled={busy || !draft.trim()} className="text-xs font-semibold text-teal-700 disabled:opacity-40">Save</button>
+              <button type="button" onClick={() => { setEditing(false); setDraft(node.body); }} className="text-xs text-gray-500">Cancel</button>
+            </div>
+          ) : (
+          <div className="group flex items-start gap-1">
           <div className="relative inline-block max-w-full rounded-2xl bg-gray-100 px-3 py-2">
             <div className="text-[12px] font-semibold text-gray-800" data-no-i18n>{node.author?.name}</div>
             <div className="text-sm text-gray-800 whitespace-pre-wrap break-words" dir="auto" data-no-i18n>{node.body}</div>
@@ -125,8 +161,24 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
               </span>
             )}
           </div>
+          {!readOnly && (node.can_edit || node.can_delete || node.can_pin) && (
+            <div className="relative shrink-0 self-center">
+              <button type="button" onClick={() => setMenu((v) => !v)} title="More"
+                className="w-7 h-7 rounded-full hover:bg-gray-100 text-gray-500 grid place-items-center"><FiMoreHorizontal /></button>
+              {menu && (
+                <div className="absolute end-0 top-8 z-30 w-44 rounded-xl border border-gray-100 bg-white shadow-lg py-1 text-sm" onMouseLeave={() => setMenu(false)}>
+                  {node.can_pin && <button type="button" onClick={togglePin} className="w-full text-start px-3 py-2 hover:bg-gray-50">{node.is_pinned ? "Unpin comment" : "📌 Pin to top"}</button>}
+                  {node.can_edit && <button type="button" onClick={() => { setMenu(false); setDraft(node.body); setEditing(true); }} className="w-full text-start px-3 py-2 hover:bg-gray-50">Edit comment</button>}
+                  {node.can_delete && <button type="button" onClick={remove} className="w-full text-start px-3 py-2 hover:bg-rose-50 text-rose-600">Delete comment</button>}
+                </div>
+              )}
+            </div>
+          )}
+          </div>
+          )}
           <div className="flex items-center gap-3 mt-0.5 ps-2 text-[11px] text-gray-500">
             <span data-no-i18n>{timeAgo(node.created_at)}</span>
+            {node.edited && <span>Edited</span>}
             {!readOnly && (
               <span className="relative">
                 <button type="button" onClick={() => setPicker((v) => !v)}
@@ -144,7 +196,6 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
               </span>
             )}
             {!readOnly && <button type="button" onClick={() => setReplying((v) => !v)} className="font-semibold hover:text-teal-700">Reply</button>}
-            {node.can_delete && <button type="button" onClick={remove} className="hover:text-rose-600">Delete</button>}
           </div>
           {replying && (
             <div className="flex items-center gap-2 mt-1.5">
@@ -211,6 +262,34 @@ export function CommentSection({ postId, initial = null, readOnly = false, onCou
   );
 }
 
+/* ════════════ who liked a post ════════════ */
+function LikersModal({ postId, onClose }) {
+  const [list, setList] = useState(null);
+  useEffect(() => {
+    postsApi.likes(postId).then((r) => setList(r.data.data || [])).catch(() => setList([]));
+  }, [postId]);
+  return (
+    <div className="fixed inset-0 z-[900] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-bold text-gray-800"><span className="text-rose-500">♥</span> <span>People who liked this</span></h3>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500 grid place-items-center"><FiX /></button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto p-2">
+          {list === null ? <p className="text-xs text-gray-400 p-3">Loading…</p>
+            : list.length === 0 ? <p className="text-xs text-gray-400 p-3">No likes yet.</p>
+            : list.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50">
+                <Avatar user={u} size={36} linkable />
+                <span className="text-sm font-medium text-gray-800" data-no-i18n>{u.name}</span>
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ════════════ the card ════════════ */
 export default function PostCard({ post, canPin = false, readOnly = false, defaultComments = false, onChanged, onRemoved }) {
   const [p, setP] = useState(post);
@@ -219,6 +298,7 @@ export default function PostCard({ post, canPin = false, readOnly = false, defau
   const [menu, setMenu] = useState(false);
   const [shareMenu, setShareMenu] = useState(false);
   const [sendToChat, setSendToChat] = useState(false);
+  const [likers, setLikers] = useState(false);
   const { canUseChat } = useChat();
   const [expanded, setExpanded] = useState(false);
   // A new post object from the feed (after an edit or a pin) replaces the local copy.
@@ -305,7 +385,11 @@ export default function PostCard({ post, canPin = false, readOnly = false, defau
       {/* counts */}
       {(p.likes_count > 0 || p.comments_count > 0) && (
         <div className="flex items-center justify-between px-4 pt-3 text-[12px] text-gray-500">
-          <span>{p.likes_count > 0 && <><span className="text-rose-500">♥</span> <span data-no-i18n>{p.likes_count}</span></>}</span>
+          <span>{p.likes_count > 0 && (
+            <button type="button" onClick={() => !readOnly && setLikers(true)} className="hover:underline" title="See who liked this">
+              <span className="text-rose-500">♥</span> <span data-no-i18n>{p.likes_count}</span>
+            </button>
+          )}</span>
           {p.comments_count > 0 && (
             <button type="button" onClick={() => setShowComments((v) => !v)} className="hover:underline">
               <span data-no-i18n>{p.comments_count}</span> <span>comments</span>
@@ -345,6 +429,7 @@ export default function PostCard({ post, canPin = false, readOnly = false, defau
 
       {viewer !== null && <MediaViewer media={p.media} start={viewer} onClose={() => setViewer(null)} />}
       {sendToChat && <SendToChat post={p} onClose={() => setSendToChat(false)} />}
+      {likers && <LikersModal postId={p.id} onClose={() => setLikers(false)} />}
     </article>
   );
 }

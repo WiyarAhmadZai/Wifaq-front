@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { listQuestionnaires, deleteQuestionnaire, publishQuestionnaire, closeQuestionnaire } from "../../api/questionnaires";
+import { listQuestionnaires, deleteQuestionnaire, publishQuestionnaire, closeQuestionnaire, duplicateQuestionnaire, publicLink } from "../../api/questionnaires";
 import { peekCache } from "../../api/axios";
 import { useAuth } from "../../admin/context/AuthContext";
 import { fmtDate } from "../../utils/formErrors";
@@ -50,6 +50,21 @@ export default function Questionnaires() {
   useEffect(() => { load(); }, []);
 
   const doPublish = async (id) => { await publishQuestionnaire(id); load(); };
+  // Reuse: a draft copy with the same questions, opened for editing.
+  const doDuplicate = async (id) => {
+    try {
+      const r = await duplicateQuestionnaire(id);
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Duplicated", timer: 1200, showConfirmButton: false });
+      if (r.data?.data?.id) navigate(`/questionnaires/edit/${r.data.data.id}`); else load();
+    } catch (e) { Swal.fire("Error", e.response?.data?.message || "Could not duplicate.", "error"); }
+  };
+  const copyPublicLink = async (id) => {
+    const link = publicLink(id);
+    try {
+      await navigator.clipboard.writeText(link);
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Link copied", timer: 1200, showConfirmButton: false });
+    } catch { Swal.fire({ title: "Link", input: "text", inputValue: link, showConfirmButton: false, showCloseButton: true }); }
+  };
   const doClose = async (id) => { await closeQuestionnaire(id); load(); };
   const doDelete = async (id) => {
     const r = await Swal.fire({ title: "Delete questionnaire?", text: "All its questions and responses are removed.", icon: "warning", showCancelButton: true, confirmButtonColor: "#dc2626", confirmButtonText: "Delete" });
@@ -100,7 +115,10 @@ export default function Questionnaires() {
                 const st = STATUS[q.status] || STATUS.draft;
                 return (
                   <tr key={q.id} className="hover:bg-gray-50/70">
-                    <td className="px-4 py-3 font-semibold text-gray-800">{q.title}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-800">
+                      {q.title}
+                      {q.is_template && <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700">Permanent</span>}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{q.topic || "—"}</td>
                     <td className="px-4 py-3 text-gray-500">{q.week_of ? fmtDate(q.week_of) : "—"}</td>
                     <td className="px-4 py-3">
@@ -131,7 +149,15 @@ export default function Questionnaires() {
                           <IconBtn title="Close" tone="amber" onClick={() => doClose(q.id)}
                             d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                         )}
-                        {can("delete") && (
+                        {can("create") && (
+                          <IconBtn title="Duplicate" tone="blue" onClick={() => doDuplicate(q.id)}
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        )}
+                        {q.status === "published" && q.is_public && (
+                          <IconBtn title="Copy public link" tone="teal" onClick={() => copyPublicLink(q.id)}
+                            d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5m6.5-6.5l1.5-1.5a4 4 0 115.656 5.656l-3 3a4 4 0 01-5.656 0" />
+                        )}
+                        {can("delete") && !q.is_template && (
                           <IconBtn title="Delete" tone="red" onClick={() => doDelete(q.id)}
                             d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
                         )}

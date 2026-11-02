@@ -26,6 +26,7 @@ export function AuthProvider({ children }) {
       const res = await accessApi.me();
       setUser(res.data?.data || null);
       setError(null);
+      return res.data?.data || null;
     } catch (e) {
       setError(e);
       // Dropping `user` makes PathPermissionGate replace the whole <Outlet />

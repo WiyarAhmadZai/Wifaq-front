@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
-import { getMyQuestionnaire, respondMyQuestionnaire, uploadAnswerFile } from "../../api/questionnaires";
+import { getMyQuestionnaire, respondMyQuestionnaire, uploadAnswerFile, questionNumber } from "../../api/questionnaires";
+import { SectionHead, ExtraAnswer } from "./questionTypes";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 import { useAuth } from "../../admin/context/AuthContext";
@@ -78,7 +79,11 @@ export default function MyQuestionnaire() {
   const open = items.length === 1 ? items[0] : items.find((q) => q.id === selectedId) || null;
   const isDone = (qid) => doneIds.includes(qid) || submittedIds.includes(qid);
 
-  const setAnswer = (qid, val) => setAnswers((p) => ({ ...p, [qid]: val }));
+  const setAnswer = (qid, val) => setAnswers((p) => {
+    const next = { ...p };
+    if (val) next[qid] = val; else delete next[qid];
+    return next;
+  });
 
   const submit = async () => {
     const payload = (open.questions || []).map((qq) => {
@@ -165,9 +170,11 @@ export default function MyQuestionnaire() {
               </div>
             </div>
             <div className="space-y-4">
-              {(open.questions || []).map((qq, idx) => (
+              {(open.questions || []).map((qq) => qq.type === "section" ? <SectionHead key={qq.id} text={qq.text} /> : (
                 <div key={qq.id} className="rounded-xl border border-gray-150 bg-gray-50/60 p-4">
-                  <p className="text-sm font-bold text-gray-800 mb-3">{idx + 1}. {qq.text}</p>
+                  <p className="text-sm font-bold text-gray-800 mb-3">{questionNumber(open.questions, qq)}. {qq.text}</p>
+                  <ExtraAnswer qq={qq} answer={answers[qq.id]} setAnswer={setAnswer}
+                    inputCls="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 bg-white" accent={TEAL} />
                   {qq.type === "choice" && (
                     <div className="flex flex-wrap gap-2">
                       {(qq.options || []).map((o) => {

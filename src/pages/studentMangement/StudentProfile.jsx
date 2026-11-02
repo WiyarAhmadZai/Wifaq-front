@@ -109,6 +109,8 @@ const TABS = [
   { key: "gallery", label: "Gallery" },
   { key: "interview", label: "Interviewer", sensitive: true },
   { key: "updates", label: "Updates" },
+  // Past years' reports, semester / winter reports, notices and certificates.
+  { key: "archive", label: "Reports & Certificates" },
   { key: "caredesk", label: "Care Desk" },
 ];
 
@@ -538,6 +540,7 @@ function StudentProfileView() {
           {tab === "gallery" && <GalleryTab {...ctx} />}
           {tab === "interview" && <LogSection {...ctx} title="Interviewer Observations · مشاهدات مصاحبه" subtitle="Confidential — internal use only" sensitive items={data.sensitive?.interview_observation} path="/interview" dateKey="interviewed_at" fields={INTERVIEW_FIELDS} />}
           {tab === "updates" && <Updates {...ctx} />}
+          {tab === "archive" && <ArchiveTab {...ctx} id={id} load={load} />}
           {tab === "caredesk" && <CareDesk {...ctx} />}
         </div>
       </div>
@@ -1187,7 +1190,46 @@ function Observations({ data }) {
   );
 }
 
-function Portrait({ data, save, saving, can, registerPending }) {
+/* سیمای شخصیتی متعلم — the teacher's term-end narrative (twice a year).
+ * Only the narrative is required; every guiding question is optional. */
+const NARRATIVE_FIELDS = [
+  F("term", "Term", { sel: [["term1", "End of term 1"], ["term2", "End of term 2"]] }),
+  F("academic_year", "Academic year (e.g. 1404)"),
+  F("teacher_role", "Your role with this student", { sel: [["mentor", "Mentor teacher (استاد رهنما)"], ["subject", "Subject teacher"], ["activity", "Activity teacher"], ["other", "Other"]] }),
+  F("acquaintance", "How long have you known this student?"),
+  F("written_on", "Date written", { date: true }),
+  F("narrative", "Narrative · روایت — write freely, in the first person", { area: true }),
+  F("habits", "Habits: which habits, good or bad, have taken root in this student?", { area: true }),
+  F("moral_instincts", "Moral instincts: faced with a moral decision, what is their first natural reaction?", { area: true }),
+  F("in_silence", "In silence: who is this student when alone, away from others' eyes?", { area: true }),
+  F("anger_calm", "Anger and calm: what angers them, and what calms them?", { area: true }),
+  F("hidden_talent", "Unopened talent: what pull or talent do you see that has not yet blossomed?", { area: true }),
+  F("inner_conflict", "Inner conflict: what struggle or contradiction do you see inside them?", { area: true }),
+  F("relations_others", "With others: classmates, teachers, the weaker and the stronger — what does it say about their heart?", { area: true }),
+  F("relation_self", "With themselves: hard or easy on themselves? Do they know themselves yet?", { area: true }),
+  F("one_image", "One image, one sentence, one moment that defines this student", { area: true }),
+  F("open_question", "Open question: what about this student is still a question for you?", { area: true }),
+  F("future", "Future: on this path, what kind of person will they be in five years?", { area: true }),
+  F("growth_path", "Path of growth: the clearest way Wifaq could help this student grow", { area: true }),
+  F("message_next_mentor", "Message to next year's mentor teacher", { area: true }),
+];
+const CONFIDENTIAL_FIELD = F("confidential_note", "Confidential note to the tarbiyati-psychology team (restricted)", { area: true });
+
+function Portrait(props) {
+  const { data, can } = props;
+  return (
+    <div className="space-y-4">
+      <LogSection {...props} title="سیمای شخصیتی متعلم · Character Portrait (twice a year)"
+        subtitle="A teacher's narrative of who this student is — written at the end of each term. Honesty is better than completeness."
+        items={data.portrait_narratives} path="/portrait-narrative" dateKey="written_on"
+        fields={can.view_sensitive ? [...NARRATIVE_FIELDS, CONFIDENTIAL_FIELD] : NARRATIVE_FIELDS}
+        canAdd={can.record_info} />
+      <PortraitDraft {...props} />
+    </div>
+  );
+}
+
+function PortraitDraft({ data, save, saving, can, registerPending }) {
   const portraits = data.character_portraits || [];
   const approved = portraits.find((p) => p.status === "approved");
   const [notes, setNotes] = useState(""); const [draft, setDraft] = useState("");
@@ -1340,6 +1382,118 @@ function FieldInput({ f, value, onChange }) {
       ) : (
         <input value={value} onChange={(e) => onChange(e.target.value)} className={inp} dir="auto" />
       )}
+    </div>
+  );
+}
+
+/* Past reports, notices and certificates — uploaded files on the شناسنامه. */
+function ArchiveTab({ id, data, can, load }) {
+  const types = data.archive_types || {};
+  const rows = data.archive || [];
+  const blank = { document_type: "archive_annual", title: "", academic_year: "", file: null };
+  const [form, setForm] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState("");
+  const fileRef = useRef(null);
+  const mayDelete = (d) => Boolean(can?.manage_access || can?.super_admin
+    || (d.uploaded_by?.id && Number(d.uploaded_by.id) === Number(can?.my_user_id)));
+
+  const upload = async () => {
+    if (!form.file) return toastError("Choose a file to upload");
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("document_type", form.document_type);
+      if (form.title.trim()) body.append("title", form.title.trim());
+      if (form.academic_year.trim()) body.append("academic_year", form.academic_year.trim());
+      body.append("file", form.file);
+      await post(`/student-management/students/${id}/profile/archive`, body);
+      toastSuccess("Document uploaded");
+      setForm(blank);
+      if (fileRef.current) fileRef.current.value = "";
+      load();
+    } catch (e) {
+      toastError(e.response?.data?.message || Object.values(e.response?.data?.errors || {})[0]?.[0] || "Failed to upload");
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (d) => {
+    if (!(await confirmDelete())) return;
+    try {
+      await del(`/student-management/students/${id}/profile/archive/${d.id}`);
+      toastSuccess("Record deleted");
+      load();
+    } catch (e) { toastError(e.response?.data?.message || "Failed to delete"); }
+  };
+
+  const shown = filter ? rows.filter((d) => d.document_type === filter) : rows;
+  return (
+    <div className="space-y-4">
+      {can?.record_info && (
+        <Card title="Upload a report or certificate">
+          <div className="grid sm:grid-cols-3 gap-3">
+            <label className="text-xs text-gray-500">Type
+              <select value={form.document_type} onChange={(e) => setForm({ ...form, document_type: e.target.value })}
+                className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white">
+                {Object.entries(types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </label>
+            <label className="text-xs text-gray-500">Title (optional)
+              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} dir="auto"
+                className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+            </label>
+            <label className="text-xs text-gray-500">Academic year (e.g. 1404)
+              <input value={form.academic_year} onChange={(e) => setForm({ ...form, academic_year: e.target.value })}
+                className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+            </label>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap mt-3">
+            <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+              onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} className="text-sm" />
+            <button onClick={upload} disabled={busy}
+              className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-teal-600 disabled:opacity-50">
+              {busy ? "Uploading…" : "Upload"}
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">PDF, image or Word file, up to 20 MB.</p>
+        </Card>
+      )}
+
+      <Card title="Reports & Certificates">
+        <div className="flex gap-2 flex-wrap mb-3">
+          <button onClick={() => setFilter("")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold ${filter === "" ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-600"}`}>All</button>
+          {Object.entries(types).map(([k, v]) => (
+            <button key={k} onClick={() => setFilter(k)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold ${filter === k ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-600"}`}>{v}</button>
+          ))}
+        </div>
+        {shown.length === 0 ? <Empty>No documents uploaded yet.</Empty> : (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {shown.map((d) => (
+              <div key={d.id} className="flex gap-3 p-3 rounded-xl border border-gray-200 bg-white">
+                <a href={d.url} target="_blank" rel="noreferrer" className="shrink-0">
+                  {d.is_image
+                    ? <img src={d.url} alt="" className="w-16 h-16 object-cover rounded-lg border" />
+                    : <div className="w-16 h-16 rounded-lg border bg-gray-50 flex items-center justify-center text-2xl">📄</div>}
+                </a>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold text-teal-700">{types[d.document_type] || d.document_type}</div>
+                  <div className="text-sm font-bold text-gray-800 truncate" dir="auto">{d.title || d.original_name}</div>
+                  <div className="text-[11px] text-gray-500">
+                    {d.academic_year && <>{d.academic_year} · </>}{fmtDate(d.uploaded_at)}{d.uploaded_by && <> · {d.uploaded_by.name}</>}
+                  </div>
+                  <div className="flex gap-2 mt-1.5">
+                    <a href={d.url} target="_blank" rel="noreferrer"
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold border border-teal-300 text-teal-700 bg-white hover:bg-teal-50">View</a>
+                    {mayDelete(d) && <DeleteBtn onClick={() => remove(d)} />}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

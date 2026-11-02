@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post, peekCache } from "../../api/axios";
+import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 import { DIMS, DimPill, Spinner, describeError, TEAL, PosterLightbox, TopicPlan, GOAL_LABELS, DAY_LABELS } from "./weeklyUi";
@@ -89,6 +89,21 @@ export default function WeeklyTopic() {
 
   const topic = data?.topic;
   const canSelect = Boolean(data?.can_select);
+
+  const removeTopic = async (t) => {
+    const ok = await Swal.fire({
+      title: "Delete this topic?", text: t.title, icon: "warning",
+      showCancelButton: true, confirmButtonColor: "#B83230", confirmButtonText: "Delete",
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await del(`/weekly-recognition/topics/${t.id}`);
+      Swal.fire({ icon: "success", title: "Topic deleted", timer: 1400, showConfirmButton: false });
+      load();
+    } catch (err) {
+      Swal.fire("Error", describeError(err, "Failed to delete the topic."), "error");
+    }
+  };
 
   const save = async () => {
     if (!form.title.trim()) return Swal.fire("Topic needed", "Give this week a topic title.", "info");
@@ -355,6 +370,12 @@ export default function WeeklyTopic() {
                       <button onClick={() => navigate(`/education/weekly-recognition/review?topic_id=${t.id}`)}
                         className="text-[11px] font-semibold" style={{ color: TEAL }}>
                         Review →
+                      </button>
+                    )}
+                    {canSelect && (
+                      <button onClick={() => removeTopic(t)} title="Delete"
+                        className="text-[11px] font-semibold px-2 py-0.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50">
+                        🗑 Delete
                       </button>
                     )}
                   </div>

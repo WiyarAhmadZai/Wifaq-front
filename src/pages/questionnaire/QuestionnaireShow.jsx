@@ -4,7 +4,7 @@ import { getQuestionnaire, getTargetUsers } from "../../api/questionnaires";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
 
-const TYPE_LABEL = { choice: "Multiple choice", yesno: "Yes / No", text: "Short answer", file: "File / image upload" };
+const TYPE_LABEL = { choice: "Multiple choice", multi: "Checkboxes (pick several)", yesno: "Yes / No", text: "Short answer", number: "Number", file: "File / image upload", section: "Section heading" };
 
 const AUDIENCE_LABEL = {
   families: { label: "Families (Parents)", cls: "bg-violet-100 text-violet-700" },
@@ -80,7 +80,7 @@ export default function QuestionnaireShow() {
               <p className="text-sm font-bold text-gray-800">{i + 1}. {qq.text}</p>
               <span className="text-[10px] font-semibold text-gray-400 whitespace-nowrap">{TYPE_LABEL[qq.type] || qq.type}</span>
             </div>
-            {qq.type === "choice" && (
+            {(qq.type === "choice" || qq.type === "multi") && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {(qq.options || []).map((o) => (
                   <span key={o.id} className="px-2.5 py-1 rounded-lg text-xs bg-gray-50 border border-gray-150 text-gray-700">

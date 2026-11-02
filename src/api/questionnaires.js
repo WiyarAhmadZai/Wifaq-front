@@ -9,6 +9,7 @@ export const updateQuestionnaire  = (id, data)    => put(`${BASE}/${id}`, data);
 export const deleteQuestionnaire  = (id)          => del(`${BASE}/${id}`);
 export const publishQuestionnaire = (id)          => post(`${BASE}/${id}/publish`, {});
 export const closeQuestionnaire   = (id)          => post(`${BASE}/${id}/close`, {});
+export const duplicateQuestionnaire = (id)        => post(`${BASE}/${id}/duplicate`, {});
 export const getResponses         = (id)          => get(`${BASE}/${id}/responses`);
 export const getStats             = (id)          => get(`${BASE}/${id}/stats`);
 export const getCompletion        = ()            => get(`${BASE}/completion`);
@@ -26,3 +27,10 @@ export const uploadAnswerFile = (file) => {
   // Keep Content-Type as multipart so axios doesn't JSON-encode the FormData.
   return post("/public/questionnaire/upload", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 0 });
 };
+
+/** A question's running number, skipping section headings. */
+export const questionNumber = (questions = [], qq) =>
+  questions.filter((x) => x.type !== "section").findIndex((x) => x.id === qq.id) + 1;
+
+/** The shareable public link to one questionnaire. */
+export const publicLink = (id) => `${window.location.origin}/questionnaire?id=${id}`;

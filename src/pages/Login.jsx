@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { post, clearApiCache } from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../admin/context/AuthContext';
+import { hasPermission } from '../admin/utils/permissions';
 import LanguageSwitcher from "../i18n/LanguageSwitcher";
 import wifaqLogo from "../assets/wifaq-logo.png";
 
@@ -46,7 +47,7 @@ export default function Login() {
       // Pull the full user profile (with roles + permissions) into AuthContext
       // BEFORE navigating, otherwise the path gate sees user=null and redirects
       // back to /login → infinite loop.
-      await auth.reload();
+      const me = await auth.reload();
 
       Swal.fire({
         title: 'Welcome!',
@@ -59,7 +60,10 @@ export default function Login() {
       /* Back to whatever sent us here — a scanned student card, say. Only
        * in-app paths: a "//evil.example" would otherwise leave the site. */
       const wanted = new URLSearchParams(window.location.search).get('redirect');
-      const safe = wanted && wanted.startsWith('/') && !wanted.startsWith('//') ? wanted : '/';
+      // Otherwise everyone starts on the Posts feed; someone without access
+      // to posts (a family, a student) starts on the dashboard as before.
+      const home = hasPermission(me, 'posts.view') ? '/posts' : '/';
+      const safe = wanted && wanted.startsWith('/') && !wanted.startsWith('//') ? wanted : home;
       navigate(safe, { replace: true });
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed. Please check your credentials.';

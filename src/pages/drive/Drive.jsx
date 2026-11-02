@@ -11,6 +11,7 @@ import { fmtDate } from "../../utils/formErrors";
 import AudiencePicker, { OwnerBadge, AudienceChips } from "../../components/drive/AudiencePicker";
 import { EMPTY_AUDIENCE } from "../../components/drive/audience";
 import MediaPreviewModal from "./MediaPreviewModal";
+import { copyItemLink } from "./mediaPreview";
 import { fileObjectUrl, previewKind, openInOfficeApp } from "./mediaPreview";
 
 const fmtSize = (n) => {
@@ -316,14 +317,7 @@ export default function Drive() {
   };
 
   // For links there is no file to download — copying the URL is the useful action.
-  const copyLink = async (f) => {
-    try {
-      await navigator.clipboard.writeText(f.external_url);
-      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Link copied", timer: 1200, showConfirmButton: false });
-    } catch {
-      Swal.fire("Link", f.external_url, "info");
-    }
-  };
+  const copyLink = (f) => copyItemLink(f);
 
   const isEmpty = data.folders.length === 0 && data.files.length === 0;
 
@@ -505,9 +499,14 @@ function FileActions({ f, downloadFile, copyLink, removeFile, canWrite: writable
           <Icon d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
         </button>
       ) : (
-        <button onClick={(e) => { e.stopPropagation(); downloadFile(f); }} title="Download" className={cls}>
-          <Icon d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-        </button>
+        <>
+          <button onClick={(e) => { e.stopPropagation(); copyLink(f); }} title="Copy link" className={cls}>
+            <Icon d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); downloadFile(f); }} title="Download" className={cls}>
+            <Icon d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+          </button>
+        </>
       )}
       {writable && (
         <button onClick={(e) => { e.stopPropagation(); removeFile(f); }} title="Delete" className={`p-1 ${compact ? "" : "bg-white/90 shadow-sm"} rounded text-red-500 hover:text-red-700`}>✕</button>

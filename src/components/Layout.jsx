@@ -1434,6 +1434,8 @@ export default function Layout() {
       { label: "Recognition Slips",  path: "/hr/vats/slips",        permission: "vats-slips.view" },
       { label: "Reward Cards",       path: "/hr/vats/cards",        permission: "vats-cards.view" },
       { label: "Improvement Plans",  path: "/hr/vats/interventions", permission: "vats-interventions.view" },
+      // Everyone: HR sees all records, a staff member sees and acknowledges their own.
+      { label: "Discipline & Correction", path: "/hr/disciplinary" },
     ]},
     { label: "Staff Welfare", key: "welfare", children: [
       { label: "My Check-in",        path: "/hr/welfare/checkin",   permission: "welfare-checkin.view" },

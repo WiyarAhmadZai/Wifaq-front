@@ -318,6 +318,8 @@ const SELF_SCOPED_PATH_PATTERNS = [
   // Meetings list + show — backend row-scopes to organizer + participants
   // so any authenticated user can land on their invite from a notification.
   /^\/hr\/meetings$/,
+  // Discipline & correction — backend shows a staff member only their own record.
+  /^\/hr\/disciplinary$/,
   /^\/hr\/meetings\/show\/\d+$/,
   // Events list + show — same row-scoping pattern as meetings: creator,
   // main-responsible, role assignees, requirement assignees can read.

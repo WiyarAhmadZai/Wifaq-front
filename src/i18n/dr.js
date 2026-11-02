@@ -6865,4 +6865,11 @@ export default {
   "🔗 Copy link": "🔗 کاپی لینک",
   "Could not open this talking point.": "این نکته باز نشد.",
   "← Talking Points": "← نکات گفتگو",
+  "Reuse a past topic (with its poster)": "استفادهٔ دوباره از موضوع قبلی (با پوستر)",
+  "— choose a topic used before —": "— موضوعی که قبلاً استفاده شده را انتخاب کنید —",
+  "Topic poster (the design shown to students and parents)": "پوستر موضوع (دیزاینی که به شاگردان و والدین نشان داده می‌شود)",
+  "Change poster": "تغییر پوستر",
+  "Upload poster": "بارگذاری پوستر",
+  "Topic of the week": "موضوع هفته",
+  "View poster": "دیدن پوستر",
 };

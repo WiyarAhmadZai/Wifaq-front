@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { get as apiGet } from "../../api/axios";
 
 /**
  * Shared presentation bits for the Weekly Recognition screens — same pattern as
@@ -291,3 +292,45 @@ export function describeError(err, fallback = "Something went wrong.") {
  * that empty string as real data.
  */
 export const isEmptyPayload = (d) => d === "" || d === null || d === undefined;
+
+/** A poster opened full screen — tap anywhere to close. */
+export function PosterLightbox({ src, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+      <img src={src} alt="" className="max-h-full max-w-full rounded-xl shadow-2xl" />
+    </div>
+  );
+}
+
+/**
+ * This week's topic and its poster, for everyone — staff on the dashboard,
+ * parents and students on their own pages. Renders nothing without a topic.
+ */
+export function WeeklyTopicCard() {
+  const [topic, setTopic] = useState(null);
+  const [zoom, setZoom] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet("/weekly-recognition/current-topic").then((r) => alive && setTopic(r.data?.data || null)).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  if (!topic) return null;
+  return (
+    <div className="rounded-2xl p-4 mb-4 flex items-center gap-4 shadow-sm" style={{ background: GOLD_LT, border: `1px solid ${GOLD_SOFT}` }}>
+      {topic.poster_url && (
+        <button onClick={() => setZoom(true)} className="shrink-0">
+          <img src={topic.poster_url} alt="" className="h-24 w-24 object-cover rounded-xl border border-white shadow" />
+        </button>
+      )}
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold" style={{ color: GOLD_DEEP }}>Topic of the week</div>
+        <div className="text-base font-bold break-words" style={{ color: TEXT }} dir="auto">{topic.title}</div>
+        {topic.description && <p className="text-xs mt-0.5 line-clamp-2" style={{ color: MUTED }} dir="auto">{topic.description}</p>}
+        {topic.poster_url && <button onClick={() => setZoom(true)} className="text-[11px] font-semibold mt-1" style={{ color: TEAL }}>View poster</button>}
+      </div>
+      {zoom && <PosterLightbox src={topic.poster_url} onClose={() => setZoom(false)} />}
+    </div>
+  );
+}

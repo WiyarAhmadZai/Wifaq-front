@@ -6848,4 +6848,11 @@ export default {
   "🔗 Copy link": "🔗 Copy link",
   "Could not open this talking point.": "Could not open this talking point.",
   "← Talking Points": "← Talking Points",
+  "Reuse a past topic (with its poster)": "Reuse a past topic (with its poster)",
+  "— choose a topic used before —": "— choose a topic used before —",
+  "Topic poster (the design shown to students and parents)": "Topic poster (the design shown to students and parents)",
+  "Change poster": "Change poster",
+  "Upload poster": "Upload poster",
+  "Topic of the week": "Topic of the week",
+  "View poster": "View poster",
 };

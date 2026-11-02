@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { parentChildren, parentHomework, parentSubmitHomework, parentFeed, parentPerformance } from "../../api/gradebook";
 import { peekCache } from "../../api/axios";
+import { WeeklyTopicCard } from "../education/weeklyUi";
 import {
   Page, Header, Card, Segmented, Select, Pill, Btn, Banner, Textarea,
   EmptyState, Loading, LoadingRow, ICON, scoreColor, fmtScore, Avatar, mediaUrl,
@@ -99,6 +100,7 @@ export default function ParentGradebook() {
   return (
     <Page size="sm">
       <Header icon={ICON.book} title="My Children" subtitle="Homework & grades" />
+      <WeeklyTopicCard />
       {msg && <Banner onClose={() => setMsg("")}>{msg}</Banner>}
       {err && <Banner kind="error" onClose={() => setErr("")}>{err}</Banner>}
 

@@ -5,6 +5,7 @@ import { get, peekCache } from "../api/axios";
 
 import { fmtDate } from "../utils/formErrors";
 import QuestionnaireCompletionCard from "./questionnaire/QuestionnaireCompletionCard";
+import { WeeklyTopicCard } from "./education/weeklyUi";
 
 /**
  * Role-aware home dashboard. The backend returns only the sections the caller
@@ -102,6 +103,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50/60 px-4 py-5">
       <div className="max-w-full mx-auto">
+        <WeeklyTopicCard />
 
         {/* ─── Greeting hero ─── */}
         <div className="relative bg-gradient-to-br from-teal-700 via-teal-600 to-emerald-600 rounded-2xl px-5 py-5 mb-5 text-white shadow-md overflow-hidden">

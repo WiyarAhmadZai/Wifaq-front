@@ -6865,4 +6865,11 @@ export default {
   "🔗 Copy link": "🔗 لینک کاپي کړئ",
   "Could not open this talking point.": "دا ټکی خلاص نه شو.",
   "← Talking Points": "← د خبرو ټکي",
+  "Reuse a past topic (with its poster)": "پخوانی موضوع بیا وکاروئ (د پوستر سره)",
+  "— choose a topic used before —": "— مخکې کارول شوی موضوع وټاکئ —",
+  "Topic poster (the design shown to students and parents)": "د موضوع پوستر (هغه ډیزاین چې زده کوونکو او والدینو ته ښودل کیږي)",
+  "Change poster": "پوستر بدل کړئ",
+  "Upload poster": "پوستر اپلوډ کړئ",
+  "Topic of the week": "د اونۍ موضوع",
+  "View poster": "پوستر وګورئ",
 };

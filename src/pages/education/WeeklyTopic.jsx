@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post, put, peekCache } from "../../api/axios";
+import { get, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
-import { DIMS, DimPill, Spinner, describeError, TEAL } from "./weeklyUi";
+import { DIMS, DimPill, Spinner, describeError, TEAL, PosterLightbox } from "./weeklyUi";
 
 /** Monday-based start of the week containing `d`, as YYYY-MM-DD. */
 const weekBounds = (d = new Date()) => {
@@ -25,6 +25,10 @@ export default function WeeklyTopic() {
   const [form, setForm] = useState({
     title: "", description: "", week_start: "", week_end: "", primary_dimension: null,
   });
+  // The topic's designed poster: a new file, a past topic's poster reused, or removed.
+  const [poster, setPoster] = useState({ file: null, preview: null, from: null, remove: false });
+  const [library, setLibrary] = useState([]);
+  const [zoom, setZoom] = useState(null);
 
   const apply = useCallback((d) => {
     setData(d);
@@ -37,6 +41,9 @@ export default function WeeklyTopic() {
       week_end: t?.week_end || wb.end,
       primary_dimension: t?.primary_dimension || null,
     });
+    setPoster({ file: null, preview: null, from: null, remove: false });
+    // Past topics, to bring one (and its poster) back for a new week.
+    if (d?.can_select) get("/weekly-recognition/topics/library").then((r) => setLibrary(r.data?.data || [])).catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
@@ -59,16 +66,21 @@ export default function WeeklyTopic() {
     if (!form.title.trim()) return Swal.fire("Topic needed", "Give this week a topic title.", "info");
     setSaving(true);
     try {
-      const body = {
-        title: form.title.trim(),
-        description: form.description?.trim() || null,
-        week_start: form.week_start,
-        week_end: form.week_end,
-        primary_dimension: form.primary_dimension,
-      };
+      const body = new FormData();
+      body.append("title", form.title.trim());
+      if (form.description?.trim()) body.append("description", form.description.trim());
+      body.append("week_start", form.week_start);
+      body.append("week_end", form.week_end);
+      if (form.primary_dimension) body.append("primary_dimension", form.primary_dimension);
+      if (poster.file) body.append("poster", poster.file);
+      else if (poster.from) body.append("poster_from", poster.from);
+      else if (poster.remove) body.append("remove_poster", "1");
       // Editing the live topic keeps its id; anything else opens a new week.
-      if (topic && topic.status === "open") await put(`/weekly-recognition/topics/${topic.id}`, body);
-      else await post("/weekly-recognition/topics", body);
+      // (A file can't ride a real PUT, so the update is sent as POST + _method.)
+      if (topic && topic.status === "open") {
+        body.append("_method", "PUT");
+        await post(`/weekly-recognition/topics/${topic.id}`, body);
+      } else await post("/weekly-recognition/topics", body);
       Swal.fire({ icon: "success", title: "Topic saved", timer: 1200, showConfirmButton: false });
       load();
     } catch (err) {
@@ -146,6 +158,11 @@ export default function WeeklyTopic() {
                   </span>
                 )}
               </div>
+              {topic.poster_url && (
+                <button onClick={() => setZoom(topic.poster_url)} className="shrink-0">
+                  <img src={topic.poster_url} alt="" className="h-28 rounded-xl border-2 border-white/40 shadow" />
+                </button>
+              )}
               <div className="text-center">
                 <div className="text-3xl font-bold">{topic.nomination_count}</div>
                 <div className="text-[11px] opacity-85">nominations · {topic.student_count} students</div>
@@ -177,6 +194,21 @@ export default function WeeklyTopic() {
             <h3 className="text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider mb-3">
               {topic?.status === "open" ? "Edit this week's topic" : "Set a new week's topic"}
             </h3>
+
+            {library.length > 0 && (
+              <div className="mb-3">
+                <label className="block text-[10px] text-[#5A7A7E] mb-1">Reuse a past topic (with its poster)</label>
+                <select value="" onChange={(e) => {
+                  const t = library.find((x) => String(x.id) === e.target.value);
+                  if (!t) return;
+                  setForm((f) => ({ ...f, title: t.title, description: t.description || "", primary_dimension: t.primary_dimension || null }));
+                  setPoster({ file: null, preview: t.poster_url, from: t.poster_url ? t.id : null, remove: false });
+                }} className="w-full px-3 py-2 border border-[#D0E0E0] rounded-xl text-sm bg-white">
+                  <option value="">— choose a topic used before —</option>
+                  {library.map((t) => <option key={t.id} value={t.id}>{t.title} · {t.last_week}{t.times_used > 1 ? ` · ×${t.times_used}` : ""}</option>)}
+                </select>
+              </div>
+            )}
 
             <div className="grid md:grid-cols-4 gap-3">
               <div className="md:col-span-2">
@@ -211,6 +243,30 @@ export default function WeeklyTopic() {
             </div>
 
             <div className="mt-3">
+              <label className="block text-[10px] text-[#5A7A7E] mb-1">Topic poster (the design shown to students and parents)</label>
+              {(() => {
+                const shown = poster.preview || (!poster.remove && topic?.status === "open" ? topic?.poster_url : null);
+                return (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {shown && <img src={shown} alt="" className="h-24 rounded-lg border border-[#D0E0E0] cursor-zoom-in" onClick={() => setZoom(shown)} />}
+                    <label className="px-3 py-2 text-xs font-semibold rounded-xl border border-[#D0E0E0] cursor-pointer hover:bg-[#F4F8F8]" style={{ color: TEAL }}>
+                      {shown ? "Change poster" : "Upload poster"}
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setPoster({ file, preview: URL.createObjectURL(file), from: null, remove: false });
+                        e.target.value = "";
+                      }} />
+                    </label>
+                    {shown && (
+                      <button onClick={() => setPoster({ file: null, preview: null, from: null, remove: true })}
+                        className="text-xs font-semibold text-red-500">Remove</button>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="mt-3">
               <label className="block text-[10px] text-[#5A7A7E] mb-1">Short description (optional)</label>
               <textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="What should teachers be noticing this week?"
@@ -242,6 +298,8 @@ export default function WeeklyTopic() {
             Only the tarbiyati lead sets the weekly topic. You can still nominate students all week.
           </div>
         )}
+
+        {zoom && <PosterLightbox src={zoom} onClose={() => setZoom(null)} />}
 
         {/* Recent weeks */}
         {data?.recent_topics?.length > 0 && (

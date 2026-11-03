@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { get as apiGet } from "../../api/axios";
+import Swal from "sweetalert2";
+import { get as apiGet, post as apiPost } from "../../api/axios";
 
 /**
  * Shared presentation bits for the Weekly Recognition screens — same pattern as
@@ -366,6 +367,229 @@ export function TopicPlan({ topic, light = false }) {
         {open ? "Hide goals & daily activities" : "Show goals & daily activities"}
       </button>
       {open && <>{block("Weekly goals", goals)}{block("Daily activities", days)}</>}
+    </div>
+  );
+}
+
+/* ════ Daily activities: on each teacher's profile, evaluated on Thursday ════ */
+
+/** The five activity days of the school week; Thursday is for the evaluation. */
+const WEEKDAY_LABELS = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday"];
+const EVAL_STATUS = { done: "Done", partial: "Partly done", not_done: "Not done" };
+const STATUS_TONE = { done: "#2E7D5B", partial: "#9A7B12", not_done: "#B0546E" };
+
+const blankItems = () => Array.from({ length: 5 }, () => ({ status: "", rating: "", note: "" }));
+
+/** The evaluation form — the five activities, each with how it went, a 1–5 rating and a note. */
+function EvaluationForm({ data, onSaved, onCancel }) {
+  const prev = data.evaluation;
+  const [items, setItems] = useState(() => blankItems().map((b, i) => ({ ...b, ...(prev?.items?.[i] || {}), rating: prev?.items?.[i]?.rating || "" })));
+  const [classIds, setClassIds] = useState(prev?.class_ids || []);
+  const [note, setNote] = useState(prev?.note || "");
+  const [busy, setBusy] = useState(false);
+  const setItem = (i, patch) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const toggleClass = (id) => setClassIds((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+
+  const save = async () => {
+    if (!items.some((x) => x.status)) { Swal.fire("Evaluation", "Mark how at least one activity went.", "info"); return; }
+    setBusy(true);
+    try {
+      const r = await apiPost(`/weekly-recognition/topics/${data.topic.id}/evaluation`, {
+        class_ids: classIds, note,
+        items: items.map((x) => ({ status: x.status || null, rating: x.rating ? Number(x.rating) : null, note: x.note || null })),
+      });
+      Swal.fire({ icon: "success", title: "Evaluation saved.", timer: 1400, showConfirmButton: false });
+      onSaved(r.data?.data);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not save.", "error");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mt-3 space-y-3">
+      {data.classes?.length > 0 && (
+        <div>
+          <div className="text-[11px] font-bold mb-1" style={{ color: TEXT }}>Classes where you ran the activities</div>
+          <div className="flex flex-wrap gap-1.5">
+            {data.classes.map((c) => (
+              <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
+                className="px-2.5 py-1 rounded-lg text-xs border"
+                style={classIds.includes(c.id) ? { background: TEAL, color: "#fff", borderColor: TEAL } : { borderColor: BORDER, color: TEXT }}>
+                <span data-no-i18n>{c.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {data.activities.map((a, i) => (!a?.title && !a?.description) ? null : (
+        <div key={i} className="rounded-xl p-3" style={{ border: `1px solid ${BORDER}`, background: "#fff" }}>
+          <div className="text-xs font-bold" style={{ color: TEXT }} dir="auto">
+            <span>{WEEKDAY_LABELS[i]}</span>{a.title ? ": " : ""}<span data-no-i18n>{a.title}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {Object.entries(EVAL_STATUS).map(([k, label]) => (
+              <button key={k} type="button" onClick={() => setItem(i, { status: items[i].status === k ? "" : k })}
+                className="px-2.5 py-1 rounded-lg text-xs border"
+                style={items[i].status === k ? { background: STATUS_TONE[k], color: "#fff", borderColor: STATUS_TONE[k] } : { borderColor: BORDER, color: TEXT }}>
+                {label}
+              </button>
+            ))}
+            <span className="ms-2 text-[11px]" style={{ color: MUTED }}>Rating</span>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} type="button" onClick={() => setItem(i, { rating: items[i].rating === n ? "" : n })}
+                className="text-lg leading-none" style={{ color: n <= (items[i].rating || 0) ? GOLD : "#D0D7D8" }} title={String(n)}>★</button>
+            ))}
+          </div>
+          <input value={items[i].note || ""} onChange={(e) => setItem(i, { note: e.target.value })} dir="auto"
+            placeholder="How did the students respond? (optional)"
+            className="mt-2 w-full px-3 py-1.5 rounded-lg text-xs border focus:outline-none focus:ring-2 focus:ring-[#9CCBCB]" style={{ borderColor: BORDER }} />
+        </div>
+      ))}
+      <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} dir="auto"
+        placeholder="Overall note on this week's activities (optional)"
+        className="w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:ring-2 focus:ring-[#9CCBCB]" style={{ borderColor: BORDER }} />
+      <div className="flex gap-2">
+        <button type="button" onClick={save} disabled={busy}
+          className="px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-50" style={{ background: TEAL }}>
+          {busy ? "Saving…" : "Submit evaluation"}
+        </button>
+        {onCancel && <button type="button" onClick={onCancel} className="px-4 py-2 rounded-xl text-xs" style={{ color: MUTED }}>Cancel</button>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * On a teacher's own profile: today's activity of the weekly topic, to run in
+ * their classes, and on Thursday the evaluation of the week's five activities.
+ * Renders nothing for someone who is not a teacher or when the week has none.
+ */
+export function TeacherDailyActivity() {
+  const [data, setData] = useState(null);
+  const [form, setForm] = useState(false);
+  const [all, setAll] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet("/weekly-recognition/my-activity", { cache: false }).then((r) => alive && setData(r.data?.data || null)).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  if (!data) return null;
+  const { today, activities, evaluation } = data;
+  const isThursday = today === "evaluation";
+  const act = typeof today === "number" ? activities[today] : null;
+
+  return (
+    <div className="rounded-2xl p-4 shadow-sm" style={{ background: GOLD_LT, border: `1px solid ${GOLD_SOFT}` }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: GOLD_DEEP }}>Topic of the week</div>
+          <div className="text-sm font-black" style={{ color: TEXT }} dir="auto" data-no-i18n>{data.topic.title}</div>
+        </div>
+        {evaluation
+          ? <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">✓ <span>Evaluation submitted</span></span>
+          : isThursday && <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">Evaluation due today</span>}
+      </div>
+
+      {act && (act.title || act.description) && (
+        <div className="mt-3 rounded-xl bg-white p-3" style={{ border: `1px solid ${GOLD_SOFT}` }}>
+          <div className="text-[11px] font-bold" style={{ color: GOLD_DEEP }}>📌 <span>Today's activity</span> · <span>{WEEKDAY_LABELS[today]}</span></div>
+          <div className="text-sm font-bold mt-1" style={{ color: TEXT }} dir="auto" data-no-i18n>{act.title}</div>
+          {act.description && <div className="text-xs mt-1 whitespace-pre-line" style={{ color: MUTED }} dir="auto" data-no-i18n>{act.description}</div>}
+          <div className="text-[11px] mt-2" style={{ color: MUTED }}>Run this activity in your classes today.</div>
+        </div>
+      )}
+      {isThursday && !evaluation && !form && (
+        <div className="mt-3 text-xs" style={{ color: TEXT }}>Today is Thursday — evaluate how this week's five activities went in your classes.</div>
+      )}
+
+      <div className="flex flex-wrap gap-3 mt-3">
+        <button type="button" onClick={() => setAll((v) => !v)} className="text-[11px] font-semibold underline" style={{ color: TEAL }}>
+          {all ? "Hide the week's activities" : "Show the week's activities"}
+        </button>
+        {!form && (isThursday || evaluation) && (
+          <button type="button" onClick={() => setForm(true)} className="text-[11px] font-bold px-3 py-1 rounded-lg text-white" style={{ background: TEAL }}>
+            {evaluation ? "Edit evaluation" : "Evaluate the activities"}
+          </button>
+        )}
+        {!form && !isThursday && !evaluation && (
+          <button type="button" onClick={() => setForm(true)} className="text-[11px] font-semibold underline" style={{ color: MUTED }}>Evaluate early</button>
+        )}
+      </div>
+      {all && (
+        <div className="mt-2 space-y-1">
+          {activities.map((a, i) => (a?.title || a?.description) && (
+            <div key={i} className="text-xs" dir="auto">
+              <span className="font-semibold" style={{ color: today === i ? GOLD_DEEP : TEXT }}>{WEEKDAY_LABELS[i]}: </span>
+              <span className="font-semibold" style={{ color: TEXT }} data-no-i18n>{a.title}</span>
+              {a.description && <div className="whitespace-pre-line" style={{ color: MUTED }} data-no-i18n>{a.description}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {form && <EvaluationForm data={data} onCancel={() => setForm(false)} onSaved={(e) => { setData((d) => ({ ...d, evaluation: e })); setForm(false); }} />}
+    </div>
+  );
+}
+
+/** For the tarbiyati lead: every teacher's evaluation of one week, and who has not sent theirs. */
+export function EvaluationsModal({ topic, onClose }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    apiGet(`/weekly-recognition/topics/${topic.id}/evaluations`, { cache: false })
+      .then((r) => setData(r.data?.data || { submitted: [], missing: [], activities: [] }))
+      .catch(() => setData({ submitted: [], missing: [], activities: [] }));
+  }, [topic.id]);
+
+  return (
+    <div className="fixed inset-0 z-[900] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-3xl max-h-[88vh] overflow-y-auto bg-white rounded-2xl shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-white flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: BORDER }}>
+          <div>
+            <div className="text-sm font-black" style={{ color: TEXT }}>Activity evaluations</div>
+            <div className="text-[11px]" style={{ color: MUTED }} dir="auto" data-no-i18n>{topic.title}</div>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500">✕</button>
+        </div>
+        {!data ? <Spinner /> : (
+          <div className="p-5 space-y-4">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"><span>Submitted</span>: <span data-no-i18n>{data.submitted.length}</span></span>
+              <span className="px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200"><span>Not submitted</span>: <span data-no-i18n>{data.missing.length}</span></span>
+            </div>
+            {data.submitted.length === 0 && <p className="text-xs" style={{ color: MUTED }}>No teacher has submitted an evaluation for this week yet.</p>}
+            {data.submitted.map((e) => (
+              <div key={e.id} className="rounded-xl p-3" style={{ border: `1px solid ${BORDER}` }}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-bold" style={{ color: TEXT }} data-no-i18n>{e.teacher}</div>
+                  {e.classes?.length > 0 && <div className="text-[11px]" style={{ color: MUTED }} data-no-i18n>{e.classes.join("، ")}</div>}
+                </div>
+                <div className="mt-2 grid gap-1">
+                  {e.items.map((it, i) => (it?.status || it?.rating || it?.note) && (
+                    <div key={i} className="text-xs flex flex-wrap items-center gap-2" dir="auto">
+                      <span className="font-semibold" style={{ color: TEXT }}>{WEEKDAY_LABELS[i]}</span>
+                      {data.activities[i]?.title && <span style={{ color: MUTED }} data-no-i18n>({data.activities[i].title})</span>}
+                      {it.status && <span className="px-2 py-0.5 rounded-full text-white text-[10px] font-bold" style={{ background: STATUS_TONE[it.status] }}>{EVAL_STATUS[it.status]}</span>}
+                      {it.rating && <span style={{ color: GOLD }} data-no-i18n>{"★".repeat(it.rating)}</span>}
+                      {it.note && <span style={{ color: TEXT }} data-no-i18n>— {it.note}</span>}
+                    </div>
+                  ))}
+                </div>
+                {e.note && <div className="mt-2 text-xs italic" style={{ color: MUTED }} dir="auto" data-no-i18n>{e.note}</div>}
+              </div>
+            ))}
+            {data.missing.length > 0 && (
+              <div>
+                <div className="text-[11px] font-bold mb-1" style={{ color: MUTED }}>Teachers who have not submitted yet</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.missing.map((n) => <span key={n} className="px-2 py-0.5 rounded-full text-[11px] bg-gray-100 text-gray-700" data-no-i18n>{n}</span>)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

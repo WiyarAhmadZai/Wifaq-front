@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
 import ProfilePosts from "../components/profile/ProfilePosts";
+import { TeacherDailyActivity } from "./education/weeklyUi";
 import ProfileInsights from "../components/profile/ProfileInsights";
 import ImageLightbox from "../components/user/ImageLightbox";
 import WelcomeLetterDownload from "../components/WelcomeLetterDownload";
@@ -258,6 +259,9 @@ export default function MyProfile() {
                 </p>
               </div>
             )}
+
+            {/* A teacher's own profile: today's weekly-topic activity, and Thursday's evaluation. */}
+            {isSelf && <TeacherDailyActivity />}
 
             {/* Their posts — Instagram-style grid. */}
             <ProfilePosts userId={u.id} isSelf={isSelf} />

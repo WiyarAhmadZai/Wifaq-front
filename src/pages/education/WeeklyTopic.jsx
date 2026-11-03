@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
-import { DIMS, DimPill, Spinner, describeError, TEAL, PosterLightbox, TopicPlan, GOAL_LABELS, DAY_LABELS } from "./weeklyUi";
+import { DIMS, DimPill, Spinner, describeError, TEAL, PosterLightbox, TopicPlan, GOAL_LABELS, DAY_LABELS, EvaluationsModal } from "./weeklyUi";
 
 /** Monday-based start of the week containing `d`, as YYYY-MM-DD. */
 /* A fixed-length list of {title, description} — 3 goals, 5 daily activities. */
@@ -89,6 +89,7 @@ export default function WeeklyTopic() {
 
   const topic = data?.topic;
   const canSelect = Boolean(data?.can_select);
+  const [evalTopic, setEvalTopic] = useState(null);
 
   const removeTopic = async (t) => {
     const ok = await Swal.fire({
@@ -352,6 +353,7 @@ export default function WeeklyTopic() {
         )}
 
         {zoom && <PosterLightbox src={zoom} onClose={() => setZoom(null)} />}
+        {evalTopic && <EvaluationsModal topic={evalTopic} onClose={() => setEvalTopic(null)} />}
 
         {/* Recent weeks */}
         {data?.recent_topics?.length > 0 && (
@@ -370,6 +372,12 @@ export default function WeeklyTopic() {
                       <button onClick={() => navigate(`/education/weekly-recognition/review?topic_id=${t.id}`)}
                         className="text-[11px] font-semibold" style={{ color: TEAL }}>
                         Review →
+                      </button>
+                    )}
+                    {canSelect && (
+                      <button onClick={() => setEvalTopic(t)}
+                        className="text-[11px] font-semibold px-2 py-0.5 rounded-lg border border-[#D0E0E0] text-[#0A3A3E] hover:bg-[#F4F8F8]">
+                        📋 Evaluations
                       </button>
                     )}
                     {canSelect && (

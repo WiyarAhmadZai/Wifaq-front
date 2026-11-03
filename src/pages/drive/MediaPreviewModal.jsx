@@ -2,27 +2,41 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fileObjectUrl, previewKind, embedUrl, KIND_LABEL, copyItemLink } from "./mediaPreview";
 import { fileRawBlob } from "../../api/drive";
 
+/** The file's bytes: the signed url first, the authenticated blob if that fetch is refused. */
+async function fileBytes(item, src) {
+  try {
+    const r = await fetch(src);
+    if (!r.ok) throw new Error(String(r.status));
+    return await r.blob();
+  } catch {
+    return (await fileRawBlob(item.id)).data;
+  }
+}
+
+/** Mostly Persian / Pashto / Arabic letters? */
+const isRtlText = (t) => {
+  const rtl = (t.match(/[\u0590-\u08FF\uFB1D-\uFEFC]/g) || []).length;
+  const ltr = (t.match(/[A-Za-z]/g) || []).length;
+  return rtl > 0 && rtl >= ltr;
+};
+
 /** A Word (.docx) file drawn in the browser — the bytes never leave the school's server. */
 function WordPreview({ item, src }) {
   const box = useRef(null);
   const [state, setState] = useState("loading");
+  const [rtl, setRtl] = useState(false);
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        // The signed url first; the authenticated blob if that fetch is refused.
-        let blob;
-        try {
-          const r = await fetch(src);
-          if (!r.ok) throw new Error(String(r.status));
-          blob = await r.blob();
-        } catch {
-          blob = (await fileRawBlob(item.id)).data;
-        }
+        const blob = await fileBytes(item, src);
         const { renderAsync } = await import("docx-preview");
         if (!alive || !box.current) return;
         box.current.innerHTML = "";
         await renderAsync(blob, box.current, undefined, { inWrapper: true, ignoreLastRenderedPageBreak: true });
+        // A Dari / Pashto document reads right to left, even when Word did not
+        // mark every paragraph as such.
+        if (alive) setRtl(isRtlText(box.current.textContent || ""));
         if (alive) setState("ok");
       } catch {
         if (alive) setState("error");
@@ -34,9 +48,34 @@ function WordPreview({ item, src }) {
     <div className="w-full h-full overflow-auto bg-gray-200">
       {state === "loading" && <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-9 w-9 border-4 border-gray-300 border-t-teal-500" /></div>}
       {state === "error" && <p className="text-sm text-red-600 text-center py-10">Could not show this Word file. Download it instead.</p>}
-      <div ref={box} />
+      <div ref={box} dir={rtl ? "rtl" : undefined} className={rtl ? "docx-rtl" : undefined} />
+      {rtl && <style>{`.docx-rtl section.docx, .docx-rtl section.docx p, .docx-rtl section.docx td { direction: rtl; }`}</style>}
     </div>
   );
+}
+
+/**
+ * A PDF in the browser's own viewer, from a blob made here. Framing the signed
+ * url itself fails when the server sends it with the wrong type or forbids
+ * framing; a blob url of type application/pdf always opens inline.
+ */
+function PdfPreview({ item, src }) {
+  const [url, setUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    let made = null;
+    fileBytes(item, src)
+      .then((b) => {
+        made = URL.createObjectURL(new Blob([b], { type: "application/pdf" }));
+        if (alive) setUrl(made); else URL.revokeObjectURL(made);
+      })
+      .catch(() => alive && setFailed(true));
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [item, src]);
+  if (failed) return <iframe src={src} title={item.name} className="w-full h-full border-0 bg-white" />;
+  if (!url) return <div className="flex justify-center py-10 w-full"><div className="animate-spin rounded-full h-9 w-9 border-4 border-white/20 border-t-teal-400" /></div>;
+  return <iframe src={url} title={item.name} className="w-full h-full border-0 bg-white" />;
 }
 
 
@@ -151,7 +190,7 @@ export default function MediaPreviewModal({ item, onClose, onDownload }) {
       </Frame>
     );
   } else if (kind === "pdf") {
-    body = <iframe src={src} title={item.name} className="w-full h-full border-0 bg-white" />;
+    body = <PdfPreview item={item} src={src} />;
   } else if (/\.docx$/i.test(item.name || "")) {
     body = <WordPreview item={item} src={src} />;
   } else {

@@ -7008,4 +7008,9 @@ export default {
   "No teacher has submitted an evaluation for this week yet.": "هنوز هیچ استادی ارزیابی این هفته را ارسال نکرده است.",
   "Teachers who have not submitted yet": "استادانی که هنوز ارسال نکرده‌اند",
   "📋 Evaluations": "📋 ارزیابی‌ها",
+  "Student profiles: all classes": "شناسنامه شاگردان: همه صنف‌ها",
+  "Student profiles: only the classes they teach": "شناسنامه شاگردان: فقط صنف‌هایی که درس می‌دهد",
+  "Student profiles: only their own homeroom class": "شناسنامه شاگردان: فقط صنف نگرانی خودش",
+  "This student is outside the classes you have access to.": "این شاگرد خارج از صنف‌هایی است که به آن‌ها دسترسی دارید.",
+  "This evaluation is closed — it is open only during the topic's own week.": "این ارزیابی بسته است — فقط در هفته خود موضوع باز است.",
 };

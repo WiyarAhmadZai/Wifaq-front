@@ -289,6 +289,8 @@ export default function Drive() {
     if (isDoc(f)) { openDocument(f); return; }
     if (f.is_link) { window.open(f.external_url, "_blank", "noopener"); return; }
     if (["image", "video", "audio", "pdf"].includes(previewKind(f))) { setPreview(f); return; }
+    // A Word .docx is drawn right here in the viewer (right-to-left for Dari / Pashto).
+    if (/\.docx$/i.test(f.name || "")) { setPreview(f); return; }
     // Word, Excel, PowerPoint: hand the file to the app on this machine. The
     // file is never sent to an online viewer — if Office is not installed the
     // callback saves it instead and the reader opens it however they like.

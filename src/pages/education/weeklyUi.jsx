@@ -521,7 +521,9 @@ export function TeacherDailyActivity() {
         <div className="mt-2 space-y-1">
           {activities.map((a, i) => (a?.title || a?.description) && (
             <div key={i} className="text-xs" dir="auto">
-              <span className="font-semibold" style={{ color: today === i ? GOLD_DEEP : TEXT }}>{WEEKDAY_LABELS[i]}: </span>
+              <span className="font-semibold" style={{ color: today === i ? GOLD_DEEP : TEXT }}>{WEEKDAY_LABELS[i]}</span>
+              {data.dates?.[i] && <span className="text-[10px]" style={{ color: MUTED }} data-no-i18n> ({data.dates[i]})</span>}
+              <span style={{ color: TEXT }}>: </span>
               <span className="font-semibold" style={{ color: TEXT }} data-no-i18n>{a.title}</span>
               {a.description && <div className="whitespace-pre-line" style={{ color: MUTED }} data-no-i18n>{a.description}</div>}
             </div>

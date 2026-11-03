@@ -9,6 +9,13 @@ import { useMemo, useState } from "react";
  *   onChange: (newSet: Set<string>) => void
  *   readOnly: boolean (optional)
  */
+/* Permissions whose name alone does not say what they do. */
+const PERMISSION_LABELS = {
+  "student-profiles.view-all": "Student profiles: all classes",
+  "student-profiles.scope-taught-classes": "Student profiles: only the classes they teach",
+  "student-profiles.scope-homeroom": "Student profiles: only their own homeroom class",
+};
+
 export default function PermissionPicker({ permissions, value, onChange, readOnly = false }) {
   const [filter, setFilter] = useState("");
 
@@ -125,9 +132,9 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
                       className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
                     />
                     <span className="text-gray-700 break-all">
-                      {p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")
+                      {PERMISSION_LABELS[p.name] || (p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")
                         ? "Receive section notifications"
-                        : p.name.split(".").slice(1).join(".") || p.name}
+                        : p.name.split(".").slice(1).join(".") || p.name)}
                     </span>
                   </label>
                 ))}

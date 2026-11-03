@@ -6991,4 +6991,9 @@ export default {
   "No teacher has submitted an evaluation for this week yet.": "No teacher has submitted an evaluation for this week yet.",
   "Teachers who have not submitted yet": "Teachers who have not submitted yet",
   "📋 Evaluations": "📋 Evaluations",
+  "Student profiles: all classes": "Student profiles: all classes",
+  "Student profiles: only the classes they teach": "Student profiles: only the classes they teach",
+  "Student profiles: only their own homeroom class": "Student profiles: only their own homeroom class",
+  "This student is outside the classes you have access to.": "This student is outside the classes you have access to.",
+  "This evaluation is closed — it is open only during the topic's own week.": "This evaluation is closed — it is open only during the topic's own week.",
 };

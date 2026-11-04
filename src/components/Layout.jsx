@@ -1838,8 +1838,11 @@ export default function Layout() {
     // De-duplicate: a few pages appear under more than one menu.
     const seen = new Set();
     return out.filter((r) => (seen.has(r.path) ? false : seen.add(r.path)));
+    // Rebuilt whenever the signed-in user's permissions reload (authUser is a
+    // fresh object each time), so a page just granted shows up in search too —
+    // keyed on the id alone it kept the list from before the grant.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, isSuperAdmin]);
+  }, [authUser, isSuperAdmin]);
 
   const closeSidebar = () => setSidebarOpen(false);
 

@@ -9,6 +9,7 @@ export const postsApi = {
   stories: () => get("/posts/stories", { cache: false }),
   show: (id) => get(`/posts/${id}`, { cache: false }),
   publicShow: (id) => get(`/public/posts/${id}`, { cache: false }),
+  publicComment: (id, name, body, parentId = null) => post(`/public/posts/${id}/comments`, { name, body, parent_id: parentId }),
   create: (formData, onUploadProgress) =>
     post("/posts", formData, { headers: { "Content-Type": "multipart/form-data" }, onUploadProgress }),
   update: (id, data) => put(`/posts/${id}`, data),

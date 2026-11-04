@@ -6996,4 +6996,8 @@ export default {
   "Student profiles: only their own homeroom class": "Student profiles: only their own homeroom class",
   "This student is outside the classes you have access to.": "This student is outside the classes you have access to.",
   "This evaluation is closed — it is open only during the topic's own week.": "This evaluation is closed — it is open only during the topic's own week.",
+  "Guest": "Guest",
+  "Please write your name.": "Please write your name.",
+  "Write your name so the author knows who is commenting.": "Write your name so the author knows who is commenting.",
+  "Sign in to like and see more posts.": "Sign in to like and see more posts.",
 };

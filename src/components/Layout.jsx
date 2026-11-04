@@ -1348,8 +1348,23 @@ function LazyChatDrawer() {
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasPermission, isSuperAdmin, hasRole } = useAuth();
+  const { hasPermission, isSuperAdmin, hasRole, user: authUser } = useAuth();
   const portalLabel = usePortalLabel();
+
+  /* A fresh visit — a new tab, or the browser opened again while still signed
+   * in — starts on the Posts feed. Only once per tab: after that "/" is the
+   * dashboard as usual, and a link to any other page opens that page. */
+  const landedRef = useRef(false);
+  useEffect(() => {
+    if (!authUser || landedRef.current) return;
+    landedRef.current = true;
+    let landed = true;
+    try {
+      landed = sessionStorage.getItem("wen:landed") === "1";
+      sessionStorage.setItem("wen:landed", "1");
+    } catch { /* storage blocked: leave the page as it is */ }
+    if (!landed && location.pathname === "/" && hasPermission("posts.view")) navigate("/posts", { replace: true });
+  }, [authUser, location.pathname, hasPermission, navigate]);
   const [openMenu, setOpenMenu] = useState([]);
   const [openSubMenu, setOpenSubMenu] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);

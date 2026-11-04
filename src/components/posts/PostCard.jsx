@@ -76,8 +76,30 @@ function MediaGrid({ media, onOpen }) {
   );
 }
 
+/* A visitor's name, asked once and remembered on this device. */
+const GUEST_KEY = "wen:guest-name";
+const readGuestName = () => { try { return localStorage.getItem(GUEST_KEY) || ""; } catch { return ""; } };
+const saveGuestName = (n) => { try { localStorage.setItem(GUEST_KEY, n); } catch { /* private mode */ } };
+
+/** Send a comment — signed in normally, or as a named guest on a public post. */
+async function sendComment({ postId, text, parentId = null, guest, guestName }) {
+  if (guest) {
+    saveGuestName(guestName.trim());
+    return postsApi.publicComment(postId, guestName.trim(), text, parentId);
+  }
+  return postsApi.comment(postId, text, parentId);
+}
+
+function GuestNameInput({ value, onChange }) {
+  return (
+    <input value={value} onChange={(e) => onChange(e.target.value)} dir="auto" maxLength={80}
+      placeholder="Your name"
+      className="w-full sm:w-40 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300" />
+  );
+}
+
 /* ════════════ comments: replies, and replies to replies ════════════ */
-function CommentNode({ node, depth, postId, readOnly, onTree }) {
+function CommentNode({ node, depth, postId, readOnly, guest, onTree }) {
   const [replying, setReplying] = useState(false);
   // Reactions live on the comment itself, so reacting never reloads the thread.
   const [rx, setRx] = useState({ reactions: node.reactions || {}, mine: node.my_reaction || null });
@@ -91,6 +113,7 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
   };
   const rxTotal = Object.values(rx.reactions).reduce((a, b) => a + b, 0);
   const [text, setText] = useState("");
+  const [guestName, setGuestName] = useState(readGuestName);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -119,9 +142,10 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
 
   const reply = async () => {
     if (!text.trim()) return;
+    if (guest && guestName.trim().length < 2) { Swal.fire("", "Please write your name.", "info"); return; }
     setBusy(true);
     try {
-      const r = await postsApi.comment(postId, text.trim(), node.id);
+      const r = await sendComment({ postId, text: text.trim(), parentId: node.id, guest, guestName });
       onTree(r.data.data, r.data.comments_count);
       setText(""); setReplying(false);
     } catch (e) {
@@ -139,7 +163,7 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
   return (
     <div className={depth > 0 ? "mt-2" : "mt-3"}>
       <div className="flex gap-2">
-        <Avatar user={node.author} size={depth > 0 ? 28 : 34} linkable={!readOnly} />
+        <Avatar user={node.author} size={depth > 0 ? 28 : 34} linkable={!readOnly && !node.author?.guest} />
         <div className="min-w-0 flex-1">
           {node.is_pinned && <div className="text-[11px] font-semibold text-amber-700 mb-0.5 ps-1">📌 <span>Pinned by author</span></div>}
           {editing ? (
@@ -153,7 +177,10 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
           ) : (
           <div className="group flex items-start gap-1">
           <div className="relative inline-block max-w-full rounded-2xl bg-gray-100 px-3 py-2">
-            <div className="text-[12px] font-semibold text-gray-800" data-no-i18n>{node.author?.name}</div>
+            <div className="text-[12px] font-semibold text-gray-800">
+              <span data-no-i18n>{node.author?.name}</span>
+              {node.author?.guest && <span className="ms-1 text-[10px] font-normal text-gray-400">· <span>Guest</span></span>}
+            </div>
             <div className="text-sm text-gray-800 whitespace-pre-wrap break-words" dir="auto" data-no-i18n>{node.body}</div>
             {rxTotal > 0 && (
               <span className="absolute -bottom-3 end-1 flex items-center gap-0.5 rounded-full bg-white shadow ring-1 ring-gray-100 px-1.5 py-0.5 text-[11px]" data-no-i18n>
@@ -195,10 +222,11 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
                 )}
               </span>
             )}
-            {!readOnly && <button type="button" onClick={() => setReplying((v) => !v)} className="font-semibold hover:text-teal-700">Reply</button>}
+            {(!readOnly || guest) && <button type="button" onClick={() => setReplying((v) => !v)} className="font-semibold hover:text-teal-700">Reply</button>}
           </div>
           {replying && (
-            <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+              {guest && <GuestNameInput value={guestName} onChange={setGuestName} />}
               <input value={text} onChange={(e) => setText(e.target.value)} autoFocus dir="auto"
                 onKeyDown={(e) => { if (e.key === "Enter") reply(); }}
                 placeholder={`Reply to ${node.author?.name || ""}…`}
@@ -211,7 +239,7 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
             // Deep threads keep indenting a little, then stop, so they stay readable.
             <div className={depth < 3 ? "ps-3 border-s-2 border-gray-100" : ""}>
               {node.replies.map((r) => (
-                <CommentNode key={r.id} node={r} depth={depth + 1} postId={postId} readOnly={readOnly} onTree={onTree} />
+                <CommentNode key={r.id} node={r} depth={depth + 1} postId={postId} readOnly={readOnly} guest={guest} onTree={onTree} />
               ))}
             </div>
           )}
@@ -221,22 +249,24 @@ function CommentNode({ node, depth, postId, readOnly, onTree }) {
   );
 }
 
-export function CommentSection({ postId, initial = null, readOnly = false, onCount }) {
+export function CommentSection({ postId, initial = null, readOnly = false, guest = false, onCount }) {
   const [tree, setTree] = useState(initial);
   const [text, setText] = useState("");
+  const [guestName, setGuestName] = useState(readGuestName);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (initial) return;
+    if (initial || guest) return;
     postsApi.comments(postId).then((r) => setTree(r.data.data || [])).catch(() => setTree([]));
-  }, [postId, initial]);
+  }, [postId, initial, guest]);
 
   const onTree = (t, count) => { setTree(t); onCount?.(count); };
   const send = async () => {
     if (!text.trim()) return;
+    if (guest && guestName.trim().length < 2) { Swal.fire("", "Please write your name.", "info"); return; }
     setBusy(true);
     try {
-      const r = await postsApi.comment(postId, text.trim());
+      const r = await sendComment({ postId, text: text.trim(), guest, guestName });
       onTree(r.data.data, r.data.comments_count);
       setText("");
     } catch (e) {
@@ -246,8 +276,12 @@ export function CommentSection({ postId, initial = null, readOnly = false, onCou
 
   return (
     <div className="px-4 pb-4 pt-1 border-t border-gray-100">
-      {!readOnly && (
-        <div className="flex items-center gap-2 mt-3">
+      {guest && (
+        <p className="text-[11px] text-gray-500 mt-3">Write your name so the author knows who is commenting.</p>
+      )}
+      {(!readOnly || guest) && (
+        <div className={`flex flex-wrap items-center gap-2 ${guest ? "mt-1.5" : "mt-3"}`}>
+          {guest && <GuestNameInput value={guestName} onChange={setGuestName} />}
           <input value={text} onChange={(e) => setText(e.target.value)} dir="auto"
             onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Write a comment…"
             className="flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300" />
@@ -257,7 +291,7 @@ export function CommentSection({ postId, initial = null, readOnly = false, onCou
       )}
       {tree === null ? <p className="text-xs text-gray-400 mt-3">Loading…</p>
         : tree.length === 0 ? <p className="text-xs text-gray-400 mt-3">No comments yet.</p>
-        : tree.map((n) => <CommentNode key={n.id} node={n} depth={0} postId={postId} readOnly={readOnly} onTree={onTree} />)}
+        : tree.map((n) => <CommentNode key={n.id} node={n} depth={0} postId={postId} readOnly={readOnly} guest={guest} onTree={onTree} />)}
     </div>
   );
 }
@@ -291,7 +325,7 @@ function LikersModal({ postId, onClose }) {
 }
 
 /* ════════════ the card ════════════ */
-export default function PostCard({ post, canPin = false, readOnly = false, defaultComments = false, onChanged, onRemoved }) {
+export default function PostCard({ post, canPin = false, readOnly = false, guestComments = false, defaultComments = false, onChanged, onRemoved }) {
   const [p, setP] = useState(post);
   const [viewer, setViewer] = useState(null);
   const [showComments, setShowComments] = useState(defaultComments);
@@ -423,7 +457,7 @@ export default function PostCard({ post, canPin = false, readOnly = false, defau
       </div>
 
       {showComments && (
-        <CommentSection postId={p.id} initial={p.comments || null} readOnly={readOnly}
+        <CommentSection postId={p.id} initial={p.comments || null} readOnly={readOnly} guest={guestComments}
           onCount={(count) => setP((x) => ({ ...x, comments_count: count }))} />
       )}
 

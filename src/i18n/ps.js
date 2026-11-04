@@ -7013,4 +7013,8 @@ export default {
   "Student profiles: only their own homeroom class": "د زده کوونکو شناسنامه: یوازې د خپل نګرانۍ صنف",
   "This student is outside the classes you have access to.": "دا زده کوونکی د هغو صنفونو څخه بهر دی چې تاسو ورته لاسرسی لرئ.",
   "This evaluation is closed — it is open only during the topic's own week.": "دا ارزونه تړل شوې — یوازې د موضوع په خپله اونۍ کې خلاصه وي.",
+  "Guest": "مېلمه",
+  "Please write your name.": "مهرباني وکړئ خپل نوم ولیکئ.",
+  "Write your name so the author knows who is commenting.": "خپل نوم ولیکئ چې لیکوال پوه شي څوک تبصره کوي.",
+  "Sign in to like and see more posts.": "د خوښولو او نورو پوسټونو لیدلو لپاره ننوځئ.",
 };

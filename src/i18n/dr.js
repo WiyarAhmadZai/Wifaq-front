@@ -7013,4 +7013,8 @@ export default {
   "Student profiles: only their own homeroom class": "شناسنامه شاگردان: فقط صنف نگرانی خودش",
   "This student is outside the classes you have access to.": "این شاگرد خارج از صنف‌هایی است که به آن‌ها دسترسی دارید.",
   "This evaluation is closed — it is open only during the topic's own week.": "این ارزیابی بسته است — فقط در هفته خود موضوع باز است.",
+  "Guest": "مهمان",
+  "Please write your name.": "لطفاً نام خود را بنویسید.",
+  "Write your name so the author knows who is commenting.": "نام خود را بنویسید تا نویسنده بداند چه کسی نظر می‌دهد.",
+  "Sign in to like and see more posts.": "برای پسندیدن و دیدن پست‌های بیشتر وارد شوید.",
 };

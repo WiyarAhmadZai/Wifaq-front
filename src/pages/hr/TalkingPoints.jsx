@@ -33,7 +33,12 @@ const fmtDay = (iso) => {
 };
 
 export default function TalkingPoints() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, hasPermission, user: me } = useAuth();
+  // Granted in Users & Access: create = write and edit one's own entries,
+  // manage = see and edit every entry. The super-admin holds both.
+  const canWrite = isSuperAdmin || hasPermission("talking-points.create") || hasPermission("talking-points.manage");
+  const canManage = isSuperAdmin || hasPermission("talking-points.manage");
+  const canEditTp = (tp) => canManage || (canWrite && Number(tp?.author_id) === Number(me?.id));
   const [tab, setTab] = useState("open");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +130,7 @@ export default function TalkingPoints() {
         <div className="max-w-3xl mx-auto space-y-3">
           <button onClick={closeView} className="text-xs font-semibold text-teal-700 hover:underline">← Talking Points</button>
           {openTp ? (
-            <ViewModal key={openTp.id} asPage tp={openTp} onClose={closeView} onChanged={refresh} actions={isSuperAdmin && (<>
+            <ViewModal key={openTp.id} asPage tp={openTp} onClose={closeView} onChanged={refresh} actions={canEditTp(openTp) && (<>
               <button onClick={() => setModal({ mode: "edit", tp: openTp })} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Edit</button>
               <button onClick={() => toggleComplete(openTp)} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">{openTp.status === "completed" ? "Reopen" : "Complete"}</button>
               {!openTp.task_id && <button onClick={() => setConvertTarget(openTp)} className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">Convert to task or appointment</button>}
@@ -133,11 +138,11 @@ export default function TalkingPoints() {
           ) : <Spinner />}
         </div>
       ) : (<>
-      <PageHeader title="Talking Points" subtitle={isSuperAdmin
+      <PageHeader title="Talking Points" subtitle={canWrite
         ? "Notes, reminders and talking points — one place for all of them"
         : "Talking points shared with you"}
         icon="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-        actions={isSuperAdmin ? (
+        actions={canWrite ? (
           <button onClick={() => setModal({ mode: "new" })}
             className="px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700">
             + New Talking Point
@@ -176,7 +181,7 @@ export default function TalkingPoints() {
         <EmptyState title="No talking points match" description="Try another person or search, or switch to All." />
       ) : rows.length === 0 ? (
         <EmptyState title={tab === "open" ? "No open talking points" : "Nothing completed yet"}
-          description={isSuperAdmin
+          description={canWrite
             ? "Start one with “New Talking Point” — notes, reminders or the points from a meeting."
             : "Nothing has been shared with you here yet."} />
       ) : (
@@ -204,7 +209,7 @@ export default function TalkingPoints() {
                   </div>
                   <div className="text-[11px] text-gray-400 mt-0.5">
                     <span>{fmtDay(tp.written_on)}</span>
-                    {tp.author?.name && <span data-no-i18n> · {isSuperAdmin ? "by" : "shared by"} {tp.author.name}</span>}
+                    {tp.author?.name && <span data-no-i18n> · {canManage ? "by" : "shared by"} {tp.author.name}</span>}
                     {tp.completed_at && <span> · completed {fmtDay(tp.completed_at.slice(0, 10))}</span>}
                   </div>
                   {tp.body && (
@@ -235,11 +240,11 @@ export default function TalkingPoints() {
                     className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">
                     💬 Reply{tp.replies?.length ? ` (${tp.replies.length})` : ""}
                   </button>
-                  {isSuperAdmin && (
+                  {canEditTp(tp) && (
                     <button onClick={() => setModal({ mode: "edit", tp })}
                       className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Edit</button>
                   )}
-                  {isSuperAdmin && (
+                  {canEditTp(tp) && (
                     <button onClick={() => {
                       Swal.fire({
                         title: tp.status === "completed" ? "Reopen?" : "Mark completed?",
@@ -256,7 +261,7 @@ export default function TalkingPoints() {
                       {tp.status === "completed" ? "Reopen" : "Complete"}
                     </button>
                   )}
-                  {isSuperAdmin && !tp.task_id && (
+                  {canEditTp(tp) && !tp.task_id && (
                     <button onClick={() => setConvertTarget(tp)}
                       className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">Convert to task or appointment</button>
                   )}

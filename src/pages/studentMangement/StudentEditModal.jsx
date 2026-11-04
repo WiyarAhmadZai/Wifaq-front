@@ -149,7 +149,7 @@ export default function StudentEditModal({ studentId, onClose, onSaved }) {
     (async () => {
       try {
         const [sRes, fRes, rRes, gRes] = await Promise.all([
-          get(`/student-management/students/show/${studentId}`, { cache: false }),
+          get(`/student-management/students/show/${studentId}`, { cache: false, params: { for: "edit" }, timeout: 60000 }),
           get("/student-management/students/form-data").catch(() => ({ data: {} })),
           get("/transportation/routes/active/list").catch(() => ({ data: [] })),
           get("/student-management/students/filter-options").catch(() => ({ data: {} })),

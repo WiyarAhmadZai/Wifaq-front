@@ -124,6 +124,7 @@ const RULES = [
   // HR
   { prefix: "/hr/salary-snapshot", permission: "salary-snapshot.view" },
   { prefix: "/hr/staff-logs", permission: "staff-logs.view" },
+  { prefix: "/hr/talking-points", permission: "talking-points.view" },
   { prefix: "/hr/staff-task", permission: "staff-task.view" },
   { prefix: "/hr/day-view", permission: "staff-task.view" },
   { prefix: "/hr/daily-works", permission: "daily-works.view" },

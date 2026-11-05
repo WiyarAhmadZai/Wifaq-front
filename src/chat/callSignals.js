@@ -25,8 +25,11 @@ export function receiveSignals(batch) {
   if (!batch) return;
   const first = cursor == null;
   if (typeof batch.last_id === 'number' && (cursor == null || batch.last_id > cursor)) cursor = batch.last_id;
-  if (first) return;   // the first answer only says where "now" is
-  for (const s of batch.signals || []) {
+  // The first answer says where "now" is, plus any ring from the last minute
+  // (someone opened the system from a call notification) — CallManager drops
+  // rings that are too old and stops one that was already cancelled.
+  const list = first ? (batch.signals || []).filter((s) => s.type === 'invite' || s.type === 'cancel') : (batch.signals || []);
+  for (const s of list) {
     if (handled.has(s.id)) continue;
     handled.add(s.id);
     window.dispatchEvent(new CustomEvent('wen:call-signal', { detail: s }));

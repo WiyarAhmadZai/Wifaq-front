@@ -7053,4 +7053,6 @@ export default {
   "Note (optional) — then tick the box": "یادداشت (اختیاری) — بعد خانه را تیک بزنید",
   "Only a teacher of this student (or leadership) can tick the checklist.": "فقط استاد این شاگرد (یا رهبری) می‌تواند چک‌لیست را تیک بزند.",
   "That checklist item no longer exists.": "این مورد چک‌لیست دیگر وجود ندارد.",
+  "Pin to top": "سنجاق به بالا",
+  "Could not connect — the two networks need a relay (TURN) server": "وصل نشد — این دو شبکه به سرور رله (TURN) نیاز دارند",
 };

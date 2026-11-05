@@ -5,8 +5,10 @@ import {
 } from 'react-icons/fi';
 import { isRealtimeLive } from './echo';
 import { CALL_TAB, pollSignals, sendSignal } from './callSignals';
+import { enableCallPush, askOnFirstClick } from './push';
 import { useChat } from './ChatContext';
 import chatApi from './chatApi';
+import api from '../api/axios';
 import Avatar from './components/Avatar';
 
 /**
@@ -47,6 +49,24 @@ const ICE_SERVERS = [
     credential: import.meta.env.VITE_TURN_CREDENTIAL,
   }] : []),
 ];
+
+/* The server's list (STUN + the TURN relay set in the backend .env), fetched
+ * once per page and refreshed every few hours. The relay is used by the
+ * browser ONLY when a direct connection fails, so most calls never touch it. */
+let iceCache = { servers: null, relay: false, at: 0 };
+async function loadIceServers() {
+  if (iceCache.servers && Date.now() - iceCache.at < 3 * 3600 * 1000) return iceCache;
+  try {
+    const r = await api.get('/chat/calls/ice-servers', { cache: false, timeout: 8000 });
+    const list = r.data?.ice_servers;
+    if (Array.isArray(list) && list.length) {
+      // A relay from the frontend .env still counts, if one was set there.
+      iceCache = { servers: [...list, ...ICE_SERVERS.slice(1)], relay: Boolean(r.data?.relay) || ICE_SERVERS.length > 1, at: Date.now() };
+      return iceCache;
+    }
+  } catch { /* fall back to the built-in list */ }
+  return { servers: ICE_SERVERS, relay: ICE_SERVERS.length > 1, at: 0 };
+}
 
 const newCallId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const fmtDuration = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -220,7 +240,7 @@ export default function CallManager() {
   const openPeer = useCallback((from) => {
     const key = peerKey(from.id, from.tab);
     if (pcs.current[key]) return pcs.current[key];
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: iceCache.servers || ICE_SERVERS });
     pcs.current[key] = pc;
     const stream = new MediaStream();
     patchPeer(key, { userId: from.id, tab: from.tab, name: from.name, avatar: from.avatar, stream, hasVideo: false, state: 'connecting' });
@@ -377,6 +397,7 @@ export default function CallManager() {
       finish(media === 'video' ? 'Camera or microphone blocked' : 'Microphone blocked', { log: false, hold: 4500 });
       return;
     }
+    await loadIceServers();   // the relay list must be ready before the answer comes back
     try {
       await sendSignal({ conversationId, callId: c.id, type: 'invite', payload: { media, group, title: c.title } });
     } catch (e) {
@@ -403,10 +424,14 @@ export default function CallManager() {
       finish(c.media === 'video' ? 'Camera or microphone blocked' : 'Microphone blocked', { say: 'decline', log: false });
       return;
     }
+    const ice = await loadIceServers();
     await signal('join');
-    // If nothing connects, do not leave a frozen screen.
+    // If nothing connects, do not leave a frozen screen — and say why when no
+    // relay is set up (the usual cause between different networks).
     timersRef.current.setup = setTimeout(() => {
-      if (!Object.values(pcs.current).some((pc) => pc.connectionState === 'connected')) finish('Could not connect', { say: 'leave' });
+      if (!Object.values(pcs.current).some((pc) => pc.connectionState === 'connected')) {
+        finish(ice.relay ? 'Could not connect' : 'Could not connect — the two networks need a relay (TURN) server', { say: 'leave', hold: 6000 });
+      }
     }, 30000);
   };
 
@@ -467,7 +492,18 @@ export default function CallManager() {
 
   // Learn where "now" is once, so the first poll of a call never skips an
   // answer that is already waiting.
-  useEffect(() => { if (canUseChat) pollSignals().catch(() => {}); }, [canUseChat]);
+  useEffect(() => { if (canUseChat) { pollSignals().catch(() => {}); loadIceServers(); } }, [canUseChat]);
+
+  // Web Push: register this browser so a call rings on screen even when the
+  // system is closed — asked once on the first click, refreshed on focus.
+  useEffect(() => {
+    if (!canUseChat) return undefined;
+    enableCallPush();
+    const stopAsking = askOnFirstClick();
+    const onFocus = () => enableCallPush();
+    window.addEventListener('focus', onFocus);
+    return () => { stopAsking(); window.removeEventListener('focus', onFocus); };
+  }, [canUseChat]);
 
   /* Polling: quick during a call; slow for an idle hidden tab without a
    * websocket (a visible tab is covered by the chat's own poll). */

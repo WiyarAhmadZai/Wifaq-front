@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import Swal from "sweetalert2";
 import {
   FiHeart, FiMessageCircle, FiShare2, FiMoreHorizontal, FiGlobe, FiUsers, FiX, FiChevronLeft, FiChevronRight, FiSend,
+  FiEdit2, FiTrash2,
 } from "react-icons/fi";
+import { MdPushPin, MdOutlinePushPin } from "react-icons/md";
 import Avatar from "../../chat/components/Avatar";
 import { postsApi, POST_BACKGROUNDS, timeAgo, openComposer, sharePost, COMMENT_REACTIONS, plainText } from "../../api/posts";
 import { RichTextView } from "../RichTextField";
@@ -189,16 +191,31 @@ function CommentNode({ node, depth, postId, readOnly, guest, onTree }) {
             )}
           </div>
           {!readOnly && (node.can_edit || node.can_delete || node.can_pin) && (
-            <div className="relative shrink-0 self-center">
-              <button type="button" onClick={() => setMenu((v) => !v)} title="More"
-                className="w-7 h-7 rounded-full hover:bg-gray-100 text-gray-500 grid place-items-center"><FiMoreHorizontal /></button>
+            // ⋯ opens the actions as a row of icons beside the comment — a
+            // dropdown here was cut off by the card, hiding all but "Edit".
+            <div className="shrink-0 self-center flex items-center gap-1">
               {menu && (
-                <div className="absolute end-0 top-8 z-30 w-44 rounded-xl border border-gray-100 bg-white shadow-lg py-1 text-sm" onMouseLeave={() => setMenu(false)}>
-                  {node.can_pin && <button type="button" onClick={togglePin} className="w-full text-start px-3 py-2 hover:bg-gray-50">{node.is_pinned ? "Unpin comment" : "📌 Pin to top"}</button>}
-                  {node.can_edit && <button type="button" onClick={() => { setMenu(false); setDraft(node.body); setEditing(true); }} className="w-full text-start px-3 py-2 hover:bg-gray-50">Edit comment</button>}
-                  {node.can_delete && <button type="button" onClick={remove} className="w-full text-start px-3 py-2 hover:bg-rose-50 text-rose-600">Delete comment</button>}
+                <div className="flex items-center gap-1 rounded-full bg-white shadow ring-1 ring-gray-100 px-1 py-0.5">
+                  {node.can_pin && (
+                    <button type="button" onClick={togglePin} title={node.is_pinned ? "Unpin comment" : "Pin to top"}
+                      className={`w-7 h-7 rounded-full grid place-items-center hover:bg-amber-50 ${node.is_pinned ? "text-amber-600" : "text-gray-500"}`}>
+                      {node.is_pinned ? <MdPushPin className="w-4 h-4" /> : <MdOutlinePushPin className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {node.can_edit && (
+                    <button type="button" onClick={() => { setMenu(false); setDraft(node.body); setEditing(true); }} title="Edit comment"
+                      className="w-7 h-7 rounded-full grid place-items-center text-gray-500 hover:bg-teal-50 hover:text-teal-700"><FiEdit2 className="w-3.5 h-3.5" /></button>
+                  )}
+                  {node.can_delete && (
+                    <button type="button" onClick={remove} title="Delete comment"
+                      className="w-7 h-7 rounded-full grid place-items-center text-gray-500 hover:bg-rose-50 hover:text-rose-600"><FiTrash2 className="w-3.5 h-3.5" /></button>
+                  )}
                 </div>
               )}
+              <button type="button" onClick={() => setMenu((v) => !v)} title="More"
+                className={`w-7 h-7 rounded-full grid place-items-center ${menu ? "bg-gray-100 text-gray-700" : "text-gray-500 hover:bg-gray-100"}`}>
+                {menu ? <FiX className="w-3.5 h-3.5" /> : <FiMoreHorizontal />}
+              </button>
             </div>
           )}
           </div>

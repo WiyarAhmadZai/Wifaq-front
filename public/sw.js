@@ -23,6 +23,9 @@ self.addEventListener("push", (event) => {
       badge: "/favicon.png",
       tag: data.tag || undefined,
       renotify: true,
+      // An incoming call stays on screen and vibrates until it is answered or dismissed.
+      requireInteraction: Boolean(data.call),
+      vibrate: data.call ? [400, 200, 400, 200, 400] : undefined,
       data: { link: data.link || "/" },
     })
   );

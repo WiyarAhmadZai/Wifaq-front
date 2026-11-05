@@ -7036,4 +7036,6 @@ export default {
   "Note (optional) — then tick the box": "Note (optional) — then tick the box",
   "Only a teacher of this student (or leadership) can tick the checklist.": "Only a teacher of this student (or leadership) can tick the checklist.",
   "That checklist item no longer exists.": "That checklist item no longer exists.",
+  "Pin to top": "Pin to top",
+  "Could not connect — the two networks need a relay (TURN) server": "Could not connect — the two networks need a relay (TURN) server",
 };

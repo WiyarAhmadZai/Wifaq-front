@@ -7053,4 +7053,6 @@ export default {
   "Note (optional) — then tick the box": "یادښت (اختیاري) — بیا خانه ټیک کړئ",
   "Only a teacher of this student (or leadership) can tick the checklist.": "یوازې د دې زده کوونکي استاد (یا مشرتابه) چک لیست ټیک کولی شي.",
   "That checklist item no longer exists.": "دا د چک لیست توکی نور شتون نه لري.",
+  "Pin to top": "پورته پین کړئ",
+  "Could not connect — the two networks need a relay (TURN) server": "وصل نه شو — دا دوه شبکې د ریلې (TURN) سرور ته اړتیا لري",
 };

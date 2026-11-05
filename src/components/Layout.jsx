@@ -353,6 +353,33 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
   </div>
 );
 
+// ── Back button ───────────────────────────────────────────────────────────────
+/**
+ * Back to the previous screen inside the system, so nobody has to reach for
+ * the browser's own button. Shown only when there is an in-app page to return
+ * to: React Router numbers each history entry (`idx`), so a page opened
+ * straight from a link (idx 0) has no "back" and the button stays out of the
+ * way. The arrow mirrors in Dari / Pashto.
+ */
+function BackButton() {
+  const navigate = useNavigate();
+  useLocation(); // re-render on every navigation so idx is current
+  if ((window.history.state?.idx ?? 0) < 1) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(-1)}
+      title="Back"
+      aria-label="Back"
+      className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-800 flex-shrink-0"
+    >
+      <svg className="w-5 h-5 rtl:-scale-x-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      </svg>
+    </button>
+  );
+}
+
 // ── Notification Bell ─────────────────────────────────────────────────────────
 /**
  * Header search — jumps to any page the user is allowed to open.
@@ -2552,12 +2579,15 @@ export default function Layout() {
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-3 py-2 sticky top-0 z-30">
           <div className="flex items-center justify-between gap-3">
-            <button
-              className="lg:hidden p-1.5 text-gray-600 hover:text-gray-800"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Icons.Menu />
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                className="lg:hidden p-1.5 text-gray-600 hover:text-gray-800"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <Icons.Menu />
+              </button>
+              <BackButton />
+            </div>
             <div className="flex-1 max-w-lg hidden sm:block">
               <GlobalSearch index={searchIndex} />
             </div>

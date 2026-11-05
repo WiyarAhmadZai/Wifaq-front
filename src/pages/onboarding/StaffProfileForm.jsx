@@ -20,6 +20,9 @@ export default function StaffProfileForm() {
   const navigate = useNavigate();
   const [schema, setSchema] = useState(null);
   const [answers, setAnswers] = useState({});
+  // Values the system already holds: `locked` keys are shown read-only.
+  const [locked, setLocked] = useState([]);
+  const [sources, setSources] = useState({});
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -37,6 +40,8 @@ export default function StaffProfileForm() {
         const d = res.data?.data || {};
         setSchema(d.sections ? d : null);
         setAnswers(d.answers || {});
+        setLocked(d.locked || []);
+        setSources(d.sources || {});
         setStatus(d.status || null);
       } catch (e) {
         if (alive) setError(e?.response?.data?.message || "Could not load the profile form.");
@@ -94,17 +99,21 @@ export default function StaffProfileForm() {
     }
   };
 
+  // Submitting with questions still empty saves and says so (the mock's rule);
+  // the form only counts as submitted once every required one is answered.
   const submit = async () => {
-    if (missing.length) {
-      toastError(t("Please answer every required question before submitting."));
-      const el = document.getElementById(`field-${missing[0]}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
     setSaving(true);
     try {
-      await saveStaffForm(answers, true);
-      toastSuccess(t("Profile form submitted"));
+      const res = await saveStaffForm(answers, true);
+      setSavedAt(new Date());
+      setDirty(false);
+      if ((res.data?.data?.missing || []).length) {
+        toastSuccess(t("Saved. Some required questions are still empty — continue whenever you are ready."));
+        const el = document.getElementById(`field-${missing[0]}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      toastSuccess(t("Submitted. Thank you for sharing yourself with us."));
       navigate("/onboarding");
     } catch (e) {
       toastError(e?.response?.data?.message || "Failed to submit");
@@ -151,17 +160,47 @@ export default function StaffProfileForm() {
         </div>
       </div>
 
-      {schema.sections.map((section) => (
-        <section key={section.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-          <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-900">{section.title}</h2>
-          </div>
-          <div className="p-5 space-y-4">
-            {section.fields.map((field) => (
-              <FieldRenderer key={field.key} field={field} answers={answers} set={set} />
-            ))}
-          </div>
-        </section>
+      {(schema.rounds || [{ id: null }]).map((round) => (
+        <div key={round.id || "all"} className="space-y-5">
+          {round.title && (
+            <div>
+              <h2 className="text-base font-bold text-gray-900">{round.title}</h2>
+              <p className="text-[11px] font-semibold text-teal-700">{round.when}</p>
+              {round.lede && <p className="text-sm text-gray-500 mt-0.5">{round.lede}</p>}
+            </div>
+          )}
+          {schema.sections.filter((s) => !round.id || s.round === round.id).map((section) => {
+            const req = section.fields.filter((f) => f.required);
+            const done = req.filter((f) => isAnswered(f.key, answers, schema)).length;
+            return (
+              <section key={section.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100 flex items-start gap-3">
+                  {section.icon && <span className="text-lg leading-6" aria-hidden>{section.icon}</span>}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-sm font-bold text-gray-900">{section.title}</h2>
+                    {section.lede && <p className="text-[11px] text-gray-500 mt-0.5">{section.lede}</p>}
+                  </div>
+                  {req.length > 0 && (
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                      done === req.length ? "bg-emerald-50 text-emerald-700" : "bg-white border border-gray-200 text-gray-500"
+                    }`}>{done} / {req.length}</span>
+                  )}
+                </div>
+                <div className="p-5 space-y-4">
+                  {section.note && (
+                    <p className="rounded-xl bg-teal-50 border border-teal-100 px-3.5 py-2.5 text-xs text-teal-900">
+                      <span aria-hidden>📥 </span><span>{section.note}</span>
+                    </p>
+                  )}
+                  {section.fields.map((field) => (
+                    <FieldRenderer key={field.key} field={field} answers={answers} set={set}
+                      readOnly={field.type === "readonly" || locked.includes(field.key)} shown={sources[field.key]} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
       ))}
 
       {/* Sticky action bar */}
@@ -190,7 +229,7 @@ export default function StaffProfileForm() {
 
 /* ── Field renderers, one per schema type ─────────────────────────────── */
 
-function FieldRenderer({ field, answers, set }) {
+function FieldRenderer({ field, answers, set, readOnly, shown }) {
   const value = answers[field.key];
   const label = (
     <label className="block text-[13px] font-semibold text-gray-700 mb-1">
@@ -202,8 +241,14 @@ function FieldRenderer({ field, answers, set }) {
   return (
     <div id={`field-${field.key}`}>
       {label}
-      {field.hint && <p className="text-[11px] text-gray-500 mb-1.5">{field.hint}</p>}
-      {renderControl(field, value, (v) => set(field.key, v))}
+      {field.hint && !readOnly && <p className="text-[11px] text-gray-500 mb-1.5">{field.hint}</p>}
+      {readOnly ? (
+        // Already on record (application, account or HR) — shown, not asked.
+        <div className="flex items-center gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-700">
+          <span className="flex-1 min-w-0 break-words">{shown != null && shown !== "" ? (field.options?.[shown] ?? String(shown)) : "—"}</span>
+          {field.type !== "readonly" && <span className="shrink-0 text-[10px] font-semibold text-gray-500">{"Already on record"}</span>}
+        </div>
+      ) : renderControl(field, value, (v) => set(field.key, v))}
     </div>
   );
 }
@@ -287,7 +332,7 @@ function GroupField({ field, rows, onChange }) {
         </div>
       ))}
       <button type="button" onClick={addRow} className="px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-dashed border-teal-400 text-teal-700 hover:bg-teal-50">
-        + {field.label ? "Add" : "Add"}
+        + {field.add || "Add"}
       </button>
     </div>
   );

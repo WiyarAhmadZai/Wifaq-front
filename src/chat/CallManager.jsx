@@ -680,6 +680,11 @@ export default function CallManager() {
         <span className="text-xs text-white/60 flex items-center gap-1.5">
           {call.group && <FiUsers />}
           <span>{isVideo ? 'Video call' : 'Voice call'}</span> · 🔒 <span>Direct, not stored</span>
+          {/* Whether the server sent a relay (TURN) — without it, calls between
+              different networks cannot connect. */}
+          <span className={iceCache.relay ? 'text-emerald-300' : 'text-amber-300'}>
+            · {iceCache.relay ? <span>Relay ready</span> : <span>No relay server</span>}
+          </span>
         </span>
         {call.status !== 'ended' && (
           <button type="button" onClick={() => setMinimized(true)} title="Minimise"

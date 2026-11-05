@@ -63,6 +63,36 @@ export default function ChatDrawer() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, activeId, closeDrawer]);
 
+  /* Phones: opening the keyboard used to scroll the whole page, carrying the
+   * chat header (name, call buttons) off the top. While the drawer is open the
+   * page behind it cannot scroll, and the drawer follows the VISIBLE area
+   * (visualViewport) — the part above the keyboard — so the header stays put
+   * and only the messages scroll. */
+  const [vv, setVv] = useState(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const body = document.body.style.overflow;
+    const html = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    const view = window.visualViewport;
+    const sync = () => {
+      if (!view || window.innerWidth >= 768) { setVv(null); return; }
+      setVv({ height: Math.round(view.height), top: Math.round(view.offsetTop) });
+    };
+    sync();
+    view?.addEventListener('resize', sync);
+    view?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      document.body.style.overflow = body;
+      document.documentElement.style.overflow = html;
+      view?.removeEventListener('resize', sync);
+      view?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, [open]);
+
   if (!canUseChat) return null;
 
   return (
@@ -75,7 +105,8 @@ export default function ChatDrawer() {
 
       {/* Drawer */}
       <div
-        className={`fixed top-0 right-0 z-[61] h-full bg-white shadow-2xl flex transition-all duration-300 ease-out w-full ${
+        style={vv ? { height: `${vv.height}px`, top: `${vv.top}px` } : undefined}
+        className={`fixed top-0 right-0 z-[61] h-full overscroll-contain bg-white shadow-2xl flex transition-all duration-300 ease-out w-full ${
           wide ? 'md:w-[94vw] xl:w-[88vw] 2xl:w-[1500px]' : 'sm:w-[420px] md:w-[760px] lg:w-[860px]'
         } ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >

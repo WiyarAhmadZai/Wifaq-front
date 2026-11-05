@@ -72,19 +72,54 @@ const newCallId = () => `${Date.now().toString(36)}-${Math.random().toString(36)
 const fmtDuration = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 const peerKey = (userId, tab) => `${userId}:${tab}`;
 
-/* Wait until the browser has gathered its network candidates (or ~3 s), so
- * one offer/answer carries everything. */
+/* Wait until the browser has gathered its network candidates, so one
+ * offer/answer carries everything. A relay (TURN) candidate can take a few
+ * seconds from far away — cutting off at 3 s used to send offers without it,
+ * which is exactly the path calls between different networks need. Done when
+ * gathering completes, shortly after a relay candidate appears, or at 8 s. */
 function gathered(pc) {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
   return new Promise((resolve) => {
-    const done = () => { pc.removeEventListener('icegatheringstatechange', check); resolve(); };
+    let finished = false;
+    let soon = null;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(soon);
+      pc.removeEventListener('icegatheringstatechange', check);
+      pc.removeEventListener('icecandidate', onCand);
+      resolve();
+    };
     const check = () => { if (pc.iceGatheringState === 'complete') done(); };
+    const onCand = (e) => {
+      if (!e.candidate) { done(); return; }
+      if (/ typ relay /.test(e.candidate.candidate) && !soon) soon = setTimeout(done, 700);
+    };
     pc.addEventListener('icegatheringstatechange', check);
-    setTimeout(done, 3000);
+    pc.addEventListener('icecandidate', onCand);
+    setTimeout(done, 8000);
   });
 }
 
 /* ── tones: generated, so there is no audio file to download ───────────────── */
+/* Browsers mute sound that starts without a click on the page. A ring arrives
+ * with no click, so the old tone — a new AudioContext per ring — stayed
+ * silent. One shared context is created and unlocked on the person's first
+ * click or key press, and every ring reuses it. */
+let sharedCtx = null;
+function audioCtx() {
+  try {
+    if (!sharedCtx) sharedCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (sharedCtx.state === 'suspended') sharedCtx.resume().catch(() => {});
+  } catch { sharedCtx = null; }
+  return sharedCtx;
+}
+if (typeof window !== 'undefined') {
+  const unlock = () => { audioCtx(); };
+  window.addEventListener('pointerdown', unlock, { passive: true });
+  window.addEventListener('keydown', unlock);
+}
+
 function createTone() {
   let ctx = null;
   let timer = null;
@@ -104,18 +139,25 @@ function createTone() {
       osc.stop(t + i * 0.18 + ms / 1000 + 0.05);
     });
   };
-  const start = (play, every) => {
-    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
-    play();
-    timer = setInterval(play, every);
+  const start = (play, every, vibrate) => {
+    ctx = audioCtx();
+    const round = () => {
+      if (ctx?.state === 'suspended') ctx.resume().catch(() => {});
+      play();
+      // Phones also buzz while ringing.
+      if (vibrate) { try { navigator.vibrate?.([400, 200, 400]); } catch { /* unsupported */ } }
+    };
+    round();
+    timer = setInterval(round, every);
   };
   return {
-    ring() { this.stop(); start(() => beep([659, 784, 988], 320), 2500); },   // incoming: a soft chime
+    ring() { this.stop(); start(() => { beep([659, 784, 988], 320); setTimeout(() => beep([659, 784, 988], 320), 700); }, 2200, true); },   // incoming: a clear double chime
     ringback() { this.stop(); start(() => beep([440], 900), 3000); },          // caller: gentle ringback
     stop() {
       clearInterval(timer);
       timer = null;
-      if (ctx) { ctx.close().catch(() => {}); ctx = null; }
+      ctx = null;   // the shared context stays open for the next ring
+      try { navigator.vibrate?.(0); } catch { /* unsupported */ }
     },
   };
 }
@@ -342,6 +384,12 @@ export default function CallManager() {
           toneRef.current.stop();
           clearTimeout(timersRef.current.noAnswer);
           if (c.status === 'calling') patchCall({ status: 'connecting' });
+          clearTimeout(timersRef.current.setup);
+          timersRef.current.setup = setTimeout(() => {
+            if (!Object.values(pcs.current).some((p) => p.connectionState === 'connected')) {
+              finish(iceCache.relay ? 'Could not connect' : 'Could not connect — the two networks need a relay (TURN) server', { say: 'leave', hold: 6000 });
+            }
+          }, 35000);
           const pc = openPeer(s.from);
           await pc.setLocalDescription(await pc.createOffer());
           await gathered(pc);

@@ -69,6 +69,8 @@ const RULES = [
   // derived from the tail — /create → create, /edit/:id → update,
   // /:id and /:id/responses → view — with questionnaires.manage as override.
   { prefix: "/questionnaires", permission: "questionnaires.view" },
+  // Guides (رهنمود) — managed by guides.manage (super-admin by default).
+  { prefix: "/guides", permission: "guides.manage" },
 
   // Recruitment — position titles
   { prefix: "/recruitment/position-titles", permission: "position-titles.view" },

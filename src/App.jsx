@@ -171,6 +171,7 @@ const DriveDocument = lazy(() => import("./pages/drive/DriveDocument"));
 const StudentScan = lazy(() => import("./pages/studentMangement/StudentScan"));
 const Questionnaires = lazy(() => import("./pages/questionnaire/Questionnaires"));
 const QuestionnaireForm = lazy(() => import("./pages/questionnaire/QuestionnaireForm"));
+const Guides = lazy(() => import("./pages/guides/Guides"));
 const QuestionnaireResponses = lazy(() => import("./pages/questionnaire/QuestionnaireResponses"));
 const QuestionnaireShow = lazy(() => import("./pages/questionnaire/QuestionnaireShow"));
 const MyQuestionnaire = lazy(() => import("./pages/questionnaire/MyQuestionnaire"));
@@ -495,6 +496,7 @@ function App() {
 
             {/* Questionnaires — weekly parent evaluations */}
             <Route path="questionnaires" element={<Suspense fallback={<PageLoader />}><Questionnaires /></Suspense>} />
+            <Route path="guides" element={<Suspense fallback={<PageLoader />}><Guides /></Suspense>} />
             <Route path="questionnaires/create" element={<Suspense fallback={<PageLoader />}><QuestionnaireForm /></Suspense>} />
             <Route path="questionnaires/edit/:id" element={<Suspense fallback={<PageLoader />}><QuestionnaireForm /></Suspense>} />
             <Route path="questionnaires/:id/responses" element={<Suspense fallback={<PageLoader />}><QuestionnaireResponses /></Suspense>} />

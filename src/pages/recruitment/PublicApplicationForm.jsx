@@ -36,6 +36,10 @@ const L = {
     step9: "Talents", step9d: "Your key skills and languages",
     step10: "About Wifaq", step10d: "How you know us",
     step11: "Values", step11d: "How you think and work",
+    step12: "Vision & Awareness", step12d: "How you see the world",
+    world_problems: "What are the two major problems in the world today that you think need to be solved?", ph_world_problems: "Name two and briefly explain each",
+    afghanistan_problem: "What is one major problem in Afghanistan that must be solved?", ph_afghanistan_problem: "The single issue you believe matters most",
+    positive_change: "What are the two things you think you can do to bring positive change to the world?", ph_positive_change: "Two concrete actions you can personally take",
     key_skills: "Your key talents and skills", ph_key_skills: "Practical, artistic, drawing, storytelling, communication, management, IT, languages, or anything else useful in education",
     how_heard: "How did you hear about Wifaq?", hh_social: "Social media", hh_friend: "Friend or acquaintance",
     hh_ad: "Job advertisement", hh_site: "Wifaq website", hh_other: "Other", select_one: "Select one...",
@@ -143,6 +147,10 @@ const L = {
     step9: "وړتیاوې", step9d: "ستاسو کلیدي مهارتونه او ژبې",
     step10: "د وفاق په اړه", step10d: "تاسو څنګه موږ پیژنئ",
     step11: "ارزښتونه", step11d: "تاسو څنګه فکر او کار کوئ",
+    step12: "لید او پوهاوی", step12d: "تاسو نړۍ څنګه وینئ",
+    world_problems: "نن د نړۍ کومې دوه لویې ستونزې دي چې تاسو فکر کوئ حل ته اړتیا لري؟", ph_world_problems: "دوه یې ونوموئ او هر یوه لنډه تشریح ورکړئ",
+    afghanistan_problem: "د افغانستان کومه یوه لویه ستونزه ده چې باید حل شي؟", ph_afghanistan_problem: "هغه مهمه مسئله چې تاسو ورته تر ټولو ډېر ارزښت ورکوئ",
+    positive_change: "کوم دوه کارونه دي چې تاسو یې کولای شئ په نړۍ کې مثبت بدلون راولي؟", ph_positive_change: "دوه عملي کارونه چې په خپله یې ترسولای شئ",
     key_skills: "خپل کلیدي استعدادونه او مهارتونه ولیکئ", ph_key_skills: "عملي، هنري، رسامي، کیسه ویل، اړیکې، مدیریت، آی‌ټي، ژبې، یا هر څه چې په تعلیم او تربیه کې ګټور وي",
     how_heard: "د وفاق په اړه مو څنګه خبر شو؟", hh_social: "ټولنیزې رسنۍ", hh_friend: "ملګری یا آشنا",
     hh_ad: "د دندې اعلان", hh_site: "د وفاق ویب‌پاڼه", hh_other: "بل", select_one: "یو یې وټاکئ...",
@@ -250,6 +258,10 @@ const L = {
     step9: "استعدادها", step9d: "مهارت‌های کلیدی و زبان‌های شما",
     step10: "آشنایی با وفاق", step10d: "چگونه ما را می‌شناسید",
     step11: "ارزش‌ها", step11d: "چگونه فکر و کار می‌کنید",
+    step12: "بینش و آگاهی", step12d: "شما جهان را چگونه می‌بینید",
+    world_problems: "به نظر شما دو مشکل بزرگ دنیای امروز کدامند که باید حل شوند؟", ph_world_problems: "دو مورد را نام ببرید و هر کدام را به‌اختصار توضیح دهید",
+    afghanistan_problem: "یک مشکل بزرگ افغانستان که باید حل شود، چیست؟", ph_afghanistan_problem: "مهم‌ترین مسأله‌ای که به آن بیشترین ارزش را قائل هستید",
+    positive_change: "دو کاری که فکر می‌کنید می‌توانید برای ایجاد تغییر مثبت در جهان انجام دهید، کدامند؟", ph_positive_change: "دو کار عملی که خودتان می‌توانید انجام دهید",
     key_skills: "استعدادها و مهارت‌های کلیدی خود را بنویسید", ph_key_skills: "مهارت‌های عملی، هنری، رسامی، قصه‌گویی، ارتباطات، مدیریت، آی‌تی، زبان‌ها، یا هر چیز دیگری که در بخش تعلیم و تربیه مفید باشد",
     how_heard: "از وفاق چگونه خبر شدید؟", hh_social: "رسانه‌های اجتماعی", hh_friend: "دوست یا آشنا",
     hh_ad: "اعلان وظیفه", hh_site: "ویبسایت وفاق", hh_other: "دیگر", select_one: "یکی را انتخاب کنید...",
@@ -382,6 +394,8 @@ const SECTIONS = [
   { key: "talents",    icon: STEP_ICONS[4], labelKey: "step9",         descKey: "step9d" },
   { key: "wifaq",      icon: STEP_ICONS[0], labelKey: "step10",        descKey: "step10d" },
   { key: "values",     icon: STEP_ICONS[2], labelKey: "step11",        descKey: "step11d" },
+  // Vision & awareness — the applicant's read on the world, not just the job.
+  { key: "vision",     icon: STEP_ICONS[4], labelKey: "step12",        descKey: "step12d" },
   // The spoken answer sits last among the questions, right before the uploads:
   // the applicant has already written how they think, now they say it aloud.
   { key: "voice",      icon: STEP_ICONS[8], labelKey: "step_voice",    descKey: "step_voiced" },
@@ -491,6 +505,7 @@ export default function PublicApplicationForm() {
     key_skills: "", how_heard: "", about_wifaq: "", known_person: "",
     scenario_answer: "", responsibility_definition: "", beyond_duty_example: "",
     inspiration: "", life_principles: "", time_management: "",
+    world_problems: "", afghanistan_problem: "", positive_change: "",
   });
   const [workExperiences, setWorkExperiences] = useState([{ company_name: "", job_title: "", duration: "", responsibilities: "" }]);
   const [metRequirements, setMetRequirements] = useState([]);
@@ -640,6 +655,11 @@ export default function PublicApplicationForm() {
       if (!formData.responsibility_definition?.trim()) e.responsibility_definition = t("e_required", { x: t("responsibility_def") });
       if (!formData.beyond_duty_example?.trim()) e.beyond_duty_example = t("e_required", { x: t("beyond_duty") });
     }
+    if (k === "vision") {
+      if (!formData.world_problems?.trim()) e.world_problems = t("e_required", { x: t("world_problems") });
+      if (!formData.afghanistan_problem?.trim()) e.afghanistan_problem = t("e_required", { x: t("afghanistan_problem") });
+      if (!formData.positive_change?.trim()) e.positive_change = t("e_required", { x: t("positive_change") });
+    }
     // The voice answer is the point of this step — no recording, no advance.
     if (k === "voice" && !voiceRecording) e.voice_recording = t("voice_required");
     if (k === "documents") DOC_TYPES.forEach((d) => { if (d.required && !documents[d.key]) e[d.key] = t("e_required", { x: t(d.labelKey) }); });
@@ -659,6 +679,7 @@ export default function PublicApplicationForm() {
     if (k === "talents") return !!formData.key_skills?.trim();
     if (k === "wifaq") return !!formData.how_heard && !!formData.about_wifaq?.trim() && !!formData.known_person?.trim();
     if (k === "values") return !!formData.scenario_answer && !!formData.responsibility_definition?.trim() && !!formData.beyond_duty_example?.trim();
+    if (k === "vision") return !!formData.world_problems?.trim() && !!formData.afghanistan_problem?.trim() && !!formData.positive_change?.trim();
     if (k === "voice") return !!voiceRecording;
     return true;
   };
@@ -746,6 +767,7 @@ export default function PublicApplicationForm() {
           scenario_answer: "values", responsibility_definition: "values",
           beyond_duty_example: "values", inspiration: "values",
           life_principles: "values", time_management: "values",
+          world_problems: "vision", afghanistan_problem: "vision", positive_change: "vision",
           cv_resume: "documents", educational_document: "documents",
           identity_document: "documents", work_samples: "documents",
         };
@@ -1173,6 +1195,35 @@ export default function PublicApplicationForm() {
                       rows={3} placeholder={t("ph_time_management")} className={inp} />
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Section 12 · vision & awareness ── */}
+          {cur.key === "vision" && (
+            <div className="space-y-5">
+              <div>
+                <Label required>{t("world_problems")}</Label>
+                <textarea name="world_problems" value={formData.world_problems}
+                  onChange={handleChange} rows={3} placeholder={t("ph_world_problems")}
+                  className={errors.world_problems ? inpError : inp} />
+                {errors.world_problems && <p className="text-red-500 text-xs mt-1">{errors.world_problems}</p>}
+              </div>
+
+              <div>
+                <Label required>{t("afghanistan_problem")}</Label>
+                <textarea name="afghanistan_problem" value={formData.afghanistan_problem}
+                  onChange={handleChange} rows={3} placeholder={t("ph_afghanistan_problem")}
+                  className={errors.afghanistan_problem ? inpError : inp} />
+                {errors.afghanistan_problem && <p className="text-red-500 text-xs mt-1">{errors.afghanistan_problem}</p>}
+              </div>
+
+              <div>
+                <Label required>{t("positive_change")}</Label>
+                <textarea name="positive_change" value={formData.positive_change}
+                  onChange={handleChange} rows={3} placeholder={t("ph_positive_change")}
+                  className={errors.positive_change ? inpError : inp} />
+                {errors.positive_change && <p className="text-red-500 text-xs mt-1">{errors.positive_change}</p>}
               </div>
             </div>
           )}

@@ -91,10 +91,34 @@ export default function MessageComposer({
   }, []);
 
   // Populate the editor when the user chooses "Edit" on a message.
+  // The box usually still has focus here, and the editor never rewrites
+  // itself while focused (that would throw the caret around mid-typing) — so
+  // the message is written into it directly, with the caret at the end.
   useEffect(() => {
     if (editing) {
-      setText(editing.body || '');
-      const frame = requestAnimationFrame(focusEditor);
+      const body = editing.body || '';
+      setText(body);
+      const el = document.getElementById(INPUT_ID);
+      if (el) {
+        if (/<\/?[a-z][^>]*>/i.test(body)) {
+          el.innerHTML = body;
+        } else {
+          el.textContent = body;
+          el.innerHTML = el.innerHTML.replace(/\n/g, '<br>');
+        }
+      }
+      const frame = requestAnimationFrame(() => {
+        focusEditor();
+        const box = document.getElementById(INPUT_ID);
+        const sel = window.getSelection();
+        if (box && sel) {
+          const range = document.createRange();
+          range.selectNodeContents(box);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      });
       return () => cancelAnimationFrame(frame);
     }
   }, [editing]);

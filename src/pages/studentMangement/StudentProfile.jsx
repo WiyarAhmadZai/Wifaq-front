@@ -7,6 +7,7 @@ import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 import Swal from "sweetalert2";
 import { exportSheetsToExcel } from "../../utils/listExport";
 import { useI18n } from "../../i18n/I18nContext";
+import GuideButton from "../../components/GuideButton";
 
 /* ── 4D dimension accents ── */
 const DIMS = [
@@ -93,6 +94,7 @@ const INTERVIEW_FIELDS = [
 
 const TABS = [
   { key: "overview", label: "Overview" },
+  { key: "checklist", label: "Checklist" },
   { key: "story", label: "Life Story" },
   { key: "aspirations", label: "Aspirations" },
   { key: "fourd", label: "4D Ratings" },
@@ -495,6 +497,7 @@ function StudentProfileView() {
               <h1 className="text-xl font-bold text-gray-800">{s.full_name}</h1>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700">{data.profile?.access_level || "L1"}</span>
               {s.class && <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-700">شناسنامه</span>}
+              <GuideButton module="student-profile" />
               {fileRating[id] && (
                 <RatePill type="student_profile" id={id} title={`شناسنامه · ${s.full_name}`} entry={fileRating[id]} />
               )}
@@ -541,6 +544,7 @@ function StudentProfileView() {
           {tab === "interview" && <LogSection {...ctx} title="Interviewer Observations · مشاهدات مصاحبه" subtitle="Confidential — internal use only" sensitive items={data.sensitive?.interview_observation} path="/interview" dateKey="interviewed_at" fields={INTERVIEW_FIELDS} />}
           {tab === "updates" && <Updates {...ctx} />}
           {tab === "archive" && <ArchiveTab {...ctx} id={id} load={load} />}
+          {tab === "checklist" && <ChecklistTab {...ctx} id={id} load={load} />}
           {tab === "caredesk" && <CareDesk {...ctx} />}
         </div>
       </div>
@@ -1387,6 +1391,86 @@ function FieldInput({ f, value, onChange }) {
 }
 
 /* Past reports, notices and certificates — uploaded files on the شناسنامه. */
+/**
+ * The student-profile guide's checklist (written in Guides by a super-admin):
+ * the teacher filling the profile ticks each source they talked to and used,
+ * with an optional note. Each tick shows who gave it and when.
+ */
+function ChecklistTab({ id, data, can, load }) {
+  const lists = data.checklist || [];
+  const [busy, setBusy] = useState(null);
+  const [notes, setNotes] = useState({});
+  const mayTick = Boolean(can?.record_info);
+
+  const tick = async (guideId, item, checked) => {
+    const k = `${guideId}:${item.key}`;
+    setBusy(k);
+    try {
+      await post(`/student-management/students/${id}/profile/checklist`, {
+        guide_id: guideId, item_key: item.key, checked, note: notes[k] ?? item.tick?.note ?? "",
+      });
+      load();
+    } catch (e) {
+      toastError(e.response?.data?.message || "Could not update the checklist.");
+    } finally { setBusy(null); }
+  };
+
+  if (!lists.length) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-500">
+        No checklist yet. A super-admin adds it on the Guides page (module: Student Profile).
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {lists.map((g) => {
+        const done = g.items.filter((i) => i.tick).length;
+        const pct = g.items.length ? Math.round((done / g.items.length) * 100) : 0;
+        return (
+          <div key={g.guide_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-gray-800">✅ <span dir="auto" data-no-i18n>{g.title}</span></h3>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${done === g.items.length ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                <span data-no-i18n>{done} / {g.items.length}</span> <span>done</span>
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden"><div className="h-full bg-teal-500" style={{ width: `${pct}%` }} /></div>
+            <div className="mt-3 divide-y divide-gray-100">
+              {g.items.map((item, idx) => {
+                const k = `${g.guide_id}:${item.key}`;
+                return (
+                  <div key={item.key} className="py-3 flex gap-3">
+                    <input type="checkbox" checked={Boolean(item.tick)} disabled={!mayTick || busy === k}
+                      onChange={(e) => tick(g.guide_id, item, e.target.checked)}
+                      className="w-5 h-5 mt-0.5 text-teal-600 rounded focus:ring-teal-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm font-semibold ${item.tick ? "text-gray-500 line-through" : "text-gray-800"}`} dir="auto">
+                        <span data-no-i18n>{idx + 1}. {item.text}</span>
+                      </div>
+                      {item.detail && <div className="text-xs text-gray-500 whitespace-pre-line mt-0.5" dir="auto" data-no-i18n>{item.detail}</div>}
+                      {item.tick ? (
+                        <div className="text-[11px] text-emerald-700 mt-1">
+                          ✓ <span data-no-i18n>{item.tick.checked_by}</span> · <span data-no-i18n>{fmtDateTime(item.tick.checked_at)}</span>
+                          {item.tick.note && <span className="text-gray-600" data-no-i18n> — {item.tick.note}</span>}
+                        </div>
+                      ) : mayTick && (
+                        <input value={notes[k] || ""} onChange={(e) => setNotes((n) => ({ ...n, [k]: e.target.value }))} dir="auto"
+                          placeholder="Note (optional) — then tick the box"
+                          className="mt-1.5 w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-teal-300" />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ArchiveTab({ id, data, can, load }) {
   const types = data.archive_types || {};
   const rows = data.archive || [];

@@ -1541,6 +1541,8 @@ export default function Layout() {
     { label: "All Questionnaires", path: "/questionnaires", permission: "questionnaires.view" },
     { label: "New Questionnaire", path: "/questionnaires/create", permission: "questionnaires.create" },
     { label: "Answer Questionnaire", path: "/my-questionnaire", permission: "questionnaires.answer" },
+    // Guides (رهنمود) for every module — written here, shown by each module's Guide button.
+    { label: "Guides", path: "/guides", permission: "guides.manage" },
   ];
 
   const recruitmentMenus = [

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { richTextToPlain } from "../utils/richText";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { get, peekCache } from "../api/axios";
+import { get, put, peekCache } from "../api/axios";
+import { toastError } from "../utils/toast";
 
 import { fmtDate } from "../utils/formErrors";
 import QuestionnaireCompletionCard from "./questionnaire/QuestionnaireCompletionCard";
@@ -100,13 +101,16 @@ export default function Dashboard() {
     : me.is_welfare ? "Welfare Officer"
     : (me.roles?.[0] || "Staff");
 
-  return (
-    <div className="min-h-screen bg-gray-50/60 px-4 py-5">
-      <div className="max-w-full mx-auto">
-        <WeeklyTopicCard />
-
-        {/* ─── Greeting hero ─── */}
-        <div className="relative bg-gradient-to-br from-teal-700 via-teal-600 to-emerald-600 rounded-2xl px-5 py-5 mb-5 text-white shadow-md overflow-hidden">
+  // Each top-level block, by id. A block is null/false when this person may
+  // not see it (the backend leaves its data out), and DashboardLayout then
+  // leaves it out of the page and out of the customize list.
+  const blocks = {
+    topic: (
+      <WeeklyTopicCard />
+    ),
+    /* ─── Greeting hero ─── */
+    hero: (
+      <div className="relative bg-gradient-to-br from-teal-700 via-teal-600 to-emerald-600 rounded-2xl px-5 py-5 mb-5 text-white shadow-md overflow-hidden">
           {/* Decorative blobs */}
           <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-emerald-300/20 rounded-full blur-2xl pointer-events-none" />
@@ -138,12 +142,13 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-
-        {/* ─── Overview strip — each tile is permission-gated server-side,
-                so a key only exists when the user is allowed to see it.
-                Column count adapts to the number of tiles so the strip is
-                always full-width (no empty cells on the right). ─── */}
-        {overview && Object.keys(overview).length > 0 && (() => {
+    ),
+    /* ─── Overview strip — each tile is permission-gated server-side,
+            so a key only exists when the user is allowed to see it.
+            Column count adapts to the number of tiles so the strip is
+            always full-width (no empty cells on the right). ─── */
+    overview: (
+      overview && Object.keys(overview).length > 0 && (() => {
           const tileCount = Object.keys(overview).length;
           // Tailwind needs full class strings so it can JIT them — be explicit.
           const lgCols = {
@@ -168,13 +173,15 @@ export default function Dashboard() {
             )}
           </div>
           );
-        })()}
-
-        {/* ─── Weekly questionnaire completion ─── */}
-        <QuestionnaireCompletionCard />
-
-        {/* ─── On Leave Today ─── */}
-        {onLeaveToday.length > 0 && (
+        })()
+    ),
+    /* ─── Weekly questionnaire completion ─── */
+    questionnaire: (
+      <QuestionnaireCompletionCard />
+    ),
+    /* ─── On Leave Today ─── */
+    onleave: (
+      onLeaveToday.length > 0 && (
           <div
             ref={onLeaveRef}
             className={`bg-white rounded-2xl border shadow-sm mb-5 transition-all duration-500 ${pulseOnLeave ? "border-amber-400 ring-4 ring-amber-200/70" : "border-amber-100"}`}
@@ -216,13 +223,14 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-        )}
-
-        {/* ─── Upcoming Events + Recent Notifications row ───
-             Adaptive layout: when both widgets render, split 50/50;
-             when only one renders, it takes the full row instead of
-             leaving an empty half. */}
-        {(() => {
+        )
+    ),
+    /* ─── Upcoming Events + Recent Notifications row ───
+         Adaptive layout: when both widgets render, split 50/50;
+         when only one renders, it takes the full row instead of
+         leaving an empty half. */
+    events: (
+      (() => {
           const hasEvents = events_upcoming && events_upcoming.length > 0;
           const hasNotifs = me_section?.recent_notifications?.length > 0;
           if (!hasEvents && !hasNotifs) return null;
@@ -325,14 +333,15 @@ export default function Dashboard() {
             )}
           </div>
           );
-        })()}
-
-        {/* ─── Recent Assignments (admin / access users only) ───
-             Three compact lists — tasks / meetings / events — showing the
-             5 most recent records of each with the assigner + assignee
-             names so leadership can audit who's giving what to whom.
-             Adaptive column count so empty groups don't leave gaps. */}
-        {recent_assignments && (() => {
+        })()
+    ),
+    /* ─── Recent Assignments (admin / access users only) ───
+         Three compact lists — tasks / meetings / events — showing the
+         5 most recent records of each with the assigner + assignee
+         names so leadership can audit who's giving what to whom.
+         Adaptive column count so empty groups don't leave gaps. */
+    assignments: (
+      recent_assignments && (() => {
           const t = recent_assignments.tasks    || [];
           const m = recent_assignments.meetings || [];
           const e = recent_assignments.events   || [];
@@ -424,13 +433,14 @@ export default function Dashboard() {
               ))}
             </div>
           );
-        })()}
-
-        {/* ─── Personal slice + observation chart ───
-             When the observations chart is hidden (non-HR users), let the
-             My Quick View card take the entire row so there's no empty
-             two-column gap on the right. */}
-        <div className={`grid grid-cols-1 ${charts?.observations_last_6_months ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-4 mb-5`}>
+        })()
+    ),
+    /* ─── Personal slice + observation chart ───
+         When the observations chart is hidden (non-HR users), let the
+         My Quick View card take the entire row so there's no empty
+         two-column gap on the right. */
+    quickview: (
+      <div className={`grid grid-cols-1 ${charts?.observations_last_6_months ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-4 mb-5`}>
           <Section
             title="My Quick View"
             icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
@@ -452,9 +462,10 @@ export default function Dashboard() {
             </Section>
           )}
         </div>
-
-        {/* ─── VATS + Welfare + Leave + Recruitment + HR + Finance ─── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-5">
+    ),
+    /* ─── VATS + Welfare + Leave + Recruitment + HR + Finance ─── */
+    modules: (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-5">
           {vats && (
             <Section title="Performance (VATS)" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" onClick={() => navigate("/hr/vats")} cta="Open →">
               <div className="grid grid-cols-3 gap-2 mb-3">
@@ -585,9 +596,10 @@ export default function Dashboard() {
             </Section>
           )}
         </div>
-
-        {/* ─── Income & Expense (admins only) ─── */}
-        {income_expense && (
+    ),
+    /* ─── Income & Expense (admins only) ─── */
+    finance: (
+      income_expense && (
           <div className="mb-5">
             <Section
               title="Income & Expense"
@@ -617,10 +629,11 @@ export default function Dashboard() {
               </div>
             </Section>
           </div>
-        )}
-
-        {/* ─── Departments + Recent activity ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        )
+    ),
+    /* ─── Departments + Recent activity ─── */
+    activity: (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
           {charts?.staff_by_department && charts.staff_by_department.length > 0 && (
             <Section title="Staff by Department" icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5">
               <DeptBars data={charts.staff_by_department} />
@@ -645,8 +658,141 @@ export default function Dashboard() {
             </Section>
           )}
         </div>
+    ),
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50/60 px-4 py-5">
+      <div className="max-w-full mx-auto">
+        <DashboardLayout blocks={blocks} />
       </div>
     </div>
+  );
+}
+
+/* ──────────────── customizable layout ──────────────── */
+
+/**
+ * The dashboard's blocks in default order, with the name shown when someone
+ * arranges their own. Every person can reorder and hide blocks; the
+ * arrangement is saved on their account (/profile/dashboard-layout), so it
+ * follows them to any device. What each person may SEE is still decided by
+ * the server: a block they cannot see never reaches this list.
+ */
+const DASHBOARD_BLOCKS = [
+  ["topic", "Weekly topic"],
+  ["hero", "Greeting"],
+  ["overview", "Overview numbers"],
+  ["questionnaire", "Weekly questionnaire"],
+  ["onleave", "On leave today"],
+  ["events", "Upcoming events & notifications"],
+  ["assignments", "Recent assignments"],
+  ["quickview", "My quick view"],
+  ["modules", "Performance, leave, tasks and more"],
+  ["finance", "Income & expense"],
+  ["activity", "Departments & recent activity"],
+];
+
+function DashboardLayout({ blocks }) {
+  const [layout, setLayout] = useState(() => peekCache("/profile/dashboard-layout")?.data ?? null);
+  const [ready, setReady] = useState(() => !!peekCache("/profile/dashboard-layout"));
+  const [editing, setEditing] = useState(false);
+  const [dragId, setDragId] = useState(null);
+
+  useEffect(() => {
+    get("/profile/dashboard-layout")
+      .then((r) => setLayout(r.data?.data ?? null))
+      .catch(() => {}) // the default layout is always a fine fallback
+      .finally(() => setReady(true));
+  }, []);
+
+  // Saved order first; any block added since (or never placed) keeps its
+  // default position at the end, so a new block is never lost.
+  const known = DASHBOARD_BLOCKS.map(([id]) => id);
+  const saved = (layout?.order || []).filter((id) => known.includes(id));
+  const order = [...saved, ...known.filter((id) => !saved.includes(id))];
+  const hidden = layout?.hidden || [];
+  const visible = order.filter((id) => blocks[id]); // only what this person can see
+  const labelOf = Object.fromEntries(DASHBOARD_BLOCKS);
+
+  const save = (next) => {
+    setLayout(next);
+    put("/profile/dashboard-layout", next).catch(() => toastError("Could not save your dashboard layout."));
+  };
+  const move = (id, toId) => {
+    if (id === toId) return;
+    const next = order.filter((x) => x !== id);
+    next.splice(next.indexOf(toId) + (order.indexOf(id) < order.indexOf(toId) ? 1 : 0), 0, id);
+    save({ order: next, hidden });
+  };
+  const step = (id, dir) => {
+    const i = visible.indexOf(id);
+    const other = visible[i + dir];
+    if (other) move(id, other);
+  };
+  const toggle = (id) =>
+    save({ order, hidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] });
+  const reset = () => {
+    setLayout(null);
+    put("/profile/dashboard-layout", { reset: true }).catch(() => toastError("Could not save your dashboard layout."));
+  };
+
+  if (!ready) return null;
+
+  return (
+    <>
+      <div className="flex justify-end mb-2">
+        <button type="button" onClick={() => setEditing((v) => !v)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          {editing ? "Done" : "Customize dashboard"}
+        </button>
+      </div>
+
+      {editing && (
+        <div className="bg-white rounded-2xl border border-teal-200 shadow-sm mb-5 p-4">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-bold text-gray-800">Customize your dashboard</p>
+              <p className="text-[11px] text-gray-500">Drag to reorder, or use the arrows. Hidden blocks can be shown again any time.</p>
+            </div>
+            <button type="button" onClick={reset}
+              className="shrink-0 text-[11px] font-semibold text-teal-700 hover:underline">Reset to default</button>
+          </div>
+          <ul className="space-y-1.5">
+            {visible.map((id, i) => {
+              const off = hidden.includes(id);
+              return (
+                <li key={id} draggable
+                  onDragStart={() => setDragId(id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => { if (dragId) move(dragId, id); setDragId(null); }}
+                  onDragEnd={() => setDragId(null)}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 cursor-grab active:cursor-grabbing ${
+                    dragId === id ? "border-teal-400 bg-teal-50" : "border-gray-200 bg-gray-50/60"} ${off ? "opacity-50" : ""}`}>
+                  <span className="text-gray-400 select-none" aria-hidden>⠿</span>
+                  <span className="flex-1 min-w-0 text-xs font-semibold text-gray-700 truncate">{labelOf[id]}</span>
+                  <button type="button" onClick={() => step(id, -1)} disabled={i === 0} title="Move up" aria-label="Move up"
+                    className="w-7 h-7 rounded-lg text-gray-500 hover:bg-white disabled:opacity-30">↑</button>
+                  <button type="button" onClick={() => step(id, 1)} disabled={i === visible.length - 1} title="Move down" aria-label="Move down"
+                    className="w-7 h-7 rounded-lg text-gray-500 hover:bg-white disabled:opacity-30">↓</button>
+                  <button type="button" onClick={() => toggle(id)}
+                    className={`w-14 px-2 py-1 rounded-lg text-[11px] font-semibold ${off ? "bg-white border border-gray-300 text-gray-600" : "bg-teal-600 text-white"}`}>
+                    {off ? "Show" : "Hide"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {visible.filter((id) => !hidden.includes(id)).map((id) => (
+        <div key={id}>{blocks[id]}</div>
+      ))}
+    </>
   );
 }
 

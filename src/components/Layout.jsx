@@ -356,19 +356,23 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
 // ── Back button ───────────────────────────────────────────────────────────────
 /**
  * Back to the previous screen inside the system, so nobody has to reach for
- * the browser's own button. Shown only when there is an in-app page to return
- * to: React Router numbers each history entry (`idx`), so a page opened
- * straight from a link (idx 0) has no "back" and the button stays out of the
- * way. The arrow mirrors in Dari / Pashto.
+ * the browser's own button. On every page except the Dashboard itself.
+ *
+ * React Router numbers each history entry (`idx`). When there is an earlier
+ * in-app page (idx > 0) it goes back to it; when the page was opened straight
+ * from a link, typed in, or reloaded in a new tab (idx 0) there is nothing to
+ * go back to, so it goes to the Dashboard instead of leaving the system. The
+ * arrow mirrors in Dari / Pashto.
  */
 function BackButton() {
   const navigate = useNavigate();
-  useLocation(); // re-render on every navigation so idx is current
-  if ((window.history.state?.idx ?? 0) < 1) return null;
+  const { pathname } = useLocation(); // re-render on every navigation so idx is current
+  if (pathname === "/") return null;
+  const hasHistory = (window.history.state?.idx ?? 0) > 0;
   return (
     <button
       type="button"
-      onClick={() => navigate(-1)}
+      onClick={() => (hasHistory ? navigate(-1) : navigate("/"))}
       title="Back"
       aria-label="Back"
       className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-800 flex-shrink-0"

@@ -71,10 +71,13 @@ export default function ChatDrawer() {
   const [vv, setVv] = useState(null);
   useEffect(() => {
     if (!open) return undefined;
-    const body = document.body.style.overflow;
+    // Phones only, and only <html>. Hiding overflow on <body> too made body
+    // its own scroll box, so the sticky desktop sidebar lost its anchor and
+    // jumped up by however far the page was scrolled. On phones the sidebar
+    // is a fixed slide-out, and <html> alone stops the page scrolling.
+    const lock = window.innerWidth < 768;
     const html = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    if (lock) document.documentElement.style.overflow = 'hidden';
     const view = window.visualViewport;
     const sync = () => {
       if (!view || window.innerWidth >= 768) { setVv(null); return; }
@@ -85,8 +88,7 @@ export default function ChatDrawer() {
     view?.addEventListener('scroll', sync);
     window.addEventListener('resize', sync);
     return () => {
-      document.body.style.overflow = body;
-      document.documentElement.style.overflow = html;
+      if (lock) document.documentElement.style.overflow = html;
       view?.removeEventListener('resize', sync);
       view?.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);

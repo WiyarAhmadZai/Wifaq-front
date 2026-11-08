@@ -18,12 +18,23 @@ const b64ToBytes = (b64) => {
 
 let running = null;
 
+/** Tell the service worker the interface language, so a call notification
+ *  (shown while the system is closed) reads in it. */
+function tellWorkerLanguage() {
+  const html = (document.documentElement.lang || 'en').toLowerCase();
+  const lang = html.startsWith('fa') ? 'dr' : html.startsWith('ps') ? 'ps' : 'en';
+  navigator.serviceWorker.ready
+    .then((reg) => reg.active && reg.active.postMessage({ type: 'set-lang', lang }))
+    .catch(() => {});
+}
+
 /** Subscribe this browser (idempotent; safe to call often). */
 export function enableCallPush() {
   if (running) return running;
   running = (async () => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    tellWorkerLanguage();
     const key = (await api.get('/chat/push/key', { cache: false })).data?.key;
     if (!key) return;
     const reg = await navigator.serviceWorker.ready;

@@ -213,6 +213,11 @@ export default function CallManager() {
   const connectedAtRef = useRef(null);
   const toneRef = useRef(createTone());
   const notificationRef = useRef(null);
+  // Answer / Decline pressed on the OS call notification before (or while)
+  // this page learns about the ring: kept by call id, acted on when it rings.
+  const pendingRef = useRef({ answer: null, decline: null });
+  const acceptRef = useRef(null);
+  const declineRef = useRef(null);
   // The chat list, for a ring's group name — read from handlers, so kept in a ref.
   const conversationsRef = useRef(conversations);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
@@ -349,6 +354,14 @@ export default function CallManager() {
       }
     } catch { /* ignore */ }
     timersRef.current.missed = setTimeout(() => finish('Missed call', { log: false }), RING_SECONDS * 1000);
+    // Already answered / declined from the notification: do it now.
+    if (pendingRef.current.answer === c.id) {
+      pendingRef.current.answer = null;
+      setTimeout(() => acceptRef.current?.(), 0);
+    } else if (pendingRef.current.decline === c.id) {
+      pendingRef.current.decline = null;
+      setTimeout(() => declineRef.current?.(), 0);
+    }
   }, [finish]);
 
   const onSignal = useCallback(async (s) => {
@@ -484,6 +497,8 @@ export default function CallManager() {
   };
 
   const decline = () => finish('Declined', { say: 'decline', log: false });
+  acceptRef.current = accept;
+  declineRef.current = decline;
 
   const hangUp = () => {
     const c = callRef.current;
@@ -537,6 +552,35 @@ export default function CallManager() {
       window.removeEventListener('wen:call-incoming', onRing);
     };
   }, [startCall, onSignal]);
+
+  /* The OS call notification's buttons (public/sw.js). Answer from a closed
+   * system opens /?answer_call=<id>; from an open tab the worker posts a
+   * message. If the ring is already on screen it is answered / declined at
+   * once; otherwise ringFor does it the moment the ring arrives. */
+  useEffect(() => {
+    if (!canUseChat) return undefined;
+    const url = new URL(window.location.href);
+    const fromUrl = url.searchParams.get('answer_call');
+    if (fromUrl) {
+      pendingRef.current.answer = fromUrl;
+      url.searchParams.delete('answer_call');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }
+    if (!('serviceWorker' in navigator)) return undefined;
+    const onMsg = (e) => {
+      const d = e.data || {};
+      if (d.type !== 'call-answer' && d.type !== 'call-decline') return;
+      const c = callRef.current;
+      const ringing = c && c.id === d.callId && c.status === 'incoming';
+      if (d.type === 'call-answer') {
+        if (ringing) acceptRef.current?.();
+        else { pendingRef.current.answer = d.callId; pollSignals().catch(() => {}); }
+      } else if (ringing) declineRef.current?.();
+      else pendingRef.current.decline = d.callId;
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+  }, [canUseChat]);
 
   // Learn where "now" is once, so the first poll of a call never skips an
   // answer that is already waiting.

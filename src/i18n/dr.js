@@ -7116,4 +7116,7 @@ export default {
   "Performance, leave, tasks and more": "کارکرد، رخصتی، وظایف و بیشتر",
   "Income & expense": "عاید و مصرف",
   "Departments & recent activity": "دیپارتمنت‌ها و فعالیت‌های اخیر",
+  "+ New topic (past weeks too)": "+ موضوع جدید (هفته‌های گذشته هم)",
+  "This week's topic was updated.": "موضوع این هفته به‌روز شد.",
+  "Weekly topic set. Teachers can nominate until the week ends.": "موضوع هفته ثبت شد. استادان تا پایان هفته می‌توانند نامزد کنند.",
 };

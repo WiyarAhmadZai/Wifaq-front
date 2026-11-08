@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { DIMS, DimPill, Spinner, StudentName, StudentPicker, cleanClass, describeError, TEAL } from "./weeklyUi";
@@ -12,6 +12,10 @@ import { DIMS, DimPill, Spinner, StudentName, StudentPicker, cleanClass, describ
  */
 export default function WeeklyNominate() {
   const navigate = useNavigate();
+  // ?topic_id= nominates for that week (a past one too, while it is open);
+  // without it, the current week as before.
+  const [params] = useSearchParams();
+  const url = params.get("topic_id") ? `/weekly-recognition?topic_id=${params.get("topic_id")}` : "/weekly-recognition";
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -21,15 +25,15 @@ export default function WeeklyNominate() {
   const [reason, setReason] = useState("");
 
   const load = useCallback(async () => {
-    const cached = peekCache("/weekly-recognition");
+    const cached = peekCache(url);
     if (cached) { setData(cached); setLoading(false); }
     try {
-      const res = await get("/weekly-recognition");
+      const res = await get(url);
       setData(res.data);
     } catch (err) {
       Swal.fire("Error", describeError(err, "Failed to load this week's topic."), "error");
     } finally { setLoading(false); }
-  }, []);
+  }, [url]);
 
   useEffect(() => { load(); }, [load]);
 

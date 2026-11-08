@@ -7116,4 +7116,7 @@ export default {
   "Performance, leave, tasks and more": "فعالیت، رخصتي، دندې او نور",
   "Income & expense": "عاید او لګښت",
   "Departments & recent activity": "څانګې او وروستي فعالیتونه",
+  "+ New topic (past weeks too)": "+ نوې موضوع (تېرې اونۍ هم)",
+  "This week's topic was updated.": "د دې اونۍ موضوع تازه شوه.",
+  "Weekly topic set. Teachers can nominate until the week ends.": "د اونۍ موضوع ثبت شوه. استادان د اونۍ تر پایه کاندیدان ورکولی شي.",
 };

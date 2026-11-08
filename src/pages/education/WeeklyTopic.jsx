@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { get, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
@@ -44,6 +44,13 @@ const weekBounds = (d = new Date()) => {
 
 export default function WeeklyTopic() {
   const navigate = useNavigate();
+  // ?topic_id= opens that week (a past one too); without it, the current week.
+  const [params, setParams] = useSearchParams();
+  const url = params.get("topic_id") ? `/weekly-recognition?topic_id=${params.get("topic_id")}` : "/weekly-recognition";
+  // The topic the form saves into — null means "add a new topic". It used to
+  // be "whatever topic is on screen, if open", so typing an older topic with
+  // past dates overwrote the current week instead of adding one.
+  const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -70,26 +77,38 @@ export default function WeeklyTopic() {
       goals: blankPlan(3, t?.goals), daily_activities: blankPlan(5, t?.daily_activities),
     });
     setPoster({ file: null, preview: null, from: null, remove: false });
+    setEditingId(t && t.status === "open" ? t.id : null);
     // Past topics, to bring one (and its poster) back for a new week.
     if (d?.can_select) get("/weekly-recognition/topics/library").then((r) => setLibrary(r.data?.data || [])).catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
-    const cached = peekCache("/weekly-recognition");
+    const cached = peekCache(url);
     if (cached) { apply(cached); setLoading(false); }
     try {
-      const res = await get("/weekly-recognition");
+      const res = await get(url);
       apply(res.data);
     } catch (err) {
       Swal.fire("Error", describeError(err, "Failed to load weekly recognition."), "error");
     } finally { setLoading(false); }
-  }, [apply]);
+  }, [apply, url]);
 
   useEffect(() => { load(); }, [load]);
 
   const topic = data?.topic;
   const canSelect = Boolean(data?.can_select);
   const [evalTopic, setEvalTopic] = useState(null);
+
+  // An empty form for another week — past weeks included, for recording the
+  // topics already run (certificates and result sheets need them).
+  const startNew = () => {
+    const wb = weekBounds();
+    setEditingId(null);
+    setForm({ title: "", description: "", week_start: wb.start, week_end: wb.end, primary_dimension: null,
+      goals: blankPlan(3), daily_activities: blankPlan(5) });
+    setPoster({ file: null, preview: null, from: null, remove: false });
+    document.getElementById("weekly-topic-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const removeTopic = async (t) => {
     const ok = await Swal.fire({
@@ -121,14 +140,18 @@ export default function WeeklyTopic() {
       if (poster.file) body.append("poster", poster.file);
       else if (poster.from) body.append("poster_from", poster.from);
       else if (poster.remove) body.append("remove_poster", "1");
-      // Editing the live topic keeps its id; anything else opens a new week.
+      // Editing keeps the topic's id; "New topic" adds another week.
       // (A file can't ride a real PUT, so the update is sent as POST + _method.)
-      if (topic && topic.status === "open") {
+      let res;
+      if (editingId) {
         body.append("_method", "PUT");
-        await post(`/weekly-recognition/topics/${topic.id}`, body);
-      } else await post("/weekly-recognition/topics", body);
-      Swal.fire({ icon: "success", title: "Topic saved", timer: 1200, showConfirmButton: false });
-      load();
+        res = await post(`/weekly-recognition/topics/${editingId}`, body);
+      } else res = await post("/weekly-recognition/topics", body);
+      Swal.fire({ icon: "success", title: res?.data?.message || "Topic saved", timer: 1600, showConfirmButton: false });
+      // Show the week just saved, so its candidates can be added next.
+      const savedId = res?.data?.data?.id;
+      if (savedId && String(savedId) !== params.get("topic_id")) setParams({ topic_id: String(savedId) });
+      else load();
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to save the topic", "error");
     } finally { setSaving(false); }
@@ -237,10 +260,18 @@ export default function WeeklyTopic() {
 
         {/* Topic form (tarbiyati lead / admin) */}
         {canSelect ? (
-          <div className="bg-white rounded-2xl border border-[#D0E0E0] shadow-sm p-4">
-            <h3 className="text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider mb-3">
-              {topic?.status === "open" ? "Edit this week's topic" : "Set a new week's topic"}
-            </h3>
+          <div id="weekly-topic-form" className="bg-white rounded-2xl border border-[#D0E0E0] shadow-sm p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider">
+                {editingId ? "Edit this week's topic" : "Set a new week's topic"}
+              </h3>
+              {editingId && (
+                <button type="button" onClick={startNew}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#D0E0E0] hover:bg-[#F4F8F8]" style={{ color: TEAL }}>
+                  + New topic (past weeks too)
+                </button>
+              )}
+            </div>
 
             {library.length > 0 && (
               <div className="mb-3">
@@ -366,8 +397,20 @@ export default function WeeklyTopic() {
                     <div className="text-sm font-semibold text-[#0A3A3E] truncate">{t.title}</div>
                     <div className="text-[11px] text-[#5A7A7E]">{t.week_start} → {t.week_end}</div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#E8F0F0] text-[#5A7A7E]">{t.status.replace("_", " ")}</span>
+                    {topic?.id !== t.id && (
+                      <button onClick={() => { setParams({ topic_id: String(t.id) }); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                        className="text-[11px] font-semibold" style={{ color: TEAL }}>
+                        Open
+                      </button>
+                    )}
+                    {t.status === "open" && (
+                      <button onClick={() => navigate(`/education/weekly-recognition/nominate?topic_id=${t.id}`)}
+                        className="text-[11px] font-semibold" style={{ color: TEAL }}>
+                        ✍️ Nominate
+                      </button>
+                    )}
                     {canSelect && (
                       <button onClick={() => navigate(`/education/weekly-recognition/review?topic_id=${t.id}`)}
                         className="text-[11px] font-semibold" style={{ color: TEAL }}>

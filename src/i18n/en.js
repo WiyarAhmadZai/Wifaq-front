@@ -7099,4 +7099,7 @@ export default {
   "Performance, leave, tasks and more": "Performance, leave, tasks and more",
   "Income & expense": "Income & expense",
   "Departments & recent activity": "Departments & recent activity",
+  "+ New topic (past weeks too)": "+ New topic (past weeks too)",
+  "This week's topic was updated.": "This week's topic was updated.",
+  "Weekly topic set. Teachers can nominate until the week ends.": "Weekly topic set. Teachers can nominate until the week ends.",
 };

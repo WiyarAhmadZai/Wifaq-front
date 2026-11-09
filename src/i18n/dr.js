@@ -7119,4 +7119,12 @@ export default {
   "+ New topic (past weeks too)": "+ موضوع جدید (هفته‌های گذشته هم)",
   "This week's topic was updated.": "موضوع این هفته به‌روز شد.",
   "Weekly topic set. Teachers can nominate until the week ends.": "موضوع هفته ثبت شد. استادان تا پایان هفته می‌توانند نامزد کنند.",
+  "What you gave earlier is already here; just review and confirm.": "آن‌چه پیش‌تر داده‌ای از قبل آمده است؛ فقط بررسی و تأیید کن.",
+  "What is needed at work.": "آن‌چه برای محیطِ کار لازم است.",
+  "Name and photo": "نام و عکس",
+  "Education level and documents (tazkira, education certificate…)": "درجهٔ تحصیلی و اسناد (تذکره، سند تحصیلی…)",
+  "Who sees what?": "چه کسی چه می‌بیند؟",
+  "You see everything, and can edit or delete it at any time.": "خودت همه‌چیز را می‌بینی و می‌توانی هر وقت ویرایش یا حذف کنی.",
+  "Your direct supervisor sees only your skills and work plans.": "مسؤولِ مستقیمت فقط مهارت‌ها و پلان‌های کاری‌ات را می‌بیند.",
+  "Round 3 stays only with one trusted person and never goes into an evaluation.": "مرحلهٔ سوم فقط نزدِ یک مسؤولِ مورد اعتماد می‌ماند و وارد ارزیابی نمی‌شود.",
 };

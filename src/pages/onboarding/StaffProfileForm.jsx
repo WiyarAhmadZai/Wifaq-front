@@ -149,6 +149,16 @@ export default function StaffProfileForm() {
         )}
       </header>
 
+      {/* Privacy said once, collapsed — not a banner on every section. */}
+      <details className="rounded-xl border border-gray-200 bg-white text-sm">
+        <summary className="cursor-pointer px-3.5 py-2.5 font-semibold text-teal-700">{t("Who sees what?")}</summary>
+        <ul className="list-disc ps-8 pe-4 pb-3 space-y-1 text-[13px] text-gray-600">
+          <li>{t("You see everything, and can edit or delete it at any time.")}</li>
+          <li>{t("Your direct supervisor sees only your skills and work plans.")}</li>
+          <li>{t("Round 3 stays only with one trusted person and never goes into an evaluation.")}</li>
+        </ul>
+      </details>
+
       {/* Completion strip */}
       <div className="rounded-xl border border-gray-200 bg-white p-3.5">
         <div className="flex items-center justify-between text-[11px] font-semibold text-gray-600">

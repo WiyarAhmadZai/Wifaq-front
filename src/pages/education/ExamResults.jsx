@@ -83,7 +83,9 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
   const [subjectId, setSubjectId] = useState("");
   const [termId, setTermId] = useState("");
   const [rows, setRows] = useState([]);
-  const [components, setComponents] = useState({});
+  // A list of {exam_type, component_key, max_marks}; it was seeded as {} and
+  // `components.find` crashed the page before (or without) the setup loading.
+  const [components, setComponents] = useState([]);
   const [passingMark, setPassingMark] = useState(40);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,7 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
     examResultFormData().then((response) => {
       const data = response.data || {};
       setMeta(data);
-      setComponents(data.components || {});
+      setComponents(Array.isArray(data.components) ? data.components : []);
       setPassingMark(data.passing_mark ?? 40);
       const firstClass = data.classes?.[0];
       if (firstClass) setClassId(String(firstClass.id));

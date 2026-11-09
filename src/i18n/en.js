@@ -7102,4 +7102,12 @@ export default {
   "+ New topic (past weeks too)": "+ New topic (past weeks too)",
   "This week's topic was updated.": "This week's topic was updated.",
   "Weekly topic set. Teachers can nominate until the week ends.": "Weekly topic set. Teachers can nominate until the week ends.",
+  "What you gave earlier is already here; just review and confirm.": "What you gave earlier is already here; just review and confirm.",
+  "What is needed at work.": "What is needed at work.",
+  "Name and photo": "Name and photo",
+  "Education level and documents (tazkira, education certificate…)": "Education level and documents (tazkira, education certificate…)",
+  "Who sees what?": "Who sees what?",
+  "You see everything, and can edit or delete it at any time.": "You see everything, and can edit or delete it at any time.",
+  "Your direct supervisor sees only your skills and work plans.": "Your direct supervisor sees only your skills and work plans.",
+  "Round 3 stays only with one trusted person and never goes into an evaluation.": "Round 3 stays only with one trusted person and never goes into an evaluation.",
 };

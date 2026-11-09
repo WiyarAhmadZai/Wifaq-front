@@ -7119,4 +7119,12 @@ export default {
   "+ New topic (past weeks too)": "+ نوې موضوع (تېرې اونۍ هم)",
   "This week's topic was updated.": "د دې اونۍ موضوع تازه شوه.",
   "Weekly topic set. Teachers can nominate until the week ends.": "د اونۍ موضوع ثبت شوه. استادان د اونۍ تر پایه کاندیدان ورکولی شي.",
+  "What you gave earlier is already here; just review and confirm.": "هغه څه چې مخکې دې ورکړي، دلته راغلي دي؛ یوازې یې وګوره او تایید یې کړه.",
+  "What is needed at work.": "هغه څه چې د کار لپاره اړین دي.",
+  "Name and photo": "نوم او عکس",
+  "Education level and documents (tazkira, education certificate…)": "تحصیلي درجه او اسناد (تذکره، تحصیلي سند…)",
+  "Who sees what?": "څوک څه ویني؟",
+  "You see everything, and can edit or delete it at any time.": "ته پخپله هر څه وینې او هر وخت یې سمولی یا ړنګولی شې.",
+  "Your direct supervisor sees only your skills and work plans.": "ستا مستقیم مسؤول یوازې ستا مهارتونه او کاري پلانونه ویني.",
+  "Round 3 stays only with one trusted person and never goes into an evaluation.": "درېیم پړاو یوازې د یوه باوري مسؤول سره پاتې کېږي او ارزونې ته نه ورځي.",
 };

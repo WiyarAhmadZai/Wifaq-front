@@ -22,10 +22,10 @@ import CameraCapture from './CameraCapture';
 const INPUT_ID = 'wen-chat-input';
 const focusEditor = () => document.getElementById(INPUT_ID)?.focus();
 
-/* What the paperclip offers — mirrors the server's mimes rule. Anything a
- * WhatsApp user would expect to send: pictures, documents, audio, video. */
+/* What the paperclip offers. Document accepts any file (html, rar, apk…) —
+ * the server keeps unusual types as download-only. */
 const ACCEPT = {
-  document: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.zip',
+  document: '',
   audio: 'audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.webm',
   video: 'video/*,.mp4,.mov,.m4v,.3gp,.mkv,.avi',
 };

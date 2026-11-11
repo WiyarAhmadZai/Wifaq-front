@@ -155,6 +155,8 @@ export default function MyProfile() {
   const isSelf       = !!profile.is_self;
   const isAdminView  = !!profile.is_admin_viewer;
   const isPublicView = !isSelf && !isAdminView;
+  // Their direct supervisor: sees the self-profile and the staff profile form.
+  const isSupervisorView = !!profile.is_supervisor_viewer;
   const canSeePrivate = isSelf || isAdminView;
 
   return (
@@ -320,7 +322,10 @@ export default function MyProfile() {
             )}
 
             {/* Self-profile — the staff's own public narrative; editable only by the owner */}
-            {profile.type === 'staff' && <SelfProfileSection canEdit={isSelf} initialData={profile.self_profile} />}
+            {profile.type === 'staff' && (isSelf || isAdminView || isSupervisorView) && <SelfProfileSection canEdit={isSelf} initialData={profile.self_profile} />}
+
+            {/* Staff profile form (شناسنامه) — never public: their supervisor and HR only. */}
+            {profile.type === 'staff' && !isSelf && (isAdminView || isSupervisorView) && <StaffFormAnswers userId={u.id} />}
 
             {/* Annual leave usage from the contract (single progress bar) */}
             {profile.type === 'staff' && (isSelf || isAdminView) && s.leave_balance && (
@@ -971,6 +976,78 @@ function LeaveBalanceSection() {
 }
 
 /* ─────────────────────── shared ─────────────────────── */
+
+/**
+ * Someone's staff profile form (شناسنامه), read-only, for their supervisor and
+ * HR. The server decides who may read it (403 for anyone else, and then the
+ * section simply does not render).
+ */
+function StaffFormAnswers({ userId }) {
+  const [data, setData] = useState(null);
+  const [state, setState] = useState('loading');
+
+  useEffect(() => {
+    let alive = true;
+    get(`/profile/${userId}/staff-form`, { cache: false })
+      .then((r) => { if (alive) { setData(r.data?.data || null); setState('ok'); } })
+      .catch(() => { if (alive) setState('denied'); });
+    return () => { alive = false; };
+  }, [userId]);
+
+  if (state === 'denied') return null;
+
+  const answers = data?.answers || {};
+  const sections = (data?.schema || [])
+    .map((sec) => ({ sec, rows: (sec.fields || []).map((f) => [f, staffAnswerText(f, answers[f.key])]).filter(([, v]) => v) }))
+    .filter((x) => x.rows.length);
+
+  return (
+    <Section title="Staff Profile Form" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+      <p className="text-[11px] text-gray-500 mb-3">
+        {'Only this person, their supervisor and HR can see this.'}
+        {data && <> · {data.submitted ? 'Submitted' : 'In progress'} · {data.completion ?? 0}%</>}
+      </p>
+      {state === 'loading' ? (
+        <p className="text-xs text-gray-400">Loading…</p>
+      ) : sections.length === 0 ? (
+        <p className="text-xs text-gray-500">Not filled in yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {sections.map(({ sec, rows }) => (
+            <div key={sec.id}>
+              <h4 className="text-xs font-bold text-teal-800 mb-1.5">{sec.icon ? `${sec.icon} ` : ''}{sec.title}</h4>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                {rows.map(([f, v]) => (
+                  <div key={f.key} className="text-xs">
+                    <dt className="font-semibold text-gray-500">{f.label}</dt>
+                    <dd className="text-gray-800 whitespace-pre-line break-words">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/** One stored answer as readable text ('' when unanswered, so it is skipped). */
+function staffAnswerText(field, raw) {
+  const labelFor = (v) => field.options?.[v] ?? v;
+  switch (field.type) {
+    case 'checkbox': return raw ? 'Yes' : '';
+    case 'multiselect': return Array.isArray(raw) && raw.length ? raw.map(labelFor).join(', ') : '';
+    case 'group': {
+      if (!Array.isArray(raw) || !raw.length) return '';
+      const sub = field.fields || [];
+      return raw.map((row) => sub.map((f) => `${f.label}: ${row[f.key] || '—'}`).join(' · ')).join('\n');
+    }
+    case 'select':
+    case 'radio': return raw ? String(labelFor(raw)) : '';
+    default: return raw == null ? '' : String(raw);
+  }
+}
 
 function Section({ title, icon, children, onEdit, editable, locked, lockMessage }) {
   return (

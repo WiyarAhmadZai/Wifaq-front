@@ -35,6 +35,7 @@ const KIND = {
   appointment: { label: "Appointment",    cls: "bg-teal-100 border-teal-300 text-teal-800" },
   event:       { label: "Event",          cls: "bg-violet-100 border-violet-300 text-violet-800" },
   task:        { label: "Busy in a task", cls: "bg-amber-100 border-amber-300 text-amber-800" },
+  timeline:    { label: "Busy",           cls: "bg-slate-200 border-slate-300 text-slate-700" },
   leave:       { label: "On leave",       cls: "bg-red-100 border-red-300 text-red-800" },
   holiday:     { label: "Holiday",        cls: "bg-rose-100 border-rose-300 text-rose-800" },
 };

@@ -167,6 +167,17 @@ const OTHER_KIND = {
 
 const EMPTY_BLOCK = { start: "", end: "", title: "", project: "", notes: "" };
 
+/* One colour per project, so the same project reads the same everywhere. */
+const PROJECT_COLORS = ["#0d9488", "#6366f1", "#f59e0b", "#ec4899", "#0ea5e9", "#84cc16", "#8b5cf6", "#ef4444"];
+const projectColor = (p) => {
+  if (!p) return "#14b8a6";
+  let h = 0;
+  for (const ch of p) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return PROJECT_COLORS[h % PROJECT_COLORS.length];
+};
+
+const inputCls = "mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition";
+
 /**
  * Each person lays out their own day: which work or project, from when to
  * when, and how many hours that comes to. While a block lasts nobody else
@@ -181,7 +192,7 @@ function MyTimeline() {
 
   const load = useCallback(() => get("/hr/staff-tasks/timeline", { cache: false, params: { date } })
     .then((r) => setData(r.data.data))
-    .catch(() => Swal.fire("Error", "Could not load your timeline.", "error")), [date]);
+    .catch((e) => { setData({ entries: [], others: [], by_project: [], total_minutes: 0, my_staff_id: null, error: true }); Swal.fire("Error", e.response?.data?.message || "Could not load your timeline.", "error"); }), [date]);
   useEffect(() => { setData(null); load(); }, [load]);
 
   const fail = (e, text) => {
@@ -230,122 +241,213 @@ function MyTimeline() {
   for (let h = Math.ceil(dayStart / 60); h <= Math.floor(dayEnd / 60); h++) hours.push(h);
   const projects = [...new Set(blocks.map((b) => b.project).filter(Boolean))];
 
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const showNow = isToday && nowMin >= dayStart && nowMin <= dayEnd;
+  const pct = (m) => ((m - dayStart) / (dayEnd - dayStart)) * 100;
+  const maxProject = Math.max(1, ...(data?.by_project || []).map((p) => p.minutes));
+
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setDate((d) => shiftDay(d, -1))} className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs" title="Previous day">‹</button>
-          <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)}
-            className="px-2 py-1.5 rounded-lg border border-gray-200 text-xs" />
-          <button onClick={() => setDate((d) => shiftDay(d, 1))} className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs" title="Next day">›</button>
-          {!isToday && <button onClick={() => setDate(todayStr())} className="px-3 py-1.5 rounded-lg bg-teal-50 text-teal-700 text-xs font-semibold hover:bg-teal-100">Today</button>}
-          <span className="text-sm font-semibold text-gray-800 ms-1" data-no-i18n>{nice}</span>
-          {data && (
-            <span className="ms-auto px-3 py-1 rounded-full bg-teal-600 text-white text-xs font-semibold">
-              <span>Total</span> <span data-no-i18n>{hm(data.total_minutes)}</span>
-            </span>
-          )}
+      {/* ── Header: the day, and what it adds up to ── */}
+      <section className="rounded-2xl overflow-hidden shadow-sm bg-gradient-to-br from-teal-600 via-teal-600 to-emerald-500 text-white">
+        <div className="p-4 sm:p-5 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setDate((d) => shiftDay(d, -1))} title="Previous day"
+              className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-lg rtl:rotate-180 transition">‹</button>
+            <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)}
+              className="h-9 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-sm text-white border-0 focus:outline-none focus:ring-2 focus:ring-white/40 [color-scheme:dark]" />
+            <button onClick={() => setDate((d) => shiftDay(d, 1))} title="Next day"
+              className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-lg rtl:rotate-180 transition">›</button>
+            {!isToday && <button onClick={() => setDate(todayStr())} className="h-9 px-3 rounded-xl bg-white text-teal-700 text-xs font-bold hover:bg-teal-50 transition">Today</button>}
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg sm:text-xl font-bold leading-tight" data-no-i18n>{nice}</div>
+          </div>
+
+          <div className="w-full lg:w-auto lg:ms-auto grid grid-cols-3 gap-2">
+            {[["Total", data ? hm(data.total_minutes) : "—"], ["Blocks", data ? blocks.length : "—"], ["Projects", data ? projects.length : "—"]].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-white/15 backdrop-blur px-4 py-2 text-center min-w-[90px]">
+                <div className="text-xl font-bold leading-none" data-no-i18n>{value}</div>
+                <div className="text-[11px] text-white/80 mt-1">{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
+        <div className="px-4 sm:px-5 py-2 bg-black/10 text-[11px] text-white/90 flex items-center gap-2">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          <span>While a block on your timeline lasts, nobody else can assign you a task, and the appointment calendar shows you as busy.</span>
+        </div>
+      </section>
 
-        <p className="text-[11px] text-gray-500">While a block on your timeline lasts, nobody else can assign you a task, and the appointment calendar shows you as busy.</p>
-
-        {!data ? (
-          <div className="flex justify-center py-8"><Spinner /></div>
-        ) : !data.my_staff_id ? (
-          <p className="text-xs text-gray-500 py-6 text-center">Your account is not linked to a staff record.</p>
-        ) : (
-          <>
-            {/* The day at a glance */}
-            <div>
-              <div className="relative h-12 rounded-lg bg-gray-50 border border-gray-200 overflow-hidden">
+      {!data ? (
+        <div className="flex justify-center py-12"><Spinner /></div>
+      ) : !data.my_staff_id ? (
+        <p className="rounded-2xl border border-gray-200 bg-white text-sm text-gray-500 py-10 text-center">Your account is not linked to a staff record.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+          <div className="lg:col-span-2 space-y-4">
+            {/* ── The day at a glance ── */}
+            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-800 mb-3">Day at a glance</h3>
+              <div className="relative h-16 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden">
+                {hours.map((h) => (
+                  <div key={`g${h}`} className="absolute top-0 bottom-0 border-s border-dashed border-gray-200" style={{ insetInlineStart: `${pct(h * 60)}%` }} />
+                ))}
                 {others.map((b, i) => (
-                  <div key={`o${i}`} className="absolute top-0 h-4 bg-gray-300/70 border-x border-white" style={pos(b.start, b.end)}
+                  <div key={`o${i}`} className="absolute top-1.5 h-3 rounded-full bg-gray-300" style={pos(b.start, b.end)}
                     title={`${OTHER_KIND[b.kind] || b.kind} ${b.start}–${b.end}`} />
                 ))}
                 {blocks.map((b) => (
                   <button key={b.id} type="button" onClick={() => edit(b)}
-                    className={`absolute top-4 bottom-0 rounded-md border text-[10px] px-1 truncate text-start ${editing === b.id ? "bg-amber-400 border-amber-500 text-white" : "bg-teal-500 border-teal-600 text-white hover:bg-teal-600"}`}
-                    style={pos(b.start, b.end)} title={`${b.start}–${b.end} ${b.title}`} dir="auto" data-no-i18n>{b.title}</button>
+                    className={`absolute top-6 bottom-1.5 rounded-lg text-[10px] font-semibold text-white px-1.5 truncate text-start shadow-sm hover:brightness-110 transition ${editing === b.id ? "ring-2 ring-offset-1 ring-amber-400" : ""}`}
+                    style={{ ...pos(b.start, b.end), backgroundColor: projectColor(b.project) }}
+                    title={`${b.start}–${b.end} ${b.title}`} dir="auto" data-no-i18n>{b.title}</button>
                 ))}
+                {showNow && (
+                  <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10" style={{ insetInlineStart: `${pct(nowMin)}%` }} title="Now">
+                    <span className="absolute -top-0.5 -start-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+                  </div>
+                )}
               </div>
-              <div className="relative h-4 text-[9px] text-gray-400" data-no-i18n>
+              <div className="relative h-5 mt-1 text-[10px] text-gray-400" data-no-i18n>
                 {hours.map((h) => (
-                  <span key={h} className="absolute -translate-x-1/2 rtl:translate-x-1/2" style={{ insetInlineStart: `${((h * 60 - dayStart) / (dayEnd - dayStart)) * 100}%` }}>{String(h).padStart(2, "0")}</span>
+                  <span key={h} className="absolute -translate-x-1/2 rtl:translate-x-1/2" style={{ insetInlineStart: `${pct(h * 60)}%` }}>{String(h).padStart(2, "0")}:00</span>
                 ))}
               </div>
-              {others.length > 0 && <p className="text-[10px] text-gray-400 mt-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300 align-middle me-1" />Already on your day (lessons, meetings, tasks…)</p>}
-            </div>
+              {others.length > 0 && (
+                <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1.5">
+                  <span className="inline-block w-4 h-2 rounded-full bg-gray-300" />
+                  <span>Already on your day (lessons, meetings, tasks…)</span>
+                </p>
+              )}
+            </section>
 
-            {/* Add / edit a block */}
-            <form onSubmit={save} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end rounded-lg bg-teal-50/50 border border-teal-100 p-3">
-              <label className="sm:col-span-2 text-[11px] text-gray-600">From
-                <input type="time" required value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })}
-                  className="mt-0.5 w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white" />
+            {/* ── The blocks, in order ── */}
+            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+              {blocks.length === 0 ? (
+                <div className="py-10 text-center">
+                  <div className="mx-auto w-14 h-14 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mb-3">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <p className="text-sm text-gray-500">Nothing on your timeline for this day yet.</p>
+                </div>
+              ) : (
+                <ol className="relative">
+                  {blocks.map((b, i) => {
+                    const c = projectColor(b.project);
+                    return (
+                      <li key={b.id} className="relative flex gap-3 pb-4 last:pb-0">
+                        {/* time + rail */}
+                        <div className="w-14 shrink-0 text-end pt-2.5" data-no-i18n>
+                          <div className="text-sm font-bold text-gray-800 leading-none">{b.start}</div>
+                          <div className="text-[11px] text-gray-400 mt-1">{b.end}</div>
+                        </div>
+                        <div className="relative flex flex-col items-center">
+                          <span className="mt-3 w-3.5 h-3.5 rounded-full ring-4 ring-white shadow" style={{ backgroundColor: c }} />
+                          {i < blocks.length - 1 && <span className="flex-1 w-0.5 bg-gray-200 mt-1" />}
+                        </div>
+                        {/* card */}
+                        <div className={`group flex-1 min-w-0 rounded-xl border p-3 transition hover:shadow-md ${editing === b.id ? "border-amber-300 bg-amber-50/60" : "border-gray-100 bg-gray-50/60 hover:bg-white"}`}
+                          style={{ borderInlineStartWidth: 4, borderInlineStartColor: c }}>
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-gray-800 break-words" dir="auto" data-no-i18n>{b.title}</div>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-gray-200 text-[11px] font-semibold text-gray-600" data-no-i18n>
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                  {hm(b.minutes)}
+                                </span>
+                                {b.project && (
+                                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold text-white" style={{ backgroundColor: c }} dir="auto" data-no-i18n>{b.project}</span>
+                                )}
+                              </div>
+                              {b.notes && <p className="text-xs text-gray-500 mt-2 break-words leading-relaxed" dir="auto" data-no-i18n>{b.notes}</p>}
+                            </div>
+                            <div className="flex gap-1 shrink-0 opacity-70 group-hover:opacity-100 transition">
+                              <button onClick={() => edit(b)} title="Edit" className="w-8 h-8 rounded-lg text-teal-600 hover:bg-teal-50 flex items-center justify-center">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                              <button onClick={() => remove(b)} title="Delete" className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </section>
+          </div>
+
+          <div className="space-y-4 lg:sticky lg:top-4">
+            {/* ── Add / edit a block ── */}
+            <form onSubmit={save} className={`rounded-2xl border bg-white p-4 shadow-sm space-y-3 ${editing ? "border-amber-300" : "border-gray-200"}`}>
+              <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white ${editing ? "bg-amber-500" : "bg-teal-600"}`}>
+                  {editing ? "✎" : "+"}
+                </span>
+                <span>{editing ? "Edit block" : "Add a block"}</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-medium text-gray-600">From
+                  <input type="time" required value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} className={inputCls} />
+                </label>
+                <label className="text-xs font-medium text-gray-600">To
+                  <input type="time" required value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} className={inputCls} />
+                </label>
+              </div>
+              {formMinutes > 0 && (
+                <div className="rounded-lg bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 flex items-center gap-1.5">
+                  <span>Length:</span> <span data-no-i18n>{hm(formMinutes)}</span>
+                </div>
+              )}
+              <label className="block text-xs font-medium text-gray-600">What are you working on?
+                <input required maxLength={200} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} dir="auto" className={inputCls} />
               </label>
-              <label className="sm:col-span-2 text-[11px] text-gray-600">To
-                <input type="time" required value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })}
-                  className="mt-0.5 w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white" />
-              </label>
-              <label className="col-span-2 sm:col-span-4 text-[11px] text-gray-600">What are you working on?
-                <input required maxLength={200} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} dir="auto"
-                  className="mt-0.5 w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white" />
-              </label>
-              <label className="col-span-2 sm:col-span-2 text-[11px] text-gray-600">Project (optional)
-                <input maxLength={150} list="timeline-projects" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} dir="auto"
-                  className="mt-0.5 w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white" />
+              <label className="block text-xs font-medium text-gray-600">Project (optional)
+                <input maxLength={150} list="timeline-projects" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} dir="auto" className={inputCls} />
                 <datalist id="timeline-projects">{projects.map((p) => <option key={p} value={p} />)}</datalist>
               </label>
-              <div className="col-span-2 sm:col-span-2 flex gap-1.5">
-                <button disabled={saving} className="flex-1 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 disabled:opacity-50">
+              <label className="block text-xs font-medium text-gray-600">Notes (optional)
+                <textarea rows={2} maxLength={2000} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} dir="auto" className={`${inputCls} resize-none`} />
+              </label>
+              <div className="flex gap-2 pt-1">
+                <button disabled={saving}
+                  className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold shadow-sm disabled:opacity-50 transition ${editing ? "bg-amber-500 hover:bg-amber-600" : "bg-teal-600 hover:bg-teal-700"}`}>
                   {editing ? "Save" : "Add"}
                 </button>
-                {editing && <button type="button" onClick={reset} className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs bg-white">Cancel</button>}
+                {editing && <button type="button" onClick={reset} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50">Cancel</button>}
               </div>
-              <label className="col-span-2 sm:col-span-12 text-[11px] text-gray-600">Notes (optional)
-                <input maxLength={2000} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} dir="auto"
-                  className="mt-0.5 w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white" />
-              </label>
-              {formMinutes > 0 && <p className="col-span-2 sm:col-span-12 text-[11px] text-teal-700"><span>Length:</span> <span data-no-i18n>{hm(formMinutes)}</span></p>}
             </form>
 
-            {/* The blocks, in order */}
-            {blocks.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">Nothing on your timeline for this day yet.</p>
-            ) : (
-              <ul className="divide-y divide-gray-100 rounded-lg border border-gray-100">
-                {blocks.map((b) => (
-                  <li key={b.id} className={`px-3 py-2 flex items-start gap-3 text-xs ${editing === b.id ? "bg-amber-50" : ""}`}>
-                    <div className="w-24 shrink-0 font-semibold text-teal-700" data-no-i18n>{b.start}–{b.end}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-800 break-words" dir="auto" data-no-i18n>{b.title}</div>
-                      {b.project && <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px]" dir="auto" data-no-i18n>{b.project}</span>}
-                      {b.notes && <div className="text-[11px] text-gray-500 mt-0.5 break-words" dir="auto" data-no-i18n>{b.notes}</div>}
-                    </div>
-                    <div className="shrink-0 text-gray-500" data-no-i18n>{hm(b.minutes)}</div>
-                    <button onClick={() => edit(b)} title="Edit" className="p-1 text-teal-600 hover:bg-teal-50 rounded">✎</button>
-                    <button onClick={() => remove(b)} title="Delete" className="p-1 text-red-500 hover:bg-red-50 rounded">✕</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {/* Hours per project */}
+            {/* ── Hours per project ── */}
             {blocks.length > 0 && (
-              <div>
-                <h4 className="text-xs font-bold text-gray-700 mb-1.5">Hours by project</h4>
-                <div className="flex flex-wrap gap-2">
+              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-800 mb-3">Hours by project</h3>
+                <div className="space-y-2.5">
                   {data.by_project.map((p) => (
-                    <span key={p.project || "-"} className="px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[11px]">
-                      {p.project ? <span dir="auto" data-no-i18n>{p.project}</span> : <span>No project</span>}
-                      <span className="text-gray-400"> · </span><span className="font-semibold" data-no-i18n>{hm(p.minutes)}</span>
-                    </span>
+                    <div key={p.project || "-"}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: projectColor(p.project) }} />
+                          {p.project ? <span className="truncate font-medium text-gray-700" dir="auto" data-no-i18n>{p.project}</span> : <span className="text-gray-500">No project</span>}
+                        </span>
+                        <span className="font-bold text-gray-800 shrink-0" data-no-i18n>{hm(p.minutes)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(p.minutes / maxProject) * 100}%`, backgroundColor: projectColor(p.project) }} />
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
-          </>
-        )}
-      </section>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

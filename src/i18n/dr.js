@@ -7146,4 +7146,10 @@ export default {
   "Busy": "مصروف",
   "This person has marked that time as busy on their timeline. Please pick another time.": "این شخص آن وقت را در تایم‌لاین خود مصروف نشان داده است. لطفاً وقت دیگری انتخاب کنید.",
   "This overlaps another block on your timeline.": "این با بخش دیگری در تایم‌لاین شما هم‌پوشانی دارد.",
+  "The timeline is not set up on the server yet. Ask the administrator to run: php artisan migrate": "تایم‌لاین هنوز در سرور فعال نشده است. از مدیر سیستم بخواهید این دستور را اجرا کند: php artisan migrate",
+  "Blocks": "بخش‌ها",
+  "Day at a glance": "نمای کلی روز",
+  "Now": "اکنون",
+  "Add a block": "افزودن بخش",
+  "Edit block": "ویرایش بخش",
 };

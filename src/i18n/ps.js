@@ -7146,4 +7146,10 @@ export default {
   "Busy": "بوخت",
   "This person has marked that time as busy on their timeline. Please pick another time.": "دې کس دا وخت په خپل ټایملاین کې بوخت ښودلی دی. مهرباني وکړئ بل وخت وټاکئ.",
   "This overlaps another block on your timeline.": "دا ستاسو په ټایملاین کې له بلې برخې سره ټکر کوي.",
+  "The timeline is not set up on the server yet. Ask the administrator to run: php artisan migrate": "ټایملاین لا په سرور کې نه دی فعال شوی. له سیستم مدیر څخه وغواړئ چې دا کمانډ چلوي: php artisan migrate",
+  "Blocks": "برخې",
+  "Day at a glance": "د ورځې لنډه کتنه",
+  "Now": "اوس",
+  "Add a block": "برخه اضافه کړئ",
+  "Edit block": "برخه سمه کړئ",
 };

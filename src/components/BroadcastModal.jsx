@@ -81,24 +81,31 @@ export default function BroadcastModal() {
   // would re-ask and the card would flash back after being dismissed.
   const fetchedFor = useRef(null);
 
+  /* Broadcasts are for signed-in users ONLY. Nobody who is not logged in —
+     the sign-in page, a public page, a logged-out tab — is ever shown one,
+     and one left open when someone signs out is closed at once. */
   useEffect(() => {
+    if (!user?.id) {
+      setOpen(false);
+      setMsg(null);
+      fetchedFor.current = null;
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
     if (fetchedFor.current === audience) return;
     fetchedFor.current = audience;
 
     let alive = true;
 
-    /* Signed in → the server tracks who has seen what, across their devices.
-       Not signed in (the sign-in page) → the public copy, tracked per browser.
-       Both render the same card. */
-    const signedIn = Boolean(user?.id);
-    const url = signedIn ? "/broadcasts/current" : "/public/broadcast";
-
-    get(url, { cache: false })
+    /* Signed in only — the server tracks who has seen what, across their
+       devices. Nothing is ever fetched for someone not logged in. */
+    get("/broadcasts/current", { cache: false })
       .then((res) => {
         const data = res?.data?.data;
-        if (!alive || !data) return;
-        // An anonymous visitor's dismissal lives in this browser only.
-        if (!signedIn && seenLocally(data.id)) return;
+        // Signed out while the request was on its way: show nothing.
+        if (!alive || !data || !localStorage.getItem("token")) return;
         setMsg(data);
 
         /* Wait for the screen to be free before appearing.

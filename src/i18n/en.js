@@ -7129,4 +7129,10 @@ export default {
   "Busy": "Busy",
   "This person has marked that time as busy on their timeline. Please pick another time.": "This person has marked that time as busy on their timeline. Please pick another time.",
   "This overlaps another block on your timeline.": "This overlaps another block on your timeline.",
+  "The timeline is not set up on the server yet. Ask the administrator to run: php artisan migrate": "The timeline is not set up on the server yet. Ask the administrator to run: php artisan migrate",
+  "Blocks": "Blocks",
+  "Day at a glance": "Day at a glance",
+  "Now": "Now",
+  "Add a block": "Add a block",
+  "Edit block": "Edit block",
 };

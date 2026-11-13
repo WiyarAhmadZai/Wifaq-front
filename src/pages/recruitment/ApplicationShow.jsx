@@ -125,6 +125,158 @@ const StarRating = ({ value = 0, onChange, size = "w-7 h-7" }) => (
 
 const EMPTY_REVIEW = { rating: 0, recommendation: "", comment: "", flagged_to_hr: false };
 
+/* The applicant's picked options, in the words the form showed them. */
+const HOW_HEARD_TEXT = { social_media: "Social media", friend: "Friend or acquaintance", job_ad: "Job advertisement", website: "Wifaq website", other: "Other" };
+const howHeardText = (v) => (v ? HOW_HEARD_TEXT[v] || v : "");
+const SCENARIO_TEXT = { a: "Take firm disciplinary action to keep order in the class", b: "Try to understand the root cause of the student’s behaviour", c: "Involve the parents or guardians to address the issue", d: "Change my teaching approach to connect better with the student" };
+const scenarioText = (v) => (v ? SCENARIO_TEXT[v] || v : "");
+
+/* One labelled value; an empty answer says so instead of vanishing. */
+function AnswerRow({ label, value, wide = false, plain = false }) {
+  const empty = value == null || value === "" || (Array.isArray(value) && value.length === 0);
+  return (
+    <div className={wide ? "sm:col-span-2" : ""}>
+      <p className="text-xs text-gray-500 font-semibold mb-1">{label}</p>
+      <div className={plain ? "" : "p-3 bg-gray-50 rounded-xl"}>
+        {empty
+          ? <p className="text-sm text-gray-400 italic">Not answered</p>
+          : <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line break-words" dir="auto" data-no-i18n>{value}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* A titled block of the application, numbered like the form's steps. */
+function AnswerBlock({ n, title, children }) {
+  return (
+    <section className="rounded-xl border border-gray-200 overflow-hidden">
+      <h3 className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-sm font-bold text-gray-800 flex items-center gap-2">
+        <span className="w-6 h-6 rounded-lg bg-teal-600 text-white text-[11px] flex items-center justify-center" data-no-i18n>{n}</span>
+        <span>{title}</span>
+      </h3>
+      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * The whole application exactly as the applicant submitted it — every step of
+ * the public form, every answer — so the first review step needs nothing else.
+ */
+function SubmittedApplication({ data, formatDate }) {
+  const gender = data.gender === "male" ? "Male" : data.gender === "female" ? "Female" : "";
+  const exps = data.work_experiences || data.workExperiences || [];
+  const skills = (data.unique_skill || []).filter(Boolean);
+  let n = 0;
+  return (
+    <div className="space-y-4">
+      <AnswerBlock n={++n} title="About You">
+        <AnswerRow plain label="Full Name" value={data.full_name} />
+        <AnswerRow plain label="Contact Number" value={data.contact_number} />
+        <AnswerRow plain label="Email" value={data.email} />
+        <AnswerRow plain label="Tazkira Number" value={data.national_id} />
+        <AnswerRow plain label="Date of Birth" value={data.date_of_birth ? formatDate(data.date_of_birth) : ""} />
+        <div>
+          <p className="text-xs text-gray-500 font-semibold mb-1">Gender</p>
+          {gender ? <p className="text-sm text-gray-800">{gender}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+        </div>
+        <AnswerRow plain label="Native Language" value={data.native_language} />
+        <AnswerRow plain label="Place of Origin" value={data.place_of_origin} />
+        <AnswerRow plain label="Current Address" value={data.current_address} wide />
+        <AnswerRow label="Introduction" value={data.introduction} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Social Media">
+        {[["Facebook", data.facebook], ["Instagram", data.instagram], ["Twitter/X", data.twitter_x], ["YouTube", data.youtube]].map(([label, v]) => {
+          const href = socialUrl(label, v);
+          return (
+            <div key={label}>
+              <p className="text-xs text-gray-500 font-semibold mb-1">{label}</p>
+              {href
+                ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all" data-no-i18n>{v}</a>
+                : v ? <p className="text-sm text-gray-800 break-all" data-no-i18n>{v}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+            </div>
+          );
+        })}
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Motivation">
+        <AnswerRow label="Motivation for This Role" value={data.motivation} wide />
+        <div className="sm:col-span-2">
+          <p className="text-xs text-gray-500 font-semibold mb-1">Unique Skills</p>
+          {skills.length
+            ? <div className="flex flex-wrap gap-2">{skills.map((sk, i) => <span key={i} className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm" dir="auto" data-no-i18n>{sk}</span>)}</div>
+            : <p className="text-sm text-gray-400 italic">Not answered</p>}
+        </div>
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Education">
+        <AnswerRow plain label="Education Level" value={data.education_level ? data.education_level.replace(/_/g, " ") : ""} />
+        <AnswerRow plain label="Field of Study" value={data.field_of_study} />
+        <AnswerRow plain label="Institution Name" value={data.institution_name} />
+        <div>
+          <p className="text-xs text-gray-500 font-semibold mb-1">Total Experience</p>
+          <p className="text-sm text-gray-800"><span data-no-i18n>{data.total_experience_years || 0}</span> <span>years</span></p>
+        </div>
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Work Experience">
+        <div className="sm:col-span-2 space-y-3">
+          {exps.length ? exps.map((exp, i) => (
+            <div key={i} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex justify-between items-start gap-2 mb-1">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800" dir="auto" data-no-i18n>{exp.job_title || "—"}</p>
+                  <p className="text-sm text-gray-600" dir="auto" data-no-i18n>{exp.company_name || "—"}</p>
+                </div>
+                {exp.duration && <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded shrink-0" dir="auto" data-no-i18n>{exp.duration}</span>}
+              </div>
+              {exp.responsibilities && <p className="text-sm text-gray-700 whitespace-pre-line break-words" dir="auto" data-no-i18n>{exp.responsibilities}</p>}
+            </div>
+          )) : <p className="text-sm text-gray-400 italic">No work experience provided</p>}
+        </div>
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="About Wifaq">
+        <AnswerRow label="Your key talents and skills" value={data.key_skills} wide />
+        <div>
+          <p className="text-xs text-gray-500 font-semibold mb-1">How did you hear about Wifaq?</p>
+          {data.how_heard ? <p className="text-sm text-gray-800">{howHeardText(data.how_heard)}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+        </div>
+        <AnswerRow label="Do you know anyone at Wifaq?" value={data.known_person} />
+        <AnswerRow label="What do you know about the Wifaq Education Network?" value={data.about_wifaq} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Values & attitude">
+        <div className="sm:col-span-2">
+          <p className="text-xs text-gray-500 font-semibold mb-1">A student is persistently disruptive in class and shows little interest in learning. What do you do?</p>
+          <div className="p-3 bg-gray-50 rounded-xl">
+            {data.scenario_answer ? <p className="text-sm text-gray-800">{scenarioText(data.scenario_answer)}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+          </div>
+        </div>
+        <AnswerRow label="How do you define responsibility?" value={data.responsibility_definition} wide />
+        <AnswerRow label="Describe a time you went beyond your basic duty" value={data.beyond_duty_example} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Life principles & self-discipline">
+        <AnswerRow label="Who or what inspires you most in life?" value={data.inspiration} wide />
+        <AnswerRow label="What are your core principles and values?" value={data.life_principles} wide />
+        <AnswerRow label="How do you manage your time and daily work?" value={data.time_management} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Vision & awareness">
+        <AnswerRow label="What are the two major problems in the world today that you think need to be solved?" value={data.world_problems} wide />
+        <AnswerRow label="What is one major problem in Afghanistan that must be solved?" value={data.afghanistan_problem} wide />
+        <AnswerRow label="What are the two things you think you can do to bring positive change to the world?" value={data.positive_change} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Additional Comments">
+        <AnswerRow label="Additional Comments" value={data.notes} wide />
+      </AnswerBlock>
+    </div>
+  );
+}
+
 export default function ApplicationShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1101,35 +1253,12 @@ export default function ApplicationShow() {
                 </div>
                 
                 <div className="p-6 bg-white">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Applied For</p>
-                      <p className="text-sm font-medium text-gray-800">{data.job_posting?.title || "—"}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Contact</p>
-                      <p className="text-sm font-medium text-gray-800">{data.contact_number || "—"}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Date of Birth</p>
-                      <p className="text-sm font-medium text-gray-800">{formatDate(data.date_of_birth)}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</p>
-                      <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
-                    </div>
+                  <div className="p-4 mb-5 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Applied For</p>
+                    <p className="text-sm font-medium text-gray-800" data-no-i18n>{data.job_posting?.title || "—"}</p>
                   </div>
-
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Introduction</p>
-                      <p className="text-sm text-gray-700 leading-relaxed">{data.introduction || "No introduction provided"}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Motivation</p>
-                      <p className="text-sm text-gray-700 leading-relaxed">{data.motivation || "No motivation provided"}</p>
-                    </div>
-                  </div>
+                  {/* Everything the applicant submitted, step by step as they filled it. */}
+                  <SubmittedApplication data={data} formatDate={formatDate} />
 
                   {canUpdate && (
                     <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100">
@@ -2838,6 +2967,18 @@ export default function ApplicationShow() {
                   <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Current Address</p>
                   <p className="text-sm text-gray-700">{data.current_address || "—"}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Tazkira Number</p>
+                  <p className="text-sm font-medium text-gray-800" data-no-i18n>{data.national_id || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Gender</p>
+                  <p className="text-sm text-gray-700">{data.gender === "male" ? "Male" : data.gender === "female" ? "Female" : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Native Language</p>
+                  <p className="text-sm text-gray-700" dir="auto" data-no-i18n>{data.native_language || "—"}</p>
+                </div>
               </div>
               <div className="mt-6">
                 <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Introduction</p>
@@ -2948,6 +3089,43 @@ export default function ApplicationShow() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Application Answers — everything else the applicant wrote */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-gray-800">Application Answers</h2>
+            </div>
+            <div className="p-6 space-y-6">
+              {[
+                  { title: "About Wifaq", items: [{ q: "Your key talents and skills", v: data.key_skills }, { q: "How did you hear about Wifaq?", v: howHeardText(data.how_heard) }, { q: "What do you know about the Wifaq Education Network?", v: data.about_wifaq }, { q: "Do you know anyone at Wifaq?", v: data.known_person }] },
+                  { title: "Values & attitude", items: [{ q: "A student is persistently disruptive in class and shows little interest in learning. What do you do?", v: scenarioText(data.scenario_answer) }, { q: "How do you define responsibility?", v: data.responsibility_definition }, { q: "Describe a time you went beyond your basic duty", v: data.beyond_duty_example }] },
+                  { title: "Life principles & self-discipline", items: [{ q: "Who or what inspires you most in life?", v: data.inspiration }, { q: "What are your core principles and values?", v: data.life_principles }, { q: "How do you manage your time and daily work?", v: data.time_management }] },
+                  { title: "Vision & awareness", items: [{ q: "What are the two major problems in the world today that you think need to be solved?", v: data.world_problems }, { q: "What is one major problem in Afghanistan that must be solved?", v: data.afghanistan_problem }, { q: "What are the two things you think you can do to bring positive change to the world?", v: data.positive_change }] },
+                  { title: null, items: [{ q: "Additional Comments", v: data.notes }] },
+                ].map((g, gi) => (
+                <div key={gi}>
+                  {g.title && <h3 className="text-sm font-bold text-indigo-700 mb-3">{g.title}</h3>}
+                  <div className="space-y-3">
+                    {g.items.map((it) => (
+                      <div key={it.q}>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">{it.q}</p>
+                        <div className="p-3 bg-gray-50 rounded-xl">
+                          {it.v
+                            ? <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line break-words" dir="auto">{it.v}</p>
+                            : <p className="text-sm text-gray-400 italic">Not answered</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

@@ -171,7 +171,7 @@ const RULES = [
   // student register is not holding a pupil's photographs.
   { prefix: "/student-management/student-gallery", permission: "student-gallery.view" },
   { prefix: "/student-management/foundation-requests", permission: "foundation-requests.view" },
-  { prefix: "/student-management/public-registration", permission: "student-enrollments.view" },
+  { prefix: "/student-management/public-registration", permission: "public-registration.view" },
   { prefix: "/student-management/student-enrollments", permission: "student-enrollments.view" },
   { prefix: "/student-management/students/profile", permission: "student-profiles.view" },
   // Pages that had no rule and so opened for super-admin only.

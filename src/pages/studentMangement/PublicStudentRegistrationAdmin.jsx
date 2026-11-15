@@ -61,9 +61,12 @@ export default function PublicStudentRegistrationAdmin() {
   const [busy, setBusy] = useState(null); // id of the row being worked on
   const [openDetails, setOpenDetails] = useState({});
 
-  const can = (action) => hasPermission(`student-enrollments.${action}`) || hasPermission("student-enrollments.manage");
-  const canCreate = can("create");
-  const canUpdate = can("update");
+  // One permission per button, granted to a role in Users & Access.
+  const can = (action) => hasPermission(`public-registration.${action}`);
+  const canCreate = can("create-link");
+  const canCopy = can("copy-link");
+  const canUpdate = can("toggle-link");
+  const canRegister = can("register");
   const canDelete = can("delete");
 
   const loadSubmissions = useCallback(async () => {
@@ -264,7 +267,7 @@ export default function PublicStudentRegistrationAdmin() {
                   <p className="mt-1 text-xs text-slate-500">{link.submissions_count} families · {link.children_count} children</p>
                 </div>
                 <div className="flex gap-2">
-                  {link.is_active && <button type="button" onClick={() => copyLink(link.url)} className="rounded-lg bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100">Copy link</button>}
+                  {canCopy && link.is_active && <button type="button" onClick={() => copyLink(link.url)} className="rounded-lg bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100">Copy link</button>}
                   {canUpdate && <button type="button" onClick={() => toggleLink(link)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">{link.is_active ? "Disable" : "Enable"}</button>}
                 </div>
               </article>
@@ -311,7 +314,7 @@ export default function PublicStudentRegistrationAdmin() {
                       <button type="button" onClick={() => toggle(`f${family.id}`)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
                         {openDetails[`f${family.id}`] ? "Hide family details" : "Family details"}
                       </button>
-                      {canCreate && pending.length > 0 && (
+                      {canRegister && pending.length > 0 && (
                         <button type="button" disabled={familyBusy} onClick={() => register(family, pending)} className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60">
                           {familyBusy ? "Working…" : pending.length > 1 ? `Register all (${pending.length})` : "Register"}
                         </button>
@@ -350,7 +353,7 @@ export default function PublicStudentRegistrationAdmin() {
                               {registered && child.student?.id && (
                                 <Link to={`/student-management/students/show/${child.student.id}`} className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100">Open student</Link>
                               )}
-                              {canCreate && !registered && (
+                              {canRegister && !registered && (
                                 <button type="button" disabled={familyBusy} onClick={() => register(family, [child])} className="rounded-lg bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100 disabled:opacity-60">Register</button>
                               )}
                               {canDelete && (

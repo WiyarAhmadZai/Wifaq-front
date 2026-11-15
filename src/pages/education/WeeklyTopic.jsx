@@ -42,7 +42,7 @@ function PlanEditor({ heading, labels, items, onChange }) {
  * Returns null if it can't be read.
  */
 const SAFE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-const MAX_POSTER_BYTES = 1.5 * 1024 * 1024;
+const MAX_POSTER_BYTES = 1024 * 1024;
 const MAX_POSTER_SIDE = 1800;
 async function toUploadableImage(file) {
   if (SAFE_TYPES.includes(file.type) && file.size <= MAX_POSTER_BYTES) return file;
@@ -73,6 +73,13 @@ async function toUploadableImage(file) {
     URL.revokeObjectURL(src);
   }
 }
+
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(r.result);
+  r.onerror = () => reject(new Error("Could not read the poster file."));
+  r.readAsDataURL(file);
+});
 
 const weekBounds = (d = new Date()) => {
   const start = new Date(d);
@@ -189,7 +196,9 @@ export default function WeeklyTopic() {
       if (form.primary_dimension) body.append("primary_dimension", form.primary_dimension);
       body.append("goals", JSON.stringify(trimPlan(form.goals)));
       body.append("daily_activities", JSON.stringify(trimPlan(form.daily_activities)));
-      if (poster.file) body.append("poster", poster.file);
+      // Sent as a data URL in a normal field, not as a file: the host's PHP
+      // dropped file uploads ("The poster field must be a file").
+      if (poster.file) body.append("poster_data", await fileToDataUrl(poster.file));
       else if (poster.from) body.append("poster_from", poster.from);
       else if (poster.remove) body.append("remove_poster", "1");
       // Editing keeps the topic's id; "New topic" adds another week.

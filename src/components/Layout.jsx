@@ -1518,7 +1518,7 @@ export default function Layout() {
     { label: "Parents", path: "/student-management/parents", permission: "parents.view" },
     { label: "Student Information", path: "/student-management/students", permission: "students.view", alt: ["student-profiles.view"] },
     { label: "Student Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
-    { label: "Public Student Registration", path: "/student-management/public-registration", permission: "student-enrollments.view" },
+    { label: "Public Student Registration", path: "/student-management/public-registration", permission: "public-registration.view" },
     { label: "Enrolled Students", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
     // A child's photo album, reached by searching for the child. Its own
     // grant (`student-gallery.view`) because a pupil's photographs are a

@@ -59,6 +59,7 @@ export function ChatProvider({ children }) {
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [onlineIds, setOnlineIds] = useState(() => new Set());
   const [activeId, setActiveId] = useState(null);
+  const [activeConversationSnapshot, setActiveConversationSnapshot] = useState(null);
   const [messages, setMessages] = useState([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -274,6 +275,10 @@ export function ChatProvider({ children }) {
   // ── Actions ────────────────────────────────────────────────────────────────
   const openConversation = useCallback(async (conversation) => {
     const id = typeof conversation === 'object' ? conversation.id : conversation;
+    const selected = typeof conversation === 'object'
+      ? conversation
+      : conversations.find((item) => item.id === id) || null;
+    setActiveConversationSnapshot(selected);
     setActiveId(id);
     setMessages([]);
     setHasMore(false);
@@ -290,7 +295,19 @@ export function ChatProvider({ children }) {
     } finally {
       setLoadingMessages(false);
     }
-  }, []);
+  }, [conversations]);
+
+  // The paginated conversation list can temporarily omit a newly-created
+  // thread while background polling is in flight. Keep the open thread usable
+  // until it appears in a later list response.
+  useEffect(() => {
+    if (!activeId) {
+      setActiveConversationSnapshot(null);
+      return;
+    }
+    const listed = conversations.find((conversation) => conversation.id === activeId);
+    if (listed) setActiveConversationSnapshot(listed);
+  }, [activeId, conversations]);
 
   /* ?chat=<id> — where the "Reply in WEN" button in an email lands. The email
    * used to link to the home page and leave the reader to find the thread
@@ -426,6 +443,11 @@ export function ChatProvider({ children }) {
       const saved = res.data?.data;
       setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
       setConversations((prev) => bumpConversation(prev, activeId, saved, 0));
+      setActiveConversationSnapshot((prev) => (
+        prev?.id === activeId
+          ? { ...prev, last_message: saved, last_message_at: saved.created_at, unread_count: 0 }
+          : prev
+      ));
       releaseLocal();
       // "Notify via email" used to fail silently when a member had no real
       // address. The server now says who it went to and who it could not reach.
@@ -628,8 +650,9 @@ export function ChatProvider({ children }) {
   }, [isAuthenticated]);
 
   const activeConversation = useMemo(
-    () => conversations.find((c) => c.id === activeId) || null,
-    [conversations, activeId],
+    () => conversations.find((c) => c.id === activeId)
+      || (activeConversationSnapshot?.id === activeId ? activeConversationSnapshot : null),
+    [conversations, activeId, activeConversationSnapshot],
   );
 
   const value = useMemo(() => ({

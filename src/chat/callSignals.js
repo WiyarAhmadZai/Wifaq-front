@@ -16,20 +16,16 @@ export const CALL_TAB = Math.random().toString(36).slice(2, 12);
 
 let cursor = null;            // newest signal id seen; null until the first poll
 const handled = new Set();     // ids already handed on
+let polling = null;
 
 /** Query params the chat poll adds so the server returns pending signals too. */
-export const pollParams = () => (cursor == null ? { call_tab: CALL_TAB } : { call_tab: CALL_TAB, call_after: cursor });
+export const pollParams = () => ({ call_tab: CALL_TAB, call_after: cursor == null ? 0 : cursor });
 
 /** Take a batch from any poll ({ signals, last_id }) and hand each new signal on. */
 export function receiveSignals(batch) {
   if (!batch) return;
-  const first = cursor == null;
   if (typeof batch.last_id === 'number' && (cursor == null || batch.last_id > cursor)) cursor = batch.last_id;
-  // The first answer says where "now" is, plus any ring from the last minute
-  // (someone opened the system from a call notification) — CallManager drops
-  // rings that are too old and stops one that was already cancelled.
-  const list = first ? (batch.signals || []).filter((s) => s.type === 'invite' || s.type === 'cancel') : (batch.signals || []);
-  for (const s of list) {
+  for (const s of batch.signals || []) {
     if (handled.has(s.id)) continue;
     handled.add(s.id);
     window.dispatchEvent(new CustomEvent('wen:call-signal', { detail: s }));
@@ -38,9 +34,15 @@ export function receiveSignals(batch) {
 }
 
 /** Fetch now — CallManager's quick poll during a call, or a hidden tab's slow one. */
-export async function pollSignals() {
-  const r = await get('/chat/calls/inbox', { cache: false, params: { tab: CALL_TAB, ...(cursor == null ? {} : { after: cursor }) } });
-  receiveSignals(r.data);
+export function pollSignals() {
+  if (polling) return polling;
+  polling = get('/chat/calls/inbox', {
+    cache: false,
+    params: { tab: CALL_TAB, after: cursor == null ? 0 : cursor },
+  })
+    .then((r) => receiveSignals(r.data))
+    .finally(() => { polling = null; });
+  return polling;
 }
 
 /**

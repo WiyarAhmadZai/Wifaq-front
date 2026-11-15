@@ -311,6 +311,8 @@ const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow")
 const PublicApplicationForm = lazy(() => import("./pages/recruitment/PublicApplicationForm"));
 const PublicQuestionnaire = lazy(() => import("./pages/public/PublicQuestionnaire"));
 const PublicFeeExtension = lazy(() => import("./pages/public/PublicFeeExtension"));
+const PublicStudentRegistration = lazy(() => import("./pages/public/PublicStudentRegistration"));
+const PublicStudentRegistrationAdmin = lazy(() => import("./pages/studentMangement/PublicStudentRegistrationAdmin"));
 const BookAppointment = lazy(() => import("./pages/hr/BookAppointment"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
@@ -446,6 +448,7 @@ function App() {
                 scoped to ONE student, so a visitor can only ever
                 submit for that child. */}
             <Route path="/fee-extension/:token" element={<Suspense fallback={<PageLoader />}><PublicFeeExtension /></Suspense>} />
+            <Route path="/student-registration/:token" element={<Suspense fallback={<PageLoader />}><PublicStudentRegistration /></Suspense>} />
 
             {/* One post on its own page — the link Share copies. Outside the
                 app shell: a public post opens for anyone, signed in or not. */}
@@ -773,6 +776,7 @@ function App() {
             <Route path="student-management/foundation-requests" element={<Suspense fallback={<PageLoader />}><FoundationRequests /></Suspense>} />
             <Route path="student-management/foundation-requests/show/:id" element={<Suspense fallback={<PageLoader />}><FoundationRequestShow /></Suspense>} />
             <Route path="student-management/student-enrollments" element={<Suspense fallback={<PageLoader />}><StudentEnrollments /></Suspense>} />
+            <Route path="student-management/public-registration" element={<Suspense fallback={<PageLoader />}><PublicStudentRegistrationAdmin /></Suspense>} />
             <Route path="student-management/student-enrollments/create" element={<Suspense fallback={<PageLoader />}><StudentEnrollmentForm /></Suspense>} />
             <Route path="student-management/student-enrollments/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentEnrollmentForm /></Suspense>} />
             <Route path="student-management/student-enrollments/show/:id" element={<Suspense fallback={<PageLoader />}><StudentEnrollmentForm /></Suspense>} />

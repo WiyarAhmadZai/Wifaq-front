@@ -678,6 +678,10 @@ export default function Payroll() {
     const pendingCount = slips.filter((s) => s.status === "pending").length;
     // A run with any paid payslip can't be deleted — the cash is already gone.
     const paidCount = slips.filter((s) => s.status === "paid").length;
+    const paidAmount = slips.reduce(
+      (total, slip) => total + (slip.status === "paid" ? Number(slip.net_pay || 0) : 0),
+      0
+    );
     return (
       <div className="px-4 py-4 max-w-5xl mx-auto">
         <button onClick={() => { setView("builder"); setActiveRun(null); }}
@@ -687,10 +691,14 @@ export default function Payroll() {
             <h2 className="text-base font-bold text-gray-800">Payroll — {MONTHS[activeRun.period_month-1]} {activeRun.period_year}</h2>
             <p className="text-xs text-gray-500">{activeRun.branch?.name || "All branches"} · {activeRun.payslips_created} payslip(s) · committed {activeRun.committed_at?.slice(0,10)}</p>
           </div>
-          <div className="flex items-center gap-4 text-right">
+          <div className="flex flex-wrap items-center justify-end gap-4 text-right">
             <Stat label="Gross" v={activeRun.total_gross} />
             <Stat label="Deductions" v={activeRun.total_deductions} />
             <Stat label="Net" v={activeRun.total_net} strong />
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5">
+              <p className="text-[9px] uppercase tracking-wider text-emerald-700">Paid to staff</p>
+              <p className="font-mono text-sm font-bold text-emerald-800">{fmt(paidAmount)}</p>
+            </div>
             {pendingCount > 0 && canPay && (
               <button onClick={payAll} className="px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-semibold">
                 Pay all ({pendingCount})

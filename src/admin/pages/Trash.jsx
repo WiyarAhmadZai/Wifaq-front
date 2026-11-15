@@ -221,6 +221,7 @@ export default function Trash() {
     () => groups.flatMap((g) => g.resources).find((r) => r.key === active) || null,
     [groups, active]
   );
+  const isPostResource = activeResource?.table === 'posts';
 
   const allOnPageSelected = rows.length > 0 && selected.length === rows.length;
   const toggleAll = () => setSelected(allOnPageSelected ? [] : rows.map((r) => r.id));
@@ -405,7 +406,7 @@ export default function Trash() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[560px]">
+                  <table className={`w-full ${isPostResource ? 'min-w-[700px]' : 'min-w-[560px]'}`}>
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-100">
                         <th className="px-4 py-3 w-10">
@@ -418,6 +419,9 @@ export default function Trash() {
                         </th>
                         <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Record</th>
                         <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Deleted</th>
+                        {isPostResource && (
+                          <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Deleted by</th>
+                        )}
                         <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
@@ -443,12 +447,20 @@ export default function Trash() {
                                   {row.title}
                                 </span>
                                 <span className="block text-[11px] text-gray-400">ID #{row.id}</span>
+                                {isPostResource && (
+                                  <span className="block max-w-[32rem] truncate text-[11px] text-gray-500">
+                                    {row.preview?.content || 'No text content'}
+                                  </span>
+                                )}
                               </button>
                             </td>
                             <td className="px-4 py-3">
                               <span className="text-sm text-gray-700">{shortTime(row.deleted_at)}</span>
                               <span className="block text-[11px] text-gray-400">{relativeTime(row.deleted_at)}</span>
                             </td>
+                            {isPostResource && (
+                              <td className="px-4 py-3 text-sm text-gray-700">{row.deleted_by || 'Not recorded'}</td>
+                            )}
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-end gap-1">
                                 {canRestore && (
@@ -481,7 +493,7 @@ export default function Trash() {
                           {expanded === row.id && (
                             <tr className="bg-gray-50/60">
                               <td />
-                              <td colSpan={3} className="px-4 py-3">
+                              <td colSpan={isPostResource ? 4 : 3} className="px-4 py-3">
                                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                                   {Object.entries(row.preview || {}).map(([k, v]) => (
                                     <div key={k} className="flex gap-2 text-[11px] min-w-0">

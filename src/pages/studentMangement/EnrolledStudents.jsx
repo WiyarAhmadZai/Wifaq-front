@@ -6,7 +6,8 @@ import StudentIdCard from "./StudentIdCard";
 import BulkCardsButton from "./BulkCardsButton";
 import FamilyContactButton from "./FamilyContactButton";
 import Swal from "sweetalert2";
-import { FiEdit2, FiCreditCard } from "react-icons/fi";
+import { FiEdit2, FiCreditCard, FiTrendingUp } from "react-icons/fi";
+import PromoteStudentModal from "./PromoteStudentModal";
 import { generateUniformInvoice } from "../../api/financial";
 import { get, peekCache } from "../../api/axios";
 import { useNavigate } from "react-router-dom";
@@ -101,6 +102,8 @@ export default function EnrolledStudents() {
   const [editStudentId, setEditStudentId] = useState(null);
   // Which student's ID card is open. The modal fetches, draws and prints it.
   const [cardStudentId, setCardStudentId] = useState(null);
+  // Which student's promotion (move to a higher grade) dialog is open.
+  const [promoteStudentId, setPromoteStudentId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   // Stable identities: the edit modal keys its data load off these props, so a
   // fresh arrow on every render would restart the load mid-edit.
@@ -275,6 +278,17 @@ export default function EnrolledStudents() {
                 <FiCreditCard className="w-3.5 h-3.5" />
               </button>
             )}
+            {/* Promote to a higher grade — already enrolled, no re-registration */}
+            {canUpdate && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setPromoteStudentId(item.id); }}
+                title="Promote to a higher class"
+                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              >
+                <FiTrendingUp className="w-3.5 h-3.5" />
+              </button>
+            )}
             {/* Edit EVERYTHING (phase 1 + phase 2 + family) in a modal */}
             {canUpdate && (
               <button
@@ -301,6 +315,14 @@ export default function EnrolledStudents() {
 
       {cardStudentId && (
         <StudentIdCard studentId={cardStudentId} onClose={() => setCardStudentId(null)} />
+      )}
+
+      {promoteStudentId && (
+        <PromoteStudentModal
+          studentId={promoteStudentId}
+          onClose={() => setPromoteStudentId(null)}
+          onSaved={bumpRefreshKey}
+        />
       )}
 
       {editStudentId && (

@@ -64,9 +64,15 @@ async function loadIceServers() {
       iceCache = { servers: [...list, ...ICE_SERVERS.slice(1)], relay: Boolean(r.data?.relay) || ICE_SERVERS.length > 1, at: Date.now() };
       return iceCache;
     }
-  } catch { /* fall back to the built-in list */ }
+  } catch (error) {
+    console.warn('Could not load call ICE servers; using the built-in list.', error);
+  }
   return { servers: ICE_SERVERS, relay: ICE_SERVERS.length > 1, at: 0 };
 }
+
+const connectionFailure = () => (
+  iceCache.relay ? 'Could not connect' : 'Could not connect — the two networks need a relay (TURN) server'
+);
 
 const newCallId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const fmtDuration = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -236,7 +242,18 @@ export default function CallManager() {
   const signal = useCallback((type, extra = {}) => {
     const c = callRef.current;
     if (!c) return Promise.resolve();
-    return sendSignal({ conversationId: c.conversationId, callId: c.id, type, ...extra }).catch(() => {});
+    return sendSignal({ conversationId: c.conversationId, callId: c.id, type, ...extra })
+      .then((response) => {
+        if (response.data?.success === false || response.data?.sent === 0) {
+          console.error(`Call signalling reached no recipients (${type}).`, response.data);
+          return null;
+        }
+        return response;
+      })
+      .catch((error) => {
+        console.error(`Call signalling failed (${type}).`, error);
+        return null;
+      });
   }, []);
 
   const clearTimers = () => {
@@ -312,14 +329,16 @@ export default function CallManager() {
         timersRef.current[`drop-${key}`] = setTimeout(() => {
           if (pcs.current[key]?.connectionState === 'connected') return;
           closePeer(key);
-          if (!Object.keys(pcs.current).length && callRef.current?.status === 'active') finish('Connection lost', { say: 'leave' });
+          if (!Object.keys(pcs.current).length && ['connecting', 'active'].includes(callRef.current?.status)) {
+            finish(connectedAtRef.current ? 'Connection lost' : connectionFailure(), { say: 'leave', hold: 6000 });
+          }
         }, 8000);
       }
     };
     return pc;
   }, [patchPeer, patchCall, closePeer, finish]);
 
-  const getMedia = async (media) => {
+  const getMedia = useCallback(async (media) => {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       video: media === 'video' ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false,
@@ -327,7 +346,7 @@ export default function CallManager() {
     localStreamRef.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     return stream;
-  };
+  }, []);
 
   /* ── signals ───────────────────────────────────────────────────────────── */
   const ringFor = useCallback((s) => {
@@ -402,11 +421,13 @@ export default function CallManager() {
             if (!Object.values(pcs.current).some((p) => p.connectionState === 'connected')) {
               finish(iceCache.relay ? 'Could not connect' : 'Could not connect — the two networks need a relay (TURN) server', { say: 'leave', hold: 6000 });
             }
-          }, 35000);
+          }, 20000);
           const pc = openPeer(s.from);
           await pc.setLocalDescription(await pc.createOffer());
           await gathered(pc);
-          await signal('offer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: pc.localDescription.toJSON() } });
+          if (!await signal('offer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: pc.localDescription.toJSON() } })) {
+            finish(connectionFailure(), { say: 'leave', hold: 6000 });
+          }
           break;
         }
         case 'offer': {
@@ -415,7 +436,9 @@ export default function CallManager() {
           await pc.setRemoteDescription(s.payload.sdp);
           await pc.setLocalDescription(await pc.createAnswer());
           await gathered(pc);
-          await signal('answer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: pc.localDescription.toJSON() } });
+          if (!await signal('answer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: pc.localDescription.toJSON() } })) {
+            finish(connectionFailure(), { say: 'leave', hold: 6000 });
+          }
           break;
         }
         case 'answer':
@@ -438,7 +461,10 @@ export default function CallManager() {
         default:
           break;
       }
-    } catch { /* a stale or out-of-order signal — the next one recovers */ }
+    } catch (error) {
+      console.error('Could not process call signalling data.', error);
+      if (callRef.current?.id === s.call_id) finish(connectionFailure(), { say: 'leave', hold: 6000 });
+    }
   }, [myId, ringFor, finish, openPeer, signal, patchCall, closePeer]);
 
   /* ── start / answer / decline / hang up ────────────────────────────────── */
@@ -470,9 +496,9 @@ export default function CallManager() {
     timersRef.current.noAnswer = setTimeout(() => {
       if (!Object.keys(pcs.current).length) finish('No answer', { say: 'cancel' });
     }, RING_SECONDS * 1000);
-  }, [myId, me?.name, finish]);
+  }, [myId, me?.name, finish, getMedia]);
 
-  const accept = async () => {
+  const accept = useCallback(async () => {
     const c = callRef.current;
     if (!c || c.status !== 'incoming') return;
     toneRef.current.stop();
@@ -486,19 +512,24 @@ export default function CallManager() {
       return;
     }
     const ice = await loadIceServers();
-    await signal('join');
+    if (!await signal('join')) {
+      finish('Could not place the call', { say: 'decline', log: false, hold: 6000 });
+      return;
+    }
     // If nothing connects, do not leave a frozen screen — and say why when no
     // relay is set up (the usual cause between different networks).
     timersRef.current.setup = setTimeout(() => {
       if (!Object.values(pcs.current).some((pc) => pc.connectionState === 'connected')) {
         finish(ice.relay ? 'Could not connect' : 'Could not connect — the two networks need a relay (TURN) server', { say: 'leave', hold: 6000 });
       }
-    }, 30000);
-  };
+    }, 20000);
+  }, [finish, getMedia, patchCall, signal]);
 
-  const decline = () => finish('Declined', { say: 'decline', log: false });
-  acceptRef.current = accept;
-  declineRef.current = decline;
+  const decline = useCallback(() => finish('Declined', { say: 'decline', log: false }), [finish]);
+  useEffect(() => {
+    acceptRef.current = accept;
+    declineRef.current = decline;
+  }, [accept, decline]);
 
   const hangUp = () => {
     const c = callRef.current;

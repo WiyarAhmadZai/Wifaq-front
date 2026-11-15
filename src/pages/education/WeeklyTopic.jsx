@@ -66,18 +66,15 @@ export default function WeeklyTopic() {
 
   const apply = useCallback((d) => {
     setData(d);
-    const t = d?.topic;
+    // The form always opens EMPTY, for adding another topic. It used to open
+    // pre-filled with the live topic in edit mode, so typing a new topic and
+    // pressing save silently overwrote the existing one — topics vanished and
+    // the list never grew. Editing is now an explicit "Edit" click.
     const wb = weekBounds();
-    setForm({
-      title: t?.title || "",
-      description: t?.description || "",
-      week_start: t?.week_start || wb.start,
-      week_end: t?.week_end || wb.end,
-      primary_dimension: t?.primary_dimension || null,
-      goals: blankPlan(3, t?.goals), daily_activities: blankPlan(5, t?.daily_activities),
-    });
+    setForm({ title: "", description: "", week_start: wb.start, week_end: wb.end, primary_dimension: null,
+      goals: blankPlan(3), daily_activities: blankPlan(5) });
     setPoster({ file: null, preview: null, from: null, remove: false });
-    setEditingId(t && t.status === "open" ? t.id : null);
+    setEditingId(null);
     // Past topics, to bring one (and its poster) back for a new week.
     if (d?.can_select) get("/weekly-recognition/topics/library").then((r) => setLibrary(r.data?.data || [])).catch(() => {});
   }, []);
@@ -106,6 +103,19 @@ export default function WeeklyTopic() {
     setEditingId(null);
     setForm({ title: "", description: "", week_start: wb.start, week_end: wb.end, primary_dimension: null,
       goals: blankPlan(3), daily_activities: blankPlan(5) });
+    setPoster({ file: null, preview: null, from: null, remove: false });
+    document.getElementById("weekly-topic-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Load the live topic into the form to change it in place.
+  const startEdit = (t) => {
+    if (!t) return;
+    setEditingId(t.id);
+    setForm({
+      title: t.title || "", description: t.description || "",
+      week_start: t.week_start, week_end: t.week_end, primary_dimension: t.primary_dimension || null,
+      goals: blankPlan(3, t.goals), daily_activities: blankPlan(5, t.daily_activities),
+    });
     setPoster({ file: null, preview: null, from: null, remove: false });
     document.getElementById("weekly-topic-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -263,12 +273,17 @@ export default function WeeklyTopic() {
           <div id="weekly-topic-form" className="bg-white rounded-2xl border border-[#D0E0E0] shadow-sm p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider">
-                {editingId ? "Edit this week's topic" : "Set a new week's topic"}
+                {editingId ? `Editing: ${form.title || "topic"}` : "Add a new topic"}
               </h3>
-              {editingId && (
+              {editingId ? (
                 <button type="button" onClick={startNew}
                   className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#D0E0E0] hover:bg-[#F4F8F8]" style={{ color: TEAL }}>
-                  + New topic (past weeks too)
+                  ✕ Cancel edit · + New topic
+                </button>
+              ) : topic && (
+                <button type="button" onClick={() => startEdit(topic)}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#D0E0E0] hover:bg-[#F4F8F8]" style={{ color: TEAL }}>
+                  ✏️ Edit “{topic.title}”
                 </button>
               )}
             </div>
@@ -361,7 +376,7 @@ export default function WeeklyTopic() {
               <button onClick={save} disabled={saving}
                 className="px-5 py-2 text-xs font-semibold text-white rounded-xl disabled:opacity-50"
                 style={{ background: TEAL }}>
-                {saving ? "Saving…" : "Save topic"}
+                {saving ? "Saving…" : editingId ? "Save changes" : "➕ Add topic"}
               </button>
               {topic?.status === "open" && (
                 <button onClick={closeNoAward}

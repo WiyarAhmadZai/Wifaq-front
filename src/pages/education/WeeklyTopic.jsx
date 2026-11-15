@@ -32,6 +32,48 @@ function PlanEditor({ heading, labels, items, onChange }) {
   );
 }
 
+/**
+ * Posters come from phones and design tools in all sorts of formats (AVIF,
+ * TIFF, HEIC, files with the wrong extension…) that the server rejects as
+ * "must be an image". Small JPG/PNG/GIF/WEBP go up untouched; anything else
+ * the browser can draw is re-encoded to JPG. Big photos are shrunk too: a
+ * multi-MB phone picture overran the server's upload limit and the request
+ * timeout on slow connections, so the topic silently failed to save.
+ * Returns null if it can't be read.
+ */
+const SAFE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const MAX_POSTER_BYTES = 1.5 * 1024 * 1024;
+const MAX_POSTER_SIDE = 1800;
+async function toUploadableImage(file) {
+  if (SAFE_TYPES.includes(file.type) && file.size <= MAX_POSTER_BYTES) return file;
+  const src = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = src;
+    });
+    const w = img.naturalWidth || 1200, h = img.naturalHeight || 1600;
+    const scale = Math.min(1, MAX_POSTER_SIDE / Math.max(w, h));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; // transparent areas → white, not black, in JPG
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+    if (!blob) return SAFE_TYPES.includes(file.type) ? file : null;
+    const name = (file.name || "poster").replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch {
+    return SAFE_TYPES.includes(file.type) ? file : null;
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
+
 const weekBounds = (d = new Date()) => {
   const start = new Date(d);
   const day = (start.getDay() + 6) % 7; // Mon=0
@@ -152,18 +194,28 @@ export default function WeeklyTopic() {
       else if (poster.remove) body.append("remove_poster", "1");
       // Editing keeps the topic's id; "New topic" adds another week.
       // (A file can't ride a real PUT, so the update is sent as POST + _method.)
+      // No 15s cut-off: a poster on a slow connection needs longer, and a
+      // timed-out request could still save on the server, leaving the user
+      // unsure whether the topic was added.
+      const opts = { timeout: 0 };
       let res;
       if (editingId) {
         body.append("_method", "PUT");
-        res = await post(`/weekly-recognition/topics/${editingId}`, body);
-      } else res = await post("/weekly-recognition/topics", body);
+        res = await post(`/weekly-recognition/topics/${editingId}`, body, opts);
+      } else res = await post("/weekly-recognition/topics", body, opts);
       Swal.fire({ icon: "success", title: res?.data?.message || "Topic saved", timer: 1600, showConfirmButton: false });
       // Show the week just saved, so its candidates can be added next.
       const savedId = res?.data?.data?.id;
       if (savedId && String(savedId) !== params.get("topic_id")) setParams({ topic_id: String(savedId) });
       else load();
     } catch (err) {
-      Swal.fire("Error", err.response?.data?.message || "Failed to save the topic", "error");
+      const status = err.response?.status;
+      const msg = status === 413
+        ? "The poster is too large for the server. Please choose a smaller image."
+        : describeError(err, "Failed to save the topic");
+      Swal.fire("Error", msg, "error");
+      // The list may have changed anyway (e.g. connection dropped after saving).
+      load();
     } finally { setSaving(false); }
   };
 
@@ -339,16 +391,23 @@ export default function WeeklyTopic() {
             <div className="mt-3">
               <label className="block text-[10px] text-[#5A7A7E] mb-1">Topic poster (the design shown to students and parents)</label>
               {(() => {
-                const shown = poster.preview || (!poster.remove && topic?.status === "open" ? topic?.poster_url : null);
+                // Only an edited topic shows its existing poster; a new topic starts with none.
+                const shown = poster.preview || (!poster.remove && editingId && topic?.id === editingId ? topic?.poster_url : null);
                 return (
                   <div className="flex items-center gap-3 flex-wrap">
                     {shown && <img src={shown} alt="" className="h-24 rounded-lg border border-[#D0E0E0] cursor-zoom-in" onClick={() => setZoom(shown)} />}
                     <label className="px-3 py-2 text-xs font-semibold rounded-xl border border-[#D0E0E0] cursor-pointer hover:bg-[#F4F8F8]" style={{ color: TEAL }}>
                       {shown ? "Change poster" : "Upload poster"}
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) setPoster({ file, preview: URL.createObjectURL(file), from: null, remove: false });
+                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const picked = e.target.files?.[0];
                         e.target.value = "";
+                        if (!picked) return;
+                        const file = await toUploadableImage(picked);
+                        if (!file) {
+                          return Swal.fire("Poster not readable",
+                            "This image format can't be used. Please save the poster as JPG or PNG and upload it again.", "warning");
+                        }
+                        setPoster({ file, preview: URL.createObjectURL(file), from: null, remove: false });
                       }} />
                     </label>
                     {shown && (

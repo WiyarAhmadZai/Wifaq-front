@@ -18,6 +18,123 @@ const errorText = (error, fallback) => {
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+/** Digits for wa.me: local Afghan numbers (07xx…) get the 93 country code. */
+function whatsappDigits(raw) {
+  let d = String(raw || "").replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("0")) d = `93${d.slice(1)}`;
+  else if (d.length === 9 && d.startsWith("7")) d = `93${d}`;
+  return d;
+}
+
+const PhoneIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+    <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" />
+  </svg>
+);
+const WhatsAppIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+    <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.25-.12-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.12-.17.25-.64.8-.79.97-.14.16-.29.18-.54.06a6.7 6.7 0 0 1-3.3-2.9c-.25-.43.25-.4.71-1.33.08-.16.04-.3-.02-.43-.06-.12-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42h-.48a.92.92 0 0 0-.67.31 2.8 2.8 0 0 0-.87 2.08 4.9 4.9 0 0 0 1.02 2.58 11.2 11.2 0 0 0 4.3 3.8c1.6.69 2.23.75 3.03.63.49-.07 1.47-.6 1.68-1.18.2-.58.2-1.08.14-1.18-.06-.1-.23-.17-.48-.29z" />
+  </svg>
+);
+
+/** A number shown twice: as a call link (phone icon) and as a WhatsApp chat link. */
+function PhoneLinks({ label, number }) {
+  if (!number) return null;
+  const wa = whatsappDigits(number);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {label && <span className="text-xs text-slate-500">{label}:</span>}
+      <a href={`tel:${String(number).replace(/[^\d+]/g, "")}`} dir="ltr" title="Call"
+        className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-1 text-sm font-medium text-sky-800 hover:bg-sky-100">
+        <PhoneIcon /> {number}
+      </a>
+      {wa && (
+        <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" dir="ltr" title="Open in WhatsApp"
+          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-sm font-medium text-emerald-700 hover:bg-emerald-100">
+          <WhatsAppIcon /> {number}
+        </a>
+      )}
+    </div>
+  );
+}
+
+function FamilyPhones({ family }) {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+      <PhoneLinks label="Father" number={family.father_phone} />
+      <PhoneLinks label="Mother" number={family.mother_phone} />
+      <PhoneLinks label="WhatsApp" number={family.whatsapp_number} />
+    </div>
+  );
+}
+
+/** Everything one family submitted, children included, in one window. */
+function FamilyModal({ family, onClose, childActions }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const linked = family.family || family.matched_family;
+  const row = (label, value) => value ? (
+    <div className="flex gap-2"><dt className="w-40 shrink-0 text-slate-500">{label}</dt><dd className="min-w-0 break-words text-slate-800" dir="auto">{value}</dd></div>
+  ) : null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4" onClick={onClose}>
+      <div className="my-6 w-full max-w-4xl rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-800" dir="auto">{family.father_name}{family.mother_name ? ` & ${family.mother_name}` : ""}</h3>
+            <p className="text-xs text-slate-500">{family.branch || ""}{family.created_at ? ` · Submitted ${new Date(family.created_at).toLocaleString()}` : ""}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100" aria-label="Close">×</button>
+        </div>
+        <div className="space-y-5 px-5 py-4">
+          <section>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Contact</p>
+            <FamilyPhones family={family} />
+          </section>
+          <section>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Family</p>
+            <dl className="mb-3 space-y-1 text-sm">
+              {row("Father's name", family.father_name)}
+              {row("Mother's name", family.mother_name)}
+              {row("Branch", family.branch)}
+              {linked && row(family.family ? "Family ID" : "Existing family found", linked.family_id)}
+            </dl>
+            <DetailGrid sections={FAMILY_DETAIL_SECTIONS} details={family.details} />
+          </section>
+          <section>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Children ({family.children.length})</p>
+            <div className="space-y-3">
+              {family.children.map((child) => (
+                <div key={child.id} className="rounded-xl border border-slate-200 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-slate-800" dir="auto">{child.first_name} {child.last_name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${child.status === "registered" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
+                        {child.status === "registered" ? `Registered${child.student?.student_id ? ` · ${child.student.student_id}` : ""}` : "Not registered"}
+                      </span>
+                      {childActions?.(child)}
+                    </div>
+                  </div>
+                  <dl className="mb-3 space-y-1 text-sm">
+                    {row("Class", [child.class, child.grade].filter(Boolean).join(" · "))}
+                    {row("Gender", child.gender ? (child.gender === "male" ? "Male" : "Female") : null)}
+                    {row("Date of birth", child.date_of_birth)}
+                  </dl>
+                  <DetailGrid sections={CHILD_DETAIL_SECTIONS} details={child.details} />
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The answers a parent gave, grouped by section; empty sections are hidden. */
 function DetailGrid({ sections, details }) {
   const groups = sections
@@ -59,7 +176,10 @@ export default function PublicStudentRegistrationAdmin() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(null); // id of the row being worked on
-  const [openDetails, setOpenDetails] = useState({});
+  const [showFamily, setShowFamily] = useState(null);
+  const closeFamily = useCallback(() => setShowFamily(null), []);
+  // Looked up live, so the window reflects a child registered or removed from inside it.
+  const openFamily = submissions.find((f) => f.id === showFamily) || null;
 
   // One permission per button, granted to a role in Users & Access.
   const can = (action) => hasPermission(`public-registration.${action}`);
@@ -220,7 +340,6 @@ export default function PublicStudentRegistrationAdmin() {
     }
   };
 
-  const toggle = (key) => setOpenDetails((current) => ({ ...current, [key]: !current[key] }));
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
@@ -290,92 +409,92 @@ export default function PublicStudentRegistrationAdmin() {
         {loading ? <p className="py-8 text-center text-slate-500">Loading…</p> : submissions.length === 0 ? (
           <p className="rounded-xl bg-slate-50 p-6 text-center text-slate-500">No families have submitted a registration yet.</p>
         ) : (
-          <div className="space-y-4">
-            {submissions.map((family) => {
-              const pending = family.children.filter((c) => c.status !== "registered");
-              const linkedFamily = family.family || family.matched_family;
-              const familyBusy = busy === `f${family.id}`;
-              return (
-                <article key={family.id} className="overflow-hidden rounded-xl border border-slate-200">
-                  <div className="flex flex-wrap items-start justify-between gap-3 bg-slate-50 px-4 py-3">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-slate-800">{family.father_name}{family.mother_name ? ` & ${family.mother_name}` : ""}</h3>
-                      <p className="mt-1 text-sm text-slate-600" dir="auto">Father: <span dir="ltr">{family.father_phone}</span>{family.mother_phone ? <> · Mother: <span dir="ltr">{family.mother_phone}</span></> : null}{family.whatsapp_number ? <> · WhatsApp: <span dir="ltr">{family.whatsapp_number}</span></> : null}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {family.branch || "Branch"} · {family.created_at ? new Date(family.created_at).toLocaleDateString() : ""}
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full min-w-[1000px]">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  {["#", "Family", "Contact", "Children", "Branch", "Submitted", "Status", "Actions"].map((h) => (
+                    <th key={h} className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {submissions.map((family, index) => {
+                  const pending = family.children.filter((c) => c.status !== "registered");
+                  const registeredCount = family.children.length - pending.length;
+                  const linkedFamily = family.family || family.matched_family;
+                  const familyBusy = busy === `f${family.id}`;
+                  return (
+                    <tr key={family.id} className="align-top hover:bg-slate-50/70">
+                      <td className="px-4 py-3 text-sm text-slate-500">{(submissionMeta.current_page - 1) * (submissionMeta.per_page || 50) + index + 1}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-800" dir="auto">{family.father_name}</p>
+                        {family.mother_name && <p className="text-xs text-slate-500" dir="auto">Mother: {family.mother_name}</p>}
                         {linkedFamily && (
-                          <span className={`ml-2 rounded-full px-2 py-0.5 font-semibold ${family.family ? "bg-teal-100 text-teal-800" : "bg-sky-100 text-sky-800"}`}>
-                            {family.family ? "Family" : "Existing family found"}: {linkedFamily.family_id}
+                          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${family.family ? "bg-teal-100 text-teal-800" : "bg-sky-100 text-sky-800"}`}>
+                            {family.family ? "Family" : "Existing"}: {linkedFamily.family_id}
                           </span>
                         )}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" onClick={() => toggle(`f${family.id}`)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-                        {openDetails[`f${family.id}`] ? "Hide family details" : "Family details"}
-                      </button>
-                      {canRegister && pending.length > 0 && (
-                        <button type="button" disabled={familyBusy} onClick={() => register(family, pending)} className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60">
-                          {familyBusy ? "Working…" : pending.length > 1 ? `Register all (${pending.length})` : "Register"}
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button type="button" disabled={familyBusy} onClick={() => deleteSubmission(family)} className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-60">Remove</button>
-                      )}
-                    </div>
-                  </div>
-                  {openDetails[`f${family.id}`] && (
-                    <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3">
-                      <DetailGrid sections={FAMILY_DETAIL_SECTIONS} details={family.details} />
-                    </div>
-                  )}
-                  <div className="divide-y divide-slate-100">
-                    {family.children.map((child) => {
-                      const registered = child.status === "registered";
-                      return (
-                        <div key={child.id} className="px-4 py-3">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="font-medium text-slate-800">{child.first_name} {child.last_name}</p>
-                              <p className="text-sm text-slate-500">
-                                {child.class || "Class unavailable"}{child.grade ? ` · ${child.grade}` : ""}
-                                {child.gender ? ` · ${child.gender === "male" ? "Male" : "Female"}` : ""}
-                                {child.date_of_birth ? ` · Born ${child.date_of_birth}` : ""}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${registered ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
-                                {registered ? `Registered${child.student?.student_id ? ` · ${child.student.student_id}` : ""}` : "Not registered"}
-                              </span>
-                              <button type="button" onClick={() => toggle(`c${child.id}`)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50">
-                                {openDetails[`c${child.id}`] ? "Hide" : "Details"}
-                              </button>
-                              {registered && child.student?.id && (
-                                <Link to={`/student-management/students/show/${child.student.id}`} className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100">Open student</Link>
-                              )}
-                              {canRegister && !registered && (
-                                <button type="button" disabled={familyBusy} onClick={() => register(family, [child])} className="rounded-lg bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100 disabled:opacity-60">Register</button>
-                              )}
-                              {canDelete && (
-                                <button type="button" disabled={busy === `c${child.id}` || familyBusy} onClick={() => deleteChild(child)} className="rounded-lg px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-60">Remove</button>
-                              )}
-                            </div>
-                          </div>
-                          {openDetails[`c${child.id}`] && (
-                            <div className="mt-3">
-                              <DetailGrid sections={CHILD_DETAIL_SECTIONS} details={child.details} />
-                            </div>
+                      </td>
+                      <td className="px-4 py-3"><div className="space-y-1"><FamilyPhones family={family} /></div></td>
+                      <td className="px-4 py-3">
+                        <ul className="space-y-0.5 text-sm">
+                          {family.children.map((child) => (
+                            <li key={child.id} className="flex items-center gap-1.5">
+                              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${child.status === "registered" ? "bg-emerald-500" : "bg-amber-400"}`} />
+                              <span className="text-slate-800" dir="auto">{child.first_name} {child.last_name}</span>
+                              {child.class && <span className="text-xs text-slate-500">· {child.class}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{family.branch || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{family.created_at ? new Date(family.created_at).toLocaleDateString() : "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${pending.length === 0 ? "bg-emerald-100 text-emerald-700" : registeredCount ? "bg-sky-100 text-sky-800" : "bg-amber-100 text-amber-800"}`}>
+                          {pending.length === 0 ? "Registered" : registeredCount ? `${registeredCount}/${family.children.length} registered` : "Not registered"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button type="button" onClick={() => setShowFamily(family.id)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Show</button>
+                          {canRegister && pending.length > 0 && (
+                            <button type="button" disabled={familyBusy} onClick={() => register(family, pending)} className="whitespace-nowrap rounded-lg bg-teal-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60">
+                              {familyBusy ? "Working…" : pending.length > 1 ? `Register all (${pending.length})` : "Register"}
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button type="button" disabled={familyBusy} onClick={() => deleteSubmission(family)} className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs text-rose-700 hover:bg-rose-50 disabled:opacity-60">Remove</button>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                </article>
-              );
-            })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
+      {openFamily && (
+        <FamilyModal family={openFamily} onClose={closeFamily} childActions={(child) => {
+          const registered = child.status === "registered";
+          const familyBusy = busy === `f${openFamily.id}`;
+          return (
+            <>
+              {registered && child.student?.id && (
+                <Link to={`/student-management/students/show/${child.student.id}`} className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100">Open student</Link>
+              )}
+              {canRegister && !registered && (
+                <button type="button" disabled={familyBusy} onClick={() => register(openFamily, [child])} className="rounded-lg bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100 disabled:opacity-60">Register</button>
+              )}
+              {canDelete && (
+                <button type="button" disabled={busy === `c${child.id}` || familyBusy} onClick={() => deleteChild(child)} className="rounded-lg px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-60">Remove</button>
+              )}
+            </>
+          );
+        }} />
+      )}
     </main>
   );
 }

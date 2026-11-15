@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../context/AuthContext";
 import Can from "../guards/Can";
 import PermissionPicker from "../components/PermissionPicker";
@@ -26,15 +27,31 @@ export default function AdminUserShow() {
     (async () => {
       setLoading(true);
       try {
+        const __u = peekCache(`/access/users/${id}`);
+        const __r = peekCache("/access/roles?per_page=100&with_permissions=1");
+        const __p = peekCache("/access/permissions");
+        if (__u?.data) {
+          const cd = __u.data;
+          setUser(cd);
+          setSelectedRoles(new Set(cd.roles || []));
+          setDirectPermissions(new Set(cd.all_permissions || cd.direct_permissions || []));
+          setLoading(false);
+        }
+        if (__r) setRoles(__r?.data || []);
+        if (__p) setAllPermissions(__p?.data || []);
         const [u, r, p] = await Promise.all([
           accessApi.showUser(id),
-          accessApi.listRoles({ per_page: 100 }),
+          accessApi.listRoles({ per_page: 100, with_permissions: 1 }),
           accessApi.listPermissions(),
         ]);
         const data = u.data?.data;
         setUser(data);
         setSelectedRoles(new Set(data.roles || []));
-        setDirectPermissions(new Set(data.direct_permissions || []));
+        // Initialize the picker with ALL effective permissions checked
+        // (role-inherited + direct). The admin can uncheck any of them;
+        // role-inherited ones that get unchecked drop the role automatically
+        // on save and the remaining role grants are kept as direct.
+        setDirectPermissions(new Set(data.all_permissions || data.direct_permissions || []));
         setRoles(r.data?.data || []);
         setAllPermissions(p.data?.data || []);
       } catch {
@@ -72,8 +89,24 @@ export default function AdminUserShow() {
       const data = res.data?.data;
       setUser(data);
       setSelectedRoles(new Set(data.roles || []));
-      setDirectPermissions(new Set(data.direct_permissions || []));
-      Swal.fire({ icon: "success", title: "Access updated", timer: 1200, showConfirmButton: false });
+      // Re-seed the picker with the new effective set so what's checked
+      // matches what's actually granted after the save.
+      setDirectPermissions(new Set(data.all_permissions || data.direct_permissions || []));
+      // If the admin just edited their OWN access, tell AuthContext to
+      // refetch /access/me so the new permissions take effect immediately
+      // (otherwise it would wait for the next focus or interval tick).
+      if (isEditingSelf) {
+        window.dispatchEvent(new CustomEvent("wen:auth-refresh"));
+      }
+      Swal.fire({
+        icon: "success",
+        title: "Access updated",
+        text: isEditingSelf
+          ? "Your permissions refreshed."
+          : "The user's UI will update on their next poll (within ~20 s) or instantly when they refresh.",
+        timer: 2200,
+        showConfirmButton: false,
+      });
     } catch (e) {
       Swal.fire("Error", e.response?.data?.message || "Failed", "error");
     } finally {
@@ -145,6 +178,24 @@ export default function AdminUserShow() {
                     const next = new Set(selectedRoles);
                     if (checked) next.delete(r.name); else next.add(r.name);
                     setSelectedRoles(next);
+
+                    // Unchecking a role takes its permissions with it — unless
+                    // another role that is still ticked also grants them. The
+                    // picker was seeded with the full effective set, so without
+                    // this the role's grants would stay ticked and be re-saved
+                    // as direct permissions, and removing the role changed nothing.
+                    if (checked) {
+                      const stillCovered = new Set(
+                        roles
+                          .filter((x) => next.has(x.name))
+                          .flatMap((x) => (x.permissions || []).map((p) => p.name)),
+                      );
+                      setDirectPermissions((prev) => {
+                        const out = new Set(prev);
+                        (r.permissions || []).forEach((p) => { if (!stillCovered.has(p.name)) out.delete(p.name); });
+                        return out;
+                      });
+                    }
                   }}
                   disabled={!canAssign}
                   className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"

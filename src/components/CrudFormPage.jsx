@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, post, put } from '../api/axios';
+import { get, post, put, peekCache } from '../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from '../utils/formErrors';
 
+import { DateField } from "./hr/HrUI";
+import { useI18n } from "../i18n/I18nContext";
 export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, storeEndpoint = null, editEndpoint = null }) {
+  const { t } = useI18n();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
@@ -66,15 +69,26 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
     }
   }, [formData.staff_id, selectOptions]);
 
+  const unwrap = (raw) =>
+    raw && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'data') ? raw.data : raw;
+
   const fetchItem = async () => {
-    setLoading(true);
+    const url = `${apiEndpoint}/${id}`;
+    // Instant paint from cache, then revalidate (304 when unchanged).
+    const cached = peekCache(url);
+    if (cached) {
+      const p = unwrap(cached);
+      setFormData(p && typeof p === 'object' ? p : {});
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const response = await get(`${apiEndpoint}/${id}`);
-      const raw = response.data;
-      const payload = raw && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'data') ? raw.data : raw;
+      const response = await get(url);
+      const payload = unwrap(response.data);
       setFormData(payload && typeof payload === 'object' ? payload : {});
     } catch (error) {
-      Swal.fire('Error', 'Failed to load data', 'error');
+      if (!cached) Swal.fire('Error', 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
@@ -235,7 +249,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
         <div className="relative">
           <input
             type="text"
-            placeholder={field.placeholder || `Search ${field.label.toLowerCase()}...`}
+            placeholder={field.placeholder || t("Search {}...", t(field.label).toLowerCase())}
             value={searchTerm || selectedDisplay}
             onChange={handleInputChange}
             onFocus={() => setShowDropdown(true)}
@@ -370,14 +384,12 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
     if (field.type === 'date') {
       return (
         <div>
-          <input
-            type="date"
+          <DateField
             name={field.name}
             value={value}
             onChange={handleChange}
             required={field.required}
-            className={getFieldClass(field.name)}
-          />
+            className={getFieldClass(field.name)} />
           {hasError && <p className="mt-1 text-[11px] text-red-500 font-medium">{hasError[0]}</p>}
         </div>
       );
@@ -415,7 +427,7 @@ export default function CrudFormPage({ title, apiEndpoint, fields, listRoute, st
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? `Edit ${title}` : `Create ${title}`}</h1>
+            <h1 className="text-sm font-bold text-white">{isEdit ? t("Edit {}", t(title)) : t("Create {}", t(title))}</h1>
             <p className="text-xs text-teal-100 mt-0.5">Fill in the details below</p>
           </div>
         </div>

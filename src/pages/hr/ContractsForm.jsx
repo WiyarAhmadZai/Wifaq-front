@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 export default function ContractsForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -21,6 +22,7 @@ export default function ContractsForm() {
     allowances: {},
     expected_time: "",
     benefits: {},
+    annual_leave_days: 20,
     status: "draft",
   });
 
@@ -64,7 +66,14 @@ export default function ContractsForm() {
 
   const fetchStaffList = async () => {
     try {
-      const response = await get("/hr/contracts/staff-list");
+      // On create the endpoint hides anyone who already holds a live contract,
+      // so a second one can't be issued by accident. On edit we ask for the
+      // unfiltered roster (`all=1`) — this contract's own staff member is by
+      // definition already contracted, and would otherwise vanish from their
+      // own form.
+      const response = await get("/hr/contracts/staff-list", {
+        params: isEdit ? { all: 1 } : {},
+      });
       const data = response.data?.data || [];
       setStaffList(Array.isArray(data) ? data : []);
       setFilteredStaff(Array.isArray(data) ? data : []);
@@ -91,6 +100,34 @@ export default function ContractsForm() {
 
   const fetchContract = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/contracts/show/${id}`);
+    if (__cached) {
+      const data = __cached;
+      setFormData({
+        staff_id: data.staff_id || "",
+        contract_type: data.contract_type || "",
+        start_date: formatDateForInput(data.start_date),
+        end_date: formatDateForInput(data.end_date),
+        has_probation: data.has_probation || false,
+        probation_end_date: formatDateForInput(data.probation_end_date),
+        salary: data.salary || "",
+        salary_currency: data.salary_currency || "AFN",
+        allowances: data.allowances || {},
+        expected_time: data.expected_time || "",
+        benefits: data.benefits || {},
+        annual_leave_days: data.annual_leave_days ?? 20,
+        status: data.status || "draft",
+      });
+      if (data.staff) {
+        const staffName = data.staff.application?.full_name || `Staff #${data.staff.employee_id}`;
+        setSelectedStaff({
+          id: data.staff.id,
+          full_name: staffName,
+          employee_id: data.staff.employee_id,
+        });
+      }
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/contracts/show/${id}`);
       const data = response.data;
@@ -106,6 +143,7 @@ export default function ContractsForm() {
         allowances: data.allowances || {},
         expected_time: data.expected_time || "",
         benefits: data.benefits || {},
+        annual_leave_days: data.annual_leave_days ?? 20,
         status: data.status || "draft",
       });
       if (data.staff) {
@@ -225,23 +263,33 @@ export default function ContractsForm() {
                 {filteredStaff.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-gray-500">No staff found</div>
                 ) : (
-                  filteredStaff.map((staff) => (
-                    <div
-                      key={staff.id}
-                      onClick={() => handleStaffSelect(staff)}
-                      className={`px-3 py-2 cursor-pointer hover:bg-teal-50 border-b border-gray-100 last:border-0 ${formData.staff_id === staff.id ? "bg-teal-50" : ""}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 text-xs font-bold">
-                          {staff.full_name?.charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-800 truncate">{staff.full_name}</p>
-                          <p className="text-[10px] text-gray-500">{staff.employee_id} • {staff.department || "No Dept"}</p>
+                  filteredStaff.map((staff) => {
+                    const isAdminReg = staff.source === "admin-registered";
+                    return (
+                      <div
+                        key={staff.id}
+                        onClick={() => handleStaffSelect(staff)}
+                        className={`px-3 py-2 cursor-pointer hover:bg-teal-50 border-b border-gray-100 last:border-0 ${formData.staff_id === staff.id ? "bg-teal-50" : ""}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full ${isAdminReg ? "bg-indigo-100 text-indigo-600" : "bg-teal-100 text-teal-600"} flex items-center justify-center text-xs font-bold`}>
+                            {staff.full_name?.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-medium text-gray-800 truncate">{staff.full_name}</p>
+                              {isAdminReg && (
+                                <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  user
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-500">{staff.employee_id} • {staff.department || "No Dept"}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -273,14 +321,12 @@ export default function ContractsForm() {
           {/* Start Date */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-            <input
-              type="date"
+            <DateField
               name="start_date"
               value={formData.start_date}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
             {selectedStaff?.start_date && (
               <p className="text-[10px] text-teal-600 mt-1">
                 Pre-filled from offer start date
@@ -294,13 +340,11 @@ export default function ContractsForm() {
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 End Date <span className="text-gray-400 font-normal">(optional)</span>
               </label>
-              <input
-                type="date"
+              <DateField
                 name="end_date"
                 value={formData.end_date}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
-              />
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
             </div>
           )}
 
@@ -326,7 +370,7 @@ export default function ContractsForm() {
             {formData.has_probation && (
               <div className="mt-3">
                 <label className="block text-xs font-medium text-gray-700 mb-1">Probation End Date</label>
-                <input type="date" name="probation_end_date" value={formData.probation_end_date} onChange={handleChange}
+                <DateField name="probation_end_date" value={formData.probation_end_date} onChange={handleChange}
                   className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs" />
                 <p className="text-[10px] text-gray-400 mt-1">Default: 1 month from start date. You can adjust.</p>
               </div>
@@ -378,6 +422,27 @@ export default function ContractsForm() {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
             />
+          </div>
+
+          {/* Annual leave days — every approved leave request consumes from
+              this pool. Going over triggers a VATS yellow-card workflow. */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Annual leave days <span className="text-gray-400 font-normal">(per year)</span>
+            </label>
+            <input
+              type="number"
+              name="annual_leave_days"
+              min="0"
+              max="365"
+              value={formData.annual_leave_days}
+              onChange={handleChange}
+              placeholder="e.g. 20"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+            />
+            <p className="text-[10px] text-gray-500 mt-1">
+              Default 20. The staff member can take up to this many leave days a year before a VATS yellow card is auto-issued.
+            </p>
           </div>
         </div>
 

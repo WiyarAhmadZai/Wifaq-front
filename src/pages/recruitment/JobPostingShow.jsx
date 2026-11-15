@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate } from "../../utils/formErrors";
 
 const Icons = {
   ArrowLeft: () => (
@@ -62,6 +65,9 @@ const STATUS_OPTIONS = [
 
 export default function JobPostingShow() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/job-postings");
   const { id } = useParams();
   const { canUpdate, canDelete } = useResourcePermissions("job-postings");
   const [data, setData] = useState(null);
@@ -77,6 +83,8 @@ export default function JobPostingShow() {
 
   const fetchData = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/job-postings/${id}`);
+    if (__cached) { setData(__cached?.data || __cached); setError(null); setLoading(false); }
     try {
       const response = await get(`/recruitment/job-postings/${id}`);
       setData(response.data?.data || response.data);
@@ -104,7 +112,7 @@ export default function JobPostingShow() {
       try {
         await del(`/recruitment/job-postings/${id}`);
         Swal.fire("Deleted", "Job posting deleted successfully", "success");
-        navigate("/recruitment/job-postings");
+        goBack();
       } catch {
         Swal.fire("Error", "Failed to delete job posting", "error");
       }
@@ -191,7 +199,7 @@ export default function JobPostingShow() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/recruitment/job-postings")}
+            onClick={goBack}
             className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
           >
             <Icons.ArrowLeft />
@@ -322,14 +330,18 @@ export default function JobPostingShow() {
                   {data.requisition?.department || "N/A"}
                 </p>
               </div>
-              {data.requisition?.deadline_date && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wider">Deadline</p>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Deadline</p>
+                {data.requisition?.deadline_date ? (
                   <p className="text-sm font-medium text-gray-800">
-                    {new Date(data.requisition.deadline_date).toLocaleDateString()}
+                    {fmtDate(data.requisition.deadline_date)}
                   </p>
-                </div>
-              )}
+                ) : (
+                  /* Stated rather than hidden: whether a vacancy expires is
+                   * exactly what someone opens this page to find out. */
+                  <p className="text-sm font-medium text-emerald-700">No deadline — open permanently</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -344,13 +356,13 @@ export default function JobPostingShow() {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Created</span>
                 <span className="text-xs font-medium">
-                  {data.created_at ? new Date(data.created_at).toLocaleDateString() : "-"}
+                  {data.created_at ? fmtDate(data.created_at) : "-"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-teal-100">Updated</span>
                 <span className="text-xs font-medium">
-                  {data.updated_at ? new Date(data.updated_at).toLocaleDateString() : "-"}
+                  {data.updated_at ? fmtDate(data.updated_at) : "-"}
                 </span>
               </div>
             </div>

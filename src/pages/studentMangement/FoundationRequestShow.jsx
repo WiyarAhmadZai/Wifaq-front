@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, put } from "../../api/axios";
+import { get, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useAuth } from "../../admin/context/AuthContext";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const STATUS_BADGE = {
   pending: "bg-amber-100 text-amber-700 border-amber-200",
@@ -29,6 +31,8 @@ export default function FoundationRequestShow() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/foundation-requests/show/${id}`);
+    if (__cached) { const d = __cached?.data; setItem(d); setApproveAmount(d?.help_requested || ""); setLoading(false); }
     try {
       const res = await get(`/student-management/foundation-requests/show/${id}`);
       const d = res.data?.data;
@@ -189,7 +193,7 @@ export default function FoundationRequestShow() {
           <p className="text-xs text-gray-700">{item.admin_note}</p>
           {item.reviewer && item.reviewed_at && (
             <p className="text-[10px] text-gray-400 mt-2">
-              By {item.reviewer.name} on {new Date(item.reviewed_at).toLocaleDateString()}
+              By {item.reviewer.name} on {fmtDate(item.reviewed_at)}
             </p>
           )}
         </div>
@@ -237,7 +241,7 @@ export default function FoundationRequestShow() {
       )}
 
       <p className="text-[10px] text-gray-400 text-center">
-        Submitted {new Date(item.created_at).toLocaleString()}
+        Submitted {fmtDateTime(item.created_at)}
       </p>
     </div>
   );

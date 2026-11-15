@@ -1,17 +1,32 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getJournalEntry, postJournalEntry } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+import { useAuth } from "../../admin/context/AuthContext";
+import BudgetWarningModal from "../../components/finance/BudgetWarningModal";
 export default function JournalEntryShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  // Posting a JE enforces budget rules and flips it to "posted" — it's the
+  // privileged action on this page. Bind to journal-entries.manage.
+  const canPost = hasPermission("journal-entries.manage");
+  const canOverrideBudget = hasPermission("budgets.override");
   const [loading, setLoading] = useState(false);
   const [je, setJe] = useState(null);
+  // When the backend returns 409 + budget_breach we stash it here so the
+  // modal can render. Confirming the modal re-runs the same post with a reason.
+  const [breach, setBreach] = useState(null);
+  const [overriding, setOverriding] = useState(false);
 
   const fetchOne = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/financial/journal-entries/${id}`);
+      if (__cached) { setJe(__cached?.data ?? __cached); setLoading(false); }
       const res = await getJournalEntry(id);
       setJe(res.data?.data || res.data);
     } catch {
@@ -25,24 +40,45 @@ export default function JournalEntryShow() {
     fetchOne();
   }, [id]);
 
+  // Post the JE, optionally with a budget override reason. Used both by the
+  // initial "Post" click (no reason) and by the modal's Confirm (with reason).
+  const submitPost = async (overrideReason) => {
+    try {
+      await postJournalEntry(id, overrideReason ? { budget_override_reason: overrideReason } : {});
+      setBreach(null);
+      Swal.fire({
+        toast: true, position: "top-end", icon: "success",
+        title: overrideReason ? "Posted with override" : "Posted",
+        timer: 1600, showConfirmButton: false,
+      });
+      await fetchOne();
+    } catch (err) {
+      // Soft-warn-and-override: 409 with budget_breach → pop the modal.
+      if (err.response?.status === 409 && err.response.data?.budget_breach) {
+        setBreach(err.response.data.budget_breach);
+        return;
+      }
+      Swal.fire("Error", err.response?.data?.message || "Failed to post", "error");
+    } finally {
+      setOverriding(false);
+    }
+  };
+
   const handlePost = async () => {
     const r = await Swal.fire({
       title: "Post journal entry?",
-      text: "This will enforce budget rules and mark entry as posted.",
+      text: "This locks the entry and recognises the spend against budgets.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Post",
     });
-
     if (!r.isConfirmed) return;
+    await submitPost(null);
+  };
 
-    try {
-      await postJournalEntry(id);
-      Swal.fire("Posted!", "Journal entry posted successfully.", "success");
-      await fetchOne();
-    } catch (err) {
-      Swal.fire("Error", err.response?.data?.message || "Failed to post", "error");
-    }
+  const handleOverride = async (reason) => {
+    setOverriding(true);
+    await submitPost(reason);
   };
 
   if (loading && !je) {
@@ -69,13 +105,13 @@ export default function JournalEntryShow() {
           </button>
           <div>
             <h2 className="text-base font-bold text-gray-800">{je.entry_number || `JE#${je.id}`}</h2>
-            <p className="text-xs text-gray-500">{je.transaction_date} · {je.status}</p>
+            <p className="text-xs text-gray-500">{fmtDate(je.transaction_date)} · {je.status}</p>
             <p className="text-xs text-gray-700 mt-1">{je.description}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {je.status === "draft" && (
+          {je.status === "draft" && canPost && (
             <button onClick={handlePost} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium">
               Post
             </button>
@@ -93,7 +129,7 @@ export default function JournalEntryShow() {
                 <th className="px-4 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Debit</th>
                 <th className="px-4 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase">Credit</th>
                 <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Party</th>
-                <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Account ID</th>
+                <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Cash / Bank</th>
                 <th className="px-4 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase">Description</th>
               </tr>
             </thead>
@@ -104,8 +140,19 @@ export default function JournalEntryShow() {
                   <td className="px-4 py-2.5 text-xs text-gray-700">{l.chart_account?.code} - {l.chart_account?.name}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-600 text-right">{Number(l.debit || 0).toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-xs text-gray-600 text-right">{Number(l.credit || 0).toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{l.party_id || "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{l.account_id || "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">
+                    {l.party ? (
+                      <span>
+                        <span className="font-medium text-gray-800">{l.party.full_name || `Party #${l.party_id}`}</span>
+                        {l.party.party_code && (
+                          <span className="block text-[10px] text-gray-400 font-mono">{l.party.party_code}</span>
+                        )}
+                      </span>
+                    ) : l.party_id ? `#${l.party_id}` : "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500">
+                    {l.account?.account_name || (l.account_id ? `#${l.account_id}` : "—")}
+                  </td>
                   <td className="px-4 py-2.5 text-xs text-gray-500">{l.description || "—"}</td>
                 </tr>
               ))}
@@ -121,6 +168,15 @@ export default function JournalEntryShow() {
           </table>
         </div>
       </div>
+
+      <BudgetWarningModal
+        breach={breach}
+        title="Posting would exceed a budget"
+        canOverride={canOverrideBudget}
+        busy={overriding}
+        onClose={() => setBreach(null)}
+        onConfirm={handleOverride}
+      />
     </div>
   );
 }

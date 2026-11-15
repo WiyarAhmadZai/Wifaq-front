@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
+import { uploadFiles, fileRawBlob } from "../../api/drive";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 const STEPS = [
   { num: 1, label: "Student Info", desc: "Family, personal details & class" },
   { num: 2, label: "Financials", desc: "Discounts, fees & support" },
 ];
 
-const DISCOUNT_OPTIONS = [0, 15, 20, 25, 30, 35, 40, 45, 50];
+// Regular-discount percentages: None (0) plus every whole percent up to 100.
+const DISCOUNT_OPTIONS = Array.from({ length: 101 }, (_, i) => i);
 
 const SPECIAL_STATUS_OPTIONS = [
   { value: "none", label: "None", color: "bg-gray-50 text-gray-700 border-gray-200" },
@@ -55,6 +58,12 @@ export default function StudentForm() {
     discount_percent: 0,
     foundation_help_requested: false,
     foundation_help_requested_amount: "",
+    // Admission fee — one-time charge added as a pending charge that gets
+    // rolled into the student's next billing run. Off by default; turning
+    // the radio ON opens the amount input (defaults to 2000 AFN).
+    apply_admission_fee: false,
+    admission_fee: 2000,
+    profile_image_id: "",
   });
 
   const [families, setFamilies] = useState([]);
@@ -67,6 +76,11 @@ export default function StudentForm() {
   const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
   const familyRef = useRef(null);
 
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
+
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,6 +89,13 @@ export default function StudentForm() {
   useEffect(() => {
     (async () => {
       try {
+        const __fd = peekCache("/student-management/students/form-data");
+        if (__fd) {
+          setFamilies(__fd?.families || []);
+          setClasses(__fd?.classes || []);
+          setCurrentTerm(__fd?.current_term || null);
+          setEmployeeParents(__fd?.employee_parents || []);
+        }
         const res = await get("/student-management/students/form-data");
         setFamilies(res.data?.families || []);
         setClasses(res.data?.classes || []);
@@ -129,8 +150,36 @@ export default function StudentForm() {
     }
   };
 
+  const seedStudentForm = (d) => ({
+    family_id: d.family_id || "",
+    first_name: d.first_name || "",
+    last_name: d.last_name || "",
+    date_of_birth: d.date_of_birth?.split("T")[0] || "",
+    gender: d.gender || "",
+    school_class_id: d.school_class_id || "",
+    enrollment_date: d.enrollment_date?.split("T")[0] || "",
+    enrollment_type: d.enrollment_type || "new",
+    uniform_required: d.uniform_required || false,
+    transportation_required: d.transportation_required || false,
+    is_fourth_child: (d.child_order_in_family || 0) >= 4 || d.special_status === "fourth_child",
+    child_order_in_family: d.child_order_in_family || "",
+    special_status: d.special_status || "none",
+    employee_parent_staff_id: d.employee_parent_staff_id || "",
+    discount_percent: d.discount_percent || 0,
+    foundation_help_requested: d.foundation_help_requested || false,
+    foundation_help_requested_amount: d.foundation_help_requested_amount || "",
+    profile_image_id: d.profile_image_id || "",
+  });
+
   const loadStudent = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/students/show/${id}`);
+    if (__cached?.data) {
+      const d = __cached.data;
+      setForm(seedStudentForm(d));
+      if (d.family) setFamilySearch(`${d.family.family_id} - ${d.family.father_name}`);
+      setLoading(false);
+    }
     try {
       const res = await get(`/student-management/students/show/${id}`);
       const d = res.data?.data;
@@ -153,7 +202,14 @@ export default function StudentForm() {
           discount_percent: d.discount_percent || 0,
           foundation_help_requested: d.foundation_help_requested || false,
           foundation_help_requested_amount: d.foundation_help_requested_amount || "",
+          profile_image_id: d.profile_image_id || "",
         });
+        if (d.profile_image) {
+          // `url` is built by the server (DriveFile::getUrlAttribute) — a
+          // signed link an <img> can fetch. `path` was used here before and is
+          // a key on the PRIVATE disk, so the preview was always broken.
+          setProfileImagePreview(d.profile_image.url || d.profile_image.external_url || null);
+        }
         if (d.family) {
           setFamilySearch(`${d.family.family_id} - ${d.family.father_name}`);
         }
@@ -195,6 +251,50 @@ export default function StudentForm() {
             f.mother_name?.toLowerCase().includes(q));
   });
 
+  const handleProfileImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      Swal.fire('Error', 'Please select an image file', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      Swal.fire('Error', 'Image size should be less than 5MB', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('files[]', file);
+      formData.append('visibility', 'private');
+
+      const response = await uploadFiles(null, [file], {}, { visibility: 'private' });
+      const uploadedFile = response.data?.data?.[0];
+      
+      if (uploadedFile?.id) {
+        setForm((prev) => ({ ...prev, profile_image_id: uploadedFile.id }));
+        setProfileImagePreview(uploadedFile.url || uploadedFile.external_url || null);
+        setProfileImage(file);
+      }
+    } catch (error) {
+      Swal.fire('Error', 'Failed to upload image', 'error');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeProfileImage = () => {
+    setForm((prev) => ({ ...prev, profile_image_id: "" }));
+    setProfileImage(null);
+    setProfileImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const canNext = () => {
     if (step === 1) {
       return form.family_id && form.first_name && form.last_name && form.date_of_birth
@@ -213,8 +313,13 @@ export default function StudentForm() {
         employee_parent_staff_id: form.special_status === "employee_child" ? form.employee_parent_staff_id : null,
         foundation_help_requested_amount: form.foundation_help_requested ? form.foundation_help_requested_amount : null,
         child_order_in_family: form.is_fourth_child ? 4 : null,
+        // Only post the admission fee when the user explicitly enabled it.
+        // Backend treats `null` as "no admission charge"; a positive number
+        // queues a one-time pending charge for the next billing run.
+        admission_fee: form.apply_admission_fee ? Number(form.admission_fee) || 0 : null,
       };
       delete payload.is_fourth_child;
+      delete payload.apply_admission_fee;
 
       let savedStudent = null;
       if (isEdit) {
@@ -255,7 +360,12 @@ export default function StudentForm() {
           discount_percent: 0,
           foundation_help_requested: false,
           foundation_help_requested_amount: "",
+          apply_admission_fee: false,
+          admission_fee: 2000,
+          profile_image_id: "",
         });
+        setProfileImage(null);
+        setProfileImagePreview(null);
         setFamilySearch(savedFamilyLabel);
         setFeeBreakdown(null);
         setStep(1);
@@ -372,6 +482,71 @@ export default function StudentForm() {
                   <h3 className="text-sm font-bold text-gray-800">Personal</h3>
                 </div>
 
+                {/* Profile Image Upload */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Profile Image</label>
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      {profileImagePreview ? (
+                        <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-teal-200">
+                          <img 
+                            src={profileImagePreview} 
+                            alt="Profile preview" 
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={removeProfileImage}
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleProfileImageUpload}
+                        accept="image/*"
+                        className="hidden"
+                        id="profile-image-upload"
+                      />
+                      <label
+                        htmlFor="profile-image-upload"
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all
+                          ${uploadingImage 
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'}`}
+                      >
+                        {uploadingImage ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Upload Image
+                          </>
+                        )}
+                      </label>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Accepts JPG, PNG, GIF (max 5MB)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Family selector */}
                 <div ref={familyRef} className="relative">
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Family *</label>
@@ -438,7 +613,7 @@ export default function StudentForm() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Date of Birth *</label>
-                    <input type="date" name="date_of_birth" value={form.date_of_birth} onChange={handle} className={inp("date_of_birth")} />
+                    <DateField name="date_of_birth" value={form.date_of_birth} onChange={handle} className={inp("date_of_birth")} />
                     {err("date_of_birth") && <p className="text-red-500 text-[10px] mt-1">{err("date_of_birth")}</p>}
                   </div>
                   <div>
@@ -511,7 +686,7 @@ export default function StudentForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Enrollment Date *</label>
-                    <input type="date" name="enrollment_date" value={form.enrollment_date} onChange={handle} className={inp("enrollment_date")} />
+                    <DateField name="enrollment_date" value={form.enrollment_date} onChange={handle} className={inp("enrollment_date")} />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Enrollment Type</label>
@@ -706,15 +881,16 @@ export default function StudentForm() {
                 {showRegularDiscount && (
                   <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                     <label className="block text-[11px] font-semibold text-gray-500 uppercase">Regular Discount</label>
-                    <div className="grid grid-cols-5 gap-2">
+                    <select
+                      name="discount_percent"
+                      value={form.discount_percent}
+                      onChange={(e) => set("discount_percent", Number(e.target.value))}
+                      className={inp("discount_percent")}
+                    >
                       {DISCOUNT_OPTIONS.map((pct) => (
-                        <button key={pct} type="button" onClick={() => set("discount_percent", pct)}
-                          className={`py-2.5 rounded-xl text-xs font-semibold border-2 transition-all
-                            ${Number(form.discount_percent) === pct ? "bg-teal-600 text-white border-teal-600 shadow-md" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300"}`}>
-                          {pct === 0 ? "None" : `${pct}%`}
-                        </button>
+                        <option key={pct} value={pct}>{pct === 0 ? "None" : `${pct}%`}</option>
                       ))}
-                    </div>
+                    </select>
                   </div>
                 )}
 
@@ -735,6 +911,54 @@ export default function StudentForm() {
                     )}
                   </div>
                 )}
+
+                {/* ━━━━━━━ 5. ADMISSION FEE (one-time charge) ━━━━━━━
+                    A radio-style toggle: OFF by default → no admission fee.
+                    Turn it ON to apply one. The amount input only shows
+                    when the toggle is on. The backend queues this as a
+                    pending charge that's billed on the next invoice run. */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+                  <label className="block text-[11px] font-semibold text-gray-500 uppercase">Admission Fee (one-time)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button"
+                      onClick={() => set("apply_admission_fee", false)}
+                      className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all flex items-center gap-2
+                        ${!form.apply_admission_fee
+                          ? "bg-gray-100 border-gray-400 text-gray-800 ring-2 ring-gray-200"
+                          : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"}`}>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                        ${!form.apply_admission_fee ? "border-gray-700" : "border-gray-300"}`}>
+                        {!form.apply_admission_fee && <span className="w-2 h-2 rounded-full bg-gray-700" />}
+                      </span>
+                      No admission fee
+                    </button>
+                    <button type="button"
+                      onClick={() => set("apply_admission_fee", true)}
+                      className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all flex items-center gap-2
+                        ${form.apply_admission_fee
+                          ? "bg-teal-50 border-teal-500 text-teal-800 ring-2 ring-teal-200"
+                          : "bg-white border-gray-200 text-gray-500 hover:border-teal-300"}`}>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                        ${form.apply_admission_fee ? "border-teal-600" : "border-gray-300"}`}>
+                        {form.apply_admission_fee && <span className="w-2 h-2 rounded-full bg-teal-600" />}
+                      </span>
+                      Apply admission fee
+                    </button>
+                  </div>
+
+                  {form.apply_admission_fee && (
+                    <div className="pt-2">
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase mb-1.5">Amount (AFN)</label>
+                      <input type="number" name="admission_fee" value={form.admission_fee}
+                        onChange={handle} placeholder="2000" min={0} step={50}
+                        className={inp("admission_fee")} />
+                      <p className="text-[10px] text-teal-600 mt-1">
+                        Default 2,000 AFN. Lower for sibling/scholarship discount, or set 0 to waive.
+                        Billed automatically on the student's next invoice.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}

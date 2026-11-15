@@ -1,5 +1,7 @@
 import CrudPage from "../../components/CrudPage";
 
+import { fmtDate } from "../../utils/formErrors";
+
 // This will be called by CrudPage when rendering status column with onClick handler
 const statusBadge = (val, item, onClick) => (
   <button
@@ -26,8 +28,13 @@ export default function JobRequisitions() {
         { key: "position_title", label: "Position" },
         { key: "employment_type", label: "Type", render: (val) => <span className="capitalize">{val?.replace(/_/g, " ")}</span> },
         { key: "number_of_positions", label: "Positions" },
-        { key: "department", label: "Department" },
-        { key: "deadline_date", label: "Deadline", render: (val) => val ? new Date(val).toLocaleDateString() : "-" },
+        { key: "department", label: "Department", render: (val, row) => row?.department_relation?.name || val || "-" },
+        // An empty deadline is "open permanently", not missing data — "-"
+        // read as the latter and had people re-entering dates that were
+        // deliberately left blank.
+        { key: "deadline_date", label: "Deadline", render: (val) => val
+          ? fmtDate(val)
+          : <span className="text-emerald-700 font-medium">No deadline</span> },
         { key: "approval_status", label: "Status", render: statusBadge, isStatus: true },
       ]}
       createRoute="/recruitment/job-requisitions/create"

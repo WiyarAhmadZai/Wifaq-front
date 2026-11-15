@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, put, del } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate } from "../../utils/formErrors";
+import ChecklistPanel from "../../components/hr/ChecklistPanel";
+import AttachmentPanel from "../../components/hr/AttachmentPanel";
+import { RichTextView } from "../../components/RichTextField";
+import { SendReminderButton } from "../../components/hr/Reminders";
 
 const statusConf = {
   upcoming: { label: "Upcoming", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
@@ -11,9 +18,19 @@ const statusConf = {
   cancelled: { label: "Cancelled", bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500" },
 };
 
+/* Deliberately NOT part of statusConf: that object doubles as the list of
+ * statuses the badge menu offers, and "put this back to draft" is not a move
+ * anyone should be able to make. People have already been told the event is
+ * happening — quietly hiding it from them again would be worse than useless.
+ * Publishing is one-way; this entry exists only so a draft renders honestly. */
+const draftConf = { label: "Draft", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", dot: "bg-amber-500" };
+
 export default function EventShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered list, a
+  // dashboard, a notification — not always to the top of the module.
+  const goBack = useSmartBack("/hr/events");
   const { canUpdate, canDelete } = useResourcePermissions("events");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +38,11 @@ export default function EventShow() {
   const statusRef = useRef(null);
 
   useEffect(() => {
+    const __cached = peekCache(`/events/${id}`);
+    if (__cached) {
+      setData(__cached?.data || __cached);
+      setLoading(false);
+    }
     get(`/events/${id}`).then((r) => setData(r.data?.data || r.data)).catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
   }, [id]);
 
@@ -31,8 +53,27 @@ export default function EventShow() {
   }, []);
 
   const changeStatus = async (newStatus) => {
+    // Cancelling is the one status change everyone involved is told about,
+    // so it is the one worth confirming — and worth offering the email for.
+    let notifyByEmail = false;
+    if (newStatus === "cancelled") {
+      const r = await Swal.fire({
+        title: "Cancel this event?",
+        text: "Everyone involved will be notified.",
+        icon: "warning",
+        input: "checkbox",
+        inputValue: 1,
+        inputPlaceholder: "Also email everyone involved",
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        confirmButtonText: "Cancel event",
+        cancelButtonText: "Keep it",
+      });
+      if (!r.isConfirmed) { setShowStatusMenu(false); return; }
+      notifyByEmail = Boolean(r.value);
+    }
     try {
-      await put(`/events/${id}`, { status: newStatus });
+      await put(`/events/${id}`, { status: newStatus, notify_by_email: notifyByEmail });
       setData((p) => ({ ...p, status: newStatus }));
       setShowStatusMenu(false);
       Swal.fire({ icon: "success", title: `Status changed to ${newStatus}`, timer: 1500, showConfirmButton: false });
@@ -41,7 +82,7 @@ export default function EventShow() {
 
   const handleDelete = async () => {
     const r = await Swal.fire({ title: "Delete event?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
-    if (r.isConfirmed) { try { await del(`/events/${id}`); } catch {} navigate("/hr/events"); }
+    if (r.isConfirmed) { try { await del(`/events/${id}`); } catch {} goBack(); }
   };
 
   const toggleReq = async (reqId) => {
@@ -57,8 +98,9 @@ export default function EventShow() {
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div></div>;
   if (!data) return <div className="text-center py-24 text-sm text-gray-400">Event not found</div>;
 
-  const sc = statusConf[data.status] || statusConf.upcoming;
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "-";
+  const isDraft = data.status === "draft";
+  const sc = isDraft ? draftConf : (statusConf[data.status] || statusConf.upcoming);
+  const formatDate = (d) => d ? fmtDate(d) : "-";
   const isMultiDay = data.end_date && data.start_date !== data.end_date;
   const roles = data.roles || [];
   const reqs = data.requirements || [];
@@ -70,10 +112,13 @@ export default function EventShow() {
       {/* Header */}
       <div className="bg-teal-600 px-5 py-5">
         <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => navigate("/hr/events")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div className="flex-1"><h1 className="text-sm font-bold text-white">Event Details</h1></div>
+          {canUpdate && ["upcoming", "ongoing"].includes(data.status) && (
+            <SendReminderButton endpoint={`/events/${id}/remind`} />
+          )}
           {canUpdate && (
             <button onClick={() => navigate(`/hr/events/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
           )}
@@ -83,6 +128,14 @@ export default function EventShow() {
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
         <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {isDraft ? (
+            /* An unfinished draft has one sensible action: go and finish it. */
+            <button onClick={() => navigate(`/hr/events/edit/${id}`)}
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+              Draft — continue planning
+            </button>
+          ) : (
           <div className="relative" ref={statusRef}>
             <button onClick={() => setShowStatusMenu(!showStatusMenu)}
               className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
@@ -105,8 +158,11 @@ export default function EventShow() {
               </div>
             )}
           </div>
+          )}
           <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">
-            {formatDate(data.start_date)}{isMultiDay ? ` - ${formatDate(data.end_date)}` : ""}
+            {data.start_date
+              ? `${formatDate(data.start_date)}${isMultiDay ? ` - ${formatDate(data.end_date)}` : ""}`
+              : "No date set yet"}
           </span>
           {data.location && (
             <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full flex items-center gap-1">
@@ -124,7 +180,7 @@ export default function EventShow() {
             {data.description && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Description</h3>
-                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{data.description}</p>
+                <RichTextView html={data.description} className="text-xs text-gray-700 leading-relaxed" />
               </div>
             )}
 
@@ -216,6 +272,15 @@ export default function EventShow() {
             </div>
           </div>
 
+          {/* Customisable checklists — guests, equipment, who brings what.
+              Shared with the other module: the same panel and the same tables
+              serve a meeting's attendance and an event's guest list. */}
+          <ChecklistPanel parentType="events" parentId={id} />
+
+          {/* Files — agendas, photos, venue plans. Same polymorphic
+              store as the checklists, so both modules share one panel. */}
+          <AttachmentPanel parentType="events" parentId={id} />
+
           {/* Sidebar */}
           <div className="space-y-4">
             {/* Main Responsible */}
@@ -238,6 +303,8 @@ export default function EventShow() {
             <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
               <h3 className="text-xs font-bold mb-3">Event Info</h3>
               <div className="space-y-2 text-xs">
+                {/* The creator was loaded with the event but never shown. */}
+                <div className="flex justify-between gap-2"><span className="text-teal-200">Created by</span><span className="font-medium truncate" data-no-i18n>{data.creator?.name || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Status</span><span className="font-medium capitalize">{data.status}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Start</span><span className="font-medium">{formatDate(data.start_date)}</span></div>
                 {isMultiDay && <div className="flex justify-between"><span className="text-teal-200">End</span><span className="font-medium">{formatDate(data.end_date)}</span></div>}

@@ -1,0 +1,8 @@
+﻿type,title,dimension,measure,kr_type,unit,baseline,target,description,start_date,end_date,start_time,end_time,location,assignee,participants,priority,item_name,quantity,unit_price,category,link
+goal,Improve reading fluency,cognitive,85% pass the fluency test,percentage,%,40,85,,,,,,,,,,,,,,
+goal,Improve reading fluency,cognitive,Average words/min reaches 120,count,wpm,80,120,,,,,,,,,,,,,,
+event,Science Fair,,,,,,,Annual exhibition,2026-07-10,2026-07-10,,,Main Hall,,,,,,,,
+meeting,Term kickoff,,,,,,,Plan the term,2026-07-01,,09:00,10:30,Room 2,,Ahmad Karimi; Sara Noor,routine,,,,,
+task,Prepare lesson plans,,,,,,,Grade 9 math,2026-07-02,2026-07-09,,,,Ahmad Karimi,,high,,,,,
+purchase,Supplies for Science Fair,,,,,,,Banners and stands,2026-07-05,,,,,,,high,Banner,2,500,,Science Fair
+purchase,Supplies for Science Fair,,,,,,,,,,,,,,,,Display stand,3,1200,,Science Fair

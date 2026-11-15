@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../context/AuthContext";
 import PermissionPicker from "../components/PermissionPicker";
 
@@ -25,6 +26,16 @@ export default function AdminRoleShow() {
     (async () => {
       setLoading(true);
       try {
+        const __role = peekCache(`/access/roles/${id}`);
+        const __perms = peekCache('/access/permissions');
+        if (__role?.data) {
+          const cr = __role.data;
+          setRole(cr);
+          setName(cr?.name || "");
+          setSelected(new Set((cr?.permissions || []).map((p) => p.name)));
+          setLoading(false);
+        }
+        if (__perms) setAllPermissions(__perms?.data || []);
         const [roleRes, permsRes] = await Promise.all([
           accessApi.showRole(id),
           accessApi.listPermissions(),

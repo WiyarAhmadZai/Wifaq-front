@@ -1,77 +1,293 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
+import { listDepartments } from "../../api/departments";
+import useSmartBack from "../../hooks/useSmartBack";
+import { useAuth } from "../../admin/context/AuthContext";
+import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
+import { RestoreDraftBanner, DraftStatus } from "../../components/hr/DraftBar";
+import RichTextField from "../../components/RichTextField";
+import { AutoRemindPicker } from "../../components/hr/Reminders";
+import { linesToItems } from "../../utils/richText";
+
 const emptyAgenda = { title: "", description: "", assigned_to_id: "", duration_min: "" };
+
+// Fires the server autosave this long after the last keystroke, once the
+// meeting already exists as a draft.
+const AUTOSAVE_IDLE_MS = 15000;
 
 export default function MeetingForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack("/hr/meetings");
+  const { user } = useAuth();
   const isEdit = Boolean(id);
-  const participantRef = useRef(null);
+
+  const [committees, setCommittees] = useState([]);
 
   const [form, setForm] = useState({
     title: "",
     description: "",
-    start_time: "",
-    end_time: "",
+    meeting_date: "",   // YYYY-MM-DD — single date the meeting takes place
+    start_time: "",     // HH:MM — clock time only
+    end_time: "",       // HH:MM — clock time only
     location: "",
     status: "scheduled",
     meeting_type: "routine",
+    // Which committee this meeting belongs to, if any. Tagging it here is
+    // what files the meeting under that committee.
+    committee_id: "",
+    reminder_minutes_before: 180, // 3 hours — editable per meeting
+    recurrence: "",            // "" | daily | weekly | monthly | yearly
+    recurrence_until: "",      // YYYY-MM-DD
   });
 
   const [participants, setParticipants] = useState([]);
   const [agendaItems, setAgendaItems] = useState([{ ...emptyAgenda }]);
+  // "Also send an email" to the invitees. The organizer's call, per meeting;
+  // a draft emails nobody whatever this says.
+  const [emailToo, setEmailToo] = useState(true);
+  // A week / a day / an hour before — for everyone invited.
+  const [autoReminders, setAutoReminders] = useState([]);
   const [users, setUsers] = useState([]);
-  const [participantSearch, setParticipantSearch] = useState("");
-  const [showParticipantDrop, setShowParticipantDrop] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [departments, setDepartments] = useState([]);
+  const [filterDeptIds, setFilterDeptIds] = useState([]); // department picker for bulk add
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  /* ── Nothing typed here gets thrown away ────────────────────────────────
+   *
+   * Assembling a meeting means picking a time, a room, a participant list and
+   * an agenda — rarely in one sitting. "Save draft" stores it as a real row
+   * with `status = 'draft'`: it survives leaving the page and a different
+   * device, it shows in the meetings list marked as a draft, and it invites
+   * nobody until it is published. The browser also keeps a local copy between
+   * saves, so even a first, never-saved attempt can be recovered.
+   */
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [localDraft, setLocalDraft] = useState(null);   // pending restore offer
+  const savedSnapshot = useRef(null);                   // what the server has
+  const isDraft = form.status === "draft";
+  const localKey = draftKey("meeting", user?.id, id);
+
+  // Content only — `status` is tracked separately (saving a draft flips it,
+  // and that must not read as "the user changed something").
+  const snapshotOf = () => JSON.stringify({ ...form, status: null, participants, agendaItems });
+
+  useEffect(() => {
+    // Active committees only: a meeting is never filed under one that
+    // has been wound up.
+    get("/committees?active_only=1")
+      .then((r) => setCommittees(r.data?.data || []))
+      .catch(() => setCommittees([]));
+  }, []);
+
   useEffect(() => {
     fetchUsers();
+    fetchDepartments();
     if (isEdit) loadMeeting();
   }, [id]);
 
+  // Offer to restore anything the browser kept from a previous visit. Never
+  // applied automatically — the user decides.
   useEffect(() => {
-    const close = (e) => { if (participantRef.current && !participantRef.current.contains(e.target)) setShowParticipantDrop(false); };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
+    if (loading) return;
+    const found = readDraft(localKey);
+    if (found) setLocalDraft(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localKey]);
+
+  // Whatever was just loaded IS what the server holds — recorded so a freshly
+  // opened draft does not immediately autosave itself back unchanged.
+  useEffect(() => {
+    if (loading) return;
+    savedSnapshot.current = snapshotOf();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Local mirror: covers the window before the first server save, and every
+  // keystroke between server saves.
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => {
+      // Only what the server does not already have. Mirroring an already-saved
+      // draft would put up a "restore unsaved work?" banner on the next visit
+      // offering the user exactly what is already on screen.
+      if (savedSnapshot.current === snapshotOf()) return;
+      if (form.title || form.description || participants.length || agendaItems.some((a) => a.title)) {
+        writeDraft(localKey, { form, participants, agendaItems });
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [form, participants, agendaItems, loading, localKey]);
+
+  // Server autosave: only once the draft exists, and only when something
+  // changed. Re-arming on every edit makes this fire once the organizer
+  // pauses, not on a fixed drumbeat.
+  useEffect(() => {
+    if (!id || !isDraft || loading || saving || savingDraft) return;
+    const t = setTimeout(() => {
+      if (savedSnapshot.current !== snapshotOf()) saveDraft({ silent: true });
+    }, AUTOSAVE_IDLE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, participants, agendaItems, id, isDraft, loading, saving, savingDraft]);
+
+  const restoreLocalDraft = () => {
+    const d = localDraft?.data;
+    if (!d) return;
+    if (d.form) setForm(d.form);
+    if (Array.isArray(d.participants)) setParticipants(d.participants);
+    if (Array.isArray(d.agendaItems) && d.agendaItems.length) setAgendaItems(d.agendaItems);
+    setLocalDraft(null);
+  };
+
+  const discardLocalDraft = () => { clearDraft(localKey); setLocalDraft(null); };
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await listDepartments({ active_only: 1 });
+      setDepartments(res.data?.data || res.data || []);
+    } catch (e) {
+      console.error("MeetingForm fetchDepartments failed:", e);
+      setDepartments([]);
+    }
+  };
 
   const fetchUsers = async () => {
+    setUsersLoading(true);
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const branchParam = user.branch_id ? `&branch_id=${user.branch_id}` : "";
-      const res = await get(`/hr/staff/list?per_page=1000&status=active${branchParam}`);
-      const data = res.data?.data || res.data || [];
-      // Map staff to user-like objects for participants
-      setUsers(Array.isArray(data) ? data.map((s) => ({
-        id: s.id,
-        name: s.application?.full_name || s.full_name || `Staff #${s.employee_id}`,
-        employee_id: s.employee_id,
-        department: s.department || "",
-      })) : []);
-    } catch {
+      // Paginated list returns { data: [...], current_page, total, ... }.
+      // Asking for a big page so the dropdown has the whole roster.
+      const res = await get(`/hr/staff/list?per_page=1000&status=active`);
+      const raw = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+      const data = Array.isArray(raw) ? raw : [];
+      // Participants are stored as users (FK to users.id), so we use user_id
+      // here — staff.id and users.id are not the same thing. Staff without a
+      // linked user account cannot be invited — but they are LISTED, marked
+      // and unpickable, rather than silently missing: a name that is not in
+      // the list reads as "the system lost them", not "they have no login".
+      const withUser = data.map((s) => ({
+        id: s.user_id || `staff-${s.id}`,
+        no_account: !s.user_id,
+        staff_id: s.id,
+        name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+        employee_id: s.employee_id || "",
+        department: s.department || s.department_relation?.name || "",
+        department_id: s.department_id || null,
+      }));
+      if (data.length > 0 && withUser.every((u) => u.no_account)) {
+        console.warn(
+          `MeetingForm: ${data.length} active staff were returned but none have a linked user account. Link them to accounts in Users & Access.`
+        );
+      }
+      setUsers(withUser);
+    } catch (e) {
+      console.error("MeetingForm fetchUsers failed:", e);
       setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  // Bulk-add every active staff in the picked departments (skips already-added).
+  const addParticipantsFromDepartments = () => {
+    if (!filterDeptIds.length) return;
+    const inDept = users.filter((u) => filterDeptIds.includes(u.department_id));
+    const want = inDept.filter((u) => !u.no_account);
+    const skipped = inDept.length - want.length;
+    if (skipped > 0) {
+      Swal.fire({ toast: true, position: "top-end", icon: "info", timer: 3500, showConfirmButton: false,
+        title: "Some staff in these departments have no login account and could not be invited." });
+    }
+    if (!want.length) return;
+    setParticipants((prev) => {
+      const existing = new Set(prev.map((p) => p.id));
+      const merged = [...prev];
+      want.forEach((u) => {
+        if (!existing.has(u.id)) merged.push({ id: u.id, name: u.name });
+      });
+      return merged;
+    });
+  };
+
+  const clearAllParticipants = () => setParticipants([]);
+
+  const seedMeeting = (d) => {
+    const startIso = d.start_time ? String(d.start_time).replace(" ", "T") : "";
+    const endIso   = d.end_time   ? String(d.end_time).replace(" ", "T")   : "";
+    setForm({
+      title: d.title || "",
+      description: d.description || "",
+      meeting_date: startIso ? startIso.substring(0, 10) : "",
+      start_time: startIso ? startIso.substring(11, 16) : "",
+      end_time:   endIso   ? endIso.substring(11, 16)   : "",
+      location: d.location || "",
+      status: d.status || "scheduled",
+      meeting_type: d.meeting_type || "routine",
+      committee_id: d.committee_id ? String(d.committee_id) : "",
+      reminder_minutes_before:
+        d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
+          ? 180
+          : Number(d.reminder_minutes_before),
+      recurrence: d.recurrence || "",
+      recurrence_until: d.recurrence_until ? String(d.recurrence_until).substring(0, 10) : "",
+    });
+    if (d.participants?.length) {
+      setParticipants(d.participants.map((p) => ({
+        id: p.id,
+        name: p.name || `User #${p.id}`,
+      })));
+    }
+    if (d.agenda_items?.length) {
+      setAgendaItems(d.agenda_items.map((a) => ({
+        title: a.title || "",
+        description: a.description || "",
+        assigned_to_id: a.assigned_to_id || "",
+        duration_min: a.duration_min || "",
+      })));
     }
   };
 
   const loadMeeting = async () => {
     setLoading(true);
+    const __cached = peekCache(`/meetings/${id}`);
+    if (__cached) {
+      seedMeeting(__cached?.data || __cached);
+      setLoading(false);
+    }
     try {
       const res = await get(`/meetings/${id}`);
       const d = res.data?.data || res.data;
+      // Backend stores start_time / end_time as full datetimes; split them
+      // into date + HH:MM so the new three-field UI can edit them.
+      const startIso = d.start_time ? String(d.start_time).replace(" ", "T") : "";
+      const endIso   = d.end_time   ? String(d.end_time).replace(" ", "T")   : "";
       setForm({
         title: d.title || "",
         description: d.description || "",
-        start_time: d.start_time ? d.start_time.replace(" ", "T").substring(0, 16) : "",
-        end_time: d.end_time ? d.end_time.replace(" ", "T").substring(0, 16) : "",
+        meeting_date: startIso ? startIso.substring(0, 10) : "",
+        start_time: startIso ? startIso.substring(11, 16) : "",
+        end_time:   endIso   ? endIso.substring(11, 16)   : "",
         location: d.location || "",
         status: d.status || "scheduled",
         meeting_type: d.meeting_type || "routine",
+        committee_id: d.committee_id ? String(d.committee_id) : "",
+        reminder_minutes_before:
+          d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
+            ? 180
+            : Number(d.reminder_minutes_before),
+        recurrence: d.recurrence || "",
+        recurrence_until: d.recurrence_until ? String(d.recurrence_until).substring(0, 10) : "",
       });
       if (d.participants?.length) {
         setParticipants(d.participants.map((p) => ({
@@ -100,28 +316,28 @@ export default function MeetingForm() {
     if (errors[e.target.name]) setErrors((p) => ({ ...p, [e.target.name]: null }));
   };
 
-  // Participants
-  const filteredUsers = users.filter((u) => {
-    const q = participantSearch.toLowerCase();
-    const alreadyAdded = participants.some((p) => p.id === u.id);
-    return !alreadyAdded && (!q || u.name.toLowerCase().includes(q) || u.employee_id.toLowerCase().includes(q));
-  });
-
-  const addParticipant = (user) => {
-    setParticipants((p) => [...p, { id: user.id, name: user.name }]);
-    setParticipantSearch("");
-    setShowParticipantDrop(false);
-  };
-
-  const removeParticipant = (userId) => {
-    setParticipants((p) => p.filter((u) => u.id !== userId));
-  };
-
   // Agenda
   const handleAgendaChange = (i, field, value) => {
     setAgendaItems((p) => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   };
   const addAgendaItem = () => setAgendaItems((p) => [...p, { ...emptyAgenda }]);
+  /* Paste or type a whole list — one topic per line, bullets and numbers are
+     stripped. Replaces the lone empty row a new meeting starts with. */
+  const pasteAgenda = async () => {
+    const { value } = await Swal.fire({
+      title: "Add several topics",
+      input: "textarea",
+      inputPlaceholder: "One topic per line — paste a bullet list here",
+      inputAttributes: { rows: 8, dir: "auto" },
+      showCancelButton: true,
+      confirmButtonText: "Add to agenda",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#0d9488",
+    });
+    const titles = linesToItems(value);
+    if (!titles.length) return;
+    setAgendaItems((p) => [...p.filter((a) => a.title.trim()), ...titles.map((title) => ({ ...emptyAgenda, title }))]);
+  };
   const removeAgendaItem = (i) => { if (agendaItems.length > 1) setAgendaItems((p) => p.filter((_, idx) => idx !== i)); };
   const moveAgenda = (i, dir) => {
     const j = i + dir;
@@ -135,30 +351,129 @@ export default function MeetingForm() {
 
   const totalDuration = agendaItems.reduce((s, a) => s + (Number(a.duration_min) || 0), 0);
 
+  /**
+   * Everything on the form, shaped the way the API wants it.
+   *
+   * The date and the two clock times are three fields on screen but two
+   * datetimes on the wire. A draft may legitimately have only some of them —
+   * a half-planned meeting genuinely has no time yet — so the stitching is
+   * skipped rather than guessed at whenever a piece is missing.
+   */
+  const buildPayload = (status) => {
+    const isRoutine = form.meeting_type === "routine";
+    const reminderMinutes = isRoutine
+      ? Math.max(0, Math.min(10080, Number(form.reminder_minutes_before) || 0))
+      : 0;
+    const haveStart = Boolean(form.meeting_date && form.start_time);
+    const haveEnd   = Boolean(form.meeting_date && form.end_time);
+    const { meeting_date, ...rest } = form;   // eslint-disable-line no-unused-vars
+    return {
+      ...rest,
+      status,
+      notify_by_email: emailToo,
+      ...(autoReminders.length ? { auto_reminders: autoReminders } : {}),
+      start_time: haveStart ? `${form.meeting_date} ${form.start_time}:00` : null,
+      end_time:   haveEnd   ? `${form.meeting_date} ${form.end_time}:00`   : null,
+      reminder_minutes_before: reminderMinutes,
+      recurrence: isRoutine && form.recurrence ? form.recurrence : null,
+      recurrence_until: isRoutine && form.recurrence && form.recurrence_until ? form.recurrence_until : null,
+      participants: participants.map((p) => p.id),
+      agenda_items: agendaItems.filter((a) => a.title.trim()),
+    };
+  };
+
+  /**
+   * Save without inviting anybody. Only a title is required — everything else
+   * can still be missing, which is the point. The first save turns the URL
+   * into an edit URL so every later save (and every autosave) updates the same
+   * row instead of piling up new drafts.
+   */
+  const saveDraft = async ({ silent = false } = {}) => {
+    if (!form.title.trim()) {
+      setErrors((p) => ({ ...p, title: "Give the meeting a title so you can find the draft again" }));
+      if (!silent) Swal.fire("Title needed", "Give the meeting a title so you can find the draft again.", "warning");
+      return false;
+    }
+    setSavingDraft(true);
+    const snapshot = snapshotOf();
+    try {
+      if (id) {
+        await put(`/meetings/${id}`, buildPayload("draft"));
+      } else {
+        const res = await post("/meetings", buildPayload("draft"));
+        const newId = res.data?.data?.id;
+        clearDraft(localKey);                     // the "new" key
+        if (newId) navigate(`/hr/meetings/edit/${newId}`, { replace: true });
+      }
+      setForm((p) => ({ ...p, status: "draft" }));
+      savedSnapshot.current = snapshot;
+      setSavedAt(new Date());
+      clearDraft(localKey);                       // the server has it now
+      setLocalDraft(null);
+      if (!silent) {
+        Swal.fire({
+          icon: "success", title: "Draft saved",
+          text: "Come back to it from the meetings list whenever you are ready.",
+          timer: 1800, showConfirmButton: false,
+        });
+      }
+      return true;
+    } catch (err) {
+      if (err.response?.status === 422 && err.response?.data?.errors) {
+        const se = {};
+        Object.entries(err.response.data.errors).forEach(([k, v]) => { se[k] = v[0]; });
+        setErrors(se);
+      }
+      // A failed autosave must not interrupt: the local copy still holds the
+      // work, and the next pause tries again.
+      if (!silent) Swal.fire("Error", err.response?.data?.message || "Failed to save draft", "error");
+      return false;
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = {};
     if (!form.title) errs.title = "Title is required";
+    if (!form.meeting_date) errs.meeting_date = "Date is required";
     if (!form.start_time) errs.start_time = "Start time is required";
     if (!form.end_time) errs.end_time = "End time is required";
+    if (form.start_time && form.end_time && form.end_time <= form.start_time) {
+      errs.end_time = "End time must be after start time";
+    }
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
+    // Publishing with nobody invited is almost always a slip — the meeting
+    // then shows "Participants (0)" and nobody is told about it.
+    if (participants.length === 0) {
+      const ok = await Swal.fire({
+        icon: "warning",
+        title: "Nobody is invited",
+        text: "No participants are selected, so nobody will be notified about this meeting. Save it anyway?",
+        showCancelButton: true,
+        confirmButtonText: "Save anyway",
+        cancelButtonText: "Add participants",
+        confirmButtonColor: "#0d9488",
+      });
+      if (!ok.isConfirmed) return;
+    }
+
     setSaving(true);
-    const payload = {
-      ...form,
-      participants: participants.map((p) => p.id),
-      agenda_items: agendaItems.filter((a) => a.title.trim()),
-    };
+    // Publishing a draft schedules it; anything else keeps the status it has.
+    const payload = buildPayload(isDraft ? "scheduled" : form.status);
 
     try {
       if (isEdit) {
         await put(`/meetings/${id}`, payload);
-        Swal.fire({ icon: "success", title: "Meeting Updated!", timer: 1500, showConfirmButton: false });
+        Swal.fire({ icon: "success", title: isDraft ? "Meeting Scheduled!" : "Meeting Updated!", timer: 1500, showConfirmButton: false });
       } else {
         await post("/meetings", payload);
         Swal.fire({ icon: "success", title: "Meeting Created!", timer: 1500, showConfirmButton: false });
       }
-      navigate("/hr/meetings");
+      clearDraft(localKey);
+      goBack();
     } catch (err) {
       if (err.response?.status === 422 && err.response?.data?.errors) {
         const se = {};
@@ -181,17 +496,28 @@ export default function MeetingForm() {
       {/* Header */}
       <div className="bg-teal-600 px-5 py-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/hr/meetings")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Meeting" : "Schedule Meeting"}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Set up meeting details, participants, and agenda</p>
+            <h1 className="text-sm font-bold text-white flex items-center gap-2">
+              {isDraft ? "Continue Draft Meeting" : isEdit ? "Edit Meeting" : "Schedule Meeting"}
+              {isDraft && <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 text-[9px] font-black uppercase tracking-wide">Draft</span>}
+            </h1>
+            <p className="text-xs text-teal-100 mt-0.5">
+              {isDraft
+                ? "Saved and private. Schedule it when the plan is settled."
+                : "Set up meeting details, participants, and agenda"}
+            </p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 py-5 space-y-4">
+        {localDraft && (
+          <RestoreDraftBanner savedAt={localDraft.savedAt} onRestore={restoreLocalDraft} onDiscard={discardLocalDraft} />
+        )}
+
         {/* 1. Meeting Details */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
           <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2.5">
@@ -209,19 +535,36 @@ export default function MeetingForm() {
               <input type="text" name="title" value={form.title} onChange={handle} placeholder="e.g. Weekly Staff Meeting" className={ic("title")} />
               {errors.title && <p className="text-red-500 text-[10px] mt-1">{errors.title}</p>}
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Meeting Date *</label>
+              <DateField name="meeting_date" value={form.meeting_date} onChange={handle} className={ic("meeting_date")} />
+              {errors.meeting_date && <p className="text-red-500 text-[10px] mt-1">{errors.meeting_date}</p>}
+            </div>
             <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date & Time *</label>
-              <input type="datetime-local" name="start_time" value={form.start_time} onChange={handle} className={ic("start_time")} />
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Time *</label>
+              <input type="time" name="start_time" value={form.start_time} onChange={handle} className={ic("start_time")} />
               {errors.start_time && <p className="text-red-500 text-[10px] mt-1">{errors.start_time}</p>}
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Date & Time *</label>
-              <input type="datetime-local" name="end_time" value={form.end_time} onChange={handle} min={form.start_time} className={ic("end_time")} />
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Time *</label>
+              <input type="time" name="end_time" value={form.end_time} onChange={handle} min={form.start_time || undefined} className={ic("end_time")} />
               {errors.end_time && <p className="text-red-500 text-[10px] mt-1">{errors.end_time}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Location</label>
               <input type="text" name="location" value={form.location} onChange={handle} placeholder="Room name or virtual link" className={ic("location")} />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Committee</label>
+              <select name="committee_id" value={form.committee_id} onChange={handle}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500">
+                <option value="">Not a committee meeting</option>
+                {committees.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Tagging it here files this meeting under that committee. The minutes stay right here.
+              </p>
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Meeting Type *</label>
@@ -236,7 +579,7 @@ export default function MeetingForm() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setForm((p) => ({ ...p, meeting_type: "emergency" }))}
+                  onClick={() => setForm((p) => ({ ...p, meeting_type: "emergency", recurrence: "", recurrence_until: "" }))}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 border ${form.meeting_type === "emergency" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:border-red-300"}`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -244,7 +587,104 @@ export default function MeetingForm() {
                 </button>
               </div>
             </div>
-            {isEdit && (
+
+            {/* Reminder lead-time — routine meetings only */}
+            {form.meeting_type === "routine" && (
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                  Notify participants before
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={[0, 15, 30, 60, 120, 180, 360, 720, 1440].includes(
+                      Number(form.reminder_minutes_before)
+                    ) ? String(form.reminder_minutes_before) : "custom"}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v !== "custom") {
+                        setForm((p) => ({ ...p, reminder_minutes_before: Number(v) }));
+                      }
+                    }}
+                    className={ic("reminder_minutes_before")}
+                  >
+                    <option value="0">No reminder</option>
+                    <option value="15">15 minutes before</option>
+                    <option value="30">30 minutes before</option>
+                    <option value="60">1 hour before</option>
+                    <option value="120">2 hours before</option>
+                    <option value="180">3 hours before (default)</option>
+                    <option value="360">6 hours before</option>
+                    <option value="720">12 hours before</option>
+                    <option value="1440">1 day before</option>
+                    <option value="custom">Custom…</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10080}
+                    value={form.reminder_minutes_before ?? 0}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        reminder_minutes_before: e.target.value === "" ? 0 : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="minutes"
+                    className="w-24 px-2.5 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 focus:outline-none"
+                    title="Minutes before start time"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  All participants get an in-app notification at this lead time. Set to 0 to disable.
+                </p>
+              </div>
+            )}
+
+            <div className="sm:col-span-2">
+              <AutoRemindPicker value={autoReminders} onChange={setAutoReminders} />
+            </div>
+
+            {/* Recurrence — only when this is a routine meeting */}
+            {form.meeting_type === "routine" && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Repeats</label>
+                  <select
+                    name="recurrence"
+                    value={form.recurrence}
+                    onChange={handle}
+                    className={ic("recurrence")}
+                  >
+                    <option value="">Does not repeat</option>
+                    <option value="daily">Daily (same time)</option>
+                    <option value="weekly">Weekly (same day &amp; time)</option>
+                    <option value="monthly">Monthly (same date &amp; time)</option>
+                    <option value="yearly">Yearly (same date &amp; time)</option>
+                  </select>
+                </div>
+                {form.recurrence && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                      Repeat until <span className="text-red-500">*</span>
+                    </label>
+                    <DateField
+                      name="recurrence_until"
+                      value={form.recurrence_until}
+                      onChange={handle}
+                      min={form.meeting_date || undefined}
+                      className={ic("recurrence_until")}
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Occurrences will be generated up to and including this date.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* A draft has no status to choose — it is a draft until it is
+                published, and the Schedule button is what publishes it. */}
+            {isEdit && !isDraft && (
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Status</label>
                 <select name="status" value={form.status} onChange={handle} className={ic("status")}>
@@ -257,7 +697,8 @@ export default function MeetingForm() {
             )}
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
-              <textarea name="description" value={form.description} onChange={handle} rows={2} placeholder="Brief description of the meeting..." className={`${ic("description")} resize-none`} />
+              <RichTextField name="description" value={form.description} rows={3} placeholder="Brief description of the meeting..."
+                onChange={(html) => handle({ target: { name: "description", value: html } })} />
             </div>
           </div>
         </div>
@@ -273,55 +714,79 @@ export default function MeetingForm() {
               <p className="text-[10px] text-teal-600">{participants.length} member{participants.length !== 1 ? "s" : ""} added</p>
             </div>
           </div>
-          <div className="p-5">
-            {/* Search to add */}
-            <div className="relative mb-3" ref={participantRef}>
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input type="text" value={participantSearch} onChange={(e) => { setParticipantSearch(e.target.value); setShowParticipantDrop(true); }}
-                  onFocus={() => setShowParticipantDrop(true)} placeholder="Search staff to add as participant..."
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 focus:outline-none" />
-              </div>
-              {showParticipantDrop && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-auto">
-                  {filteredUsers.length === 0 ? (
-                    <p className="px-4 py-3 text-xs text-gray-400">No staff available</p>
-                  ) : (
-                    filteredUsers.slice(0, 15).map((u) => (
-                      <div key={u.id} onClick={() => addParticipant(u)}
-                        className="px-4 py-2.5 cursor-pointer hover:bg-teal-50 border-b border-gray-50 last:border-0 flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                          {u.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-800">{u.name}</p>
-                          <p className="text-[10px] text-gray-400">{u.employee_id} · {u.department}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
+          <div className="p-5 space-y-3">
+            {/* Bulk-add by department */}
+            <div className="bg-teal-50/40 border border-teal-100 rounded-xl p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700 mb-2">
+                Bulk add by department
+              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <Select2
+                    isMulti
+                    size="sm"
+                    value={filterDeptIds}
+                    onChange={(v) => setFilterDeptIds(Array.isArray(v) ? v : [])}
+                    options={departments.map((d) => ({ value: d.id, label: d.name }))}
+                    placeholder={departments.length ? "Pick one or more departments…" : "No departments yet — add some in HR → Departments"}
+                  />
                 </div>
+                <button
+                  type="button"
+                  onClick={addParticipantsFromDepartments}
+                  disabled={!filterDeptIds.length}
+                  className="px-3 py-2 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add all
+                </button>
+                {participants.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllParticipants}
+                    className="px-3 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:border-red-300 hover:text-red-600"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+              {filterDeptIds.length > 0 && (
+                <p className="text-[10px] text-teal-700 mt-1.5">
+                  {users.filter((u) => filterDeptIds.includes(u.department_id)).length} staff match the selected department{filterDeptIds.length === 1 ? "" : "s"}
+                </p>
               )}
             </div>
 
-            {/* Participant chips */}
-            {participants.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {participants.map((p) => (
-                  <div key={p.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-full">
-                    <div className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[8px] font-bold">
-                      {p.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                    </div>
-                    <span className="text-[11px] font-medium text-teal-800">{p.name}</span>
-                    <button type="button" onClick={() => removeParticipant(p.id)} className="text-teal-400 hover:text-red-500 ml-0.5">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic">No participants added yet</p>
-            )}
+            {/* Individual picker (also a Select2 — same options, multi-select) */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                Selected participants
+              </p>
+              <Select2
+                isMulti
+                value={participants.map((p) => p.id)}
+                onChange={(ids) => {
+                  const arr = Array.isArray(ids) ? ids : [];
+                  setParticipants(arr.map((id) => {
+                    const u = users.find((x) => String(x.id) === String(id));
+                    return { id, name: u?.name || `Staff #${id}` };
+                  }));
+                }}
+                options={users.map((u) => ({
+                  value: u.id,
+                  label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}${u.no_account ? " — no login account" : ""}`,
+                  // Listed so nobody looks missing; not pickable, because an
+                  // invitation needs an account to land in.
+                  isDisabled: u.no_account,
+                }))}
+                placeholder={usersLoading ? "Loading staff…" : users.length ? "Search and pick individual staff…" : "No staff available"}
+              />
+              {participants.length === 0 && (
+                <p className="text-xs text-gray-400 italic mt-2">No participants added yet</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -337,11 +802,17 @@ export default function MeetingForm() {
                 <p className="text-[10px] text-teal-600">{agendaItems.filter((a) => a.title).length} item{agendaItems.filter((a) => a.title).length !== 1 ? "s" : ""} · {totalDuration > 0 ? `${totalDuration} min total` : "no duration set"}</p>
               </div>
             </div>
-            <button type="button" onClick={addAgendaItem}
-              className="px-2.5 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-[10px] font-medium flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Add Item
-            </button>
+            <span className="flex items-center gap-1.5">
+              <button type="button" onClick={pasteAgenda}
+                className="px-2.5 py-1 bg-white border border-teal-300 text-teal-700 rounded-lg hover:bg-teal-50 text-[10px] font-medium">
+                Paste a list
+              </button>
+              <button type="button" onClick={addAgendaItem}
+                className="px-2.5 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-[10px] font-medium flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add Item
+              </button>
+            </span>
           </div>
           <div className="p-5 space-y-3">
             {agendaItems.map((item, i) => (
@@ -359,11 +830,13 @@ export default function MeetingForm() {
                   {/* Assigned to */}
                   <div className="sm:col-span-3">
                     <label className="block text-[10px] font-semibold text-gray-500 mb-1">Presenter</label>
-                    <select value={item.assigned_to_id} onChange={(e) => handleAgendaChange(i, "assigned_to_id", e.target.value)}
-                      className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-400 focus:outline-none">
-                      <option value="">Select...</option>
-                      {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={item.assigned_to_id}
+                      onChange={(v) => handleAgendaChange(i, "assigned_to_id", v)}
+                      options={users.map((u) => ({ value: u.id, label: `${u.name}${u.no_account ? " — no login account" : ""}`, isDisabled: u.no_account }))}
+                      placeholder={usersLoading ? "Loading…" : users.length ? "Search staff…" : "No staff"}
+                    />
                   </div>
                   {/* Duration */}
                   <div className="sm:col-span-2">
@@ -399,7 +872,7 @@ export default function MeetingForm() {
         </div>
 
         {/* Summary */}
-        {form.title && form.start_time && (
+        {form.title && form.meeting_date && form.start_time && (
           <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl p-5 text-white">
             <h3 className="text-xs font-bold mb-3 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -407,7 +880,7 @@ export default function MeetingForm() {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div><span className="text-teal-200 block text-[9px]">Title</span><span className="font-medium">{form.title}</span></div>
-              <div><span className="text-teal-200 block text-[9px]">When</span><span className="font-medium">{form.start_time ? new Date(form.start_time).toLocaleString() : "-"}</span></div>
+              <div><span className="text-teal-200 block text-[9px]">When</span><span className="font-medium">{form.meeting_date && form.start_time ? `${fmtDate(form.meeting_date)} · ${form.start_time}${form.end_time ? "–" + form.end_time : ""}` : "-"}</span></div>
               <div><span className="text-teal-200 block text-[9px]">Participants</span><span className="font-medium">{participants.length} member{participants.length !== 1 ? "s" : ""}</span></div>
               <div><span className="text-teal-200 block text-[9px]">Agenda Items</span><span className="font-medium">{agendaItems.filter((a) => a.title).length} topic{agendaItems.filter((a) => a.title).length !== 1 ? "s" : ""}{totalDuration > 0 ? ` · ${totalDuration}min` : ""}</span></div>
             </div>
@@ -415,20 +888,45 @@ export default function MeetingForm() {
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
-          <button type="button" onClick={() => navigate("/hr/meetings")}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Cancel
-          </button>
-          <button type="submit" disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
-            {saving ? (
-              <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
-            ) : (
-              <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Meeting" : "Schedule Meeting"}</>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={goBack}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              Back
+            </button>
+            {(!isEdit || isDraft) && (
+              <DraftStatus isDraft={isDraft} savedAt={savedAt} saving={savingDraft} noun="meeting" />
             )}
-          </button>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">Also email the participants a link to this meeting</span>
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Save without inviting anyone — the escape hatch from "finish it
+                all now or lose it". Available while the meeting is new or a draft. */}
+            {(!isEdit || isDraft) && (
+              <button type="button" onClick={() => saveDraft()} disabled={savingDraft || saving}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-amber-800 bg-amber-100 border border-amber-200 rounded-xl hover:bg-amber-200 transition-colors disabled:opacity-50">
+                {savingDraft ? (
+                  <><div className="w-4 h-4 border-2 border-amber-300 border-t-amber-700 rounded-full animate-spin"></div>Saving...</>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>Save draft</>
+                )}
+              </button>
+            )}
+            <button type="submit" disabled={saving || savingDraft}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
+              {saving ? (
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
+              ) : (
+                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isDraft ? "Schedule Meeting" : isEdit ? "Update Meeting" : "Schedule Meeting"}</>
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </div>

@@ -1,46 +1,116 @@
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put, API_BASE_URL } from '../../api/axios';
+import { get, del, put, API_BASE_URL, peekCache } from '../../api/axios';
+import { listDepartments } from '../../api/departments';
 import Swal from 'sweetalert2';
+import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import WelcomeLetterModal from '../../components/WelcomeLetterModal';
+import { RatePill } from '../../components/hr/StaffRatings';
+import { useBulkRatings } from '../../components/hr/ratingKit';
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const CONTRACT_LABELS = { FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
-const DEPARTMENTS = ["Human Resources", "Finance", "Academic", "Administration", "IT", "Operations", "Science", "Languages"];
 
 export default function Staff() {
   const navigate = useNavigate();
+  const { canCreate, canUpdate, canDelete, can } = useResourcePermissions('staff');
+  // Each action button owns its own permission so HR can hand out a single
+  // power without handing over the whole record (e.g. status changes only).
+  // `can()` also honours the staff.manage catch-all.
+  const canTransfer = can('transfer');
+  const canSupervisors = can('supervisors');
+  const canStatus = can('status');
+  const canWelcomeLetter = can('welcome-letter');
   const [items, setItems] = useState([]);
+  // Each person's average rating, and a one-click ★ for their supervisors.
+  const { map: ratingMap } = useBulkRatings('staff', items.map((i) => i.id));
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [contractFilter, setContractFilter] = useState('');
+  const [supervisorFilter, setSupervisorFilter] = useState('');
+  // Nested listing: one staff group at a time, or all of them under headings.
+  const [groupFilter, setGroupFilter] = useState('');
+  const [groups, setGroups] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
   const [positionTitles, setPositionTitles] = useState({});
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+  const [supervisorSelection, setSupervisorSelection] = useState([]);
+  const [supervisorSearch, setSupervisorSearch] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
+  /* Somebody leaving is the one status change that has to say why: the reason
+   * decides whether they can be taken back, and nobody remembers it later.
+   * It is typed, not picked from a closed menu — the server only asks that
+   * something is written. The common answers arrive from the server as
+   * suggestions, so the usual four still cost one click. */
+  const [exitMeta, setExitMeta] = useState({ exit_statuses: ['terminated'], reasons: [] });
+  const [exitForm, setExitForm] = useState({ termination_reason: '', rehire_eligible: null, exit_date: '', exit_notes: '' });
+  const [statusError, setStatusError] = useState('');
+  // Once HR answers the rehire question themselves, a suggestion never
+  // overwrites it — their answer outranks the default every time.
+  const [rehireTouched, setRehireTouched] = useState(false);
+  const isExit = exitMeta.exit_statuses.includes(statusUpdate);
   const [transferData, setTransferData] = useState({ branch_id: '', department: '', role_title_en: '', contract_type: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
+  // Staff row whose welcome letter is open (null = modal closed).
+  const [letterStaff, setLetterStaff] = useState(null);
 
-  useEffect(() => { fetchBranches(); fetchPositionTitles(); }, []);
-  useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter]);
+  useEffect(() => { fetchBranches(); fetchDepartments(); fetchPositionTitles(); fetchExitReasons(); fetchSupervisors(); }, []);
+  useEffect(() => { fetchItems(); }, [search, statusFilter, deptFilter, branchFilter, contractFilter, supervisorFilter, groupFilter]);
 
   const fetchBranches = async () => {
     try {
+      const __cached = peekCache('/branches/list');
+      if (__cached) setBranches(__cached?.data || __cached || []);
       const res = await get('/branches/list');
       setBranches(res.data?.data || res.data || []);
     } catch { setBranches([]); }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const __cached = peekCache('/hr/departments/list', { active_only: 1 });
+      if (__cached) setDepartments(__cached?.data || __cached || []);
+      const res = await listDepartments({ active_only: 1 });
+      setDepartments(res.data?.data || res.data || []);
+    } catch { setDepartments([]); }
+  };
+
+  const fetchSupervisors = async () => {
+    try {
+      const __cached = peekCache('/hr/staff/supervisors/list');
+      if (__cached) setSupervisors(__cached?.data || __cached || []);
+      const res = await get('/hr/staff/supervisors/list');
+      setSupervisors(res.data?.data || []);
+    } catch { setSupervisors([]); }
+  };
+
   const fetchPositionTitles = async () => {
     try {
+      const __cached = peekCache('/hr/staff/position-titles/list');
+      if (__cached) setPositionTitles(__cached || {});
       const res = await get('/hr/staff/position-titles/list');
       setPositionTitles(res.data || {});
     } catch { setPositionTitles({}); }
+  };
+
+  const fetchExitReasons = async () => {
+    try {
+      const res = await get('/hr/staff/exit-reasons');
+      const d = res.data?.data;
+      if (d?.reasons?.length) setExitMeta(d);
+    } catch {
+      // Keep the built-in fallback rather than an empty dropdown; the server
+      // still validates, so an out-of-date list is refused, not saved wrong.
+    }
   };
 
   const fetchItems = async (page = 1) => {
@@ -53,10 +123,20 @@ export default function Staff() {
       if (deptFilter) params.append('department', deptFilter);
       if (branchFilter) params.append('branch_id', branchFilter);
       if (contractFilter) params.append('contract_type', contractFilter);
+      if (supervisorFilter) params.append('supervisor_id', supervisorFilter);
+      if (groupFilter) params.append('category', groupFilter);
 
+      const __cached = peekCache(`/hr/staff/list?${params.toString()}`);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        setGroups(__cached?.groups || []);
+        setPagination({ current_page: __cached?.current_page || 1, last_page: __cached?.last_page || 1, total: __cached?.total || 0 });
+        setLoading(false);
+      }
       const res = await get(`/hr/staff/list?${params.toString()}`);
       const data = res.data;
       setItems(data?.data || []);
+      setGroups(data?.groups || []);
       setPagination({ current_page: data?.current_page || 1, last_page: data?.last_page || 1, total: data?.total || 0 });
     } catch {
       setItems([]);
@@ -75,21 +155,58 @@ export default function Staff() {
   const openStatusModal = (staff) => {
     setSelectedStaff(staff);
     setStatusUpdate(staff.status || '');
+    setExitForm({
+      termination_reason: staff.termination_reason || '',
+      rehire_eligible: staff.rehire_eligible ?? null,
+      exit_date: staff.exit_date || '',
+      exit_notes: staff.exit_notes || '',
+    });
+    setStatusError('');
+    setRehireTouched(false);
     setShowStatusModal(true);
+  };
+
+  /**
+   * Whatever HR types is what gets recorded.
+   *
+   * If what they typed happens to be one of the suggested answers, the rehire
+   * question is pre-filled with WEN's usual response to it — but only until HR
+   * answers that question themselves, after which their answer stands.
+   */
+  const writeReason = (text) => {
+    const match = exitMeta.reasons.find(r => r.label.toLowerCase() === text.trim().toLowerCase());
+    setExitForm(f => ({
+      ...f,
+      termination_reason: text,
+      rehire_eligible: (!rehireTouched && match) ? (match.rehire_default ?? null) : f.rehire_eligible,
+    }));
+    setStatusError('');
   };
 
   const handleStatusUpdate = async () => {
     if (!statusUpdate) return;
-    setSaving(true);
-    try {
-      await put(`/hr/staff/update-status/${selectedStaff.id}`, { status: statusUpdate });
-      fetchItems();
-    } catch {
-      setItems(prev => prev.map(i => i.id === selectedStaff.id ? { ...i, status: statusUpdate } : i));
+    if (isExit && !exitForm.termination_reason) {
+      setStatusError('Choose why this person is leaving.');
+      return;
     }
-    Swal.fire({ icon: 'success', title: 'Status Updated!', timer: 1500, showConfirmButton: false });
-    setShowStatusModal(false);
-    setSaving(false);
+    setSaving(true);
+    setStatusError('');
+    try {
+      await put(`/hr/staff/update-status/${selectedStaff.id}`, {
+        status: statusUpdate,
+        ...(isExit ? exitForm : {}),
+      });
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Status Updated!', timer: 1500, showConfirmButton: false });
+      setShowStatusModal(false);
+    } catch (error) {
+      // The old code swallowed every failure and painted the new status
+      // locally anyway, so a rejected change looked exactly like a saved one.
+      const errs = error.response?.data?.errors;
+      setStatusError(errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Could not update the status.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openTransferModal = (staff) => {
@@ -97,7 +214,8 @@ export default function Staff() {
     setSelectedStaff({ ...staff, display_name: name });
     setTransferData({
       branch_id: staff.branch_id || '',
-      department: staff.department || '',
+      department: staff.department_relation?.name || staff.department || '',
+      department_id: staff.department_id || '',
       role_title_en: staff.role_title_en || '',
       contract_type: staff.contract_type || '',
       notes: '',
@@ -117,6 +235,40 @@ export default function Staff() {
     } finally { setSaving(false); }
   };
 
+  // Open the supervisors-only editor. Pre-select whoever already supervises
+  // this person (the many-to-many list, falling back to the single line).
+  const openSupervisorModal = (staff) => {
+    const name = staff.application?.full_name || `Staff #${staff.employee_id}`;
+    setSelectedStaff({ ...staff, display_name: name });
+    const current = staff.supervisors?.length
+      ? staff.supervisors.map(s => String(s.id))
+      : (staff.supervisor_id ? [String(staff.supervisor_id)] : []);
+    setSupervisorSelection(current);
+    setSupervisorSearch('');
+    setShowSupervisorModal(true);
+  };
+
+  const toggleSupervisor = (id) => {
+    setSupervisorSelection(prev => {
+      const key = String(id);
+      return prev.includes(key) ? prev.filter(v => v !== key) : [...prev, key];
+    });
+  };
+
+  const handleSupervisorSave = async () => {
+    setSaving(true);
+    try {
+      await put(`/hr/staff/update-supervisors/${selectedStaff.id}`, {
+        supervisor_ids: supervisorSelection.map(Number),
+      });
+      fetchItems();
+      Swal.fire({ icon: 'success', title: 'Supervisors Updated!', timer: 1500, showConfirmButton: false });
+      setShowSupervisorModal(false);
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.message || 'Failed to save supervisors', 'error');
+    } finally { setSaving(false); }
+  };
+
   const activeCount = items.filter(i => i.status === 'active').length;
   const inactiveCount = items.filter(i => i.status === 'inactive').length;
 
@@ -126,9 +278,13 @@ export default function Staff() {
     setDeptFilter('');
     setBranchFilter('');
     setContractFilter('');
+    setSupervisorFilter('');
+    setGroupFilter('');
   };
 
-  const hasFilters = search || statusFilter !== 'all' || deptFilter || branchFilter || contractFilter;
+  const hasFilters = search || statusFilter !== 'all' || deptFilter || branchFilter || contractFilter || supervisorFilter || groupFilter;
+  const groupLabel = (key) => groups.find((g) => g.key === key)?.label || 'Other';
+  const groupCount = (key) => groups.find((g) => g.key === key)?.count ?? 0;
 
   // Helper to get name from application relationship
   const getName = (item) => item.application?.full_name || `Staff #${item.employee_id}`;
@@ -142,11 +298,13 @@ export default function Staff() {
             <h1 className="text-sm font-bold text-white">Staff Management</h1>
             <p className="text-xs text-teal-100 mt-0.5">{pagination.total} staff members</p>
           </div>
-          <button onClick={() => navigate('/hr/staff/create')}
-            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Register Staff
-          </button>
+          {canCreate && (
+            <button onClick={() => navigate('/hr/staff/create')}
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Register Staff
+            </button>
+          )}
         </div>
       </div>
 
@@ -194,7 +352,7 @@ export default function Staff() {
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
               <option value="">All Departments</option>
-              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
             </select>
             <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white">
@@ -206,6 +364,11 @@ export default function Staff() {
               <option value="">All Contracts</option>
               {[{ v: "FT", l: "Full Time" }, { v: "PT", l: "Part Time" }, { v: "TEMP", l: "Temporary" }, { v: "CONTRACT", l: "Contract" }, { v: "INTERNSHIP", l: "Internship" }].map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
             </select>
+            <select value={supervisorFilter} onChange={e => setSupervisorFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 outline-none bg-white max-w-[180px]">
+              <option value="">All Supervisors</option>
+              {supervisors.map(s => <option key={s.id} value={s.id}>{s.full_name_en}{s.employee_id ? ` (${s.employee_id})` : ''}</option>)}
+            </select>
             {hasFilters && (
               <button onClick={clearFilters}
                 className="px-3 py-2 text-xs text-teal-600 font-semibold hover:bg-teal-50 rounded-xl transition-colors">
@@ -213,6 +376,22 @@ export default function Staff() {
               </button>
             )}
           </div>
+          {/* Staff groups — the long list, nested. Counts follow the other
+              filters, so they say what each group holds for this search. */}
+          {groups.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap mt-3 pt-3 border-t border-gray-100">
+              <button onClick={() => setGroupFilter('')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${!groupFilter ? 'bg-teal-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-teal-50'}`}>
+                <span>All groups</span> <span data-no-i18n>({groups.reduce((n, g) => n + g.count, 0)})</span>
+              </button>
+              {groups.filter((g) => g.count > 0 || g.key === groupFilter).map((g) => (
+                <button key={g.key} onClick={() => setGroupFilter(groupFilter === g.key ? '' : g.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${groupFilter === g.key ? 'bg-teal-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-teal-50'}`}>
+                  <span>{g.label}</span> <span data-no-i18n>({g.count})</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Table */}
@@ -229,25 +408,42 @@ export default function Staff() {
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Staff</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Branch</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden md:table-cell">Department</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Supervisor(s)</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Contract</th>
                     <th className="px-4 py-3 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider hidden lg:table-cell">Phone</th>
                     <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Rating</th>
                     <th className="px-4 py-3 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {items.map(item => {
+                  {items.map((item, idx) => {
                     const name = getName(item);
                     const code = item.employee_id || '';
                     const role = positionTitles[item.role_title_en] || item.role_title_en || '';
                     const branchName = item.branch?.name || '—';
-                    const dept = item.department || '';
+                    const dept = item.department_relation?.name || item.department || '';
+                    const supervisorNames = (item.supervisors && item.supervisors.length)
+                      ? item.supervisors.map(s => s.application?.full_name || `Staff #${s.employee_id}`)
+                      : (item.supervisor?.application?.full_name ? [item.supervisor.application.full_name] : []);
                     const contract = item.contract_type || '';
                     const status = item.status || '';
                     const phone = item.application?.contact_number || '';
 
+                    // A heading wherever the group changes — the server sorts by group.
+                    const showHeading = item.staff_category && (idx === 0 || items[idx - 1].staff_category !== item.staff_category);
+
                     return (
-                      <tr key={item.id} onClick={() => navigate(`/hr/staff/show/${item.id}`)}
+                      <Fragment key={item.id}>
+                      {showHeading && (
+                        <tr className="bg-gray-50/80">
+                          <td colSpan={9} className="px-4 py-2">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800">{groupLabel(item.staff_category)}</span>
+                            <span className="ms-2 text-[10px] text-gray-400" data-no-i18n>({groupCount(item.staff_category)})</span>
+                          </td>
+                        </tr>
+                      )}
+                      <tr onClick={() => navigate(`/hr/staff/show/${item.id}`)}
                         className="hover:bg-teal-50/40 cursor-pointer transition-colors group">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
@@ -269,6 +465,13 @@ export default function Staff() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">{dept || '—'}</td>
                         <td className="px-4 py-3 hidden lg:table-cell">
+                          {supervisorNames.length ? (
+                            <span className="text-[11px] text-gray-600 font-medium" title={supervisorNames.join(', ')}>
+                              {supervisorNames[0]}{supervisorNames.length > 1 && ` +${supervisorNames.length - 1}`}
+                            </span>
+                          ) : <span className="text-[11px] text-gray-400">—</span>}
+                        </td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
                           <span className="text-[11px] text-gray-600 font-medium">{CONTRACT_LABELS[contract] || contract || '—'}</span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 hidden lg:table-cell">{phone || '—'}</td>
@@ -280,31 +483,56 @@ export default function Staff() {
                             {status}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-center">
+                          <RatePill type="staff" id={item.id} title={`${name} · general rating`} entry={ratingMap[item.id]} />
+                        </td>
                         <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => navigate(`/hr/staff/show/${item.id}`)}
                               className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="View">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             </button>
-                            <button onClick={() => navigate(`/hr/staff/edit/${item.id}`)}
-                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            {/* Welcome letter — view / print / download in EN, Dari or Pashto. */}
+                            {canWelcomeLetter && (
+                            <button onClick={() => setLetterStaff({ id: item.id, name })}
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Welcome Letter">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                             </button>
-                            <button onClick={() => openTransferModal(item)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Transfer / Update">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                            </button>
-                            <button onClick={() => openStatusModal(item)}
-                              className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </button>
-                            <button onClick={() => handleDelete(item.id)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
+                            )}
+                            {canUpdate && (
+                              <button onClick={() => navigate(`/hr/staff/edit/${item.id}`)}
+                                className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                            )}
+                            {canTransfer && (
+                              <button onClick={() => openTransferModal(item)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Transfer / Update">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                              </button>
+                            )}
+                            {canSupervisors && (
+                              <button onClick={() => openSupervisorModal(item)}
+                                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Update Supervisors">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                              </button>
+                            )}
+                            {canStatus && (
+                              <button onClick={() => openStatusModal(item)}
+                                className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Update Status">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button onClick={() => handleDelete(item.id)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -315,10 +543,12 @@ export default function Staff() {
               <div className="text-center py-12">
                 <svg className="w-12 h-12 mx-auto text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 <p className="text-sm text-gray-400 font-medium">No staff found</p>
-                <button onClick={() => navigate('/hr/staff/create')}
-                  className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">
-                  Register your first staff member
-                </button>
+                {canCreate && (
+                  <button onClick={() => navigate('/hr/staff/create')}
+                    className="mt-3 text-xs font-semibold text-teal-600 hover:text-teal-700">
+                    Register your first staff member
+                  </button>
+                )}
               </div>
             )}
 
@@ -339,7 +569,7 @@ export default function Staff() {
 
       {/* Status Update Modal */}
       {showStatusModal && selectedStaff && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowStatusModal(false)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Update Status</h3>
@@ -348,13 +578,60 @@ export default function Staff() {
             <div className="p-5">
               <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">New Status</p>
               <div className="flex gap-3">
-                {['active', 'inactive'].map(s => (
-                  <button key={s} type="button" onClick={() => setStatusUpdate(s)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${statusUpdate === s ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
-                    {s}
+                {['active', 'inactive', 'terminated'].map(s => (
+                  <button key={s} type="button" onClick={() => { setStatusUpdate(s); setStatusError(''); }}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${statusUpdate === s ? (s === 'terminated' ? 'bg-red-600 text-white border-red-600' : 'bg-teal-600 text-white border-teal-600') : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
+                    {s === 'terminated' ? 'Left WEN' : s}
                   </button>
                 ))}
               </div>
+
+              {isExit && (
+                <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Reason for leaving *</p>
+                    <input type="text" list="staff-exit-reasons" value={exitForm.termination_reason}
+                      onChange={e => writeReason(e.target.value)}
+                      placeholder="Write the reason…"
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500" />
+                    {/* Offered, not imposed: click one or ignore them and type. */}
+                    <datalist id="staff-exit-reasons">
+                      {exitMeta.reasons.map(r => <option key={r.value} value={r.label} />)}
+                    </datalist>
+                    <p className="text-[10px] text-gray-400 mt-1">Write it in your own words, or pick one of the usual answers.</p>
+                  </div>
+
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Can they be rehired?</p>
+                    <div className="flex gap-2">
+                      {[{ v: true, l: 'Yes' }, { v: false, l: 'No' }, { v: null, l: 'Not decided' }].map(o => (
+                        <button key={String(o.v)} type="button" onClick={() => { setRehireTouched(true); setExitForm(f => ({ ...f, rehire_eligible: o.v })); }}
+                          className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-all ${exitForm.rehire_eligible === o.v ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-200 hover:border-teal-300'}`}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">Shown to recruitment if this person applies again.</p>
+                  </div>
+
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Last working day</p>
+                    <input type="date" value={exitForm.exit_date} onChange={e => setExitForm(f => ({ ...f, exit_date: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500" />
+                    <p className="text-[10px] text-gray-400 mt-1">Leave empty to use today.</p>
+                  </div>
+
+                  <div>
+                    <p className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Notes</p>
+                    <textarea rows={2} value={exitForm.exit_notes} onChange={e => setExitForm(f => ({ ...f, exit_notes: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:ring-2 focus:ring-teal-500" />
+                  </div>
+                </div>
+              )}
+
+              {statusError && (
+                <p className="mt-3 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{statusError}</p>
+              )}
             </div>
             <div className="px-5 py-4 bg-gray-50 flex justify-end gap-2 rounded-b-2xl">
               <button onClick={() => setShowStatusModal(false)}
@@ -394,10 +671,14 @@ export default function Staff() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
-                <select value={transferData.department} onChange={e => setTransferData(p => ({ ...p, department: e.target.value }))}
+                <select value={transferData.department} onChange={e => {
+                    const name = e.target.value;
+                    const match = departments.find(d => d.name === name);
+                    setTransferData(p => ({ ...p, department: name, department_id: match?.id || '' }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                   <option value="">Select Department</option>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                 </select>
               </div>
               <div>
@@ -438,6 +719,81 @@ export default function Staff() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Supervisors Update Modal */}
+      {showSupervisorModal && selectedStaff && (() => {
+        const query = supervisorSearch.trim().toLowerCase();
+        const candidates = supervisors.filter(s => String(s.id) !== String(selectedStaff.id));
+        const filtered = query
+          ? candidates.filter(s => (s.full_name_en || '').toLowerCase().includes(query) || (s.employee_id || '').toLowerCase().includes(query) || (s.role_title_en || '').toLowerCase().includes(query))
+          : candidates;
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+              <div className="px-5 py-4 bg-purple-50 border-b border-purple-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center text-white flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800">Update Supervisors</h3>
+                    <p className="text-[11px] text-purple-600 mt-0.5">{selectedStaff.display_name} — {selectedStaff.employee_id}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-5 pt-4">
+                <input value={supervisorSearch} onChange={e => setSupervisorSearch(e.target.value)}
+                  placeholder="Search colleagues by name, code, or role…"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none" />
+                <p className="text-[10px] text-gray-400 mt-1">Pick one or several. The first selected becomes the primary reporting line. Leave empty to send requests straight to HR.</p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-3">
+                {filtered.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-6">No colleagues found.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {filtered.map(s => {
+                      const checked = supervisorSelection.includes(String(s.id));
+                      const primary = supervisorSelection[0] === String(s.id);
+                      return (
+                        <label key={s.id}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-purple-300 bg-purple-50' : 'border-gray-100 hover:bg-gray-50'}`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleSupervisor(s.id)}
+                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-gray-800 truncate">{s.full_name_en}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{s.employee_id}{s.role_title_en ? ` · ${s.role_title_en}` : ''}</p>
+                          </div>
+                          {primary && <span className="text-[9px] font-bold text-purple-600 uppercase">Primary</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                <p className="text-[11px] text-gray-500">{supervisorSelection.length} selected</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowSupervisorModal(false)}
+                    className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 text-xs font-medium">Cancel</button>
+                  <button onClick={handleSupervisorSave} disabled={saving}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-xs font-semibold disabled:opacity-50">
+                    {saving ? 'Saving...' : 'Save Supervisors'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {letterStaff && (
+        <WelcomeLetterModal
+          staffId={letterStaff.id}
+          staffName={letterStaff.name}
+          onClose={() => setLetterStaff(null)}
+        />
       )}
     </div>
   );

@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 import Select from "react-select";
+
+import { fmtDate } from "../../utils/formErrors";
+import RichTextField from "../../components/RichTextField";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
@@ -12,8 +16,21 @@ const STATUS_OPTIONS = [
   { value: "archived", label: "Archived" },
 ];
 
+/* Institutions the public careers filters offer, mirroring DriveTaxonomy::
+ * INSTITUTIONS on the backend. Kept here so the picker matches the values the
+ * filters read back. */
+const INSTITUTION_OPTIONS = [
+  { value: "WS", label: "WS" },
+  { value: "WLS", label: "WLS" },
+  { value: "WISAL", label: "WISAL" },
+  { value: "WEN", label: "WEN (umbrella)" },
+];
+
 export default function JobPostingForm() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/job-postings");
   const { id } = useParams();
   const isEdit = Boolean(id);
 
@@ -23,43 +40,87 @@ export default function JobPostingForm() {
     description: "",
     requirements: [""],
     location: "",
+    institution: "",
+    branch: "",
     status: "published",
   });
 
-  const [requisitions, setRequisitions] = useState([]);
   const [requisitionOptions, setRequisitionOptions] = useState([]);
+  // Branch names sourced from the shared Branch module so the two stay in
+  // lockstep. Stored as the branch name string (not the id) to keep the public
+  // filter self-describing without a join.
+  const [branchOptions, setBranchOptions] = useState([]);
+  // The requisition this posting is already attached to. Kept separately
+  // because the picker lists only requisitions that are still open, and the
+  // one already in use may have expired since the posting was created — it
+  // still has to be visible, or editing the posting would silently blank it.
+  const [currentRequisition, setCurrentRequisition] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchApprovedRequisitions();
+    fetchBranches();
     if (isEdit) fetchPosting();
   }, [id]);
+
+  /* A requisition with no deadline never expires — say so, rather than
+   * showing nothing where every other option shows a date. */
+  const requisitionOption = (req, note = "") => ({
+    value: req.id,
+    label: `${req.position_title} - ${req.department} (${
+      req.deadline_date ? `Deadline: ${fmtDate(req.deadline_date)}` : "No deadline"
+    }${note ? ` · ${note}` : ""})`,
+    ...req, // Keep original data for reference
+  });
 
   const fetchApprovedRequisitions = async () => {
     try {
       const response = await get("/recruitment/job-postings/approved-requisitions");
       const data = response.data?.data || [];
       const requisitionsArray = Array.isArray(data) ? data : [];
-      setRequisitions(requisitionsArray);
-      
-      // Transform data for react-select
-      const options = requisitionsArray.map((req) => ({
-        value: req.id,
-        label: `${req.position_title} - ${req.department}${
-          req.deadline_date ? ` (Deadline: ${new Date(req.deadline_date).toLocaleDateString()})` : ""
-        }`,
-        ...req // Keep original data for reference
-      }));
-      setRequisitionOptions(options);
+      setRequisitionOptions(requisitionsArray.map((req) => requisitionOption(req)));
     } catch (error) {
       console.error("Failed to fetch requisitions", error);
     }
   };
 
+  /* Branch picker feeds off the same Branch records staff admin elsewhere.
+   * Only live branches (status on) are offered. */
+  const fetchBranches = async () => {
+    try {
+      const response = await get("/branches/list");
+      const data = response.data?.data || [];
+      const array = Array.isArray(data) ? data : [];
+      setBranchOptions(
+        array
+          .filter((b) => b.status !== false)
+          .map((b) => ({ value: b.name, label: b.name }))
+      );
+    } catch (error) {
+      console.error("Failed to fetch branches", error);
+    }
+  };
+
   const fetchPosting = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/job-postings/${id}`);
+    if (__cached) {
+      const d = __cached?.data || __cached;
+      setFormData({
+        requisition_id: d.requisition_id || "",
+        title: d.title || "",
+        description: d.description || "",
+        requirements: d.requirements?.length > 0 ? d.requirements : [""],
+        location: d.location || "",
+        institution: d.institution || "",
+        branch: d.branch || "",
+        status: d.status || "published",
+      });
+      if (d.requisition) setCurrentRequisition(d.requisition);
+      setLoading(false);
+    }
     try {
       const response = await get(`/recruitment/job-postings/${id}`);
       const d = response.data?.data || response.data;
@@ -69,16 +130,14 @@ export default function JobPostingForm() {
         description: d.description || "",
         requirements: d.requirements?.length > 0 ? d.requirements : [""],
         location: d.location || "",
+        institution: d.institution || "",
+        branch: d.branch || "",
         status: d.status || "published",
       });
       
-      // Set the selected requisition option for react-select
-      if (d.requisition_id && requisitionOptions.length > 0) {
-        const selectedOption = requisitionOptions.find(opt => opt.value === d.requisition_id);
-        if (selectedOption) {
-          // We'll handle this in the component after options are loaded
-        }
-      }
+      // The posting carries its own requisition, which is the only reliable
+      // source when that requisition is no longer in the open list.
+      if (d.requisition) setCurrentRequisition(d.requisition);
     } catch (error) {
       Swal.fire("Error", "Failed to load job posting", "error");
       navigate("/recruitment/job-postings");
@@ -86,6 +145,16 @@ export default function JobPostingForm() {
       setLoading(false);
     }
   };
+
+  /* What the dropdown actually offers: every still-open requisition, plus the
+   * one this posting is already using if it is not among them. Without the
+   * second half, opening a posting whose requisition has expired would show an
+   * empty picker and a "required" error on a field the user never touched. */
+  const selectableRequisitions = (() => {
+    if (!currentRequisition) return requisitionOptions;
+    if (requisitionOptions.some((o) => o.value === currentRequisition.id)) return requisitionOptions;
+    return [requisitionOption(currentRequisition, "currently linked"), ...requisitionOptions];
+  })();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -146,6 +215,8 @@ export default function JobPostingForm() {
         title: formData.title,
         description: formData.description,
         location: formData.location,
+        institution: formData.institution || null,
+        branch: formData.branch || null,
         requirements: formData.requirements.filter(r => r.trim() !== ""),
         status: formData.status || "published",
       };
@@ -157,7 +228,7 @@ export default function JobPostingForm() {
         await post("/recruitment/job-postings", dataToSend);
         Swal.fire("Success", "Job posting created successfully", "success");
       }
-      navigate("/recruitment/job-postings");
+      goBack();
     } catch (error) {
       if (!handleValidationErrors(error.response, setErrors)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save job posting", "error");
@@ -189,7 +260,7 @@ export default function JobPostingForm() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate("/recruitment/job-postings")}
+          onClick={goBack}
           className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,13 +300,12 @@ export default function JobPostingForm() {
             </label>
             <Select
               name="requisition_id"
-              value={requisitionOptions.find(option => option.value === formData.requisition_id) || null}
+              value={selectableRequisitions.find(option => option.value === formData.requisition_id) || null}
               onChange={handleRequisitionChange}
-              options={requisitionOptions}
+              options={selectableRequisitions}
               placeholder="Select Requisition"
               isSearchable
               isClearable
-              isDisabled={isEdit}
               className={`react-select-container ${err("requisition_id") ? "react-select-error" : ""}`}
               classNamePrefix="react-select"
               menuPortalTarget={document.body}
@@ -266,7 +336,12 @@ export default function JobPostingForm() {
               }}
             />
             {err("requisition_id") && <p className="text-red-500 text-[10px] mt-1">{err("requisition_id")}</p>}
-            {requisitionOptions.length === 0 && (
+            {isEdit && (
+              <p className="text-gray-500 text-[10px] mt-1.5">
+                You can move this posting to a different approved requisition.
+              </p>
+            )}
+            {selectableRequisitions.length === 0 && (
               <p className="text-amber-600 text-[10px] mt-2">
                 No approved requisitions available. Please approve a job requisition first.
               </p>
@@ -327,6 +402,46 @@ export default function JobPostingForm() {
               {err("location") && <p className="text-red-500 text-[10px] mt-1">{err("location")}</p>}
             </div>
 
+            {/* Institution */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                Institution
+              </label>
+              <select
+                name="institution"
+                value={formData.institution}
+                onChange={handleChange}
+                className={inputClass("institution")}
+              >
+                <option value="">— Not specified —</option>
+                {INSTITUTION_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <p className="text-gray-400 text-[10px] mt-1">Used by the careers portal to filter vacancies by institution.</p>
+            </div>
+
+            {/* Branch */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
+                Branch
+              </label>
+              <select
+                name="branch"
+                value={formData.branch}
+                onChange={handleChange}
+                className={inputClass("branch")}
+              >
+                <option value="">— Not specified —</option>
+                {branchOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              {branchOptions.length === 0 && (
+                <p className="text-amber-600 text-[10px] mt-1">No branches on record yet — add them under Branches.</p>
+              )}
+            </div>
+
             {/* Hidden status field - managed via list actions */}
             <input type="hidden" name="status" value={formData.status} />
 
@@ -335,15 +450,10 @@ export default function JobPostingForm() {
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
                 Description *
               </label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                required
-                rows={4}
+              <RichTextField name="description" value={formData.description} required rows={6}
                 placeholder="Enter detailed job description including responsibilities and expectations..."
-                className={inputClass("description")}
-              />
+                onChange={(html) => handleChange({ target: { name: "description", value: html } })}
+                className={errors.description ? "border-red-400" : ""} />
               {err("description") && <p className="text-red-500 text-[10px] mt-1">{err("description")}</p>}
             </div>
           </div>
@@ -406,7 +516,7 @@ export default function JobPostingForm() {
         <div className="flex items-center justify-between pt-2">
           <button
             type="button"
-            onClick={() => navigate("/recruitment/job-postings")}
+            onClick={goBack}
             className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-all"
           >
             Cancel

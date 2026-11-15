@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { get, post, put, del } from '../../api/axios';
+import { useState, useEffect, useRef, Fragment } from 'react';
+import Select2 from "../../components/hr/Select2";
+import { get, post, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 function SearchSelect({ options, value, onChange, placeholder = 'Select...', getLabel = o => o, getValue = o => o }) {
@@ -64,12 +65,31 @@ export default function GradeSubjects() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editTeacher, setEditTeacher] = useState('');
+
+  // Per-class teacher assignment panel (non-primary grades)
+  const [expandedSubjectId, setExpandedSubjectId] = useState(null);
+  const [classRows, setClassRows] = useState([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
+  const [savingClasses, setSavingClasses] = useState(false);
+
+  // Fast "grid" data-entry mode (subjects × classes matrix)
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+  // Whether the selected grade is a PRIMARY one (KG / Prep / Grade 1…), where
+  // the class supervisor teaches every subject. The server writes the
+  // supervisor onto every (class, subject) row of such a grade, so what comes
+  // back is already the default. Elsewhere each subject has its own teacher
+  // and the supervisor is only the homeroom — never offered as a default.
+  const [isPrimaryGrade, setIsPrimaryGrade] = useState(false);
+  const [gridClasses, setGridClasses] = useState([]);
+  const [gridSubjects, setGridSubjects] = useState([]);
+  const [gridAssign, setGridAssign] = useState({}); // "subjectId-classId" -> teacher_id
+  const [assignedNames, setAssignedNames] = useState({}); // teacherId -> name (for already-assigned teachers)
+  const [loadingGrid, setLoadingGrid] = useState(false);
+  const [savingGrid, setSavingGrid] = useState(false);
+  const [gridDirty, setGridDirty] = useState(false);
 
   // Add form
   const [addSubjectId, setAddSubjectId] = useState('');
-  const [addTeacherId, setAddTeacherId] = useState('');
 
   // Copy from term modal
   const [showCopyModal, setShowCopyModal] = useState(false);
@@ -80,6 +100,14 @@ export default function GradeSubjects() {
 
   const fetchFormData = async () => {
     try {
+      const __c = peekCache('/class-management/grade-subjects/form-data');
+      if (__c) {
+        setGrades(__c?.grades || []);
+        setAcademicTerms(__c?.academic_terms || []);
+        setSubjects(__c?.subjects || []);
+        setTeachers(__c?.teachers || []);
+        if (!selectedTerm && __c?.academic_terms?.length) setSelectedTerm(__c.academic_terms[0].id);
+      }
       const res = await get('/class-management/grade-subjects/form-data');
       setGrades(res.data?.grades || []);
       setAcademicTerms(res.data?.academic_terms || []);
@@ -99,6 +127,8 @@ export default function GradeSubjects() {
   const fetchItems = async () => {
     setLoading(true);
     try {
+      const __c = peekCache(`/class-management/grade-subjects?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      if (__c) { setItems(__c?.data || []); setLoading(false); }
       const res = await get(`/class-management/grade-subjects?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
       setItems(res.data?.data || []);
     } catch { setItems([]); }
@@ -106,7 +136,141 @@ export default function GradeSubjects() {
   };
 
   const selectedGradeData = grades.find(g => g.id == selectedGrade);
-  const isPrimary = !!selectedGradeData?.is_primary;
+
+  // ---- Fast grid mode ----
+  const fetchGrid = async () => {
+    setLoadingGrid(true);
+    try {
+      const __c = peekCache(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      if (__c) {
+        const seeded = withSupervisorDefaults(__c?.classes, __c?.subjects, __c?.assignments, __c?.is_primary);
+        setIsPrimaryGrade(!!__c?.is_primary);
+        setGridClasses(__c?.classes || []);
+        setGridSubjects(__c?.subjects || []);
+        setGridAssign(seeded.assign);
+        setAssignedNames(__c?.assigned_teachers || {});
+        setGridDirty(seeded.suggested);
+        setLoadingGrid(false);
+      }
+      const res = await get(`/class-management/grade-subjects/grid?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      const seeded = withSupervisorDefaults(res.data?.classes, res.data?.subjects, res.data?.assignments, res.data?.is_primary);
+      setIsPrimaryGrade(!!res.data?.is_primary);
+      setGridClasses(res.data?.classes || []);
+      setGridSubjects(res.data?.subjects || []);
+      setGridAssign(seeded.assign);
+      setAssignedNames(res.data?.assigned_teachers || {});
+      setGridDirty(seeded.suggested);
+    } catch {
+      setGridClasses([]); setGridSubjects([]); setGridAssign({}); setAssignedNames({});
+    } finally {
+      setLoadingGrid(false);
+    }
+  };
+
+  // Load (or reload) the grid whenever it's shown, the grade/term changes, or
+  // the subject list changes (add / remove / bulk / copy).
+  useEffect(() => {
+    if (viewMode === 'grid' && selectedGrade && selectedTerm) fetchGrid();
+  }, [viewMode, selectedGrade, selectedTerm, items]);
+
+  /**
+   * A teacher as the picker shows them.
+   *
+   * Everybody active appears, including the ones who cannot take this subject:
+   * a teacher at capacity, or a primary supervisor who teaches their own class
+   * all day. They used to be dropped from the list entirely, which on screen is
+   * indistinguishable from "this teacher does not exist" — you register a
+   * colleague, find them in the teacher list, and then cannot find them here.
+   * They are shown greyed out with the reason instead, and the server still
+   * refuses the assignment if one is somehow chosen.
+   */
+  const teacherOption = (t) => ({
+    value: String(t.id),
+    label: t.unavailable_reason
+      ? `${t.name} — ${t.unavailable_reason}`
+      : `${t.name} (${t.available_hours}h free)`,
+    isDisabled: Boolean(t.unavailable_reason),
+  });
+
+  /** Options for one cell, keeping whoever is already assigned selectable. */
+  const teacherOptions = (currentId, currentName) => {
+    const opts = teachers.map(teacherOption);
+    if (currentId && !teachers.some((t) => String(t.id) === String(currentId)) && currentName) {
+      // Assigned earlier and no longer offered (branch moved, went inactive):
+      // still shown, so opening the row does not silently clear it.
+      opts.unshift({ value: String(currentId), label: `${currentName} (current)` });
+    }
+    return opts;
+  };
+
+  /**
+   * Fill the untouched cells of the grid with each class's supervisor — in a
+   * PRIMARY grade only. There the supervisor teaches every subject and the
+   * server has normally written that onto the rows already; this covers a
+   * class that has no row yet (a supervisor picked a moment ago). In any other
+   * grade the supervisor is just the homeroom, each subject has its own
+   * teacher, and the cells are left exactly as the server sent them.
+   *
+   * "Untouched" is the key: a pair the server sent back is left alone. Returns
+   * the map plus whether anything was suggested, so Save can light up.
+   */
+  const withSupervisorDefaults = (classes, subjects, assignments, isPrimary) => {
+    const next = { ...(assignments || {}) };
+    let suggested = false;
+    if (!isPrimary) return { assign: next, suggested };
+    (subjects || []).forEach(s => (classes || []).forEach(c => {
+      const key = `${s.subject_id}-${c.id}`;
+      if (!c.supervisor_id) return;
+      if (Object.prototype.hasOwnProperty.call(next, key)) return;
+      next[key] = c.supervisor_id;
+      suggested = true;
+    }));
+    return { assign: next, suggested };
+  };
+
+  const setGridCell = (subjectId, classId, teacherId) => {
+    setGridAssign(prev => ({ ...prev, [`${subjectId}-${classId}`]: teacherId || null }));
+    setGridDirty(true);
+  };
+
+  const applyRowToAll = (subjectId, teacherId) => {
+    setGridAssign(prev => {
+      const next = { ...prev };
+      gridClasses.forEach(c => { next[`${subjectId}-${c.id}`] = teacherId || null; });
+      return next;
+    });
+    setGridDirty(true);
+  };
+
+  const saveGrid = async () => {
+    setSavingGrid(true);
+    try {
+      const assignments = [];
+      gridSubjects.forEach(s => gridClasses.forEach(c => {
+        assignments.push({
+          subject_id: s.subject_id,
+          school_class_id: c.id,
+          teacher_id: gridAssign[`${s.subject_id}-${c.id}`] || null,
+        });
+      }));
+      await post('/class-management/grade-subjects/grid', {
+        grade_id: selectedGrade,
+        academic_term_id: selectedTerm,
+        assignments,
+      });
+      setGridDirty(false);
+      await fetchItems();
+      await fetchFormData();
+      await fetchGrid();
+      Swal.fire({ icon: 'success', title: 'All assignments saved', timer: 1300, showConfirmButton: false });
+    } catch (error) {
+      const errs = error.response?.data?.errors;
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to save');
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setSavingGrid(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!addSubjectId) return;
@@ -116,9 +280,9 @@ export default function GradeSubjects() {
         grade_id: selectedGrade,
         academic_term_id: selectedTerm,
         subject_id: addSubjectId,
-        teacher_id: isPrimary ? null : (addTeacherId || null),
+        teacher_id: null, // teachers are assigned per class below
       });
-      setAddSubjectId(''); setAddTeacherId('');
+      setAddSubjectId('');
       await fetchItems();
       await fetchFormData();
       Swal.fire({ icon: 'success', title: 'Subject added', timer: 1200, showConfirmButton: false });
@@ -131,19 +295,63 @@ export default function GradeSubjects() {
     }
   };
 
-  const handleUpdate = async (id) => {
+  // Open/close the per-class teacher panel for a subject and load its classes.
+  const toggleExpand = async (item) => {
+    if (expandedSubjectId === item.subject_id) {
+      setExpandedSubjectId(null);
+      setClassRows([]);
+      return;
+    }
+    setExpandedSubjectId(item.subject_id);
+    setClassRows([]);
+    setLoadingClasses(true);
     try {
-      await put(`/class-management/grade-subjects/${id}`, {
-        teacher_id: editTeacher || null,
+      const res = await get(`/class-management/grade-subjects/class-assignments?grade_id=${selectedGrade}&subject_id=${item.subject_id}&academic_term_id=${selectedTerm}`);
+      const primary = !!res.data?.is_primary;
+      setIsPrimaryGrade(primary);
+      // Primary grade only: a class with no row yet opens on its supervisor,
+      // who teaches every subject there. In any other grade the rows are
+      // shown exactly as saved — the supervisor is not a subject teacher.
+      setClassRows((res.data?.data || []).map(r => (
+        primary && !r.has_assignment && r.supervisor_id
+          ? { ...r, teacher_id: r.supervisor_id, teacher_name: r.supervisor_name }
+          : r
+      )));
+    } catch {
+      setClassRows([]);
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
+
+  const setClassTeacher = (classId, teacherId) => {
+    setClassRows(prev => prev.map(r => r.school_class_id === classId ? { ...r, teacher_id: teacherId || null } : r));
+  };
+
+  const applyTeacherToAll = (teacherId) => {
+    setClassRows(prev => prev.map(r => ({ ...r, teacher_id: teacherId || null })));
+  };
+
+  const saveClassTeachers = async (item) => {
+    setSavingClasses(true);
+    try {
+      await post('/class-management/grade-subjects/class-assignments', {
+        grade_id: selectedGrade,
+        subject_id: item.subject_id,
+        academic_term_id: selectedTerm,
+        assignments: classRows.map(r => ({ school_class_id: r.school_class_id, teacher_id: r.teacher_id || null })),
       });
       await fetchItems();
       await fetchFormData();
-      setEditingId(null);
-      Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
+      setExpandedSubjectId(null);
+      setClassRows([]);
+      Swal.fire({ icon: 'success', title: 'Class teachers saved', timer: 1200, showConfirmButton: false });
     } catch (error) {
       const errs = error.response?.data?.errors;
-      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to update');
+      const msg = errs ? Object.values(errs).flat()[0] : (error.response?.data?.message || 'Failed to save');
       Swal.fire('Error', msg, 'error');
+    } finally {
+      setSavingClasses(false);
     }
   };
 
@@ -216,11 +424,6 @@ export default function GradeSubjects() {
     }
   };
 
-  const startEdit = (item) => {
-    setEditingId(item.id);
-    setEditTeacher(item.teacher_id || '');
-  };
-
   const gradeName = grades.find(g => g.id == selectedGrade)?.name || '';
   const availableSubjects = subjects.filter(s =>
     !items.some(i => i.subject_id === s.id) &&
@@ -232,7 +435,7 @@ export default function GradeSubjects() {
       {/* Header */}
       <div>
         <h1 className="text-lg font-bold text-gray-800">Grade Subjects</h1>
-        <p className="text-xs text-gray-400 mt-0.5">Assign subjects and teachers to grade levels — shared by all classes in the grade</p>
+        <p className="text-xs text-gray-400 mt-0.5">Define each grade's subjects, then assign a teacher per class — different classes can have different teachers</p>
       </div>
 
       {/* Grade & Term Selection */}
@@ -281,26 +484,11 @@ export default function GradeSubjects() {
             </div>
           </div>
 
-          {/* Primary Grade Banner */}
-          {isPrimary && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-sm font-bold text-amber-900">Primary Grade — Teacher per Class</p>
-                <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                  In primary grades, the <strong>class supervisor</strong> teaches all subjects. Just list the subjects here — each class (e.g. Grade 1A, Grade 1B) will use its own supervisor as the teacher. So Ahmad can teach all subjects in Grade 1A while Ali teaches all subjects in Grade 1B.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Add Subject */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h3 className="text-sm font-bold text-gray-800 mb-1">Add Subject to {gradeName}</h3>
-            <p className="text-[11px] text-gray-400 mb-4">Weekly hours are automatically taken from the subject's definition</p>
-            <div className={`grid grid-cols-1 ${isPrimary ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3 items-end`}>
+            <p className="text-[11px] text-gray-400 mb-4">Add the subject first, then assign a teacher per class from the list below. Weekly hours come from the subject definition.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <div>
                 <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Subject *</label>
                 <SearchSelect options={availableSubjects} value={addSubjectId} onChange={v => setAddSubjectId(v || '')}
@@ -308,23 +496,6 @@ export default function GradeSubjects() {
                   getLabel={s => `${s.subject_code} — ${s.subject_name}${s.weekly_hours ? ` (${s.weekly_hours}h/week)` : ''}`}
                   getValue={s => s.id} />
               </div>
-              {!isPrimary && (
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Teacher</label>
-                  <select value={addTeacherId} onChange={e => setAddTeacherId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white outline-none">
-                    <option value="">Select teacher...</option>
-                    {teachers.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.available_hours}h available)
-                      </option>
-                    ))}
-                  </select>
-                  {teachers.length === 0 && (
-                    <p className="text-[10px] text-amber-600 mt-1">All teachers are at full capacity</p>
-                  )}
-                </div>
-              )}
               <button onClick={handleAdd} disabled={!addSubjectId || isAdding}
                 className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]">
                 {isAdding ? (
@@ -344,12 +515,113 @@ export default function GradeSubjects() {
 
           {/* Subject List */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-sm font-bold text-gray-800">Subjects for {gradeName}</h3>
-              <span className="text-xs text-gray-400">{items.length} subjects</span>
+              <div className="flex items-center gap-3">
+                {(
+                  <div className="inline-flex rounded-xl border border-gray-200 p-0.5 bg-gray-50">
+                    <button onClick={() => setViewMode('list')}
+                      className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${viewMode === 'list' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      List
+                    </button>
+                    <button onClick={() => setViewMode('grid')}
+                      className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1 ${viewMode === 'grid' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                      Fast grid
+                    </button>
+                  </div>
+                )}
+                <span className="text-xs text-gray-400">{items.length} subjects</span>
+              </div>
             </div>
 
-            {loading ? (
+            {viewMode === 'grid' ? (
+              loadingGrid ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
+                </div>
+              ) : gridSubjects.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-gray-400">No subjects assigned to this grade yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Add subjects above, then assign teachers here</p>
+                </div>
+              ) : gridClasses.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-gray-400">No active classes in this grade/term yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Create classes for this grade & term first</p>
+                </div>
+              ) : (
+                <>
+                  <div className="px-5 py-2.5 bg-teal-50/60 border-b border-teal-100 flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-[11px] text-teal-800">
+                        Pick a teacher in each cell, or use <strong>“set all classes”</strong> under a subject to fill its whole row. Then save once.
+                      </p>
+                      <p className="text-[10px] text-teal-700/80 mt-0.5">{isPrimaryGrade
+                        ? "Primary grade — the class supervisor teaches every subject, so each class is set to its supervisor. Change any of them, then save."
+                        : "Each subject has its own teacher here — pick one per class, then save."}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {gridDirty && <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>}
+                      <button onClick={saveGrid} disabled={savingGrid || !gridDirty}
+                        className="px-4 py-1.5 bg-teal-600 text-white text-[11px] font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                        {savingGrid && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                        {savingGrid ? 'Saving...' : 'Save all'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider min-w-[190px]">Subject \ Class</th>
+                          {gridClasses.map(c => (
+                            <th key={c.id} className="px-3 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider min-w-[150px]">
+                              {c.class_name}
+                              {c.shift && <span className={`ml-1 px-1 py-0.5 rounded text-[8px] font-semibold ${c.shift === 'morning' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}>{c.shift === 'morning' ? 'AM' : 'PM'}</span>}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {gridSubjects.map(s => (
+                          <tr key={s.subject_id} className="hover:bg-gray-50/40">
+                            <td className="sticky left-0 z-10 bg-white px-4 py-2 align-top">
+                              <p className="text-sm font-semibold text-gray-800 leading-tight">{s.subject_name}</p>
+                              <p className="text-[10px] text-gray-400">{s.subject_code}{s.weekly_hours ? ` · ${s.weekly_hours}h` : ''}</p>
+                              <div className="mt-1.5">
+                                <Select2 size="sm" value="" isClearable={false}
+                                  placeholder="↳ set all classes…"
+                                  options={[{ value: '__none__', label: '(clear all)' }, ...teachers.map(teacherOption)]}
+                                  onChange={(v) => { if (v) applyRowToAll(s.subject_id, v === '__none__' ? '' : v); }} />
+                              </div>
+                            </td>
+                            {gridClasses.map(c => {
+                              const key = `${s.subject_id}-${c.id}`;
+                              const val = gridAssign[key] || '';
+                              return (
+                                <td key={c.id} className="px-2 py-2">
+                                  <Select2 size="sm" value={val} placeholder="— none —"
+                                    options={teacherOptions(val, assignedNames[val])}
+                                    onChange={(v) => setGridCell(s.subject_id, c.id, v || '')} />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+                    <button onClick={saveGrid} disabled={savingGrid || !gridDirty}
+                      className="px-5 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                      {savingGrid && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                      {savingGrid ? 'Saving...' : 'Save all assignments'}
+                    </button>
+                  </div>
+                </>
+              )
+            ) : loading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" />
               </div>
@@ -365,14 +637,19 @@ export default function GradeSubjects() {
                     <tr className="bg-gray-50 border-b border-gray-100">
                       <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Subject</th>
                       <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Teacher</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Teachers (per class)</th>
                       <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Hours/Week</th>
                       <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {items.map(item => (
-                      <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
+                    {items.map(item => {
+                      const expanded = expandedSubjectId === item.subject_id;
+                      const total = item.classes_total ?? 0;
+                      const assigned = item.classes_assigned ?? 0;
+                      return (
+                      <Fragment key={item.id}>
+                      <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="px-4 py-3">
                           <p className="text-sm font-semibold text-gray-800">{item.subject_name}</p>
                           <p className="text-[10px] text-gray-400">{item.subject_code}</p>
@@ -381,20 +658,12 @@ export default function GradeSubjects() {
                           <span className="text-xs text-gray-600">{item.category}</span>
                         </td>
                         <td className="px-4 py-3">
-                          {isPrimary ? (
-                            <span className="text-xs text-amber-700 italic">Class supervisor</span>
-                          ) : editingId === item.id ? (
-                            <select value={editTeacher} onChange={e => setEditTeacher(e.target.value)}
-                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 bg-white outline-none">
-                              <option value="">No teacher</option>
-                              {/* Include current teacher even if "full" so user can keep them */}
-                              {item.teacher_id && !teachers.some(t => t.id == item.teacher_id) && (
-                                <option value={item.teacher_id}>{item.teacher_name} (current)</option>
-                              )}
-                              {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.available_hours}h available)</option>)}
-                            </select>
+                          {total === 0 ? (
+                            <span className="text-xs text-gray-400">No classes in this grade/term yet</span>
                           ) : (
-                            <span className="text-sm text-gray-700">{item.teacher_name || <span className="text-gray-400">—</span>}</span>
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${assigned === 0 ? 'bg-gray-100 text-gray-500' : assigned < total ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                              {assigned}/{total} classes assigned
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -402,29 +671,73 @@ export default function GradeSubjects() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            {editingId === item.id ? (
-                              <>
-                                <button onClick={() => handleUpdate(item.id)}
-                                  className="px-2.5 py-1.5 bg-teal-600 text-white text-[10px] font-semibold rounded-lg hover:bg-teal-700">Save</button>
-                                <button onClick={() => setEditingId(null)}
-                                  className="px-2.5 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-semibold rounded-lg hover:bg-gray-200">Cancel</button>
-                              </>
-                            ) : (
-                              <>
-                                <button onClick={() => startEdit(item)}
-                                  className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                </button>
-                                <button onClick={() => handleDelete(item.id)}
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remove">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                              </>
+                            {total > 0 && (
+                              <button onClick={() => toggleExpand(item)}
+                                className={`px-2.5 py-1.5 text-[10px] font-semibold rounded-lg transition-colors ${expanded ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-teal-600 text-white hover:bg-teal-700'}`}>
+                                {expanded ? 'Close' : 'Assign teachers'}
+                              </button>
                             )}
+                            <button onClick={() => handleDelete(item.id)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remove subject from grade">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      {expanded && (
+                        <tr className="bg-teal-50/40">
+                          <td colSpan={5} className="px-4 py-4">
+                            {loadingClasses ? (
+                              <div className="py-6 text-center"><div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-teal-600 border-t-transparent" /></div>
+                            ) : classRows.length === 0 ? (
+                              <p className="text-xs text-gray-400 text-center py-3">No active classes found for this grade & term.</p>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-700">Assign a teacher for {item.subject_name} in each class</p>
+                                    <p className="text-[10px] text-gray-500 mt-0.5">{isPrimaryGrade
+                                      ? "Primary grade — the class supervisor teaches every subject, so each class is set to its supervisor. Change any of them, then save."
+                                      : "Each subject has its own teacher here — pick one per class, then save."}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-gray-400">Set all to:</span>
+                                    <div className="min-w-[220px]">
+                                      <Select2 size="sm" value="" isClearable={false} placeholder="— pick —"
+                                        options={[{ value: '', label: '(none)' }, ...teachers.map(teacherOption)]}
+                                        onChange={(v) => applyTeacherToAll(v || '')} />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {classRows.map(row => (
+                                    <div key={row.school_class_id} className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
+                                      <span className="text-xs font-semibold text-gray-700 w-24 truncate" title={row.class_name}>{row.class_name}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <Select2 size="sm" value={row.teacher_id || ''} placeholder="No teacher"
+                                          options={teacherOptions(row.teacher_id, row.teacher_name)}
+                                          onChange={(v) => setClassTeacher(row.school_class_id, v || '')} />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button onClick={() => { setExpandedSubjectId(null); setClassRows([]); }}
+                                    className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg hover:bg-gray-50">Cancel</button>
+                                  <button onClick={() => saveClassTeachers(item)} disabled={savingClasses}
+                                    className="px-4 py-1.5 bg-teal-600 text-white text-[11px] font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
+                                    {savingClasses && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                                    {savingClasses ? 'Saving...' : 'Save class teachers'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -457,7 +770,7 @@ export default function GradeSubjects() {
                   ))}
                 </select>
               </div>
-              {!isPrimary && (
+              {(
                 <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl cursor-pointer">
                   <input type="checkbox" checked={copyIncludeTeachers} onChange={e => setCopyIncludeTeachers(e.target.checked)}
                     className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500" />

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createJournalEntry, getChartOfAccounts } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 const emptyLine = { chart_account_id: "", debit: "", credit: "", description: "", party_id: "", account_id: "" };
 
 function sumNum(arr, key) {
@@ -95,7 +96,7 @@ export default function JournalEntryForm() {
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Transaction Date</label>
-            <input type="date" value={form.transaction_date} onChange={(e) => setForm((p) => ({ ...p, transaction_date: e.target.value }))} required
+            <DateField value={form.transaction_date} onChange={(e) => setForm((p) => ({ ...p, transaction_date: e.target.value }))} required
               className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
           </div>
         </div>

@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const interviewTypeLabels = {
   phone: { label: "Phone", icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z", bg: "bg-blue-100 text-blue-600" },
@@ -20,6 +23,9 @@ const statusConfig = {
 export default function InterviewShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/interviews");
   const { canUpdate, canDelete } = useResourcePermissions("applications");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +36,8 @@ export default function InterviewShow() {
 
   const fetchData = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/interviews/${id}`);
+    if (__cached) { setData(__cached); setLoading(false); }
     try {
       const response = await get(`/recruitment/interviews/${id}`);
       setData(response.data);
@@ -54,7 +62,7 @@ export default function InterviewShow() {
       try {
         await del(`/recruitment/interviews/${id}`);
         Swal.fire("Deleted", "Interview deleted", "success");
-        navigate("/recruitment/interviews");
+        goBack();
       } catch {
         Swal.fire("Error", "Failed to delete", "error");
       }
@@ -90,7 +98,7 @@ export default function InterviewShow() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/recruitment/interviews")} className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors">
+          <button onClick={goBack} className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
@@ -153,7 +161,7 @@ export default function InterviewShow() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Date</p>
-                <p className="text-sm text-gray-800">{scheduledDate ? scheduledDate.toLocaleDateString() : "-"}</p>
+                <p className="text-sm text-gray-800">{scheduledDate ? fmtDate(scheduledDate) : "-"}</p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Time</p>
@@ -244,7 +252,7 @@ export default function InterviewShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created</p>
-                  <p className="text-xs font-medium text-gray-800">{data.created_at ? new Date(data.created_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.created_at ? fmtDateTime(data.created_at) : "-"}</p>
                 </div>
               </div>
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
@@ -256,7 +264,7 @@ export default function InterviewShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
-                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? new Date(data.updated_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? fmtDateTime(data.updated_at) : "-"}</p>
                 </div>
               </div>
             </div>

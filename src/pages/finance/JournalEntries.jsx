@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getJournalEntries, postJournalEntry } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
 const statusStyles = {
   draft: "bg-gray-50 text-gray-700 border-gray-200",
   posted: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -19,6 +21,8 @@ export default function JournalEntries() {
     try {
       const params = {};
       if (status !== "all") params.status = status;
+      const __cached = peekCache('/financial/journal-entries', params);
+      if (__cached) { setItems(__cached?.data?.data || __cached?.data || []); setLoading(false); }
       const res = await getJournalEntries(params);
       setItems(res.data?.data?.data || res.data?.data || []);
     } catch (e) {
@@ -98,7 +102,7 @@ export default function JournalEntries() {
                 return (
                   <tr key={je.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/finance/journal-entries/show/${je.id}`)}>
                     <td className="px-4 py-2.5 text-xs font-medium text-teal-700">{je.entry_number || `JE#${je.id}`}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{je.transaction_date}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{fmtDate(je.transaction_date)}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-700">{je.description}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 text-right">{Number(je.total_debit || 0).toLocaleString()}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 text-right">{Number(je.total_credit || 0).toLocaleString()}</td>

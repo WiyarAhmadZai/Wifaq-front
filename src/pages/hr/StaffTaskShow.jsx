@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del, put, API_BASE_URL } from '../../api/axios';
+import { get, del, put, post, API_BASE_URL, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+import { SendReminderButton } from "../../components/hr/Reminders";
+import { useAuth } from "../../admin/context/AuthContext";
+import { RateWorkButton } from "../../components/hr/StaffRatings";
+import { RichTextView } from "../../components/RichTextField";
+import { richTextToPlain } from "../../utils/richText";
+import { TaskReportModal } from "../../components/hr/StaffTaskCalendar";
+
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
 const Icons = {
@@ -51,6 +59,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
     </svg>
   ),
+  Edit: () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  ),
 };
 
 const getStatusBadge = (status) => {
@@ -58,6 +71,7 @@ const getStatusBadge = (status) => {
     pending: 'bg-amber-100 text-amber-800 border-amber-200',
     in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
     completed: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    cancelled: 'bg-gray-100 text-gray-500 border-gray-300',
   };
   return styles[status] || 'bg-gray-100 text-gray-800 border-gray-200';
 };
@@ -67,6 +81,7 @@ const getStatusLabel = (status) => {
     pending: 'Pending',
     in_progress: 'In Progress',
     completed: 'Completed',
+    cancelled: 'Cancelled',
   };
   return labels[status] || status;
 };
@@ -76,6 +91,7 @@ const getStatusIcon = (status) => {
     pending: '⏳',
     in_progress: '🔄',
     completed: '✅',
+    cancelled: '⛔',
   };
   return icons[status] || '⏳';
 };
@@ -124,10 +140,12 @@ const TimelineItem = ({ icon: Icon, label, value, color = 'teal' }) => (
 
 export default function StaffTaskShow() {
   const { id } = useParams();
+  const { user: authUser, isSuperAdmin, hasRole } = useAuth();
   const navigate = useNavigate();
   const { canUpdate, canDelete } = useResourcePermissions("staff-task");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     fetchItem();
@@ -135,6 +153,11 @@ export default function StaffTaskShow() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/staff-tasks/${id}`);
+    if (__cached) {
+      setData(__cached);
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/staff-tasks/${id}`);
       setData(response.data);
@@ -145,11 +168,21 @@ export default function StaffTaskShow() {
     }
   };
 
+  // The assigner nudges; admins and HR may too (mirrors StaffTaskController::remind).
+  const canRemind = !!data && (Number(authUser?.id) === Number(data.assigned_by) || isSuperAdmin || hasRole('admin') || hasRole('hr-manager'));
+
+  // The assignee reports back; an admin/HR may report on their behalf (mirrors StaffTaskController::canWork).
+  const canReport = !!data && (data.mine || isSuperAdmin || hasRole('admin') || hasRole('hr-manager'));
+
+  // Whoever assigned the task may edit it — the server allows the
+  // assigner to update (canSee), with or without the permission.
+  const canEditTask = canUpdate || (!!data && Number(data.assigned_by) === Number(authUser?.id));
+
   const handleStatusUpdate = async () => {
     const { value: newStatus } = await Swal.fire({
       title: 'Update Status',
       input: 'select',
-      inputOptions: { pending: 'Pending', in_progress: 'In Progress', completed: 'Completed' },
+      inputOptions: { pending: 'Pending', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' },
       inputValue: data.status,
       showCancelButton: true,
       confirmButtonColor: '#0d9488',
@@ -226,11 +259,31 @@ export default function StaffTaskShow() {
             <p className="text-xs text-gray-500">View complete task information</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {/* Nudge the assignee — the server allows it for whoever assigned the task, and admins. */}
+          {!['completed', 'cancelled'].includes(data.status) && canRemind && <SendReminderButton endpoint={`/hr/staff-tasks/${id}/remind`} />}
+          {canReport && (
+            <button
+              onClick={() => setReportOpen(true)}
+              className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Notes />
+              {data.report ? 'Update Report' : 'Report'}
+            </button>
+          )}
+          {canEditTask && (
+            <button
+              onClick={() => navigate(`/hr/staff-task/edit/${id}`)}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Edit />
+              Edit
+            </button>
+          )}
           {canUpdate && (
             <button
               onClick={handleStatusUpdate}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+              className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-xs font-medium"
             >
               <Icons.Refresh />
               Update Status
@@ -275,6 +328,9 @@ export default function StaffTaskShow() {
             </div>
           </div>
 
+          {/* Stars on the five standards — offered to the assignee's superiors. */}
+          <RateWorkButton type="staff_task" id={Number(id)} title={data.title || richTextToPlain(data.task)} />
+
           {/* Task Details */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -299,15 +355,16 @@ export default function StaffTaskShow() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               <InfoCard icon={Icons.User} label="Assigned By" value={data.assigner?.name || '-'} />
               <InfoCard icon={Icons.Calendar} label="Task Type" value={data.task_type ? data.task_type.charAt(0).toUpperCase() + data.task_type.slice(1) : 'Normal'} />
-              <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date ? new Date(data.start_date).toLocaleDateString() : '-'} />
-              {data.deadline && <InfoCard icon={Icons.Clock} label="Deadline" value={new Date(data.deadline).toLocaleDateString()} />}
+              <InfoCard icon={Icons.Calendar} label="Start Date" value={data.start_date ? fmtDate(data.start_date) : '-'} />
+              {data.deadline && <InfoCard icon={Icons.Clock} label="Deadline" value={fmtDate(data.deadline)} />}
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center gap-2 text-teal-600 mb-2">
                 <Icons.Task />
                 <span className="text-[10px] font-medium uppercase tracking-wider">Task Description</span>
               </div>
-              <p className="text-sm text-gray-800 leading-relaxed">{data.task}</p>
+              {data.title && <p className="text-base font-bold text-gray-900 mb-1" dir="auto">{data.title}</p>}
+              <RichTextView html={data.task} className="text-sm text-gray-800 leading-relaxed" />
             </div>
             {data.notes && (
               <div className="mt-4 bg-amber-50 rounded-lg p-4 border border-amber-100">
@@ -315,7 +372,49 @@ export default function StaffTaskShow() {
                   <Icons.Notes />
                   <span className="text-[10px] font-medium uppercase tracking-wider">Notes</span>
                 </div>
-                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{data.notes}</p>
+                <RichTextView html={data.notes} className="text-sm text-gray-800 leading-relaxed" />
+              </div>
+            )}
+            {data.report && (
+              <div className="mt-4 bg-teal-50 rounded-lg p-4 border border-teal-100">
+                <div className="flex items-center gap-2 text-teal-700 mb-2">
+                  <Icons.Notes />
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Report back</span>
+                  {data.reported_at && <span className="text-[10px] text-gray-400 normal-case">· {fmtDateTime(data.reported_at)}</span>}
+                </div>
+                <RichTextView html={data.report} className="text-sm text-gray-800 leading-relaxed" />
+              </div>
+            )}
+            {data.statusUpdates && data.statusUpdates.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 text-gray-700 mb-3">
+                  <Icons.Notes />
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Responses</span>
+                </div>
+                <div className="space-y-3">
+                  {data.statusUpdates.map((u) => (
+                    <div key={u.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          u.status === 'done' ? 'bg-teal-100 text-teal-700'
+                            : u.status === 'at_risk' ? 'bg-amber-100 text-amber-700'
+                            : u.status === 'blocked' ? 'bg-red-100 text-red-700'
+                            : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {u.status ? u.status.replace('_', ' ') : 'update'}
+                        </span>
+                        {typeof u.progress_pct === 'number' && (
+                          <span className="text-[10px] text-gray-500">{u.progress_pct}%</span>
+                        )}
+                        <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(u.created_at)}</span>
+                      </div>
+                      {u.update_text && <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap" dir="auto">{u.update_text}</p>}
+                      {u.blocked_reason && (
+                        <p className="text-xs text-red-600 mt-1">Blocked: {u.blocked_reason}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -333,28 +432,28 @@ export default function StaffTaskShow() {
               <TimelineItem
                 icon={Icons.Calendar}
                 label="Assigned On"
-                value={data.created_at ? new Date(data.created_at).toLocaleString() : '-'}
+                value={data.created_at ? fmtDateTime(data.created_at) : '-'}
                 color="teal"
               />
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
               <TimelineItem
                 icon={Icons.Clock}
                 label="Started On"
-                value={data.started_at ? new Date(data.started_at).toLocaleString() : (data.created_at ? new Date(data.created_at).toLocaleString() : 'Not started yet')}
+                value={data.started_at ? fmtDateTime(data.started_at) : (data.created_at ? fmtDateTime(data.created_at) : 'Not started yet')}
                 color={data.started_at || data.created_at ? 'blue' : 'gray'}
               />
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
               <TimelineItem
                 icon={Icons.Clock}
                 label="Completed On"
-                value={data.completed_at ? new Date(data.completed_at).toLocaleString() : 'Not completed yet'}
+                value={data.completed_at ? fmtDateTime(data.completed_at) : 'Not completed yet'}
                 color={data.completed_at ? 'emerald' : 'gray'}
               />
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
               <TimelineItem
                 icon={Icons.Calendar}
                 label="Last Updated"
-                value={data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}
+                value={data.updated_at ? fmtDateTime(data.updated_at) : '-'}
                 color="gray"
               />
             </div>
@@ -386,6 +485,11 @@ export default function StaffTaskShow() {
           </div>
         </div>
       </div>
+
+      {reportOpen && (
+        <TaskReportModal task={data} onClose={() => setReportOpen(false)}
+          onSaved={() => { setReportOpen(false); fetchItem(); }} />
+      )}
     </div>
   );
 }

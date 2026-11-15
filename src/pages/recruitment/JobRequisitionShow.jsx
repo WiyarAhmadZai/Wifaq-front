@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, del, put } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, del, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const Icons = {
   ArrowLeft: () => (
@@ -72,6 +75,9 @@ const STATUS_OPTIONS = [
 export default function JobRequisitionShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/job-requisitions");
   const { canUpdate, canDelete } = useResourcePermissions("job-requisitions");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +91,8 @@ export default function JobRequisitionShow() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/job-requisitions/${id}`);
+    if (__cached) { setData(__cached?.data || __cached); setLoading(false); }
     try {
       const response = await get(`/recruitment/job-requisitions/${id}`);
       setData(response.data?.data || response.data);
@@ -112,7 +120,7 @@ export default function JobRequisitionShow() {
       try {
         await del(`/recruitment/job-requisitions/${id}`);
         Swal.fire("Deleted", "Record deleted successfully", "success");
-        navigate("/recruitment/job-requisitions");
+        goBack();
       } catch {
         Swal.fire("Error", "Failed to delete", "error");
       }
@@ -148,12 +156,15 @@ export default function JobRequisitionShow() {
   };
 
   const formatValue = (key, value) => {
+    // Checked before the generic null case: an empty deadline is a decision
+    // ("open until we close it"), not a gap in the record.
+    if (key === "deadline_date" && !value) return "No deadline — open permanently";
     if (value === null || value === undefined) return "-";
     if (key === "created_at" || key === "updated_at") {
-      return new Date(value).toLocaleString();
+      return fmtDateTime(value);
     }
     if (key === "deadline_date") {
-      return new Date(value).toLocaleDateString();
+      return fmtDate(value);
     }
     if (key === "employment_type") {
       return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -206,7 +217,7 @@ export default function JobRequisitionShow() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/recruitment/job-requisitions")}
+            onClick={goBack}
             className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
           >
             <Icons.ArrowLeft />
@@ -336,7 +347,7 @@ export default function JobRequisitionShow() {
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created On</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.created_at ? new Date(data.created_at).toLocaleString() : "-"}
+                    {data.created_at ? fmtDateTime(data.created_at) : "-"}
                   </p>
                 </div>
               </div>
@@ -348,7 +359,7 @@ export default function JobRequisitionShow() {
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.updated_at ? new Date(data.updated_at).toLocaleString() : "-"}
+                    {data.updated_at ? fmtDateTime(data.updated_at) : "-"}
                   </p>
                 </div>
               </div>

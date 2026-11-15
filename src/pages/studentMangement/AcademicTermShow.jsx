@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const Icons = {
   ArrowLeft: () => (
@@ -80,6 +82,8 @@ export default function AcademicTermShow() {
 
   const fetchTerm = async () => {
     setLoading(true);
+    const __cached = peekCache(`/academic-terms/show/${id}`);
+    if (__cached) { setTerm(__cached?.data ?? __cached); setLoading(false); }
     try {
       const response = await get(`/academic-terms/show/${id}`);
       const termData = response.data?.data || response.data;
@@ -95,11 +99,7 @@ export default function AcademicTermShow() {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return fmtDate(dateStr);
   };
 
   const getDuration = () => {
@@ -345,13 +345,13 @@ export default function AcademicTermShow() {
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-gray-300 rounded-full"></span>
                 <span>
-                  Created: {new Date(term.created_at).toLocaleString()}
+                  Created: {fmtDateTime(term.created_at)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
                 <span>
-                  Updated: {new Date(term.updated_at).toLocaleString()}
+                  Updated: {fmtDateTime(term.updated_at)}
                 </span>
               </div>
               <div className="flex items-center gap-2">

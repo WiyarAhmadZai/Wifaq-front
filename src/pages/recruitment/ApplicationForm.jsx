@@ -1,18 +1,41 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
-import { handleValidationErrors } from "../../utils/formErrors";
+import { handleValidationErrors, fmtDate } from "../../utils/formErrors";
 
-const STEPS = [
-  { num: 1, label: "Job Selection", desc: "Select job posting", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-  { num: 2, label: "Personal Info", desc: "Basic information & introduction", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
-  { num: 3, label: "Social Media", desc: "Social media profiles (optional)", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
-  { num: 4, label: "Motivation", desc: "Your motivation for this role", icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" },
-  { num: 5, label: "Education", desc: "Educational background", icon: "M12 14l9-5-9-5-9 5 9 5z" },
-  { num: 6, label: "Experience", desc: "Work history", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-  { num: 7, label: "Documents", desc: "Upload required documents", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+import { DateField } from "../../components/hr/HrUI";
+const ICONS = {
+  briefcase: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+  person: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+  people: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+  star: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z",
+  cap: "M12 14l9-5-9-5-9 5 9 5z",
+  doc: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+  sparkles: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z",
+  comment: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+};
+
+/* The wizard's section order lives here and nowhere else. Each entry carries a
+ * stable `key` that validation and the 422 error mapping look up by name, so
+ * reordering this array reorders the form with no other edit. */
+const SECTIONS = [
+  { key: "personal",   label: "Personal Info",     desc: "Basic personal information",               icon: ICONS.person },
+  { key: "role",       label: "Job Selection",     desc: "Select job posting",                       icon: ICONS.briefcase },
+  // All three narrative questions — introduction, motivation and distinct
+  // skills — live in this one section so they are answered together.
+  { key: "motivation", label: "Motivation & Self-Introduction", desc: "Why this role and what you bring", icon: ICONS.star },
+  { key: "education",  label: "Education",         desc: "Educational background",                   icon: ICONS.cap },
+  { key: "work",       label: "Experience",        desc: "Work history",                             icon: ICONS.briefcase },
+  { key: "documents",  label: "Documents",         desc: "Upload required documents",                icon: ICONS.doc },
+  { key: "social",     label: "Social & Comments", desc: "Social profiles & extra notes (optional)", icon: ICONS.people },
 ];
+
+const STEPS = SECTIONS.map((s, i) => ({ ...s, num: i + 1 }));
+
+/* 1-based step number for a section key. */
+const stepOf = (key) => SECTIONS.findIndex((s) => s.key === key) + 1;
 
 const EDUCATION_LEVELS = [
   { value: "", label: "Select Education Level" },
@@ -24,11 +47,19 @@ const EDUCATION_LEVELS = [
   { value: "other", label: "Other" },
 ];
 
+/* Required documents first, optional last — same order as the public careers
+ * form. The `key` values are the API's document_type values and must not
+ * change; only the display order and labels differ. */
+/* Spec caps the form at three job entries. Existing records are never
+ * truncated — this only stops the "add" button past the third row, so a
+ * legacy application holding more than three still loads and saves intact. */
+const MAX_EXPERIENCES = 3;
+
 const DOCUMENT_TYPES = [
-  { key: "work_samples", label: "Work Samples", required: false },
-  { key: "identity_document", label: "ID Card or Passport", required: true },
-  { key: "educational_document", label: "Educational Documents", required: true },
   { key: "cv_resume", label: "CV / Resume", required: true },
+  { key: "educational_document", label: "Educational Documents", required: true },
+  { key: "identity_document", label: "ID / Tazkira / Passport", required: true },
+  { key: "work_samples", label: "Work Samples", required: false },
 ];
 
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
@@ -59,6 +90,9 @@ const StepCard = ({ step, children }) => (
 
 export default function ApplicationForm() {
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/applications");
   const { id } = useParams();
   const isEdit = Boolean(id);
 
@@ -87,6 +121,7 @@ export default function ApplicationForm() {
     institution_name: "",
     total_experience_years: 0,
     unique_skill: [""],
+    notes: "",
   });
 
   const [workExperiences, setWorkExperiences] = useState([
@@ -119,8 +154,45 @@ export default function ApplicationForm() {
     }
   };
 
+  const mapApplication = (d) => {
+    let formattedDate = "";
+    if (d.date_of_birth) {
+      const date = new Date(d.date_of_birth);
+      formattedDate = date.toISOString().split('T')[0];
+    }
+    setFormData({
+      job_posting_id: d.job_posting_id || "",
+      full_name: d.full_name || "",
+      contact_number: d.contact_number || "",
+      email: d.email || "",
+      date_of_birth: formattedDate,
+      current_address: d.current_address || "",
+      place_of_origin: d.place_of_origin || "",
+      introduction: d.introduction || "",
+      facebook: d.facebook || "",
+      instagram: d.instagram || "",
+      twitter_x: d.twitter_x || "",
+      youtube: d.youtube || "",
+      motivation: d.motivation || "",
+      education_level: d.education_level || "",
+      field_of_study: d.field_of_study || "",
+      institution_name: d.institution_name || "",
+      total_experience_years: d.total_experience_years || 0,
+      unique_skill: d.unique_skill?.length > 0 ? d.unique_skill : [""],
+      notes: d.notes || "",
+    });
+    if (d.met_requirements && Array.isArray(d.met_requirements)) {
+      setMetRequirements(d.met_requirements);
+    }
+    if (d.work_experiences && d.work_experiences.length > 0) {
+      setWorkExperiences(d.work_experiences);
+    }
+  };
+
   const fetchApplication = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/applications/${id}`);
+    if (__cached) { mapApplication(__cached?.data || __cached); setLoading(false); }
     try {
       const response = await get(`/recruitment/applications/${id}`);
       const d = response.data?.data || response.data;
@@ -222,24 +294,30 @@ export default function ApplicationForm() {
     }
   };
 
+  /* Same rules as before — only the section they are keyed to changed, so each
+   * rule still fires on the screen that actually holds its field. */
   const validateStep = () => {
     const newErrors = {};
-    
-    if (step === 1) {
+    const k = cur.key;
+
+    if (k === "role") {
       if (!formData.job_posting_id) newErrors.job_posting_id = "Please select a job posting";
     }
-    
-    if (step === 2) {
+
+    if (k === "personal") {
       if (!formData.full_name) newErrors.full_name = "Full name is required";
       if (!formData.contact_number) newErrors.contact_number = "Contact number is required";
       if (!formData.email) newErrors.email = "Email is required";
       if (!formData.date_of_birth) newErrors.date_of_birth = "Date of birth is required";
       if (!formData.current_address) newErrors.current_address = "Current address is required";
       if (!formData.place_of_origin) newErrors.place_of_origin = "Place of origin is required";
+    }
+
+    if (k === "motivation") {
       if (!formData.introduction) newErrors.introduction = "Introduction is required";
     }
-    
-    if (step === 5) {
+
+    if (k === "education") {
       if (!formData.education_level) newErrors.education_level = "Education level is required";
       if (!formData.field_of_study) newErrors.field_of_study = "Field of study is required";
       if (!formData.institution_name) newErrors.institution_name = "Institution name is required";
@@ -250,9 +328,11 @@ export default function ApplicationForm() {
   };
 
   const canNext = () => {
-    if (step === 1) return formData.job_posting_id;
-    if (step === 2) return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin && formData.introduction;
-    if (step === 5) return formData.education_level && formData.field_of_study && formData.institution_name;
+    const k = cur.key;
+    if (k === "role") return formData.job_posting_id;
+    if (k === "personal") return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin;
+    if (k === "motivation") return !!formData.introduction;
+    if (k === "education") return formData.education_level && formData.field_of_study && formData.institution_name;
     return true;
   };
 
@@ -301,15 +381,17 @@ export default function ApplicationForm() {
         
         Swal.fire("Success", "Application submitted successfully", "success");
       }
-      navigate("/recruitment/applications");
+      goBack();
     } catch (error) {
+      // Built from the section keys, so a 422 lands on the step that actually
+      // holds the offending field however SECTIONS is ordered.
       const stepMap = {
-        1: ['job_posting_id'],
-        2: ['full_name','contact_number','email','date_of_birth','current_address','place_of_origin','introduction'],
-        3: ['facebook','instagram','twitter_x','youtube'],
-        4: ['motivation'],
-        5: ['education_level','field_of_study','institution_name'],
-        6: ['total_experience_years'],
+        [stepOf('role')]: ['job_posting_id'],
+        [stepOf('personal')]: ['full_name','contact_number','email','date_of_birth','current_address','place_of_origin'],
+        [stepOf('motivation')]: ['introduction','motivation','unique_skill'],
+        [stepOf('education')]: ['education_level','field_of_study','institution_name'],
+        [stepOf('work')]: ['total_experience_years','work_experiences'],
+        [stepOf('social')]: ['facebook','instagram','twitter_x','youtube','notes'],
       };
       if (!handleValidationErrors(error.response, setErrors, setStep, stepMap)) {
         Swal.fire("Error", error.response?.data?.message || "Failed to save application", "error");
@@ -333,7 +415,7 @@ export default function ApplicationForm() {
   return (
     <div className="px-4 py-4 mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/recruitment/applications")} className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
+        <button onClick={goBack} className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
@@ -371,8 +453,10 @@ export default function ApplicationForm() {
         </div>
       </div>
 
+      {/* Only one section renders at a time, so the on-screen order is the
+        * order of SECTIONS above — not the order these blocks appear in. */}
       <form onSubmit={(e) => { e.preventDefault(); step === STEPS.length ? handleSubmit() : handleNext(); }}>
-        {step === 1 && (
+        {cur.key === "role" && (
           <StepCard step={cur}>
             <div className="grid grid-cols-1 gap-5">
               <div>
@@ -386,7 +470,7 @@ export default function ApplicationForm() {
                   <option value="">Select Job Posting</option>
                   {jobPostings.map((jp) => (
                     <option key={jp.id} value={jp.id} className="truncate max-w-md">
-                      {jp.title} - {jp.location}
+                      {jp.code ? `${jp.code} · ` : ""}{jp.title} - {jp.location}
                     </option>
                   ))}
                 </select>
@@ -401,7 +485,9 @@ export default function ApplicationForm() {
                   { label: "Department", value: selected.department?.replace(/_/g, ' ') },
                   { label: "Employment Type", value: selected.employment_type?.replace(/_/g, ' ') },
                   { label: "Open Positions", value: selected.number_of_positions },
-                  { label: "Deadline", value: selected.deadline_date },
+                  // A blank deadline would be dropped by the filter below, so
+                  // it is spelled out — this posting never closes on its own.
+                  { label: "Deadline", value: selected.deadline_date || "No deadline — open permanently" },
                 ].filter(item => item.value);
                 return (
                   <div className="mt-4 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl border border-teal-200">
@@ -427,7 +513,7 @@ export default function ApplicationForm() {
           </StepCard>
         )}
 
-        {step === 2 && (
+        {cur.key === "personal" && (
           <StepCard step={cur}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
@@ -447,7 +533,7 @@ export default function ApplicationForm() {
               </div>
               <div>
                 <Label required>Date of Birth</Label>
-                <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={errors.date_of_birth ? inpError : inp} />
+                <DateField name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={errors.date_of_birth ? inpError : inp} />
                 {errors.date_of_birth && <p className="text-red-500 text-xs mt-1">{errors.date_of_birth}</p>}
               </div>
               <div className="sm:col-span-2">
@@ -460,47 +546,75 @@ export default function ApplicationForm() {
                 <input type="text" name="place_of_origin" value={formData.place_of_origin} onChange={handleChange} placeholder="City/Province" className={errors.place_of_origin ? inpError : inp} />
                 {errors.place_of_origin && <p className="text-red-500 text-xs mt-1">{errors.place_of_origin}</p>}
               </div>
-              <div className="sm:col-span-2">
-                <Label required>Introduction</Label>
-                <textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={4} placeholder="Briefly introduce yourself..." className={errors.introduction ? inpError : inp} />
-                {errors.introduction && <p className="text-red-500 text-xs mt-1">{errors.introduction}</p>}
+            </div>
+          </StepCard>
+        )}
+
+        {/* One optional closing section holding two labelled groups: the
+          * social profiles and the free-text comments. Every field here is
+          * optional, which the note below states once for both. */}
+        {cur.key === "social" && (
+          <StepCard step={cur}>
+            <p className="text-xs text-gray-500 -mt-2">Every field in this section is optional.</p>
+
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ICONS.people} /></svg>
+                <p className="text-xs font-bold text-gray-800">Social Media (Optional)</p>
+              </div>
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Facebook</Label>
+                  <input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder="Profile URL" className={inp} />
+                </div>
+                <div>
+                  <Label>Instagram</Label>
+                  <input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder="@username" className={inp} />
+                </div>
+                <div>
+                  <Label>Twitter/X</Label>
+                  <input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder="@username" className={inp} />
+                </div>
+                <div>
+                  <Label>YouTube</Label>
+                  <input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder="Channel URL" className={inp} />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ICONS.comment} /></svg>
+                <p className="text-xs font-bold text-gray-800">Additional Comments (Optional)</p>
+              </div>
+              <div className="p-4">
+                <textarea name="notes" value={formData.notes} onChange={handleChange} rows={4} placeholder="Anything else worth recording about this candidate..." className={inp} />
               </div>
             </div>
           </StepCard>
         )}
 
-        {step === 3 && (
+        {cur.key === "motivation" && (
           <StepCard step={cur}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Facebook</Label>
-                <input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder="Profile URL" className={inp} />
-              </div>
-              <div>
-                <Label>Instagram</Label>
-                <input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder="@username" className={inp} />
-              </div>
-              <div>
-                <Label>Twitter/X</Label>
-                <input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder="@username" className={inp} />
-              </div>
-              <div>
-                <Label>YouTube</Label>
-                <input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder="Channel URL" className={inp} />
-              </div>
+            <div>
+              <Label required>Introduce Yourself</Label>
+              <p className="text-[12px] leading-relaxed text-gray-500 mb-2 -mt-0.5">
+                Write about yourself, your family and social background, and your path of growth.
+                How did you grow up, and what experiences have shaped you?
+              </p>
+              <textarea name="introduction" value={formData.introduction} onChange={handleChange} rows={6} placeholder="Where you grew up, your family and community, the turning points that shaped you..." className={errors.introduction ? inpError : inp} />
+              {errors.introduction && <p className="text-red-500 text-xs mt-1">{errors.introduction}</p>}
             </div>
-          </StepCard>
-        )}
-
-        {step === 4 && (
-          <StepCard step={cur}>
             <div>
               <Label required>Motivation</Label>
               <textarea name="motivation" value={formData.motivation} onChange={handleChange} rows={6} placeholder="Why do you want this position? Describe your motivation and what makes you a good fit..." className={errors.motivation ? inpError : inp} />
               {errors.motivation && <p className="text-red-500 text-xs mt-1">{errors.motivation}</p>}
             </div>
             <div>
-              <Label>Unique Skills</Label>
+              <Label>What distinctive skill or quality do you bring to the Wifaq team?</Label>
+              <p className="text-[12px] leading-relaxed text-gray-500 mb-2 -mt-0.5">
+                Anything that sets them apart — a craft, a way of working, an ability others rely on them for.
+              </p>
               <div className="space-y-2">
                 {formData.unique_skill.map((skill, index) => (
                   <div key={index} className="flex gap-2">
@@ -519,7 +633,7 @@ export default function ApplicationForm() {
           </StepCard>
         )}
 
-        {step === 5 && (
+        {cur.key === "education" && (
           <StepCard step={cur}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -539,16 +653,16 @@ export default function ApplicationForm() {
                 <input type="text" name="institution_name" value={formData.institution_name} onChange={handleChange} placeholder="University/School name" className={errors.institution_name ? inpError : inp} />
                 {errors.institution_name && <p className="text-red-500 text-xs mt-1">{errors.institution_name}</p>}
               </div>
-              <div>
-                <Label>Total Experience (Years)</Label>
-                <input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} className={inp} />
-              </div>
             </div>
           </StepCard>
         )}
 
-        {step === 6 && (
+        {cur.key === "work" && (
           <StepCard step={cur}>
+            <div>
+              <Label required>Total Experience (Years)</Label>
+              <input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} className={`${inp} sm:max-w-xs`} />
+            </div>
             <div className="space-y-4">
               {workExperiences.map((exp, index) => (
                 <div key={index} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
@@ -566,9 +680,11 @@ export default function ApplicationForm() {
                   <textarea value={exp.responsibilities} onChange={(e) => handleWorkExperienceChange(index, "responsibilities", e.target.value)} placeholder="Responsibilities" rows={2} className={inp} />
                 </div>
               ))}
-              <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">
-                + Add Work Experience
-              </button>
+              {workExperiences.length < MAX_EXPERIENCES && (
+                <button type="button" onClick={addWorkExperience} className="w-full py-2.5 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl hover:border-teal-400 hover:text-teal-600 transition-colors text-sm font-medium">
+                  + Add Work Experience
+                </button>
+              )}
 
               {/* Job Requirements Checklist */}
               {(() => {
@@ -610,7 +726,7 @@ export default function ApplicationForm() {
           </StepCard>
         )}
 
-        {step === 7 && (
+        {cur.key === "documents" && (
           <StepCard step={cur}>
             <div className="space-y-3">
               {DOCUMENT_TYPES.map((doc) => (
@@ -659,7 +775,7 @@ export default function ApplicationForm() {
 
         <div className="flex items-center justify-between mt-6">
           <button type="button"
-            onClick={() => step > 1 ? setStep(s => s - 1) : navigate("/recruitment/applications")}
+            onClick={() => step > 1 ? setStep(s => s - 1) : goBack()}
             className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             {step === 1 ? "Cancel" : "Back"}

@@ -1,0 +1,311 @@
+import { useEffect, useState } from "react";
+import { parentChildren, parentHomework, parentSubmitHomework, parentFeed, parentPerformance } from "../../api/gradebook";
+import { peekCache } from "../../api/axios";
+import { WeeklyTopicCard } from "../education/weeklyUi";
+import {
+  Page, Header, Card, Segmented, Select, Pill, Btn, Banner, Textarea,
+  EmptyState, Loading, LoadingRow, ICON, scoreColor, fmtScore, Avatar, mediaUrl,
+} from "../education/gradebookUi";
+
+const MUTED = "#5d7273";
+
+const HW_STATUS = {
+  assigned:      { label: "To do", tone: "amber", dot: "#B26500" },
+  submitted:     { label: "Submitted", tone: "blue", dot: "#1976D2" },
+  reviewed:      { label: "Reviewed", tone: "teal", dot: "#0D5C63" },
+  graded:        { label: "Graded", tone: "emerald", dot: "#1A7A4C" },
+  not_submitted: { label: "Missed", tone: "red", dot: "#B22929" },
+};
+
+/** Friendly wording for an edit deadline. */
+function untilLabel(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const sameDay = new Date().toDateString() === d.toDateString();
+  return sameDay ? `today ${time}` : `${d.toLocaleDateString([], { weekday: "short" })} ${time}`;
+}
+
+/** Parent portal — a parent sees their children's homework (submit a photo,
+ *  editable for 1 day) and a feed of new grades. Scoped server-side to the family. */
+export default function ParentGradebook() {
+  const [children, setChildren] = useState([]);
+  const [childId, setChildId] = useState("");
+  const [tab, setTab] = useState("homework");
+  const [homework, setHomework] = useState([]);
+  const [feed, setFeed] = useState([]);
+  const [perf, setPerf] = useState(null);   // one child's term at a glance
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [editing, setEditing] = useState(null); // submission_id being submitted/edited
+  const [photo, setPhoto] = useState(null);
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    const __cached = peekCache('/parent/gradebook/children');
+    if (__cached) { const c = __cached?.data || []; setChildren(c); if (c.length === 1) setChildId(String(c[0].id)); setLoading(false); }
+    parentChildren()
+      .then((r) => { const c = r.data?.data || []; setChildren(c); if (c.length === 1) setChildId(String(c[0].id)); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [childId]); // eslint-disable-line
+  useEffect(() => {
+    // Performance is per child; with "All my children" there is nothing to show.
+    if (!childId) { setPerf(null); return; }
+    parentPerformance({ child_id: childId }).then((r) => setPerf(r.data?.data || null)).catch(() => setPerf(null));
+  }, [childId]);
+  useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(""), 4000); return () => clearTimeout(t); }, [msg]);
+
+  function load() {
+    setBusy(true); setErr("");
+    const params = childId ? { child_id: childId } : {};
+    const __hw = peekCache('/parent/gradebook/homework', params);
+    if (__hw) setHomework(__hw?.data || []);
+    const __fd = peekCache('/parent/gradebook/feed', params);
+    if (__fd) setFeed(__fd?.data || []);
+    Promise.all([
+      parentHomework(params).then((r) => setHomework(r.data?.data || [])).catch(() => setHomework([])),
+      parentFeed(params).then((r) => setFeed(r.data?.data || [])).catch(() => setFeed([])),
+    ]).finally(() => setBusy(false));
+  }
+
+  const openEditor = (h) => { setEditing(h.submission_id); setPhoto(null); setNote(h.note || ""); setErr(""); };
+  const closeEditor = () => { setEditing(null); setPhoto(null); setNote(""); };
+
+  async function submitWork(h) {
+    if (!photo) return setErr("Please choose a photo of the completed work.");
+    setErr(""); setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", photo);
+      if (note) fd.append("note", note);
+      const r = await parentSubmitHomework(h.submission_id, fd);
+      setMsg(r.data?.message || "Homework submitted.");
+      closeEditor(); load();
+    } catch (e) {
+      setErr(e.response?.data?.message || "Could not submit. Use a clear photo (jpg/png, max 5 MB).");
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <Loading />;
+
+  const child = children.find((c) => String(c.id) === String(childId));
+  const toDo = homework.filter((h) => h.status === "assigned" || h.status === "not_submitted").length;
+  const submitted = homework.filter((h) => h.status === "submitted").length;
+
+  return (
+    <Page size="sm">
+      <Header icon={ICON.book} title="My Children" subtitle="Homework & grades" />
+      <WeeklyTopicCard />
+      {msg && <Banner onClose={() => setMsg("")}>{msg}</Banner>}
+      {err && <Banner kind="error" onClose={() => setErr("")}>{err}</Banner>}
+
+      {children.length === 0 ? (
+        <EmptyState icon={ICON.book} title="No children linked to your account"
+          description="Please contact the school office if your child isn't showing here." />
+      ) : (
+        <>
+          {/* Child header card */}
+          <Card className="flex items-center gap-3 mb-3">
+            <Avatar name={child?.name || children[0]?.name} size={44} />
+            <div className="flex-1 min-w-0">
+              {children.length > 1 ? (
+                <Select value={childId} onChange={(e) => setChildId(e.target.value)}>
+                  <option value="">All my children</option>
+                  {children.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.class}</option>)}
+                </Select>
+              ) : (
+                <>
+                  <p className="text-sm font-black text-gray-800 truncate">{children[0]?.name}</p>
+                  <p className="text-[11px] text-gray-400">{children[0]?.class}</p>
+                </>
+              )}
+            </div>
+            <div className="text-right shrink-0">
+              <div className="flex gap-1.5">
+                {toDo > 0 && <Pill tone="amber">{toDo} to do</Pill>}
+                {submitted > 0 && <Pill tone="blue">{submitted} submitted</Pill>}
+              </div>
+            </div>
+          </Card>
+
+          <div className="mb-4">
+            <Segmented value={tab} onChange={setTab} options={[
+              { value: "homework", label: `Homework${homework.length ? ` (${homework.length})` : ""}` },
+              { value: "grades", label: `Grades${feed.length ? ` (${feed.length})` : ""}` },
+              { value: "performance", label: "Performance" },
+            ]} />
+          </div>
+
+          {busy && <LoadingRow />}
+
+          {/* ── HOMEWORK TAB ── */}
+          {!busy && tab === "homework" && (
+            homework.length === 0
+              ? <EmptyState icon={ICON.clipboard} title="All caught up 🎉" description="No homework to do right now. New homework from the teacher will appear here." />
+              : <div className="space-y-3">
+                  {homework.map((h) => {
+                    const st = HW_STATUS[h.status] || HW_STATUS.assigned;
+                    const isEditing = editing === h.submission_id;
+                    return (
+                      <div key={h.submission_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        {/* header strip */}
+                        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-50" style={{ background: "linear-gradient(90deg,#f6faf9,#fff)" }}>
+                          <span className="w-2 h-2 rounded-full" style={{ background: st.dot }} />
+                          <span className="text-[11px] font-bold text-teal-800">{h.subject}</span>
+                          {children.length > 1 && <span className="text-[11px] text-gray-400">· {h.student}</span>}
+                          <span className="ml-auto"><Pill tone={st.tone}>{st.label}</Pill></span>
+                        </div>
+
+                        <div className="p-4">
+                          <p className="text-sm text-gray-700 leading-relaxed">{h.homework_text}</p>
+                          <div className="flex items-center gap-3 mt-1.5 text-[11px]" style={{ color: MUTED }}>
+                            {h.due_date && <span>📅 Due {h.due_date}</span>}
+                            {h.status === "submitted" && h.edit_until && <span>· ✏️ editable until <b>{untilLabel(h.edit_until)}</b></span>}
+                          </div>
+
+                          {h.photo_url && (
+                            <a href={mediaUrl(h.photo_url)} target="_blank" rel="noreferrer" className="block mt-3">
+                              <img src={mediaUrl(h.photo_url)} alt="submitted work" className="rounded-xl max-h-48 w-full object-cover border border-gray-100" />
+                            </a>
+                          )}
+                          {h.note && !isEditing && <p className="mt-2 text-xs text-gray-500 italic">“{h.note}”</p>}
+
+                          {/* inline submit / edit form */}
+                          {isEditing ? (
+                            <div className="mt-3 space-y-2 rounded-xl bg-gray-50 p-3">
+                              <label className="block">
+                                <span className="text-[11px] font-bold uppercase" style={{ color: MUTED }}>Photo of completed work</span>
+                                <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+                                  className="mt-1 block w-full text-xs file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-teal-700 file:text-white file:font-semibold" />
+                                {photo && <span className="text-[10px] text-emerald-600">✓ {photo.name}</span>}
+                              </label>
+                              <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note to the teacher…" />
+                              <div className="flex gap-2">
+                                <Btn tone="primary" onClick={() => submitWork(h)} disabled={busy}>
+                                  {h.status === "submitted" ? "Save changes" : "Submit to teacher"}
+                                </Btn>
+                                <Btn tone="ghost" onClick={closeEditor}>Cancel</Btn>
+                              </div>
+                            </div>
+                          ) : h.editable ? (
+                            <div className="mt-3">
+                              <Btn tone={h.status === "submitted" ? "outline" : "primary"} onClick={() => openEditor(h)}>
+                                {h.status === "submitted" ? "✏️ Edit submission" : "📷 Submit a photo"}
+                              </Btn>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[11px] text-center text-gray-400 pt-1">Submitted homework can be edited for one day, then it locks and moves out of this list.</p>
+                </div>
+          )}
+
+          {/* ── GRADES TAB ── */}
+          {!busy && tab === "grades" && (
+            feed.length === 0
+              ? <EmptyState icon={ICON.check} title="No grades yet" description="New grades from the teacher will appear here." />
+              : <div className="space-y-3">
+                  {feed.map((g) => {
+                    const norm = (g.score / g.score_max) * 10;
+                    return (
+                      <Card key={g.grade_id} className="flex items-center gap-4">
+                        {/* score badge */}
+                        <div className="shrink-0 w-14 h-14 rounded-2xl flex flex-col items-center justify-center text-white"
+                          style={{ background: scoreColor(norm) }}>
+                          <span className="text-lg font-black leading-none">{fmtScore(g.score)}</span>
+                          <span className="text-[9px] opacity-80">/ {fmtScore(g.score_max)}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-bold text-teal-700 capitalize">{g.subject} · {String(g.type || "").replace("_", " ")}{children.length > 1 ? ` · ${g.student}` : ""}</p>
+                          <p className="text-sm font-bold text-gray-800 truncate">{g.title}</p>
+                          {g.tag && <span className="inline-block mt-1"><Pill tone="gray">{g.tag}</Pill></span>}
+                          {g.note && <p className="mt-1.5 text-xs text-gray-600 bg-teal-50/60 rounded-lg px-2.5 py-1.5">“{g.note}”</p>}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+          )}
+
+          {/* ── PERFORMANCE TAB ── term exams, weekly average & rank, promotion ── */}
+          {!busy && tab === "performance" && (
+            !childId
+              ? <EmptyState icon={ICON.clipboard} title="Pick one child" description="Performance is shown for one child at a time — choose a name above." />
+              : !perf
+                ? <LoadingRow />
+                : <Performance perf={perf} />
+          )}
+        </>
+      )}
+    </Page>
+  );
+}
+
+/** One child's term: subject results, the weekly-test average with class rank, and the confirmed promotion decision. */
+function Performance({ perf }) {
+  const w = perf.weekly;
+  const DECISION = { promote: ["Promoted", "green"], graduate: ["Graduated", "green"], reexam: ["Re-exam", "amber"], repeat: ["Repeats the grade", "red"] };
+  const d = perf.decision ? DECISION[perf.decision] : null;
+  const bandTone = w?.band === "excellent" ? "green" : w?.band === "good" ? "amber" : "red";
+  const BAND = { excellent: "Excellent", good: "Good", support: "Needs support" };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex flex-wrap items-center gap-6">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-400">Weekly tests average</div>
+            <div className="text-2xl font-black text-gray-800">{w ? `${w.average}%` : "—"}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-400">Rank in class</div>
+            <div className="text-2xl font-black text-gray-800">{w?.rank ? <><span>{w.rank}</span><span className="text-sm text-gray-400"> / {w.class_size}</span></> : "—"}</div>
+          </div>
+          {w?.band && <Pill tone={bandTone}>{BAND[w.band]}</Pill>}
+          {d && <div className="ms-auto"><Pill tone={d[1]}>{d[0]}</Pill></div>}
+        </div>
+        {w && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {Object.entries(w.weeks).sort(([a], [b]) => a - b).map(([wk, x]) => (
+              <span key={wk} title={x.date || ""} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${x.pct >= 80 ? "bg-emerald-100 text-emerald-800" : x.pct >= 60 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-700"}`}>
+                W{wk} · {x.pct}%
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Term exams</div>
+        {perf.subjects.length === 0
+          ? <p className="text-sm text-gray-400">No term exam results yet.</p>
+          : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-[10px] uppercase tracking-wider text-gray-400">
+                <th className="text-left py-1">Subject</th><th className="text-right py-1">Midterm</th><th className="text-right py-1">Final</th><th className="text-right py-1">Total</th><th className="text-right py-1">Result</th>
+              </tr></thead>
+              <tbody>
+                {perf.subjects.map((s) => (
+                  <tr key={s.subject} className="border-t border-gray-100">
+                    <td className="py-2 font-medium text-gray-800">{s.subject}</td>
+                    <td className="py-2 text-right">{s.midterm ?? "—"}</td>
+                    <td className="py-2 text-right">{s.final ?? "—"}</td>
+                    <td className="py-2 text-right font-bold">{s.total ?? "—"}</td>
+                    <td className="py-2 text-right">{s.passed == null ? <span className="text-gray-300">—</span> : s.passed ? <Pill tone="green">Pass</Pill> : <Pill tone="red">Fail</Pill>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        <p className="mt-2 text-[11px] text-gray-400">A subject passes at {perf.pass_mark} out of 100.</p>
+      </Card>
+    </div>
+  );
+}

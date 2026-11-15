@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put } from '../../api/axios';
+import { get, del, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
+import SubjectsImport from './SubjectsImport';
 
 const Icons = {
   Plus: () => <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
@@ -27,6 +28,8 @@ export default function Subjects() {
   useEffect(() => {
     (async () => {
       try {
+        const __g = peekCache('/grades/list');
+        if (__g) setGrades(__g?.data || []);
         const res = await get('/grades/list');
         setGrades(res.data?.data || []);
       } catch {}
@@ -42,6 +45,12 @@ export default function Subjects() {
       if (filters.search) params.append('search', filters.search);
       if (filters.category) params.append('category', filters.category);
       if (filters.grade_id) params.append('grade_id', filters.grade_id);
+      const __cached = peekCache(`/class-management/subjects/list?${params.toString()}`);
+      if (__cached) {
+        setItems(__cached?.data || []);
+        setPagination({ current_page: __cached?.current_page || 1, last_page: __cached?.last_page || 1, total: __cached?.total || 0 });
+        setLoading(false);
+      }
       const res = await get(`/class-management/subjects/list?${params.toString()}`);
       const data = res.data;
       setItems(data?.data || []);
@@ -79,10 +88,13 @@ export default function Subjects() {
             <h1 className="text-sm font-bold text-white">Subjects Management</h1>
             <p className="text-xs text-teal-100 mt-0.5">{pagination.total} subjects</p>
           </div>
-          <button onClick={() => navigate('/class-management/subjects/create')}
-            className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
-            <Icons.Plus /> Add New Subject
-          </button>
+          <div className="flex items-center gap-2">
+            <SubjectsImport grades={grades} onImported={() => fetchItems(pagination.current_page)} />
+            <button onClick={() => navigate('/class-management/subjects/create')}
+              className="px-4 py-2 bg-white text-teal-600 rounded-xl hover:bg-teal-50 transition-colors flex items-center gap-2 font-semibold text-xs shadow-sm">
+              <Icons.Plus /> Add New Subject
+            </button>
+          </div>
         </div>
       </div>
 
@@ -211,7 +223,7 @@ export default function Subjects() {
 
       {/* Status Modal */}
       {statusModal.open && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setStatusModal({ open: false, item: null, status: '' })}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Update Status</h3>

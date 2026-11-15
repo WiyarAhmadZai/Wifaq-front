@@ -1,23 +1,73 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { fmtDate } from "../../utils/formErrors";
+import { DateField } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
+import useSmartBack from "../../hooks/useSmartBack";
+import { useAuth } from "../../admin/context/AuthContext";
+import { draftKey, readDraft, writeDraft, clearDraft } from "../../utils/formDraft";
+import { RestoreDraftBanner, DraftStatus } from "../../components/hr/DraftBar";
+import RichTextField from "../../components/RichTextField";
+import { AutoRemindPicker } from "../../components/hr/Reminders";
+
+// Fires the server autosave this long after the last keystroke, once the
+// event already exists as a draft. Short enough that little is ever at risk,
+// long enough that typing a description is not a stream of PUTs.
+const AUTOSAVE_IDLE_MS = 15000;
 const ROLE_OPTIONS = ["Coordinator", "Welcoming", "Hospitality", "Registration", "Speaker", "Security", "Logistics", "Photography", "IT Support", "Other"];
 
 export default function EventForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack("/hr/events");
+  const { user } = useAuth();
   const isEdit = Boolean(id);
   const roleRef = useRef(null);
 
-  const [form, setForm] = useState({ title: "", description: "", start_date: "", end_date: "", main_responsible_id: "", location: "", status: "upcoming" });
+  const [form, setForm] = useState({ title: "", description: "", start_date: "", end_date: "", main_responsible_id: "", location: "", status: "upcoming", recurrence: "", recurrence_until: "" });
   const [roles, setRoles] = useState([]);
   const [requirements, setRequirements] = useState([{ description: "", assigned_to_id: "" }]);
   const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  // "Also send an email" to everyone involved. Per event; a draft emails nobody.
+  const [emailToo, setEmailToo] = useState(true);
+  // A week / a day / an hour before the event — for everyone involved.
+  const [autoReminders, setAutoReminders] = useState([]);
+
+  /* ── Nothing typed here gets thrown away ────────────────────────────────
+   *
+   * The event is saved as a `draft` the moment the planner asks for it (or
+   * automatically, once a draft exists and they stop typing). A draft is a
+   * real row: it survives leaving the page, a refresh and a different device,
+   * it shows in the events list marked as a draft, and it notifies nobody
+   * until it is published. Between those saves the browser holds a local copy
+   * as well, so even a first, never-saved attempt is recoverable.
+   */
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [localDraft, setLocalDraft] = useState(null);   // pending restore offer
+  const savedSnapshot = useRef(null);                   // what the server has
+  const isDraft = form.status === "draft";
+  const localKey = draftKey("event", user?.id, id);
+
+  // Content only — `status` is tracked separately (saving a draft flips it,
+  // and that must not read as "the user changed something").
+  const snapshotOf = () => JSON.stringify({ ...form, status: null, roles, requirements });
+
+  const buildPayload = (status) => ({
+    ...form,
+    status,
+    notify_by_email: emailToo,
+    ...(autoReminders.length ? { auto_reminders: autoReminders } : {}),
+    roles: roles.map(({ userName, ...r }) => r),
+    requirements: requirements.filter((r) => r.description.trim()),
+  });
 
   // Role form
   const [roleForm, setRoleForm] = useState({ user_id: "", role_name: "", notes: "" });
@@ -25,34 +75,175 @@ export default function EventForm() {
 
   useEffect(() => { fetchUsers(); if (isEdit) loadEvent(); }, [id]);
 
-  const fetchUsers = async () => {
+  // Offer to restore anything the browser kept from a previous visit. Never
+  // applied automatically — see RestoreDraftBanner.
+  useEffect(() => {
+    if (loading) return;
+    const found = readDraft(localKey);
+    if (found) setLocalDraft(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localKey]);
+
+  // Local mirror: cheap, synchronous, and covers the window before the first
+  // server save (and every keystroke between server saves).
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => {
+      // Only what the server does not already have. Mirroring an already-saved
+      // draft would put up a "restore unsaved work?" banner on the next visit
+      // offering the user exactly what is already on screen.
+      if (savedSnapshot.current === snapshotOf()) return;
+      if (form.title || form.description || roles.length || requirements.some((r) => r.description)) {
+        writeDraft(localKey, { form, roles, requirements });
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [form, roles, requirements, loading, localKey]);
+
+  // Server autosave: only once the draft exists (we have an id), and only when
+  // something actually changed since the last save. Re-arming on every edit
+  // makes this fire once the planner pauses, not on a fixed drumbeat.
+  useEffect(() => {
+    if (!id || !isDraft || loading || saving || savingDraft) return;
+    const t = setTimeout(() => {
+      if (savedSnapshot.current !== snapshotOf()) saveDraft({ silent: true });
+    }, AUTOSAVE_IDLE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, roles, requirements, id, isDraft, loading, saving, savingDraft]);
+
+  const restoreLocalDraft = () => {
+    const d = localDraft?.data;
+    if (!d) return;
+    if (d.form) setForm(d.form);
+    if (Array.isArray(d.roles)) setRoles(d.roles);
+    if (Array.isArray(d.requirements) && d.requirements.length) setRequirements(d.requirements);
+    setLocalDraft(null);
+  };
+
+  const discardLocalDraft = () => { clearDraft(localKey); setLocalDraft(null); };
+
+  /**
+   * Save without publishing. Only a title is required — everything else can
+   * still be missing, which is the point: the planner keeps their progress and
+   * comes back to it. The first save turns the URL into an edit URL so every
+   * later save (and every autosave) updates the same row instead of piling up
+   * new drafts.
+   */
+  const saveDraft = async ({ silent = false } = {}) => {
+    if (!form.title.trim()) {
+      setErrors((p) => ({ ...p, title: "Give the event a title so you can find the draft again" }));
+      if (!silent) Swal.fire("Title needed", "Give the event a title so you can find the draft again.", "warning");
+      return false;
+    }
+    setSavingDraft(true);
+    const snapshot = snapshotOf();
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const bp = user.branch_id ? `&branch_id=${user.branch_id}` : "";
-      const res = await get(`/hr/staff/list?per_page=1000&status=active${bp}`);
-      const data = res.data?.data || res.data || [];
-      setUsers(Array.isArray(data) ? data.map((s) => ({ id: s.id, name: s.application?.full_name || s.full_name || `Staff #${s.employee_id}`, employee_id: s.employee_id, department: s.department || "" })) : []);
-    } catch { setUsers([]); }
+      if (id) {
+        await put(`/events/${id}`, buildPayload("draft"));
+      } else {
+        const res = await post("/events", buildPayload("draft"));
+        const newId = res.data?.data?.id;
+        clearDraft(localKey);                      // the "new" key
+        if (newId) navigate(`/hr/events/edit/${newId}`, { replace: true });
+      }
+      setForm((p) => ({ ...p, status: "draft" }));
+      savedSnapshot.current = snapshot;
+      setSavedAt(new Date());
+      clearDraft(localKey);                        // the server has it now
+      setLocalDraft(null);
+      if (!silent) {
+        Swal.fire({
+          icon: "success", title: "Draft saved",
+          text: "Come back to it from the events list whenever you are ready.",
+          timer: 1800, showConfirmButton: false,
+        });
+      }
+      return true;
+    } catch (err) {
+      if (err.response?.status === 422 && err.response?.data?.errors) {
+        const se = {};
+        Object.entries(err.response.data.errors).forEach(([k, v]) => { se[k] = v[0]; });
+        setErrors(se);
+      }
+      // A failed autosave must not interrupt: the local copy still holds the
+      // work, and the next pause tries again.
+      if (!silent) Swal.fire("Error", err.response?.data?.message || "Failed to save draft", "error");
+      return false;
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      // Paginated response — peel both possible shapes. No branch filter, the
+      // backend already scopes by the caller's branch when appropriate.
+      const res = await get(`/hr/staff/list?per_page=1000&status=active`);
+      const raw = res.data?.data?.data ?? res.data?.data ?? res.data ?? [];
+      const data = Array.isArray(raw) ? raw : [];
+      // Backend FKs (main_responsible_id, event_roles.user_id,
+      // event_requirements.assigned_to_id) all point at users.id, so we use
+      // staff.user_id — not staff.id. Staff with no linked user account are
+      // skipped (they have no inbox to receive event role assignments).
+      const withUser = data
+        .filter((s) => s.user_id)
+        .map((s) => ({
+          id: s.user_id,
+          name: s.application?.full_name || s.full_name || `Staff #${s.employee_id || s.id}`,
+          employee_id: s.employee_id || "",
+          department: s.department || s.department_relation?.name || "",
+          department_id: s.department_id || null,
+        }));
+      if (data.length > 0 && withUser.length === 0) {
+        console.warn(
+          `EventForm: ${data.length} active staff were returned but none have a linked user account. Run migrate:fresh --seed to relink them.`
+        );
+      }
+      setUsers(withUser);
+    } catch (e) {
+      console.error("EventForm fetchUsers failed:", e);
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
   };
 
   const loadEvent = async () => {
     setLoading(true);
+    const __cached = peekCache(`/events/${id}`);
+    if (__cached) {
+      const d = __cached?.data || __cached;
+      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming", recurrence: d.recurrence || "", recurrence_until: d.recurrence_until ? String(d.recurrence_until).split("T")[0] : "" });
+      if (d.roles?.length) setRoles(d.roles.map((r) => ({ user_id: r.user_id, role_name: r.role_name, notes: r.notes || "", userName: r.user?.name || "" })));
+      if (d.requirements?.length) setRequirements(d.requirements.map((r) => ({ description: r.description, assigned_to_id: r.assigned_to_id || "", is_completed: r.is_completed || false })));
+      setLoading(false);
+    }
     try {
       const res = await get(`/events/${id}`);
       const d = res.data?.data || res.data;
-      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming" });
+      setForm({ title: d.title || "", description: d.description || "", start_date: d.start_date ? d.start_date.split("T")[0] : "", end_date: d.end_date ? d.end_date.split("T")[0] : "", main_responsible_id: d.main_responsible_id || "", location: d.location || "", status: d.status || "upcoming", recurrence: d.recurrence || "", recurrence_until: d.recurrence_until ? String(d.recurrence_until).split("T")[0] : "" });
       if (d.roles?.length) setRoles(d.roles.map((r) => ({ user_id: r.user_id, role_name: r.role_name, notes: r.notes || "", userName: r.user?.name || "" })));
       if (d.requirements?.length) setRequirements(d.requirements.map((r) => ({ description: r.description, assigned_to_id: r.assigned_to_id || "", is_completed: r.is_completed || false })));
     } catch { Swal.fire("Error", "Failed to load event", "error"); navigate("/hr/events"); }
     finally { setLoading(false); }
   };
 
+  // Whatever was just loaded IS what the server holds — recorded so a freshly
+  // opened draft does not immediately autosave itself back unchanged.
+  useEffect(() => {
+    if (loading) return;
+    savedSnapshot.current = snapshotOf();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   const handle = (e) => { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); if (errors[e.target.name]) setErrors((p) => ({ ...p, [e.target.name]: null })); };
 
   // Roles
   const addRole = () => {
     if (!roleForm.user_id || !roleForm.role_name) { Swal.fire("Required", "Select a person and role", "warning"); return; }
-    const user = users.find((u) => u.id === Number(roleForm.user_id));
+    const user = users.find((u) => String(u.id) === String(roleForm.user_id));
     setRoles((p) => [...p, { ...roleForm, userName: user?.name || "" }]);
     setRoleForm({ user_id: "", role_name: "", notes: "" });
     setShowRoleForm(false);
@@ -66,17 +257,21 @@ export default function EventForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Publishing is where the real rules apply — this is the point at which
+    // the event reaches everybody's calendar and inbox.
     const errs = {};
     if (!form.title) errs.title = "Title is required";
     if (!form.start_date) errs.start_date = "Start date is required";
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSaving(true);
-    const payload = { ...form, roles: roles.map(({ userName, ...r }) => r), requirements: requirements.filter((r) => r.description.trim()) };
+    // A draft becomes a real, announced event; anything else keeps its status.
+    const payload = buildPayload(isDraft ? "upcoming" : form.status);
     try {
-      if (isEdit) { await put(`/events/${id}`, payload); Swal.fire({ icon: "success", title: "Event Updated!", timer: 1500, showConfirmButton: false }); }
+      if (isEdit) { await put(`/events/${id}`, payload); Swal.fire({ icon: "success", title: isDraft ? "Event Published!" : "Event Updated!", timer: 1500, showConfirmButton: false }); }
       else { await post("/events", payload); Swal.fire({ icon: "success", title: "Event Created!", timer: 1500, showConfirmButton: false }); }
-      navigate("/hr/events");
+      clearDraft(localKey);
+      goBack();
     } catch (err) {
       if (err.response?.status === 422 && err.response?.data?.errors) { const se = {}; Object.entries(err.response.data.errors).forEach(([k, v]) => { se[k] = v[0]; }); setErrors(se); }
       else Swal.fire("Error", err.response?.data?.message || "Failed to save", "error");
@@ -91,17 +286,28 @@ export default function EventForm() {
     <div className="min-h-screen bg-gray-50/60">
       <div className="bg-teal-600 px-5 py-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/hr/events")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Event" : "Create Event"}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Set up event details, team roles, and requirements</p>
+            <h1 className="text-sm font-bold text-white flex items-center gap-2">
+              {isDraft ? "Continue Draft Event" : isEdit ? "Edit Event" : "Create Event"}
+              {isDraft && <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 text-[9px] font-black uppercase tracking-wide">Draft</span>}
+            </h1>
+            <p className="text-xs text-teal-100 mt-0.5">
+              {isDraft
+                ? "Saved and private. Publish when the plan is settled."
+                : "Set up event details, team roles, and requirements"}
+            </p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 py-5 space-y-4">
+        {localDraft && (
+          <RestoreDraftBanner savedAt={localDraft.savedAt} onRestore={restoreLocalDraft} onDiscard={discardLocalDraft} />
+        )}
+
         {/* 1. Event Details */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
           <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2.5">
@@ -118,12 +324,38 @@ export default function EventForm() {
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date *</label>
-              <input type="date" name="start_date" value={form.start_date} onChange={handle} className={ic("start_date")} />
+              <DateField name="start_date" value={form.start_date} onChange={handle} className={ic("start_date")} />
               {errors.start_date && <p className="text-red-500 text-[10px] mt-1">{errors.start_date}</p>}
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">End Date</label>
-              <input type="date" name="end_date" value={form.end_date} onChange={handle} min={form.start_date} className={ic("end_date")} />
+              <DateField name="end_date" value={form.end_date} onChange={handle} min={form.start_date} className={ic("end_date")} />
+            </div>
+            {/* Repeat — the same series rule meetings have. Only offered while
+                creating: a series is generated once, and re-saving one
+                occurrence must not spawn another year of copies. */}
+            {!isEdit && (
+              <>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Repeat</label>
+                  <select name="recurrence" value={form.recurrence} onChange={handle} className={ic("recurrence")}>
+                    <option value="">Does not repeat</option>
+                    <option value="daily">Every day</option>
+                    <option value="weekly">Every week</option>
+                    <option value="monthly">Every month</option>
+                    <option value="yearly">Every year</option>
+                  </select>
+                </div>
+                {form.recurrence && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Repeat until <span className="text-amber-600">*</span></label>
+                    <DateField name="recurrence_until" value={form.recurrence_until} onChange={handle} min={form.start_date} className={ic("recurrence_until")} />
+                  </div>
+                )}
+              </>
+            )}
+            <div className="sm:col-span-2">
+              <AutoRemindPicker value={autoReminders} onChange={setAutoReminders} />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Location</label>
@@ -131,10 +363,15 @@ export default function EventForm() {
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Main Responsible</label>
-              <select name="main_responsible_id" value={form.main_responsible_id} onChange={handle} className={ic("main_responsible_id")}>
-                <option value="">Select person in charge...</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
+              <Select2
+                value={form.main_responsible_id}
+                onChange={(v) => setForm((p) => ({ ...p, main_responsible_id: v }))}
+                options={users.map((u) => ({
+                  value: u.id,
+                  label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+                }))}
+                placeholder={usersLoading ? "Loading staff…" : users.length ? "Select person in charge…" : "No staff available (run migrate:fresh --seed to link users)"}
+              />
             </div>
             {isEdit && (
               <div>
@@ -156,7 +393,8 @@ export default function EventForm() {
             )}
             <div className={isEdit ? "" : "sm:col-span-2"}>
               <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
-              <textarea name="description" value={form.description} onChange={handle} rows={2} placeholder="Brief description of the event..." className={`${ic("description")} resize-none`} />
+              <RichTextField name="description" value={form.description} rows={3} placeholder="Brief description of the event..."
+                onChange={(html) => handle({ target: { name: "description", value: html } })} />
             </div>
           </div>
         </div>
@@ -185,19 +423,26 @@ export default function EventForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-semibold text-teal-700 mb-1">Person *</label>
-                    <select value={roleForm.user_id} onChange={(e) => setRoleForm((p) => ({ ...p, user_id: e.target.value }))}
-                      className="w-full px-2.5 py-2 border border-teal-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-400 focus:outline-none bg-white">
-                      <option value="">Select person...</option>
-                      {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={roleForm.user_id}
+                      onChange={(v) => setRoleForm((p) => ({ ...p, user_id: v }))}
+                      options={users.map((u) => ({
+                        value: u.id,
+                        label: `${u.name}${u.employee_id ? ` · ${u.employee_id}` : ""}${u.department ? ` · ${u.department}` : ""}`,
+                      }))}
+                      placeholder={usersLoading ? "Loading…" : users.length ? "Search staff…" : "No staff"}
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-teal-700 mb-1">Role *</label>
-                    <select value={roleForm.role_name} onChange={(e) => setRoleForm((p) => ({ ...p, role_name: e.target.value }))}
-                      className="w-full px-2.5 py-2 border border-teal-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-400 focus:outline-none bg-white">
-                      <option value="">Select role...</option>
-                      {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={roleForm.role_name}
+                      onChange={(v) => setRoleForm((p) => ({ ...p, role_name: v }))}
+                      options={ROLE_OPTIONS.map((r) => ({ value: r, label: r }))}
+                      placeholder="Select role…"
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-teal-700 mb-1">Instructions</label>
@@ -272,11 +517,16 @@ export default function EventForm() {
                       placeholder="What is needed..." className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-amber-400 focus:outline-none" />
                   </div>
                   <div>
-                    <select value={req.assigned_to_id} onChange={(e) => handleReqChange(i, "assigned_to_id", e.target.value)}
-                      className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-amber-400 focus:outline-none">
-                      <option value="">Assign to...</option>
-                      {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <Select2
+                      size="sm"
+                      value={req.assigned_to_id}
+                      onChange={(v) => handleReqChange(i, "assigned_to_id", v)}
+                      options={users.map((u) => ({
+                        value: u.id,
+                        label: `${u.name}${u.department ? ` · ${u.department}` : ""}`,
+                      }))}
+                      placeholder={usersLoading ? "Loading…" : users.length ? "Assign to…" : "No staff"}
+                    />
                   </div>
                 </div>
                 {requirements.length > 1 && (
@@ -290,16 +540,39 @@ export default function EventForm() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
-          <button type="button" onClick={() => navigate("/hr/events")}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Cancel
-          </button>
-          <button type="submit" disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
-            {saving ? (<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>) : (<><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Event" : "Create Event"}</>)}
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={goBack}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              Back
+            </button>
+            {/* Only meaningful while the event is still being planned; a
+                published event is saved by the Update button, not by drafts. */}
+            {(!isEdit || isDraft) && (
+              <DraftStatus isDraft={isDraft} savedAt={savedAt} saving={savingDraft} noun="event" />
+            )}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">Also email everyone involved a link to this event</span>
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Save without publishing — the escape hatch from "finish it all
+                now or lose it". Available while the event is new or a draft. */}
+            {(!isEdit || isDraft) && (
+              <button type="button" onClick={() => saveDraft()} disabled={savingDraft || saving}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-amber-800 bg-amber-100 border border-amber-200 rounded-xl hover:bg-amber-200 transition-colors disabled:opacity-50">
+                {savingDraft ? (<><div className="w-4 h-4 border-2 border-amber-300 border-t-amber-700 rounded-full animate-spin"></div>Saving...</>) : (<><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>Save draft</>)}
+              </button>
+            )}
+            <button type="submit" disabled={saving || savingDraft}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50">
+              {saving ? (<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>) : (<><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isDraft ? "Publish Event" : isEdit ? "Update Event" : "Create Event"}</>)}
+            </button>
+          </div>
         </div>
       </form>
     </div>

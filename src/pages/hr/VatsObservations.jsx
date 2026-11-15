@@ -1,0 +1,430 @@
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
+import { get, post, put, del, peekCache } from "../../api/axios";
+import Swal from "sweetalert2";
+import { PageHeader, StatGrid, EmptyState, Spinner, Pill, InfoNote } from "../../components/hr/HrUI";
+import Select2 from "../../components/hr/Select2";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+import { broadcastVatsChange } from "../../components/hr/useVats";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
+
+import { fmtDate } from "../../utils/formErrors";
+
+const TYPES = {
+  positive: ["excellence", "initiative", "growth", "collaboration", "innovation", "dedication"],
+  concern:  ["performance", "conduct", "attendance", "compliance", "communication", "quality"],
+  urgent:   ["safety_violation", "ethical_breach", "misconduct", "abandonment", "insubordination", "student_endangerment"],
+};
+
+// 4D lens — every observation is tagged to exactly one dimension.
+const DIMENSIONS = [
+  { value: "intellectual", label: "Intellectual", dari: "ذهنی", hint: "Work / teaching quality, problem-solving, knowledge" },
+  { value: "character",    label: "Character",    dari: "اخلاقی-معنوی", hint: "Honesty, conduct, Islamic ethos, values alignment" },
+  { value: "practical",    label: "Practical",    dari: "عملی", hint: "Task completion, attendance, responsiveness, skill" },
+  { value: "social",       label: "Social",       dari: "اجتماعی-ساختاری", hint: "Teamwork, communication, institutional contribution" },
+];
+
+// Observation areas — universal conduct + role-specific (matches the framework reference).
+const AREAS = [
+  { group: "Universal conduct — all staff", items: [
+    "Punctuality & Attendance", "Professional Ethics", "Collaboration",
+    "Communication", "Presentation & Dress", "Institutional Loyalty",
+  ]},
+  { group: "Teachers — role-specific", items: [
+    "Teaching Quality", "Classroom Management", "Student Outcomes",
+    "Curriculum Adherence", "Professional Development", "Documentation",
+  ]},
+  { group: "Non-teaching — role-specific", items: [
+    "Administrative", "Support Staff", "Security", "Cleaning",
+  ]},
+];
+
+const CATEGORY_STYLE = {
+  positive: { bg: "bg-emerald-50", border: "border-emerald-200", chip: "bg-emerald-600", text: "text-emerald-700", emoji: "🌟" },
+  concern:  { bg: "bg-amber-50",   border: "border-amber-200",   chip: "bg-amber-500",   text: "text-amber-700",   emoji: "⚠️" },
+  urgent:   { bg: "bg-red-50",     border: "border-red-200",     chip: "bg-red-600",     text: "text-red-700",     emoji: "🚨" },
+};
+
+const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors";
+
+export default function VatsObservations() {
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions("vats-observations");
+  const location = useLocation();
+  const [items, setItems] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  // The observation being edited, or null. The same form modal
+  // serves both create and edit — it PUTs when this is set.
+  const [editing, setEditing] = useState(null);
+  const [filter, setFilter] = useState({ category: "", staff_id: "" });
+  const [pulseActive, setPulseActive] = useState(false);
+  const rowRefs = useRef({});
+
+  // Stars on every observation card, in one request for the whole page.
+  const { map: ratingMap } = useBulkRatings("vats_observation", items.map((o) => o.id));
+
+  // Read highlight & from-notif markers each render so they react to URL changes.
+  const searchParams = new URLSearchParams(location.search);
+  const highlightId = searchParams.get("highlight");
+  const fromNotif = searchParams.get("from") === "notif";
+
+  // Re-fetch on filter change AND on every URL change (so clicking a notification
+  // while already on this page shows the latest data instead of stale results).
+  useEffect(() => { fetchAll(); fetchStaff(); }, [filter, location.key]);
+
+  // Scroll the highlighted row into view and ring it briefly.
+  useEffect(() => {
+    if (!fromNotif || !highlightId || items.length === 0) return;
+    const target = rowRefs.current[String(highlightId)];
+    if (!target) return;
+    requestAnimationFrame(() => {
+      try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* noop */ }
+      setPulseActive(true);
+    });
+    const tmr = setTimeout(() => setPulseActive(false), 2500);
+    return () => clearTimeout(tmr);
+  }, [fromNotif, highlightId, items]);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    const __params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+    const __cached = peekCache(`/vats/observations?${__params}`);
+    if (__cached) {
+      setItems(__cached?.data || []);
+      setLoading(false);
+    }
+    try {
+      const params = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+      const res = await get(`/vats/observations?${params}`);
+      setItems(res.data?.data || []);
+    } catch { setItems([]); }
+    finally { setLoading(false); }
+  };
+
+  const fetchStaff = async () => {
+    // Supervisor-scoped roster: leadership gets everyone, a supervisor gets
+    // their own team (direct reports and every level below them).
+    try { const r = await get("/vats/observations/team"); setStaff(r.data?.data || []); } catch { /* noop */ }
+  };
+
+  const remove = async (id) => {
+    const r = await Swal.fire({ icon: "warning", title: "Delete this observation?", showCancelButton: true, confirmButtonColor: "#b91c1c" });
+    if (!r.isConfirmed) return;
+    await del(`/vats/observations/${id}`);
+    fetchAll();
+    broadcastVatsChange();
+  };
+
+  const positive = items.filter(o => o.category === "positive").length;
+  const concern  = items.filter(o => o.category === "concern").length;
+  const urgent   = items.filter(o => o.category === "urgent").length;
+
+  return (
+    <div className="min-h-screen bg-gray-50/60 px-4 py-5">
+      <div className="max-w-full mx-auto">
+        <PageHeader
+          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"
+          title="Daily Observations"
+          subtitle="Specific, factual notes about what staff are doing. These are the building blocks of the year-end appraisal."
+          actions={
+            canCreate && (
+              <button onClick={() => setShowForm(true)}
+                className="px-3 py-1.5 bg-white text-teal-700 text-xs font-semibold rounded-lg hover:bg-teal-50 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                New
+              </button>
+            )
+          }
+        />
+
+        <StatGrid stats={[
+          { label: "Total observations", value: items.length, tone: "teal", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2", hint: "Across all categories" },
+          { label: "🌟 Positive", value: positive, tone: "emerald", icon: "M5 13l4 4L19 7", hint: "Recognition / strength" },
+          { label: "⚠ Concern", value: concern, tone: "amber", icon: "M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", hint: "Pattern noticed" },
+          { label: "🚨 Urgent", value: urgent, tone: "red", icon: "M4.318 6.318a4.5 4.5 0 016.364 0", hint: "Immediate attention" },
+        ]} />
+
+        <InfoNote title="The concept — the 4D lens & why specificity matters">
+          Every observation is tagged to one of the four dimensions — <b>ذهنی Intellectual</b> (work/teaching quality),
+          <b> اخلاقی-معنوی Character</b> (honesty, ethos), <b>عملی Practical</b> (task completion, attendance),
+          <b> اجتماعی-ساختاری Social</b> (teamwork, contribution). Describe the <b>act, not a judgement of the person</b> —
+          a generic note ("good work") carries no weight at appraisal; a specific one becomes evidence.
+          An <b>Urgent</b> observation means same-day escalation to HR &amp; management (safety, ethics, misconduct,
+          post abandonment, gross insubordination).
+        </InfoNote>
+
+        {/* Filters */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 mb-4 flex flex-wrap gap-2">
+          {["", "positive", "concern", "urgent"].map(c => (
+            <button key={c || "all"} onClick={() => setFilter({ ...filter, category: c })}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                filter.category === c
+                  ? c === "positive" ? "bg-emerald-600 text-white"
+                  : c === "concern" ? "bg-amber-500 text-white"
+                  : c === "urgent" ? "bg-red-600 text-white"
+                  : "bg-teal-600 text-white"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              }`}>
+              {c ? CATEGORY_STYLE[c].emoji + " " + c : "All"}
+            </button>
+          ))}
+          <div className="ml-auto w-full sm:w-[260px]">
+            <Select2
+              size="sm"
+              value={filter.staff_id}
+              onChange={(v) => setFilter({ ...filter, staff_id: v })}
+              options={staff.map(s => ({ value: s.id, label: s.full_name || s.application?.full_name || s.employee_id }))}
+              placeholder="All staff"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12"><Spinner /></div>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"
+            title="No observations yet"
+            description="Log what you saw today — good or concerning. The year-end appraisal is built from these notes. Try to log a few praise observations every week — recognition is what builds the culture."
+            action={canCreate ? <button onClick={() => setShowForm(true)} className="mt-4 px-4 py-2 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700">Log first observation</button> : null}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {items.map(o => {
+              const isTarget = String(o.id) === String(highlightId);
+              return (
+                <ObservationCard
+                  key={o.id}
+                  item={o}
+                  rating={ratingMap[o.id]}
+                  onEdit={canUpdate ? (item) => setEditing(item) : null}
+                  onDelete={canDelete ? remove : null}
+                  innerRef={(el) => { if (el) rowRefs.current[String(o.id)] = el; }}
+                  pulse={isTarget && pulseActive}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {showForm && (
+          <ObservationForm
+            staff={staff}
+            onClose={() => setShowForm(false)}
+            onSaved={() => { setShowForm(false); fetchAll(); }}
+          />
+        )}
+
+        {editing && (
+          <ObservationForm
+            staff={staff}
+            editing={editing}
+            onClose={() => setEditing(null)}
+            onSaved={() => { setEditing(null); fetchAll(); }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ObservationCard({ item, rating, onEdit, onDelete, innerRef, pulse }) {
+  const c = CATEGORY_STYLE[item.category] || CATEGORY_STYLE.positive;
+  const name = item.staff?.application?.full_name || item.staff?.employee_id || `Staff #${item.staff_id}`;
+
+  return (
+    <div ref={innerRef}
+      className={`rounded-2xl border ${c.border} ${c.bg} p-4 flex flex-col gap-2 transition-shadow duration-500 ${
+        pulse ? "ring-4 ring-teal-300 ring-offset-2 animate-pulse" : "hover:shadow-md"
+      }`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <span className="text-xl flex-shrink-0">{c.emoji}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
+            <p className="text-[11px] text-gray-500 truncate">by {item.observer?.name || "—"} · {fmtDate(item.created_at)}</p>
+          </div>
+        </div>
+        <Pill tone={item.category === "positive" ? "emerald" : item.category === "concern" ? "amber" : "red"}>
+          {item.category}
+        </Pill>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className={`text-[11px] font-semibold ${c.text} uppercase tracking-wider`}>{item.type?.replace(/_/g, " ")}</span>
+        {item.dimension && (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800">
+            {DIMENSIONS.find(d => d.value === item.dimension)?.label || item.dimension}
+          </span>
+        )}
+        {item.area && (
+          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{item.area}</span>
+        )}
+        {rating && (
+          <span className="ms-auto">
+            <RatePill type="vats_observation" id={item.id} title={`${name} · ${item.category} observation`} entry={rating} />
+          </span>
+        )}
+      </div>
+      <p className="text-[13px] text-gray-700 leading-snug">{item.description}</p>
+      <div className="flex items-center justify-between pt-2 mt-1 border-t border-white/60">
+        {item.is_acknowledged_by_staff
+          ? <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+              Acknowledged
+            </span>
+          : <span className="text-[10px] text-gray-400">Pending acknowledgement</span>}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onEdit && (
+            <button onClick={() => onEdit(item)} className="text-[10px] text-teal-700 hover:underline font-semibold">Edit</button>
+          )}
+          {onDelete && (
+            <button onClick={() => onDelete(item.id)} className="text-[10px] text-red-500 hover:underline">Delete</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ObservationForm({ staff, editing = null, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(editing ? {
+    staff_id: editing.staff_id,
+    category: editing.category,
+    dimension: editing.dimension || "practical",
+    area: editing.area || "",
+    type: editing.type,
+    description: editing.description,
+  } : {
+    staff_id: "",
+    category: "positive",
+    dimension: "practical",
+    area: "",
+    type: "excellence",
+    description: "",
+  });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (editing) {
+        await put(`/vats/observations/${editing.id}`, form);
+      } else {
+        await post("/vats/observations", form);
+      }
+      Swal.fire({ icon: "success", title: editing ? "Updated" : "Logged", timer: 1200, showConfirmButton: false });
+      onSaved();
+      // An observation is a recognition/concern event — keep dashboard + cards in sync.
+      broadcastVatsChange();
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to save", "error");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-gray-100 bg-teal-600 text-white rounded-t-2xl">
+          <h3 className="text-sm font-bold">{editing ? "Edit Observation" : "Log a New Observation"}</h3>
+          <p className="text-[11px] text-teal-100 mt-0.5">Be factual. Focus on behaviour, not the person.</p>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <Field label="Staff member">
+            <Select2
+              value={form.staff_id}
+              onChange={(v) => setForm({ ...form, staff_id: v })}
+              options={staff.map(s => ({ value: s.id, label: s.full_name || s.application?.full_name || s.employee_id }))}
+              placeholder="Search staff…"
+              required
+              disabled={!!editing}
+            />
+            {editing && (
+              <p className="text-[10px] text-gray-400 mt-1">The staff member this observation is about cannot be changed here.</p>
+            )}
+          </Field>
+
+          <Field label="What kind of observation?">
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(CATEGORY_STYLE).map(([key, style]) => (
+                <button key={key} type="button"
+                  onClick={() => setForm({ ...form, category: key, type: TYPES[key][0] })}
+                  className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${
+                    form.category === key ? "border-teal-600 bg-teal-50" : "border-gray-100 hover:border-gray-200"
+                  }`}>
+                  <span className="text-2xl">{style.emoji}</span>
+                  <span className="text-xs font-bold capitalize">{key}</span>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Type">
+            <Select2
+              value={form.type}
+              onChange={(v) => setForm({ ...form, type: v })}
+              options={TYPES[form.category].map(t => ({ value: t, label: t.replace(/_/g, " ") }))}
+              isClearable={false}
+            />
+          </Field>
+
+          <Field label="4D Dimension">
+            <div className="grid grid-cols-2 gap-2">
+              {DIMENSIONS.map(d => (
+                <button key={d.value} type="button"
+                  onClick={() => setForm({ ...form, dimension: d.value })}
+                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+                    form.dimension === d.value ? "border-teal-600 bg-teal-50" : "border-gray-100 hover:border-gray-200"
+                  }`}>
+                  <p className="text-xs font-bold text-gray-800">
+                    {d.label} <span className="dari text-[11px] text-gray-400 font-normal">{d.dari}</span>
+                  </p>
+                  <p className="text-[10px] text-gray-500 leading-snug mt-0.5">{d.hint}</p>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Observation area">
+            <Select2
+              value={form.area}
+              onChange={(v) => setForm({ ...form, area: v })}
+              options={AREAS.flatMap(g =>
+                g.items.map(i => ({ value: i, label: `${g.group.split(" — ")[0]} · ${i}` }))
+              )}
+              placeholder="Pick the area observed…"
+            />
+          </Field>
+
+          <Field label="What did you observe?">
+            <textarea rows={4} className={inp} placeholder="Describe exactly what you saw — the act, not a judgment of the person."
+              value={form.description} minLength={20}
+              onChange={(e) => setForm({ ...form, description: e.target.value })} required />
+            <p className="text-[10px] text-gray-400 mt-1">
+              Specific, factual, minimum 20 characters. A generic note ("good work") carries no weight at appraisal.
+              <span className="ml-1 text-gray-500">{form.description.length} chars</span>
+            </p>
+          </Field>
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50">
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}

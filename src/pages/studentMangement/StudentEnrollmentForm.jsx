@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
-import { get, post, put, del, API_BASE_URL } from "../../api/axios";
+import { get, post, put, del, API_BASE_URL, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
+
+import { fmtDate } from "../../utils/formErrors";
+import StudentAvatar from "../../components/students/StudentAvatar";
 
 const steps = [
   {
@@ -226,6 +229,8 @@ export default function StudentEnrollmentForm() {
   }, []);
 
   const fetchPhase1Students = async () => {
+    const __cached = peekCache("/student-management/students/list?registration_status=phase_1&per_page=1000");
+    if (__cached) { const d = __cached?.data || []; setPhase1Students(Array.isArray(d) ? d : []); }
     try {
       const response = await get("/student-management/students/list?registration_status=phase_1&per_page=1000");
       const data = response.data?.data || [];
@@ -236,6 +241,16 @@ export default function StudentEnrollmentForm() {
   };
 
   const fetchSelectedStudent = async (studentId) => {
+    const __cached = peekCache(`/student-management/students/show/${studentId}`);
+    if (__cached) {
+      const data = __cached?.data ?? __cached;
+      setSelectedStudent(data);
+      if (data?.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => { docsMap[doc.document_type] = doc; });
+        setUploadedDocs(docsMap);
+      }
+    }
     try {
       const response = await get(`/student-management/students/show/${studentId}`);
       const data = response.data?.data || response.data;
@@ -287,6 +302,8 @@ export default function StudentEnrollmentForm() {
   useEffect(() => {
     (async () => {
       try {
+        const __cached = peekCache("/transportation/routes/active/list");
+        if (__cached) { const d = __cached?.data || __cached || []; setRoutes(Array.isArray(d) ? d : []); }
         const res = await get("/transportation/routes/active/list");
         const data = res.data?.data || res.data || [];
         setRoutes(Array.isArray(data) ? data : []);
@@ -301,6 +318,8 @@ export default function StudentEnrollmentForm() {
     if (formData.transport_route_id) {
       (async () => {
         try {
+          const __cached = peekCache(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
+          if (__cached) { const d = __cached?.data || __cached || []; setVehicles(Array.isArray(d) ? d : []); }
           const res = await get(`/transportation/vehicles/by-route/${formData.transport_route_id}`);
           const data = res.data?.data || res.data || [];
           setVehicles(Array.isArray(data) ? data : []);
@@ -382,8 +401,51 @@ export default function StudentEnrollmentForm() {
     setVehicleSearch("");
   };
 
+  const seedEnrollmentForm = (data) => ({
+    previous_school_name: data.previous_school_name || "",
+    school_type: data.school_type || "",
+    last_class_completed: data.last_class_completed || "",
+    last_years_result: data.last_years_result || "",
+    result_percentage: data.result_percentage || "",
+    reason_for_change: data.reason_for_change || "",
+    how_did_you_hear: data.how_did_you_hear || "",
+    introducer_name: data.introducer_name || "",
+    introducer_contact: data.introducer_contact || "",
+    motivation_to_join: data.motivation_to_join || "",
+    has_special_health_condition: data.has_special_health_condition || false,
+    has_special_needs: data.has_special_needs || false,
+    health_details: data.health_details || "",
+    transport_route_id: data.transport_route_id || "",
+    transport_vehicle_id: data.transport_vehicle_id || "",
+    transport_monthly_fee: data.transport_monthly_fee || "",
+    transport_pickup_point: data.transport_pickup_point || "",
+    transport_pickup_time: data.transport_pickup_time || "",
+    transport_dropoff_point: data.transport_dropoff_point || "",
+    need_uniform: data.need_uniform || false,
+    uniform_price: data.uniform_price || "",
+    uniform_chest: data.uniform_chest || "",
+    uniform_waist: data.uniform_waist || "",
+    uniform_height: data.uniform_height || "",
+    uniform_shoulder: data.uniform_shoulder || "",
+    uniform_sleeve: data.uniform_sleeve || "",
+    tailor_note: data.tailor_note || "",
+    parental_consent: data.parental_consent || false,
+  });
+
   const fetchStudent = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/students/show/${id}`);
+    if (__cached) {
+      const data = __cached?.data ?? __cached;
+      setSelectedStudent(data);
+      if (data?.documents && data.documents.length > 0) {
+        const docsMap = {};
+        data.documents.forEach((doc) => { docsMap[doc.document_type] = doc; });
+        setUploadedDocs(docsMap);
+      }
+      setFormData((prev) => ({ ...prev, ...seedEnrollmentForm(data) }));
+      setLoading(false);
+    }
     try {
       const response = await get(`/student-management/students/show/${id}`);
       const data = response.data?.data || response.data;
@@ -549,44 +611,12 @@ export default function StudentEnrollmentForm() {
       await put(`/student-management/students/update/${targetId}`, enrollmentPayload);
 
       // Mark the student as phase_2 complete — transitions to enrolled list.
-      // Prompt for the admission fee first so the admin can override the default
-      // (or waive it for sibling/scholarship cases). The amount becomes a
-      // pending_charge that gets billed on the student's next invoice.
+      // The admission fee is now captured in Phase 1 (StudentForm step 2),
+      // so Phase 2 just flips the status without any extra prompt. If a
+      // pending admission charge was queued at registration, the backend
+      // already created it; this endpoint is now idempotent and harmless.
       if (!isEdit || selectedStudent?.registration_status !== "phase_2") {
-        const { value: admissionFee, isConfirmed } = await Swal.fire({
-          title: "Admission fee",
-          html: `
-            <p style="text-align:left;font-size:12px;color:#475569;margin-bottom:8px">
-              One-time charge applied to this student's next bill. Default <strong>2,000 AFN</strong>.
-              <br/>Lower it for a discount, or set <strong>0</strong> to waive entirely.
-            </p>
-            <input id="adm-fee" type="number" class="swal2-input"
-                   placeholder="Amount (AFN)" value="2000" min="0" step="50" />
-          `,
-          focusConfirm: false,
-          showCancelButton: true,
-          confirmButtonColor: "#0d9488",
-          confirmButtonText: "Apply & complete enrollment",
-          cancelButtonText: "Cancel enrollment",
-          preConfirm: () => {
-            const raw = document.getElementById("adm-fee").value;
-            const n = Number(raw);
-            if (Number.isNaN(n) || n < 0) {
-              Swal.showValidationMessage("Enter 0 or a positive number");
-              return false;
-            }
-            return n;
-          },
-        });
-        if (!isConfirmed) {
-          // Admin backed out — DON'T mark as phase_2 yet, but the form save above
-          // already persisted the rest of their edits. They can retry later.
-          setSaving(false);
-          return;
-        }
-        await put(`/student-management/students/${targetId}/complete-phase-2`, {
-          admission_fee: admissionFee,
-        });
+        await put(`/student-management/students/${targetId}/complete-phase-2`);
       }
 
       Swal.fire("Success", isEdit ? "Enrollment updated successfully" : "Student officially enrolled (Phase 2 complete)", "success");
@@ -705,9 +735,7 @@ export default function StudentEnrollmentForm() {
           {/* Student Banner */}
           <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-6">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-white text-xl font-bold">
-                {(s.first_name || "?").charAt(0)}{(s.last_name || "").charAt(0)}
-              </div>
+              <StudentAvatar student={s} size="lg" rounded="rounded-xl" className="!border-white/40" />
               <div className="flex-1">
                 <p className="text-teal-100 text-sm font-medium">Student</p>
                 <h2 className="text-2xl font-bold text-white">{s.first_name} {s.last_name}</h2>
@@ -734,7 +762,7 @@ export default function StudentEnrollmentForm() {
                   <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   <span className="text-xs font-medium text-purple-700 uppercase tracking-wide">DOB</span>
                 </div>
-                <p className="font-semibold text-gray-800">{s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString() : "—"}</p>
+                <p className="font-semibold text-gray-800">{s.date_of_birth ? fmtDate(s.date_of_birth) : "—"}</p>
               </div>
               <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
                 <div className="flex items-center gap-2 mb-2">
@@ -1042,13 +1070,13 @@ export default function StudentEnrollmentForm() {
               {s.enrollment_date && (
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
-                  <span>Enrolled: {new Date(s.enrollment_date).toLocaleDateString()}</span>
+                  <span>Enrolled: {fmtDate(s.enrollment_date)}</span>
                 </div>
               )}
               {s.phase_2_completed_at && (
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
-                  <span>Phase 2: {new Date(s.phase_2_completed_at).toLocaleDateString()}</span>
+                  <span>Phase 2: {fmtDate(s.phase_2_completed_at)}</span>
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -1110,9 +1138,7 @@ export default function StudentEnrollmentForm() {
           <div ref={studentRef} className="p-5 relative">
             {studentLocked && selectedStudent ? (
               <div className="flex items-center gap-3 p-4 bg-teal-50 border-2 border-teal-200 rounded-xl">
-                <div className="w-11 h-11 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-                  {(selectedStudent.first_name || "?").charAt(0)}{(selectedStudent.last_name || "").charAt(0)}
-                </div>
+                <StudentAvatar student={selectedStudent} size="lg" rounded="rounded-xl" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-800 truncate">
                     {selectedStudent.first_name} {selectedStudent.last_name}
@@ -1157,9 +1183,7 @@ export default function StudentEnrollmentForm() {
                           onClick={() => selectStudent(student)}
                           className="w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors border-b border-gray-50 last:border-0 flex items-center gap-3"
                         >
-                          <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {(student.first_name || "?").charAt(0)}{(student.last_name || "").charAt(0)}
-                          </div>
+                          <StudentAvatar student={student} size="md" rounded="rounded-lg" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-800 truncate">
                               {student.first_name} {student.last_name}
@@ -1207,7 +1231,7 @@ export default function StudentEnrollmentForm() {
             <div>
               <p className="text-[9px] font-semibold text-gray-500 uppercase">DOB</p>
               <p className="text-xs font-bold text-gray-800 mt-0.5">
-                {selectedStudent.date_of_birth ? new Date(selectedStudent.date_of_birth).toLocaleDateString() : "—"}
+                {selectedStudent.date_of_birth ? fmtDate(selectedStudent.date_of_birth) : "—"}
               </p>
             </div>
             <div>

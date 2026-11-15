@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { del } from "../../api/axios";
+import { del, peekCache } from "../../api/axios";
 import { getFeeInvoice, regenerateFeeInvoice } from "../../api/financial";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 /**
  * Single invoice view. Read-only breakdown + payment history. Payments are
@@ -22,8 +24,7 @@ const STATUS = {
 
 const methodLabels = { cash: "Cash", bank: "Bank Transfer", mobile: "Mobile", check: "Check" };
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
-const fmtMonth = (d) => (d ? new Date(d).toLocaleString("default", { month: "long", year: "numeric" }) : "—");
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-CA") : "—");
+const fmtMonth = (d) => (d ? fmtDate(d) : "—");
 const fmtType = (t) => (t || "tuition").replace(/_/g, " ");
 
 export default function FeeInvoiceShow() {
@@ -35,6 +36,8 @@ export default function FeeInvoiceShow() {
 
   const loadInvoice = () => {
     setLoading(true);
+    const __cached = peekCache(`/financial/fees/invoices/${id}`);
+    if (__cached) { const inv = __cached?.data; if (inv) { setData(inv); setLoading(false); } }
     getFeeInvoice(id)
       .then((r) => {
         const inv = r.data?.data;

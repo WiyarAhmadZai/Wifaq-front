@@ -1,0 +1,787 @@
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import Swal from "sweetalert2";
+import {
+  listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder, createDocument,
+  fileDownloadBlob,
+  moveFile, moveFolder, copyFileTo, copyFolderTo,
+} from "../../api/drive";
+import { peekCache } from "../../api/axios";
+import { fmtDate } from "../../utils/formErrors";
+import AudiencePicker, { OwnerBadge, AudienceChips } from "../../components/drive/AudiencePicker";
+import { EMPTY_AUDIENCE } from "../../components/drive/audience";
+import MediaPreviewModal from "./MediaPreviewModal";
+import { copyItemLink } from "./mediaPreview";
+import { fileObjectUrl, previewKind, openInOfficeApp } from "./mediaPreview";
+
+const fmtSize = (n) => {
+  if (!n) return "";
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0, v = Number(n);
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
+};
+
+const kindLabel = (f) => f.is_link ? "Link"
+  : f.media_type === "doc" ? "Document"
+  : f.media_type === "image" ? "Image"
+  : f.media_type === "video" ? "Video" : "File";
+
+/** A document is written in Drive; everything else was uploaded to it. */
+const isDoc = (f) => f.media_type === "doc";
+
+/* Reading is not writing.
+ *
+ * A worksheet shared with your class opens and downloads, but renaming, moving
+ * or deleting it stays with whoever uploaded it (and with Drive admins). The
+ * server enforces the same rule; this only keeps the buttons honest. */
+const canWrite = (item, me) => !me || me.is_drive_admin || Number(item.created_by) === Number(me.id);
+const isMine   = (item, me) => !!me && Number(item.created_by) === Number(me.id);
+
+// Windows-Explorer-style view modes.
+const VIEWS = [
+  { key: "large", label: "Large icons", d: "M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" },
+  { key: "list", label: "List", d: "M4 6h16M4 12h16M4 18h16" },
+  { key: "details", label: "Details", d: "M3 10h18M3 14h18M3 6h18M3 18h18" },
+];
+
+export default function Drive() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const folderId = searchParams.get("folder") || "";
+
+  const [data, setData] = useState({ current: null, breadcrumb: [], folders: [], files: [], me: null });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const [view, setView] = useState(() => localStorage.getItem("driveView") || "large");
+  const changeView = (m) => { setView(m); localStorage.setItem("driveView", m); };
+
+  const [linkOpen, setLinkOpen] = useState(false);
+  // The file shown in the in-page viewer (image, video, audio, PDF).
+  const [preview, setPreview] = useState(null);
+  const [linkForm, setLinkForm] = useState({ name: "", external_url: "", media_type: "file" });
+
+  // Who the next upload / link / folder is for. Reset each time a form opens so
+  // yesterday's class is never carried into today's upload by accident.
+  const [audience, setAudience] = useState(EMPTY_AUDIENCE);
+
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [pending, setPending] = useState([]);     // files queued in the upload modal
+  const [dragOver, setDragOver] = useState(false);
+
+  /**
+   * Open a folder (or return to the root).
+   *
+   * Patches the existing params instead of replacing them. Replacing dropped
+   * `tab=files`, and DriveHome reads the tab from the URL — so stepping into a
+   * folder threw the user back to the Catalogue. The two tabs are independent
+   * views and navigating inside one must never switch to the other.
+   */
+  const goTo = (id) =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set("folder", String(id));
+      else next.delete("folder");
+      return next;
+    });
+
+  /* Move / copy.
+   *
+   * Two ways to do the same thing, because both are what people expect of a
+   * file manager: drag an item onto a folder, or cut/copy it and paste it
+   * elsewhere. Both funnel through moveInto()/pasteInto() so the rules live in
+   * one place. A null destination means Home (root).
+   */
+  const [clip, setClip] = useState(null);          // { mode, kind, id, name }
+  const [dragging, setDragging] = useState(null);  // { kind, id, name }
+  const [dropTarget, setDropTarget] = useState(null);
+
+  const currentFolderId = folderId ? Number(folderId) : null;
+
+  const runTransfer = async (fn, okTitle) => {
+    setBusy(true);
+    try {
+      await fn();
+      await load();
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: okTitle, timer: 1300, showConfirmButton: false });
+      return true;
+    } catch (e) {
+      // The server rejects a folder dropped into its own subtree with a 422 —
+      // show that reason rather than a generic failure.
+      Swal.fire("Could not complete", e.response?.data?.message || "Something went wrong.", "error");
+      return false;
+    } finally { setBusy(false); }
+  };
+
+  const moveInto = (kind, id, destId) => {
+    const dest = destId ?? null;
+    // Dropping something where it already sits is a no-op, not an error.
+    if (kind === "folder" && Number(id) === Number(dest)) return Promise.resolve(false);
+    return runTransfer(
+      () => (kind === "folder" ? moveFolder(id, dest) : moveFile(id, dest)),
+      "Moved",
+    );
+  };
+
+  const pasteInto = async (destId) => {
+    if (!clip) return;
+    const dest = destId ?? null;
+    const { mode, kind, id } = clip;
+    const ok = await runTransfer(() => {
+      if (mode === "copy") return kind === "folder" ? copyFolderTo(id, dest) : copyFileTo(id, dest);
+      return kind === "folder" ? moveFolder(id, dest) : moveFile(id, dest);
+    }, mode === "copy" ? "Copied" : "Moved");
+    // A cut is consumed by its paste; a copy stays on the clipboard so the same
+    // item can be dropped into several folders in a row.
+    if (ok && mode === "cut") setClip(null);
+  };
+
+  const dnd = {
+    clip,
+    setClip,
+    drag: (kind, item) => ({
+      draggable: true,
+      onDragStart: (e) => {
+        e.stopPropagation();
+        setDragging({ kind, id: item.id, name: item.name });
+        e.dataTransfer.effectAllowed = "move";
+        // Firefox will not start a drag unless some data is attached.
+        e.dataTransfer.setData("text/plain", kind + ":" + item.id);
+      },
+      onDragEnd: () => { setDragging(null); setDropTarget(null); },
+    }),
+    drop: (destId) => ({
+      onDragOver: (e) => {
+        if (!dragging) return;   // an OS file drag, not one of ours
+        if (dragging.kind === "folder" && Number(dragging.id) === Number(destId)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        setDropTarget(destId ?? "root");
+      },
+      onDragLeave: () => setDropTarget((t) => (t === (destId ?? "root") ? null : t)),
+      onDrop: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const item = dragging;
+        setDragging(null);
+        setDropTarget(null);
+        if (item) moveInto(item.kind, item.id, destId ?? null);
+      },
+    }),
+    isOver: (destId) => dropTarget === (destId ?? "root"),
+  };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const __cached = peekCache("/drive", folderId ? { folder_id: folderId } : {});
+    if (__cached) { setData(__cached?.data || { current: null, breadcrumb: [], folders: [], files: [] }); setLoading(false); }
+    try {
+      const res = await listDrive(folderId);
+      setData(res.data?.data || { current: null, breadcrumb: [], folders: [], files: [] });
+    } catch {
+      setData({ current: null, breadcrumb: [], folders: [], files: [] });
+    } finally {
+      setLoading(false);
+    }
+  }, [folderId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const newFolder = async () => {
+    const { value } = await Swal.fire({
+      title: "New folder", input: "text", inputPlaceholder: "Folder name",
+      showCancelButton: true, confirmButtonText: "Create", confirmButtonColor: "#0d9488",
+      inputValidator: (v) => (!v?.trim() ? "Enter a name" : undefined),
+    });
+    if (!value?.trim()) return;
+    try {
+      // A folder starts private; its audience is set from the folder card, and
+      // anything dropped into it afterwards inherits that audience.
+      await createFolder(value.trim(), folderId || null, EMPTY_AUDIENCE);
+      await load();
+    }
+    catch (e) { Swal.fire("Error", e.response?.data?.message || "Could not create folder.", "error"); }
+  };
+
+  /* A new document is created empty and opened straight away — asking for a
+     name first and THEN showing a blank page is one dialog more than the job
+     needs. It can be renamed in the editor's title box at any time. */
+  const newDocument = async () => {
+    const { value } = await Swal.fire({
+      title: "New document", input: "text", inputPlaceholder: "Document name",
+      inputValue: "Untitled document",
+      showCancelButton: true, confirmButtonText: "Create", confirmButtonColor: "#0d9488",
+    });
+    if (value === undefined) return;                 // cancelled
+    try {
+      const res = await createDocument(folderId || null, (value || "").trim() || "Untitled document", "", EMPTY_AUDIENCE);
+      const created = res.data?.data;
+      if (created?.id) openDocument(created);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not create the document.", "error");
+    }
+  };
+
+  const openDocument = (f) =>
+    navigate(`/drive/documents/${f.id}${folderId ? `?folder=${folderId}` : ""}`);
+
+  const openUpload = () => { setPending([]); setAudience(EMPTY_AUDIENCE); setUploadOpen(true); };
+  const openLink = () => { setAudience(EMPTY_AUDIENCE); setLinkOpen(true); };
+
+  // Queue files chosen via the browse button or drag-and-drop into the modal.
+  const queueFiles = (fileList) => {
+    const arr = Array.from(fileList || []);
+    if (arr.length) setPending((prev) => [...prev, ...arr]);
+  };
+  const onPickFiles = (e) => { queueFiles(e.target.files); e.target.value = ""; };
+  const removePending = (i) => setPending((prev) => prev.filter((_, idx) => idx !== i));
+
+  const doUpload = async () => {
+    if (!pending.length) { Swal.fire("No files", "Choose at least one file to upload.", "warning"); return; }
+    setBusy(true);
+    try {
+      await uploadFiles(folderId || null, pending, {}, audience);
+      setUploadOpen(false); setPending([]);
+      await load();
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Uploaded", timer: 1400, showConfirmButton: false });
+    } catch (e2) {
+      // Surface the real server validation message (e.g. size / type limits).
+      const err = e2.response?.data;
+      const detail = err?.errors ? Object.values(err.errors).flat().join("\n") : err?.message;
+      Swal.fire("Upload failed", detail || "Could not upload. Check the file size and try again.", "error");
+    } finally { setBusy(false); }
+  };
+
+  const saveLink = async () => {
+    if (!linkForm.name.trim() || !linkForm.external_url.trim()) {
+      Swal.fire("Missing info", "Give the link a name and a URL.", "warning"); return;
+    }
+    setBusy(true);
+    try {
+      await addLink(folderId || null, linkForm.name.trim(), linkForm.external_url.trim(), linkForm.media_type, {}, audience);
+      setLinkOpen(false); setLinkForm({ name: "", external_url: "", media_type: "file" }); setAudience(EMPTY_AUDIENCE);
+      await load();
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not add link.", "error");
+    } finally { setBusy(false); }
+  };
+
+  const removeFolder = async (f) => {
+    const r = await Swal.fire({ title: `Delete "${f.name}"?`, text: "Everything inside is removed too. This cannot be undone.", icon: "warning", showCancelButton: true, confirmButtonColor: "#dc2626", confirmButtonText: "Delete" });
+    if (!r.isConfirmed) return;
+    try { await deleteFolder(f.id); await load(); } catch (e) { Swal.fire("Error", e.response?.data?.message || "Failed.", "error"); }
+  };
+  const removeFile = async (f) => {
+    const r = await Swal.fire({ title: `Delete "${f.name}"?`, icon: "warning", showCancelButton: true, confirmButtonColor: "#dc2626", confirmButtonText: "Delete" });
+    if (!r.isConfirmed) return;
+    try { await deleteFile(f.id); await load(); } catch (e) { Swal.fire("Error", e.response?.data?.message || "Failed.", "error"); }
+  };
+
+  /* Open. Media plays right here in the viewer; anything the browser cannot
+   * show (Word, Excel…) goes to its signed link, which the browser opens or
+   * saves by itself. Nothing is pulled through JavaScript first — that blob
+   * route is what failed with net::ERR_FAILED in production. */
+  const openFile = async (f) => {
+    // A document has no bytes to stream — it opens in the editor.
+    if (isDoc(f)) { openDocument(f); return; }
+    if (f.is_link) { window.open(f.external_url, "_blank", "noopener"); return; }
+    if (["image", "video", "audio", "pdf"].includes(previewKind(f))) { setPreview(f); return; }
+    // A Word .docx is drawn right here in the viewer (right-to-left for Dari / Pashto).
+    if (/\.docx$/i.test(f.name || "")) { setPreview(f); return; }
+    // Word, Excel, PowerPoint: hand the file to the app on this machine. The
+    // file is never sent to an online viewer — if Office is not installed the
+    // callback saves it instead and the reader opens it however they like.
+    if (previewKind(f) === "office") { openInOfficeApp(f, { onFallback: () => downloadFile(f) }); return; }
+    // Anything else cannot be shown in a browser anyway — saving it is what
+    // "open" means. Via downloadFile so the copy keeps its real name: a blob
+    // opened in a tab saves as the blob's id ("27c8c2df-….docx").
+    downloadFile(f);
+  };
+
+  // Download: ONLY for uploaded files — actually saves the file to disk.
+  const downloadFile = async (f) => {
+    // The signed link downloads natively, with the browser's own progress bar.
+    if (f.download_url) {
+      const a = document.createElement("a");
+      a.href = f.download_url; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+      return;
+    }
+    try {
+      const res = await fileDownloadBlob(f.id);
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch { Swal.fire("Error", "Could not download.", "error"); }
+  };
+
+  // For links there is no file to download — copying the URL is the useful action.
+  const copyLink = (f) => copyItemLink(f);
+
+  const isEmpty = data.folders.length === 0 && data.files.length === 0;
+
+  return (
+    <div className="px-4 py-4">
+      {preview && (
+        <MediaPreviewModal key={preview.id} item={preview} onClose={() => setPreview(null)} onDownload={downloadFile} />
+      )}
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-base font-bold text-gray-800">My Drive</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Your files and links, plus anything shared with you.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={newFolder} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
+            <Icon d="M3 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /> New folder
+          </button>
+          <button onClick={newDocument} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
+            <Icon d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> New document
+          </button>
+          <button onClick={openUpload} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-bold flex items-center gap-1.5">
+            <Icon d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /> Upload
+          </button>
+          <button onClick={openLink} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold flex items-center gap-1.5">
+            <Icon d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5" /> Add link
+          </button>
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onPickFiles} />
+        </div>
+      </div>
+
+      {/* Breadcrumb + view switcher */}
+      {/* Clipboard bar — only rendered while something is held, so it never
+        * takes up room during ordinary browsing. */}
+      {clip && (
+        <div className="flex items-center justify-between gap-3 mb-3 px-3 py-2 bg-teal-50 border border-teal-200 rounded-xl">
+          <p className="text-xs text-teal-800 min-w-0 truncate">
+            <span className="font-semibold">{clip.mode === "cut" ? "Cut" : "Copied"}:</span> {clip.name}
+          </p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => pasteInto(currentFolderId)} disabled={busy}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-40">
+              Paste here
+            </button>
+            <button onClick={() => setClip(null)} className="text-xs text-teal-700 hover:underline">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center flex-wrap gap-1 text-xs">
+          {/* Crumbs are drop targets too — that is how an item moves UP the
+            * tree, which dropping onto a child folder cannot express. */}
+          <button onClick={() => goTo("")} {...dnd.drop(null)}
+            className={`px-2 py-1 rounded transition-colors ${dnd.isOver(null) ? "bg-teal-100 ring-2 ring-teal-400" : "hover:bg-gray-100"} ${!folderId ? "font-bold text-teal-700" : "text-gray-500"}`}>Home</button>
+          {(data.breadcrumb || []).map((c, i, arr) => (
+            <span key={c.id} className="flex items-center gap-1">
+              <span className="text-gray-300">/</span>
+              <button onClick={() => goTo(c.id)} className={`px-2 py-1 rounded hover:bg-gray-100 ${i === arr.length - 1 ? "font-bold text-teal-700" : "text-gray-500"}`}>{c.name}</button>
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center bg-white border border-gray-200 rounded-lg p-0.5 flex-shrink-0">
+          {VIEWS.map((v) => (
+            <button key={v.key} onClick={() => changeView(v.key)} title={v.label}
+              className={`p-1.5 rounded ${view === v.key ? "bg-teal-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}>
+              <Icon className="w-4 h-4" d={v.d} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12"><div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" /></div>
+      ) : isEmpty ? (
+        <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
+          <p className="text-sm text-gray-400">This folder is empty. Write a document, upload files, add a link, or create a folder.</p>
+        </div>
+      ) : view === "details" ? (
+        <DetailsView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+      ) : view === "list" ? (
+        <ListView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+      ) : (
+        <LargeView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+      )}
+
+      {/* Upload modal */}
+      {uploadOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-800 mb-1">Upload files</h3>
+            <p className="text-[11px] text-gray-500 mb-3">{data.current ? `Into "${data.current.name}"` : "Into Home"} · up to 50 MB each · choose who can see them below.</p>
+
+            {/* Dropzone */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); queueFiles(e.dataTransfer.files); }}
+              className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-colors ${dragOver ? "border-teal-400 bg-teal-50" : "border-gray-200 hover:border-teal-300 bg-gray-50"}`}
+            >
+              <svg className="w-8 h-8 mx-auto text-teal-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" /></svg>
+              <p className="text-xs font-semibold text-gray-700">Click to browse or drag files here</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">You can select multiple files</p>
+            </div>
+
+            {/* Queue */}
+            {pending.length > 0 && (
+              <div className="mt-3 max-h-44 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                {pending.map((f, i) => (
+                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-1.5">
+                    <Icon className="w-4 h-4 text-gray-400" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <span className="text-xs text-gray-700 flex-1 truncate" title={f.name}>{f.name}</span>
+                    <span className="text-[10px] text-gray-400">{fmtSize(f.size)}</span>
+                    {!busy && <button onClick={() => removePending(i)} className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Who it is for. Required by design rather than by validation: the
+                default is "Only me", so forgetting the field never leaks. */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <AudiencePicker value={audience} onChange={setAudience} />
+            </div>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setUploadOpen(false)} disabled={busy} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+              <button onClick={doUpload} disabled={busy || pending.length === 0} className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50">
+                {busy ? "Uploading…" : `Upload${pending.length ? ` (${pending.length})` : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add-link modal */}
+      {linkOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-800 mb-3">Add a link</h3>
+            <label className="block text-[11px] font-semibold uppercase text-gray-500 mb-1">Name</label>
+            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-3" value={linkForm.name} onChange={(e) => setLinkForm((s) => ({ ...s, name: e.target.value }))} placeholder="e.g. Project video" />
+            <label className="block text-[11px] font-semibold uppercase text-gray-500 mb-1">URL</label>
+            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-3" value={linkForm.external_url} onChange={(e) => setLinkForm((s) => ({ ...s, external_url: e.target.value }))} placeholder="https://drive.google.com/…  or  https://youtu.be/…" />
+            <label className="block text-[11px] font-semibold uppercase text-gray-500 mb-1">Type</label>
+            <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-4" value={linkForm.media_type} onChange={(e) => setLinkForm((s) => ({ ...s, media_type: e.target.value }))}>
+              <option value="file">File / document</option>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+            </select>
+            <div className="pt-4 border-t border-gray-100 mb-4">
+              <AudiencePicker value={audience} onChange={setAudience} />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setLinkOpen(false)} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50">Cancel</button>
+              <button onClick={saveLink} disabled={busy} className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50">Add link</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Per-file action buttons (download for files, copy-link for links) ── */
+function FileActions({ f, downloadFile, copyLink, removeFile, canWrite: writable = true, compact }) {
+  const cls = `p-1 ${compact ? "" : "bg-white/90 shadow-sm"} rounded text-gray-600 hover:text-teal-600`;
+  return (
+    <>
+      {isDoc(f) ? (
+        /* Nothing to download: a document is opened and edited, and the row
+           itself already opens it. Printing from the editor is how it becomes
+           a file. */
+        null
+      ) : f.is_link ? (
+        <button onClick={(e) => { e.stopPropagation(); copyLink(f); }} title="Copy link" className={cls}>
+          <Icon d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+        </button>
+      ) : (
+        <>
+          <button onClick={(e) => { e.stopPropagation(); copyLink(f); }} title="Copy link" className={cls}>
+            <Icon d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); downloadFile(f); }} title="Download" className={cls}>
+            <Icon d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+          </button>
+        </>
+      )}
+      {writable && (
+        <button onClick={(e) => { e.stopPropagation(); removeFile(f); }} title="Delete" className={`p-1 ${compact ? "" : "bg-white/90 shadow-sm"} rounded text-red-500 hover:text-red-700`}>✕</button>
+      )}
+    </>
+  );
+}
+
+/* Cut / Copy for one item.
+ *
+ * Drag-and-drop only reaches folders that are on screen; cut/copy is how an
+ * item travels somewhere you have to navigate to first. Clicking loads the
+ * clipboard, then the bar above the breadcrumb pastes into whatever folder
+ * you have opened. */
+function TransferButtons({ item, kind, dnd, inline }) {
+  const held = dnd.clip && dnd.clip.kind === kind && dnd.clip.id === item.id;
+  const pick = (e, mode) => {
+    e.stopPropagation();   // the row itself navigates or opens
+    dnd.setClip({ mode, kind, id: item.id, name: item.name });
+  };
+  // Bordered chips rather than bare words. As plain text over a card they read
+  // as part of the content, which is how "Cut Copy" ended up looking like the
+  // start of a folder name.
+  const base = "px-1.5 py-0.5 rounded border text-[10px] font-semibold transition-colors";
+  return (
+    <span className={inline ? "flex gap-1" : "absolute top-2 left-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100"}>
+      <button type="button" title="Cut" onClick={(e) => pick(e, "cut")}
+        className={`${base} ${held && dnd.clip.mode === "cut"
+          ? "bg-teal-700 border-teal-700 text-white"
+          : "bg-white border-gray-200 text-gray-500 hover:border-teal-400 hover:text-teal-700"}`}>Cut</button>
+      <button type="button" title="Copy" onClick={(e) => pick(e, "copy")}
+        className={`${base} ${held && dnd.clip.mode === "copy"
+          ? "bg-teal-700 border-teal-700 text-white"
+          : "bg-white border-gray-200 text-gray-500 hover:border-teal-400 hover:text-teal-700"}`}>Copy</button>
+    </span>
+  );
+}
+
+/* ── Large icons (thumbnails) ── */
+function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+  return (
+    <>
+      {data.folders.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+          {data.folders.map((f) => (
+            /* The actions used to float on top of the card (absolute, top-left)
+               and sat over the folder name. They live in their own strip now:
+               the name always readable, the buttons always in the same place,
+               and no layout shift on hover because the strip is never hidden. */
+            <div key={`fo-${f.id}`} {...dnd.drag("folder", f)} {...dnd.drop(f.id)}
+              className={`group bg-white border rounded-xl overflow-hidden transition-colors ${dnd.isOver(f.id) ? "border-teal-500 ring-2 ring-teal-300 bg-teal-50" : "border-gray-200 hover:border-teal-400"}`}>
+              <button type="button" onClick={() => goTo(f.id)}
+                title={f.name}
+                className="block w-full text-left p-3 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <FolderGlyph className="w-9 h-9" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{f.name}</p>
+                    <p className="text-[10px] text-gray-400">{f.files_count || 0} files · {f.children_count || 0} folders</p>
+                  </div>
+                </div>
+              </button>
+              <div className="px-2.5 pb-2 space-y-1.5 min-w-0">
+                <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="max-w-full" />
+                <AudienceChips item={f} compact />
+              </div>
+              {canWrite(f, me) && (
+                <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
+                  <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                  <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }}
+                    title="Delete folder"
+                    className="px-1.5 py-0.5 rounded text-[11px] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">✕</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {data.files.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {data.files.map((f) => (
+            <div key={`fi-${f.id}`} {...(canWrite(f, me) ? dnd.drag("file", f) : {})}
+              className="group bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-teal-400 transition-colors">
+              <button onClick={() => openFile(f)} className="block w-full text-start" title={f.name}>
+                <DriveThumb file={f} />
+                <div className="px-2.5 pt-2">
+                  <p className="text-xs font-semibold text-gray-800 truncate" dir="auto">{f.name}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{kindLabel(f)}{f.size ? ` · ${fmtSize(f.size)}` : ""}</p>
+                </div>
+              </button>
+              {/* Owner and audience on their own lines: side by side in a
+                  narrow card, both wrapped into tall stacks of chips. */}
+              <div className="px-2.5 pt-1.5 pb-2 space-y-1.5 min-w-0">
+                <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="max-w-full" />
+                <AudienceChips item={f} compact />
+              </div>
+              <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
+                {canWrite(f, me)
+                  ? <TransferButtons item={f} kind="file" dnd={dnd} inline />
+                  : <span className="text-[10px] text-gray-400">Shared with you</span>}
+                <span className="flex items-center gap-0.5">
+                  <FileActions f={f} downloadFile={downloadFile} copyLink={copyLink}
+                    removeFile={removeFile} canWrite={canWrite(f, me)} compact />
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── List (compact rows) ── */
+function ListView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+      {data.folders.map((f) => (
+        <div key={`fo-${f.id}`} {...(canWrite(f, me) ? dnd.drag("folder", f) : {})} {...dnd.drop(f.id)}
+          className={`group flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${dnd.isOver(f.id) ? "bg-teal-50 ring-2 ring-inset ring-teal-300" : "hover:bg-gray-50"}`}
+          onClick={() => goTo(f.id)}>
+          <FolderGlyph className="w-5 h-5" />
+          <span className="text-xs font-medium text-gray-800 flex-1 truncate">{f.name}</span>
+          <AudienceChips item={f} className="hidden md:inline-flex" />
+          <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="hidden sm:inline-flex w-28 justify-end" />
+          <span className="text-[10px] text-gray-400 hidden lg:block">{f.files_count || 0} files</span>
+          {canWrite(f, me) && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+              <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+              <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {data.files.map((f) => (
+        <div key={`fi-${f.id}`} {...(canWrite(f, me) ? dnd.drag("file", f) : {})}
+          className="group flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
+          <FileGlyph file={f} className="w-5 h-5" />
+          <span className="text-xs font-medium text-gray-800 flex-1 truncate" title={f.name}>{f.name}</span>
+          <AudienceChips item={f} className="hidden md:inline-flex" />
+          <OwnerBadge owner={f.owner} mine={isMine(f, me)} className="hidden sm:inline-flex w-28 justify-end" />
+          <span className="text-[10px] text-gray-400 hidden lg:block w-20 text-right">{f.size ? fmtSize(f.size) : kindLabel(f)}</span>
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+            {canWrite(f, me) && <TransferButtons item={f} kind="file" dnd={dnd} inline />}
+            <FileActions f={f} downloadFile={downloadFile} copyLink={copyLink}
+              removeFile={removeFile} canWrite={canWrite(f, me)} compact />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Details (table) ── */
+function DetailsView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <table className="w-full text-xs">
+        <thead className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
+          <tr>
+            <th className="text-left px-3 py-2 font-semibold">Name</th>
+            <th className="text-left px-3 py-2 font-semibold">Type</th>
+            <th className="text-left px-3 py-2 font-semibold hidden md:table-cell">Uploaded by</th>
+            <th className="text-left px-3 py-2 font-semibold hidden lg:table-cell">Shared with</th>
+            <th className="text-right px-3 py-2 font-semibold">Size</th>
+            <th className="text-left px-3 py-2 font-semibold hidden sm:table-cell">Modified</th>
+            <th className="px-3 py-2"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {data.folders.map((f) => (
+            <tr key={`fo-${f.id}`} {...(canWrite(f, me) ? dnd.drag("folder", f) : {})} {...dnd.drop(f.id)}
+              className={`group cursor-pointer transition-colors ${dnd.isOver(f.id) ? "bg-teal-50" : "hover:bg-gray-50"}`}
+              onClick={() => goTo(f.id)}>
+              <td className="px-3 py-2"><div className="flex items-center gap-2"><FolderGlyph className="w-4 h-4" /><span className="font-medium text-gray-800 truncate">{f.name}</span></div></td>
+              <td className="px-3 py-2 text-gray-500">Folder</td>
+              <td className="px-3 py-2 hidden md:table-cell"><OwnerBadge owner={f.owner} mine={isMine(f, me)} /></td>
+              <td className="px-3 py-2 hidden lg:table-cell"><AudienceChips item={f} /></td>
+              <td className="px-3 py-2 text-right text-gray-400">—</td>
+              <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{f.updated_at ? fmtDate(f.updated_at) : "—"}</td>
+              <td className="px-3 py-2">{canWrite(f, me) && (
+                <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
+                  <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                  <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600">✕</button>
+                </div>
+              )}</td>
+            </tr>
+          ))}
+          {data.files.map((f) => (
+            <tr key={`fi-${f.id}`} {...(canWrite(f, me) ? dnd.drag("file", f) : {})}
+              className="group hover:bg-gray-50 cursor-pointer" onClick={() => openFile(f)}>
+              <td className="px-3 py-2"><div className="flex items-center gap-2"><FileGlyph file={f} className="w-4 h-4" /><span className="font-medium text-gray-800 truncate" title={f.name}>{f.name}</span></div></td>
+              <td className="px-3 py-2 text-gray-500">{kindLabel(f)}</td>
+              <td className="px-3 py-2 hidden md:table-cell"><OwnerBadge owner={f.owner} mine={isMine(f, me)} /></td>
+              <td className="px-3 py-2 hidden lg:table-cell"><AudienceChips item={f} /></td>
+              <td className="px-3 py-2 text-right text-gray-500">{f.size ? fmtSize(f.size) : "—"}</td>
+              <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{f.created_at ? fmtDate(f.created_at) : "—"}</td>
+              <td className="px-3 py-2"><div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
+                {canWrite(f, me) && <TransferButtons item={f} kind="file" dnd={dnd} inline />}
+                <FileActions f={f} downloadFile={downloadFile} copyLink={copyLink}
+                  removeFile={removeFile} canWrite={canWrite(f, me)} compact />
+              </div></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ── Glyphs / thumbnails ── */
+function FolderGlyph({ className = "w-6 h-6" }) {
+  return <svg className={`${className} text-amber-400 flex-shrink-0`} fill="currentColor" viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" /></svg>;
+}
+
+function FileGlyph({ file, className = "w-6 h-6" }) {
+  // A document is written here, not uploaded — brand teal tells it apart from
+  // the uploads at a glance, and it keeps its own lined-page glyph.
+  const color = file.media_type === "doc" ? "text-teal-600"
+    : file.media_type === "image" ? "text-emerald-400"
+    : file.media_type === "video" ? "text-purple-400"
+    : file.is_link ? "text-sky-400" : "text-gray-300";
+  const d = file.media_type === "doc"
+    ? "M9 12h6m-6 4h6m-6-8h2m2 13H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+    : file.media_type === "image"
+    ? "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+    : file.media_type === "video"
+      ? "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 6h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"
+      : file.is_link
+        ? "M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5"
+        : "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z";
+  return <svg className={`${className} ${color} flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={d} /></svg>;
+}
+
+// Thumbnail for the large view. Images show the picture and videos their
+// first frame, both straight from the file's signed link; everything else a
+// type icon on a tinted tile.
+const THUMB_TINT = { image: "bg-teal-50", video: "bg-rose-50", audio: "bg-amber-50", pdf: "bg-red-50", doc: "bg-teal-50" };
+
+function DriveThumb({ file }) {
+  const kind = previewKind(file);
+  const [loaded, setLoaded] = useState(null);
+  const [failed, setFailed] = useState(false);
+  // An external picture is its own address; an upload's address is resolved below.
+  const src = file.is_link ? (file.media_type === "image" ? file.external_url : null) : loaded;
+
+  useEffect(() => {
+    if (file.is_link || !["image", "video"].includes(kind)) return undefined;
+    let alive = true;
+    fileObjectUrl(file).then((u) => alive && setLoaded(u)).catch(() => alive && setFailed(true));
+    return () => { alive = false; };
+  }, [file, kind]);
+
+  const box = `relative h-28 flex items-center justify-center overflow-hidden ${THUMB_TINT[kind] || "bg-gray-50"}`;
+  if (src && !failed && kind === "video") {
+    return (
+      <div className={`${box} bg-black`}>
+        <video src={`${src}#t=0.5`} preload="metadata" muted playsInline onError={() => setFailed(true)}
+          className="h-full w-full object-cover pointer-events-none" />
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-black/55 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white ms-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+        </span>
+      </div>
+    );
+  }
+  if (src && !failed) {
+    return <div className={box}><img src={src} alt={file.name} loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" /></div>;
+  }
+  return <div className={box}><FileGlyph file={file} className="w-10 h-10" /></div>;
+}
+
+function Icon({ d, className = "w-3.5 h-3.5" }) {
+  return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d} /></svg>;
+}

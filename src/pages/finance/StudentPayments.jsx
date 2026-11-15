@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getFeePayments, getFeeInvoices } from "../../api/financial";
+import { peekCache } from "../../api/axios";
+
+import { fmtDate } from "../../utils/formErrors";
 
 /**
  * Per-student payment + billing coverage view.
@@ -17,7 +20,7 @@ import { getFeePayments, getFeeInvoices } from "../../api/financial";
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString();
 const fmtDateLong = (d) =>
-  d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  d ? fmtDate(d) : "—";
 
 // IMPORTANT: pull YYYY-MM and YYYY-MM-DD from the *string* directly. Going
 // through `new Date(...).toISOString()` shifts the month by one when the
@@ -63,6 +66,13 @@ export default function StudentPayments() {
 
   useEffect(() => {
     setLoading(true);
+    const __cachedP = peekCache('/financial/fees/payments', { student_id: studentId, per_page: 1000 });
+    const __cachedI = peekCache('/financial/fees/invoices', { student_id: studentId, per_page: 1000 });
+    if (__cachedP && __cachedI) {
+      setPayments(Array.isArray(__cachedP.data?.data ?? __cachedP.data) ? (__cachedP.data?.data ?? __cachedP.data) : []);
+      setInvoices(Array.isArray(__cachedI.data?.data ?? __cachedI.data) ? (__cachedI.data?.data ?? __cachedI.data) : []);
+      setLoading(false);
+    }
     Promise.all([
       getFeePayments({ student_id: studentId, per_page: 1000 }),
       getFeeInvoices({ student_id: studentId, per_page: 1000 }),

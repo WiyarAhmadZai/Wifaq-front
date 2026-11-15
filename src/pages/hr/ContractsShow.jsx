@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del } from '../../api/axios';
+import { get, del, post, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const Icons = {
   ArrowLeft: () => (
@@ -58,6 +60,74 @@ const InfoCard = ({ icon: Icon, label, value }) => (
   </div>
 );
 
+/**
+ * Big lifecycle banner. The backend now sends:
+ *   data.lifecycle_state  →  "ok" | "expiring" | "expired" | "terminated" | "draft"
+ *   data.days_until_expiry →  signed integer (negative = expired)
+ *   data.is_expiring_soon  →  bool (≤ 30 d remaining, not yet expired)
+ *   data.is_expired        →  bool
+ * Anything we render below is driven from these so the banner stays in sync
+ * with reality even when the row sat in the DB past its end date.
+ */
+const LifecycleBanner = ({ data, canUpdate, onRenew }) => {
+  const state    = data.lifecycle_state || (data.is_expired ? "expired" : "ok");
+  const days     = data.days_until_expiry;
+  const endDate  = data.end_date || (data.has_probation ? data.probation_end_date : null);
+
+  // Map state → look + headline. Keeping a single dictionary so the JSX
+  // stays small and the visual hierarchy is obvious.
+  const themes = {
+    expired:    { bg: "from-red-50 to-rose-50",      border: "border-red-200",     dot: "bg-red-500",     text: "text-red-800",     pill: "bg-red-100 text-red-700",     headline: "This contract has expired",                ctaTone: "bg-red-600 hover:bg-red-700",       ctaLabel: "Renew or create new contract" },
+    expiring:   { bg: "from-amber-50 to-orange-50",  border: "border-amber-200",   dot: "bg-amber-500",   text: "text-amber-800",   pill: "bg-amber-100 text-amber-700", headline: `Expires in ${Math.max(0, days)} day${days === 1 ? "" : "s"}`, ctaTone: "bg-amber-600 hover:bg-amber-700",   ctaLabel: "Renew now" },
+    terminated: { bg: "from-gray-100 to-gray-50",    border: "border-gray-300",    dot: "bg-gray-500",    text: "text-gray-700",    pill: "bg-gray-200 text-gray-700",   headline: "This contract was terminated",             ctaTone: "bg-teal-600 hover:bg-teal-700",     ctaLabel: "Create new contract" },
+    draft:      { bg: "from-indigo-50 to-blue-50",   border: "border-indigo-200",  dot: "bg-indigo-500",  text: "text-indigo-800",  pill: "bg-indigo-100 text-indigo-700", headline: "Draft — not yet active",                  ctaTone: "",                                  ctaLabel: null },
+    ok:         { bg: "from-emerald-50 to-teal-50",  border: "border-emerald-200", dot: "bg-emerald-500", text: "text-emerald-800", pill: "bg-emerald-100 text-emerald-700", headline: days != null ? `Active · ${days} day${days === 1 ? "" : "s"} remaining` : "Active · no end date", ctaTone: "", ctaLabel: null },
+  };
+  const t = themes[state] || themes.ok;
+
+  return (
+    <div className={`mb-5 rounded-2xl border ${t.border} bg-gradient-to-br ${t.bg} px-5 py-4`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`relative flex h-3 w-3 flex-shrink-0`}>
+            {state === "expiring" && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${t.dot} opacity-60`} />}
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${t.dot}`} />
+          </span>
+          <div className="min-w-0">
+            <p className={`text-sm font-bold ${t.text}`}>{t.headline}</p>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-gray-600">
+              {endDate && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${t.pill}`}>
+                  End: {endDate}
+                </span>
+              )}
+              {state === "expired" && days != null && days < 0 && (
+                <span className="text-red-700 font-semibold">Expired {Math.abs(days)} day{Math.abs(days) === 1 ? "" : "s"} ago</span>
+              )}
+              {data.contract_type && (
+                <span className="px-2 py-0.5 rounded-full bg-white/70 text-gray-700 text-[10px] font-semibold border border-white">
+                  {String(data.contract_type).replace(/_/g, " ")}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        {canUpdate && t.ctaLabel && (
+          <button
+            onClick={onRenew}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm flex items-center gap-2 ${t.ctaTone} ${state === "expired" ? "animate-pulse" : ""}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {t.ctaLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function ContractsShow() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -65,6 +135,32 @@ export default function ContractsShow() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showRenewModal, setShowRenewModal] = useState(false);
+  const [approving, setApproving] = useState(false);
+
+  // Approve a drafted contract → activates it (status draft → active) and
+  // notifies the staff member. Only meaningful while status is "draft".
+  const handleApprove = async () => {
+    const confirm = await Swal.fire({
+      title: 'Approve & activate this contract?',
+      text: 'The contract becomes active and the staff member is notified.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#0d9488',
+      confirmButtonText: 'Yes, activate',
+    });
+    if (!confirm.isConfirmed) return;
+    setApproving(true);
+    try {
+      const res = await post(`/hr/contracts/approve/${id}`);
+      setData(res.data || null);
+      await fetchItem();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Contract activated', timer: 1800, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.message || 'Failed to approve contract', 'error');
+    } finally {
+      setApproving(false);
+    }
+  };
 
   useEffect(() => {
     fetchItem();
@@ -72,6 +168,11 @@ export default function ContractsShow() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/contracts/show/${id}`);
+    if (__cached) {
+      setData(__cached);
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/contracts/show/${id}`);
       setData(response.data);
@@ -155,6 +256,14 @@ export default function ContractsShow() {
               </button>
             );
           })()}
+          {/* Draft → Approve & activate. Needs update permission. */}
+          {canUpdate && data.status === 'draft' && (
+            <button onClick={handleApprove} disabled={approving}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-xs font-medium disabled:opacity-50">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              {approving ? 'Activating…' : 'Approve & Activate'}
+            </button>
+          )}
           {canUpdate && (
             <button onClick={() => navigate(`/hr/contracts/edit/${id}`)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium">
               <Icons.Edit /> Edit
@@ -167,6 +276,11 @@ export default function ContractsShow() {
           )}
         </div>
       </div>
+
+      {/* Lifecycle banner — single source of truth for "what's going on with
+          this contract right now". Backend supplies lifecycle_state + the
+          countdown so the banner stays accurate even after refresh. */}
+      <LifecycleBanner data={data} canUpdate={canUpdate} onRenew={() => setShowRenewModal(true)} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
@@ -209,7 +323,7 @@ export default function ContractsShow() {
               </h3>
               <p className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">{data.probation_feedback}</p>
               {data.probation_feedback_at && (
-                <p className="text-[10px] text-gray-400 mt-2">Submitted: {new Date(data.probation_feedback_at).toLocaleString()}</p>
+                <p className="text-[10px] text-gray-400 mt-2">Submitted: {fmtDateTime(data.probation_feedback_at)}</p>
               )}
             </div>
           )}
@@ -239,7 +353,7 @@ export default function ContractsShow() {
                       <div className="flex items-center gap-3 text-[10px] text-gray-500">
                         <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
                         <span>•</span>
-                        <span>{c.start_date} → {c.end_date || c.probation_end_date || 'No end'}</span>
+                        <span>{fmtDate(c.start_date)} → {c.end_date || c.probation_end_date || 'No end'}</span>
                         <span>•</span>
                         <span>{c.salary_currency || 'AFN'} {parseFloat(c.salary).toLocaleString()}</span>
                       </div>
@@ -260,16 +374,16 @@ export default function ContractsShow() {
             <div className="space-y-3">
               <div>
                 <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created</p>
-                <p className="text-xs text-gray-800">{data.created_at ? new Date(data.created_at).toLocaleString() : '-'}</p>
+                <p className="text-xs text-gray-800">{data.created_at ? fmtDateTime(data.created_at) : '-'}</p>
               </div>
               <div>
                 <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
-                <p className="text-xs text-gray-800">{data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}</p>
+                <p className="text-xs text-gray-800">{data.updated_at ? fmtDateTime(data.updated_at) : '-'}</p>
               </div>
               {data.approved_at && (
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Approved</p>
-                  <p className="text-xs text-gray-800">{new Date(data.approved_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-800">{fmtDateTime(data.approved_at)}</p>
                 </div>
               )}
             </div>

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
+import { DateField } from "../../components/hr/HrUI";
 export default function JobsForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -34,6 +35,25 @@ export default function JobsForm() {
 
   const fetchJob = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/jobs/${id}`);
+    if (__cached) {
+      const job = __cached?.data || __cached;
+      setFormData({
+        position: job.position || '',
+        department: job.department || '',
+        location: job.location || '',
+        employment_type: job.employment_type || 'full_time',
+        seats: job.seats || '',
+        salary_range: job.salary_range || '',
+        description: job.description || '',
+        requirements: job.requirements || '',
+        responsibilities: job.responsibilities || '',
+        benefits: job.benefits || '',
+        deadline: job.deadline || '',
+        status: job.status || 'draft'
+      });
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/jobs/${id}`);
       const job = response.data?.data || response.data;
@@ -288,13 +308,11 @@ export default function JobsForm() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Application Deadline
             </label>
-            <input
-              type="date"
+            <DateField
               name="deadline"
               value={formData.deadline}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm" />
           </div>
 
           <div>

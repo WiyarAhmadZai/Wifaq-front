@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate } from "../../utils/formErrors";
 
 const CATEGORY_COLORS = {
   teaching: "bg-blue-100 text-blue-700",
@@ -29,6 +32,9 @@ const STATUS_COLORS = {
 export default function CandidatePoolShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/candidate-pool");
   const { canUpdate, canDelete } = useResourcePermissions("candidate-pool");
   const [pool, setPool] = useState(null);
   const [members, setMembers] = useState([]);
@@ -46,6 +52,8 @@ export default function CandidatePoolShow() {
 
   const fetchPool = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/candidate-pool/${id}`);
+    if (__cached) { setPool(__cached?.data || __cached); setMembers(__cached?.members || []); setLoading(false); }
     try {
       const response = await get(`/recruitment/candidate-pool/${id}`);
       setPool(response.data?.data || response.data);
@@ -153,7 +161,7 @@ export default function CandidatePoolShow() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/recruitment/candidate-pool")}
+          <button onClick={goBack}
             className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -286,7 +294,7 @@ export default function CandidatePoolShow() {
                         {member.notes || "-"}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-400">
-                        {member.created_at ? new Date(member.created_at).toLocaleDateString() : "-"}
+                        {member.created_at ? fmtDate(member.created_at) : "-"}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">

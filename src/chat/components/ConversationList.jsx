@@ -1,0 +1,227 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  FiSearch, FiEdit, FiMoreVertical, FiCheck, FiCheckCircle,
+} from 'react-icons/fi';
+import { useChat } from '../ChatContext';
+import Avatar from './Avatar';
+import { formatListTime, lastMessagePreview, roleLabel } from '../utils';
+import { TagChip } from './TagPicker';
+import { TAGS } from '../tags';
+
+export default function ConversationList({ onNewChat }) {
+  const {
+    conversations, activeId, openConversation, isOnline,
+    setPinned, setArchived, setMuted, refreshConversations, me,
+  } = useChat();
+  const [search, setSearch] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  /* Which category the inbox is narrowed to, or null for everything. The
+   * server does the filtering, because a thread qualifies when ANY of its
+   * messages carries the tag — including one several replies back, which is
+   * exactly the message somebody filtering for "urgent" is looking for. */
+  const [tagFilter, setTagFilter] = useState(null);
+  const [menuFor, setMenuFor] = useState(null);
+
+  useEffect(() => {
+    refreshConversations({ archived: showArchived, ...(tagFilter ? { tag: tagFilter } : {}) });
+  }, [showArchived, tagFilter, refreshConversations]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return conversations;
+    // Subject is searchable too — it is how two threads with the same person
+    // are told apart.
+    return conversations.filter((c) =>
+      (c.title || '').toLowerCase().includes(term) || (c.subject || '').toLowerCase().includes(term));
+  }, [conversations, search]);
+
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
+          <button
+            onClick={onNewChat}
+            title="New chat"
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-teal-50 text-teal-600 hover:bg-teal-100 transition-colors"
+          >
+            <FiEdit className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="relative">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search conversations"
+            className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-transparent focus:border-teal-300 focus:bg-white rounded-xl text-sm outline-none transition-colors"
+          />
+        </div>
+        <div className="flex gap-2 mt-3 text-xs">
+          <button
+            onClick={() => setShowArchived(false)}
+            className={`px-3 py-1 rounded-full font-medium transition-colors ${!showArchived ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+          >
+            Recent
+          </button>
+          <button
+            onClick={() => setShowArchived(true)}
+            className={`px-3 py-1 rounded-full font-medium transition-colors ${showArchived ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+          >
+            Archived
+          </button>
+        </div>
+
+        {/* Category chips. Horizontally scrollable rather than wrapped, so the
+            list keeps its height whatever the screen width — the messages are
+            what the panel is for. */}
+        <div className="flex gap-1.5 mt-2 overflow-x-auto pb-0.5 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+          <button
+            onClick={() => setTagFilter(null)}
+            className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+              tagFilter === null ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            All
+          </button>
+          {TAGS.map((t) => {
+            const on = tagFilter === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTagFilter(on ? null : t.key)}
+                title={t.hint}
+                className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors"
+                style={on
+                  ? { color: t.fg, background: t.bg, borderColor: t.fg }
+                  : { color: '#6B7280', background: '#fff', borderColor: '#E5E7EB' }}
+              >
+                <span className="leading-none">{t.icon}</span>
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-sm text-gray-400">
+            {tagFilter
+              ? 'No conversations in this category.'
+              : showArchived ? 'No archived chats.' : 'No conversations yet. Start a new chat.'}
+          </div>
+        ) : (
+          filtered.map((c) => {
+            const isGroup = c.type === 'group';
+            const other = c.counterpart;
+            const online = other ? isOnline(other.id) : false;
+            const active = c.id === activeId;
+            const mine = c.last_message && c.last_message.sender_id === me?.id;
+            return (
+              <div
+                key={c.id}
+                onClick={() => openConversation(c)}
+                className={`group relative flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-50 transition-colors ${active ? 'bg-teal-50/70' : 'hover:bg-gray-50'}`}
+              >
+                {isGroup
+                  ? <Avatar user={{ name: c.title }} size={48} linkable={false} group />
+                  : <Avatar user={other} size={48} online={online} showDot />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-gray-800 truncate flex items-center gap-1.5">
+                      {c.is_pinned && <span className="text-teal-500 text-xs">📌</span>}
+                      {c.title}
+                    </span>
+                    <span className="text-[11px] text-gray-400 flex-shrink-0">
+                      {formatListTime(c.last_message_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <span className="text-xs text-gray-500 truncate flex items-center gap-1">
+                      {mine && c.last_message && !c.last_message.is_deleted && (
+                        c.last_message.seen_at
+                          ? <FiCheckCircle className="w-3 h-3 text-teal-500 flex-shrink-0" />
+                          : <FiCheck className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                      )}
+                      <span className="truncate">{lastMessagePreview(c.last_message)}</span>
+                    </span>
+                    {c.unread_count > 0 && (
+                      <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-teal-600 text-white text-[10px] font-bold">
+                        {c.unread_count}
+                      </span>
+                    )}
+                  </div>
+                  {/* Subject on a direct thread; member count on a group —
+                      with the last message's tag beside it, which is what lets
+                      a full inbox be triaged without opening anything. */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {/* The icon alone. The six labels are already spelled out
+                        in the filter chips above, and repeating them on every
+                        row crowded the subject line for no new information —
+                        the tooltip still names it. */}
+                    <TagChip tag={c.last_message?.tag || tagFilter} size="xs" iconOnly />
+                  {c.subject ? (
+                    <span className="block text-[10px] font-semibold text-teal-700 truncate">{c.subject}</span>
+                  ) : isGroup ? (
+                    <span className="text-[10px] text-gray-400"><span>{c.member_count ?? ''}</span> <span>members</span></span>
+                  ) : other?.role ? (
+                    <span className="text-[10px] text-gray-400">{roleLabel(other.role)}</span>
+                  ) : null}
+                  </div>
+                </div>
+
+                {/* Row menu */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === c.id ? null : c.id); }}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-gray-200 text-gray-500 transition-opacity"
+                >
+                  <FiMoreVertical className="w-4 h-4" />
+                </button>
+                {menuFor === c.id && (
+                  <RowMenu
+                    conversation={c}
+                    onClose={() => setMenuFor(null)}
+                    onPin={() => { setPinned(c.id, !c.is_pinned); setMenuFor(null); }}
+                    onArchive={() => { setArchived(c.id, !showArchived); setMenuFor(null); }}
+                    onMute={() => { setMuted(c.id, !c.is_muted); setMenuFor(null); }}
+                    archivedView={showArchived}
+                  />
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RowMenu({ conversation, onClose, onPin, onArchive, onMute, archivedView }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      onClick={(e) => e.stopPropagation()}
+      className="absolute right-3 top-12 z-20 w-40 bg-white rounded-xl shadow-lg border border-gray-100 py-1 text-sm"
+    >
+      <button onClick={onPin} className="w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700">
+        {conversation.is_pinned ? 'Unpin' : 'Pin'}
+      </button>
+      <button onClick={onMute} className="w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700">
+        {conversation.is_muted ? 'Unmute' : 'Mute'}
+      </button>
+      <button onClick={onArchive} className="w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700">
+        {archivedView ? 'Unarchive' : 'Archive'}
+      </button>
+    </div>
+  );
+}

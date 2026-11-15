@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { get, post, put, del } from "../../api/axios";
+import { get, post, put, del, peekCache } from "../../api/axios";
 
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
 const EXAM_TYPES = [
   { key: "weekly", label: "Weekly", sub: "One week view — period grid", color: "teal", rangeDays: 6, hasPeriods: true, calendarView: false, noPeriod: false },
   { key: "monthly", label: "Monthly", sub: "Calendar view — date & teacher per exam", color: "teal", rangeDays: 30, hasPeriods: false, calendarView: true, noPeriod: false },
@@ -183,6 +186,13 @@ export default function Exams() {
 
   const fetchFormData = async () => {
     try {
+      const __c = peekCache("/class-management/exams/form-data");
+      if (__c) {
+        const cd = __c?.data || {};
+        setFormData(cd);
+        const ct = (cd.terms || []).find((t) => t.is_current) || cd.terms?.[0];
+        if (ct) setSelectedTerm(ct.id);
+      }
       const res = await get("/class-management/exams/form-data");
       const d = res.data?.data || {};
       setFormData(d);
@@ -227,6 +237,10 @@ export default function Exams() {
       setExams(cached);
       // skip the loader so the page feels instant; refetch silently in background
       showLoading = false;
+    } else {
+      // Fall back to the persisted (cross-session) API cache for instant paint
+      const __persisted = peekCache(`/class-management/exams/list?${cacheKey}`);
+      if (__persisted) { setExams(__persisted?.data || []); showLoading = false; }
     }
 
     if (showLoading) setLoading(true);
@@ -312,10 +326,10 @@ export default function Exams() {
 
   const viewLabel = useMemo(() => {
     if (viewDates.length === 0) return "";
-    if (activeTab === "monthly") return anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    if (activeTab === "monthly") return fmtDate(anchor);
     const first = viewDates[0], last = viewDates[viewDates.length - 1];
     const opts = { month: "short", day: "numeric" };
-    return `${first.toLocaleDateString("en-US", opts)} – ${last.toLocaleDateString("en-US", opts)}, ${last.getFullYear()}`;
+    return `${fmtDate(first)} – ${fmtDate(last)}, ${last.getFullYear()}`;
   }, [viewDates, anchor, activeTab]);
 
   const navigatePeriod = (dir) => {
@@ -338,7 +352,7 @@ export default function Exams() {
   const handleDelete = async (exam) => {
     const ok = await Swal.fire({
       title: "Delete this exam?",
-      text: `${exam.subject?.subject_name} — ${new Date(exam.exam_date).toLocaleDateString()}`,
+      text: `${exam.subject?.subject_name} — ${fmtDate(exam.exam_date)}`,
       icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Yes, delete",
     });
     if (!ok.isConfirmed) return;
@@ -356,7 +370,7 @@ export default function Exams() {
     const action = isCancelled ? "Reactivate" : "Cancel";
     const ok = await Swal.fire({
       title: `${action} this exam?`,
-      text: `${exam.subject?.subject_name} — ${new Date(exam.exam_date).toLocaleDateString()}`,
+      text: `${exam.subject?.subject_name} — ${fmtDate(exam.exam_date)}`,
       icon: "warning", showCancelButton: true,
       confirmButtonColor: isCancelled ? "#0d9488" : "#f59e0b",
       confirmButtonText: `Yes, ${action.toLowerCase()}`,
@@ -617,7 +631,7 @@ export default function Exams() {
       school_class_id: exam.school_class_id || "",
       subject_id: exam.subject_id || "",
       teacher_id: exam.teacher_id || "",
-      exam_date: exam.exam_date ? (exam.exam_date.split("T")[0]) : "",
+      exam_date: exam.exam_date ? (fmtDate(exam.exam_date)) : "",
       period: currentPeriod || 1,
       start_time: (exam.start_time || "09:00").substring(0, 5),
       end_time: (exam.end_time || "11:00").substring(0, 5),
@@ -800,7 +814,7 @@ export default function Exams() {
 
         viewDates.forEach((date) => {
           const dateKey = ymd(date);
-          body += `<tr><td class="day-cell"><strong>${DAY_FULL[date.getDay()]}</strong><br/><span class="date-small">${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></td>`;
+          body += `<tr><td class="day-cell"><strong>${DAY_FULL[date.getDay()]}</strong><br/><span class="date-small">${fmtDate(date)}</span></td>`;
           PERIODS.forEach((p) => {
             const list = grid[dateKey]?.[p.n] || [];
             if (list.length === 0) {
@@ -841,7 +855,7 @@ export default function Exams() {
           const d = new Date(ex.exam_date);
           body += `
             <tr>
-              <td>${d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</td>
+              <td>${fmtDate(d)}</td>
               <td>${DAY_FULL[d.getDay()]}</td>
               ${printNoPeriod ? "" : `<td>Period ${getPeriodForExam(ex.start_time) || "—"}</td>`}
               <td>${fmtTimeFn(ex.start_time)}</td>
@@ -949,7 +963,7 @@ export default function Exams() {
   <div class="print-wrap">
     ${headerHtml}
     ${body}
-    <div class="footer">Generated on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+    <div class="footer">Generated on ${fmtDate(new Date())}</div>
   </div>
 </body>
 </html>`;
@@ -1035,12 +1049,12 @@ export default function Exams() {
                     <td className={`px-3 py-2 border-b border-r border-gray-200 sticky left-0 z-10 ${rowIsToday ? `bg-gradient-to-r ${activeColor.grad} text-white` : rowIdx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
                       <div className="flex items-center gap-2">
                         <div className={`w-9 h-9 rounded-lg flex flex-col items-center justify-center ${rowIsToday ? "bg-white/20 text-white" : `${activeColor.soft} ${activeColor.text}`}`}>
-                          <span className="text-[9px] font-semibold leading-none">{date.toLocaleDateString("en-US", { month: "short" })}</span>
+                          <span className="text-[9px] font-semibold leading-none">{fmtDate(date)}</span>
                           <span className="text-sm font-bold leading-none">{date.getDate()}</span>
                         </div>
                         <div>
                           <p className={`text-xs font-bold ${rowIsToday ? "text-white" : "text-gray-800"}`}>{DAY_FULL[date.getDay()]}</p>
-                          <p className={`text-[10px] ${rowIsToday ? "text-white/80" : "text-gray-500"}`}>{date.toLocaleDateString("en-US", { year: "numeric" })}</p>
+                          <p className={`text-[10px] ${rowIsToday ? "text-white/80" : "text-gray-500"}`}>{fmtDate(date)}</p>
                         </div>
                       </div>
                     </td>
@@ -1195,7 +1209,7 @@ export default function Exams() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className={`w-9 h-9 rounded-lg ${activeColor.soft} flex flex-col items-center justify-center ${activeColor.text}`}>
-                            <span className="text-[9px] font-semibold leading-none">{new Date(exam.exam_date).toLocaleDateString("en-US", { month: "short" })}</span>
+                            <span className="text-[9px] font-semibold leading-none">{fmtDate(exam.exam_date)}</span>
                             <span className="text-sm font-bold leading-none">{new Date(exam.exam_date).getDate()}</span>
                           </div>
                           <div>
@@ -1496,7 +1510,7 @@ export default function Exams() {
           {(activeType.hasPeriods || activeType.calendarView) && (
             <div className="flex items-center gap-1">
               <button onClick={() => navigatePeriod(-1)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl" title={activeType.hasPeriods ? "Previous" : "Previous month"}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
-              <button onClick={jumpToToday} className="px-3 py-2 text-[11px] font-semibold text-gray-600 hover:bg-gray-100 rounded-xl">{activeType.calendarView ? anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Today"}</button>
+              <button onClick={jumpToToday} className="px-3 py-2 text-[11px] font-semibold text-gray-600 hover:bg-gray-100 rounded-xl">{activeType.calendarView ? fmtDate(anchor) : "Today"}</button>
               <button onClick={() => navigatePeriod(1)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl" title={activeType.hasPeriods ? "Next" : "Next month"}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
             </div>
           )}
@@ -1556,7 +1570,7 @@ export default function Exams() {
         return (
           <ExamModal
             title={`Schedule ${activeType.label} Exam`}
-            subtitle={`${new Date(quickAdd.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} · ${PERIODS.find((p) => p.n === quickAdd.period)?.label}`}
+            subtitle={`${fmtDate(quickAdd.date)} · ${PERIODS.find((p) => p.n === quickAdd.period)?.label}`}
             colorClass={activeColor}
             form={quickForm}
             setForm={setQuickForm}
@@ -1642,12 +1656,12 @@ export default function Exams() {
 
       {/* Day-Exams Modal (click a calendar day) */}
       {dayModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDayModal(null)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className={`px-5 py-4 bg-gradient-to-r ${activeColor.grad} flex items-center justify-between`}>
               <div>
                 <h3 className="text-sm font-bold text-white">
-                  {new Date(dayModal.date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                  {fmtDate(dayModal.date)}
                 </h3>
                 <p className="text-[11px] text-white/80 mt-0.5">
                   {dayModal.className}
@@ -1745,7 +1759,7 @@ export default function Exams() {
 
       {/* Auto-Generate Modal */}
       {showGenerate && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowGenerate(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className={`px-5 py-4 bg-gradient-to-r ${activeColor.grad}`}>
               <h3 className="text-sm font-bold text-white">Auto Generate {activeType.label} Exams</h3>
@@ -1779,7 +1793,7 @@ export default function Exams() {
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date *</label>
-                <input type="date" value={genForm.start_date} onChange={(e) => setGenForm({ ...genForm, start_date: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                <DateField value={genForm.start_date} onChange={(e) => setGenForm({ ...genForm, start_date: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1861,7 +1875,7 @@ function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjec
     return subjects.filter((s) => subjectIdsForGrade.has(s.id));
   })();
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className={`px-5 py-4 bg-gradient-to-r ${colorClass.grad}`}>
           <h3 className="text-sm font-bold text-white">{title}</h3>
@@ -1908,7 +1922,7 @@ function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjec
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Exam Date *</label>
-                  <input type="date" value={form.exam_date} onChange={(e) => handle("exam_date", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                  <DateField value={form.exam_date} onChange={(e) => handle("exam_date", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Time *</label>
@@ -1923,7 +1937,7 @@ function ExamModal({ title, subtitle, colorClass, form, setForm, classes, subjec
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Exam Date *</label>
-                  <input type="date" value={form.exam_date} onChange={(e) => handle("exam_date", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                  <DateField value={form.exam_date} onChange={(e) => handle("exam_date", e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Period *</label>

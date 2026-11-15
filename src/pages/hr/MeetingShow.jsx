@@ -1,15 +1,34 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put, del } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, post, put, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
+import ChecklistPanel from "../../components/hr/ChecklistPanel";
+import AttachmentPanel from "../../components/hr/AttachmentPanel";
+import { RichTextView } from "../../components/RichTextField";
+import { SendReminderButton } from "../../components/hr/Reminders";
+import { RateWorkButton } from "../../components/hr/StaffRatings";
+import { useAuth } from "../../admin/context/AuthContext";
+import { linesToItems, richTextToPlain } from "../../utils/richText";
 const statusConf = {
   scheduled: { label: "Scheduled", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
   in_progress: { label: "In Progress", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
   completed: { label: "Completed", bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
   cancelled: { label: "Cancelled", bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500" },
+  ended: { label: "Ended", bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-600", dot: "bg-gray-400" },
 };
+
+/* Deliberately NOT part of statusConf: that object doubles as the list of
+ * statuses the badge menu offers, and "put this back to draft" is not a move
+ * anyone should be able to make. The invitations have already gone out —
+ * quietly hiding the meeting again would be worse than useless. Publishing is
+ * one-way; this entry exists only so a draft renders honestly. */
+const draftConf = { label: "Draft", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", dot: "bg-amber-500" };
 
 const emptyNote = { key_points: "", action_items_summary: "", reminders: "", additional_notes: "" };
 
@@ -198,11 +217,19 @@ function SearchableStaffSelect({ options, value, onChange }) {
 export default function MeetingShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered list, a
+  // dashboard, a notification — not always to the top of the module.
+  const goBack = useSmartBack("/hr/meetings");
   const { canUpdate, canDelete } = useResourcePermissions("meetings");
+  const { isSuperAdmin } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const statusRef = useRef(null);
+
+  // Talking points linked to this meeting — the notebook entries captured
+  // from it (super-admin's own view). Powers the two-way convert/integrate.
+  const [linkedTps, setLinkedTps] = useState([]);
 
   // Notes state
   const [showNoteForm, setShowNoteForm] = useState(false);
@@ -217,16 +244,134 @@ export default function MeetingShow() {
   const [showProposeAgenda, setShowProposeAgenda] = useState(false);
   const [proposeForm, setProposeForm] = useState({ title: "", description: "", duration_min: 15 });
   const [proposing, setProposing] = useState(false);
+  // "Several at once": a pasted or typed list, one topic per line.
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState("");
 
   // Assign task modal state
   const [showAssignTask, setShowAssignTask] = useState(false);
   const [staffList, setStaffList] = useState([]);
-  const [taskForm, setTaskForm] = useState({ staff_id: "", task: "", task_type: "normal", start_date: "", deadline: "", notes: "" });
+  const [taskForm, setTaskForm] = useState({ staff_id: "", task: "", task_type: "normal", start_date: "", deadline: "", notes: "", notify_by_email: true });
   const [assigningTask, setAssigningTask] = useState(false);
 
-  useEffect(() => {
-    get(`/meetings/${id}`).then((r) => setData(r.data?.data || r.data)).catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
+  // Backend-driven gate flags. Populated from the meeting show response so
+  // the UI hides edit/delete/notes-edit/assign-task buttons when the current
+  // user is just a participant (no meetings.* permission), or once the
+  // meeting start time has passed.
+  const [perms, setPerms] = useState({
+    can_manage: false,
+    is_locked: false,
+    can_edit: false,
+    can_delete: false,
+    can_assign_task: false,
+    can_add_note: false,
+    can_edit_note: false,
+    can_delete_note: false,
+    can_add_agenda: false,
+  });
+
+  const loadMeeting = useCallback(() => {
+    const __cached = peekCache(`/meetings/${id}`);
+    if (__cached) {
+      setData(__cached?.data || __cached);
+      if (__cached?.permissions) setPerms((p) => ({ ...p, ...__cached.permissions }));
+      setLoading(false);
+    }
+    // The gate flags travel beside `data`, not inside it. They were never read,
+    // so every server-gated button — add agenda, notes, assign task — stayed
+    // hidden for everyone.
+    return get(`/meetings/${id}`).then((r) => {
+      setData(r.data?.data || r.data);
+      if (r.data?.permissions) setPerms((p) => ({ ...p, ...r.data.permissions }));
+    });
   }, [id]);
+
+  useEffect(() => {
+    loadMeeting().catch(() => Swal.fire("Error", "Failed to load", "error")).finally(() => setLoading(false));
+  }, [id, loadMeeting]);
+
+  // The notebook entries linked to this meeting (super-admin only — the
+  // talking-points module is their private notebook).
+  const loadLinkedTps = useCallback(() => {
+    if (!isSuperAdmin) { setLinkedTps([]); return; }
+    get(`/hr/talking-points/for-meeting/${id}`, { cache: false })
+      .then((r) => setLinkedTps(r.data?.data || []))
+      .catch(() => setLinkedTps([]));
+  }, [id, isSuperAdmin]);
+  useEffect(() => { loadLinkedTps(); }, [loadLinkedTps]);
+
+  // Capture this meeting / appointment as a talking point (vice-versa of the
+  // talking-point → appointment conversion). Title is pre-filled and editable.
+  const handleToTalkingPoint = async () => {
+    const r = await Swal.fire({
+      title: "Save as a talking point",
+      input: "text",
+      inputValue: data?.title || "",
+      inputPlaceholder: "Talking point title",
+      inputLabel: "The meeting's purpose becomes the note; its people are carried in.",
+      showCancelButton: true,
+      confirmButtonText: "Create talking point",
+      reverseButtons: true,
+    });
+    if (!r.isConfirmed) return;
+    try {
+      await post(`/hr/talking-points/from-meeting/${id}`, { title: (r.value || "").trim() || undefined });
+      loadLinkedTps();
+      window.dispatchEvent(new Event("wen:notifications-refresh"));
+      Swal.fire({
+        icon: "success", title: "Saved as a talking point",
+        text: "The note is in your Talking Points notebook, linked to this meeting.",
+        showCancelButton: true, confirmButtonText: "OK", cancelButtonText: "Open notebook",
+      }).then((x) => {
+        if (x.dismiss === Swal.DismissReason.cancel) navigate("/hr/talking-points");
+      });
+    } catch (err) {
+      const res = err.response?.data;
+      if (err.response?.status === 422 && res?.data?.id) {
+        // Already converted — take the admin straight to the notebook.
+        loadLinkedTps();
+        Swal.fire({
+          icon: "info", title: "Already in your notebook",
+          text: res.message || "A talking point is already linked to this meeting.",
+          showCancelButton: true, confirmButtonText: "OK", cancelButtonText: "Open notebook",
+        }).then((x) => {
+          if (x.dismiss === Swal.DismissReason.cancel) navigate("/hr/talking-points");
+        });
+      } else {
+        Swal.fire("Error", res?.message || "Could not create the talking point.", "error");
+      }
+    }
+  };
+
+  const [respondingRsvp, setRespondingRsvp] = useState(false);
+  const respondRsvp = async (status) => {
+    let reason = null;
+    if (status === "declined") {
+      const { value, isConfirmed } = await Swal.fire({
+        title: "Can't attend?",
+        input: "textarea",
+        inputLabel: "Please give a brief reason",
+        inputPlaceholder: "e.g. On leave that day / clashes with another meeting…",
+        inputValidator: (v) => (!v || !v.trim() ? "A reason is required to decline" : undefined),
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        confirmButtonText: "Send response",
+      });
+      if (!isConfirmed) return;
+      reason = (value || "").trim();
+    }
+    setRespondingRsvp(true);
+    try {
+      await post(`/meetings/${id}/respond`, { status, reason });
+      await loadMeeting();
+      Swal.fire({ icon: "success", title: status === "accepted" ? "Marked as attending" : "Response sent", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+      window.dispatchEvent(new Event("wen:notifications-refresh"));
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not record your response", "error");
+    } finally {
+      setRespondingRsvp(false);
+    }
+  };
 
   useEffect(() => {
     const close = (e) => { if (statusRef.current && !statusRef.current.contains(e.target)) setShowStatusMenu(false); };
@@ -245,15 +390,75 @@ export default function MeetingShow() {
 
   const handleDelete = async () => {
     const r = await Swal.fire({ title: "Delete meeting?", icon: "warning", showCancelButton: true, confirmButtonColor: "#ef4444", confirmButtonText: "Delete" });
-    if (r.isConfirmed) { try { await del(`/meetings/${id}`); } catch {} navigate("/hr/meetings"); }
+    if (r.isConfirmed) { try { await del(`/meetings/${id}`); } catch {} goBack(); }
+  };
+
+  const handleCopy = async () => {
+    const r = await Swal.fire({
+      title: "Copy this meeting?",
+      text: `A duplicate of "${data?.title}" will be created on the same weekday & time, with the date moved forward. You can then adjust the date before saving.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      confirmButtonText: "Create copy",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      const res = await post(`/meetings/${id}/copy`);
+      const created = res.data?.data;
+      Swal.fire({ icon: "success", title: "Copy created", timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+      if (created?.id) navigate(`/hr/meetings/edit/${created.id}`);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to copy meeting", "error");
+    }
+  };
+
+  const handleContinue = async () => {
+    const r = await Swal.fire({
+      title: "Continue in a follow-up?",
+      html: `This will schedule a follow-up session of <b>"${data?.title}"</b> on the same weekday & time next week, carry over the participants, agenda and pending action items, and notify everyone.<br/><br/>This session will be marked <b>completed</b>.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0d9488",
+      confirmButtonText: "Schedule follow-up",
+    });
+    if (!r.isConfirmed) return;
+    try {
+      const res = await post(`/meetings/${id}/continue`);
+      const created = res.data?.data;
+      Swal.fire({ icon: "success", title: res.data?.message || "Follow-up scheduled", timer: 2200, showConfirmButton: false, toast: true, position: "top-end" });
+      if (created?.id) navigate(`/hr/meetings/show/${created.id}`);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Failed to schedule follow-up", "error");
+    }
   };
 
   // ── Propose agenda item (participant flow) ──
   const isOrganizer = data && currentUser?.id && data.organizer_id === currentUser.id;
   const isParticipant = data && currentUser?.id && (data.participants || []).some((p) => p.id === currentUser.id);
-  const canProposeAgenda = isOrganizer || isParticipant;
+  // Adding / proposing agenda items requires the meeting to still be in the
+  // future. Backend can_add_agenda combines participant-or-manager + not-locked.
+  const canProposeAgenda = perms.can_add_agenda;
 
   const submitProposeAgenda = async () => {
+    if (bulkMode) {
+      const items = linesToItems(bulkText);
+      if (!items.length) { Swal.fire("Missing", "Write at least one topic — one per line.", "warning"); return; }
+      setProposing(true);
+      try {
+        const res = await post(`/meetings/${id}/agenda-items/bulk`, { items, duration_min: proposeForm.duration_min || null });
+        const added = res.data?.data || [];
+        setData((p) => ({ ...p, agenda_items: [...(p.agenda_items || []), ...added] }));
+        setShowProposeAgenda(false);
+        setBulkText("");
+        Swal.fire({ icon: "success", title: `${added.length} agenda items added`, timer: 1400, showConfirmButton: false, toast: true, position: "top-end" });
+      } catch (err) {
+        Swal.fire("Error", err.response?.data?.message || "Failed to add", "error");
+      } finally {
+        setProposing(false);
+      }
+      return;
+    }
     if (!proposeForm.title.trim()) {
       Swal.fire("Missing", "Please enter a topic", "warning"); return;
     }
@@ -298,6 +503,7 @@ export default function MeetingShow() {
       start_date: new Date().toISOString().split("T")[0],
       deadline: "",
       notes: `Assigned during meeting: ${data?.title || ""}`,
+      notify_by_email: true,
     });
     setShowAssignTask(true);
   };
@@ -384,8 +590,11 @@ export default function MeetingShow() {
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-100 border-t-teal-600"></div></div>;
   if (!data) return <div className="text-center py-24 text-sm text-gray-400">Meeting not found</div>;
 
-  const sc = statusConf[data.status] || statusConf.scheduled;
-  const formatDT = (dt) => dt ? new Date(dt).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+  // Display the clock-derived status (e.g. "In Progress" while it's happening);
+  // the dropdown below still edits the canonical stored status.
+  const isDraft = data.status === "draft";
+  const sc = isDraft ? draftConf : (statusConf[data.live_status || data.status] || statusConf.scheduled);
+  const formatDT = (dt) => dt ? fmtDateTime(dt) : "-";
   const getDuration = () => {
     if (!data.start_time || !data.end_time) return "-";
     const diff = (new Date(data.end_time) - new Date(data.start_time)) / 60000;
@@ -400,26 +609,58 @@ export default function MeetingShow() {
       {/* Header */}
       <div className="bg-teal-600 px-5 py-5">
         <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => navigate("/hr/meetings")} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
+          <button onClick={goBack} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
           </button>
           <div className="flex-1">
             <h1 className="text-sm font-bold text-white">Meeting Details</h1>
             <p className="text-xs text-teal-100 mt-0.5">#{String(data.id).padStart(4, "0")}</p>
           </div>
+          {(isOrganizer || perms.can_manage) && data.status === "scheduled" && !perms.is_locked && (
+            <SendReminderButton endpoint={`/meetings/${id}/remind`} />
+          )}
+          {canUpdate && (
+            <button onClick={handleContinue} className="px-3 py-1.5 bg-white text-teal-700 hover:bg-teal-50 text-xs font-bold rounded-xl">Continue →</button>
+          )}
+          {canUpdate && (
+            <button onClick={handleCopy} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Copy</button>
+          )}
+          {isSuperAdmin && (
+            <button onClick={handleToTalkingPoint} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl" title="Capture this meeting as a talking point">🗒 Talking Point</button>
+          )}
           {canUpdate && (
             <button onClick={() => navigate(`/hr/meetings/edit/${id}`)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl">Edit</button>
           )}
-          {canDelete && (
+          {canDelete && perms.can_delete && (
             <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500/80 hover:bg-red-500 text-white text-xs font-semibold rounded-xl">Delete</button>
+          )}
+          {perms.is_locked && (
+            <span className="px-2.5 py-1 bg-amber-500/80 text-white text-[10px] font-semibold rounded-xl flex items-center gap-1" title="Meeting has started — editing is locked">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+              Locked
+            </span>
           )}
         </div>
         <h2 className="text-lg font-black text-white">{data.title}</h2>
+        {data.organizer?.name && (
+          <p className="text-[11px] text-teal-100 mt-0.5">
+            <span>Created by</span> <b className="text-white" data-no-i18n>{data.organizer.name}</b>
+            {data.created_at && <span data-no-i18n> · {fmtDate(data.created_at)}</span>}
+          </p>
+        )}
         <div className="flex items-center gap-2 mt-2">
+          {isDraft ? (
+            /* An unfinished draft has one sensible action: go and finish it. */
+            <button onClick={() => navigate(`/hr/meetings/edit/${id}`)}
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+              Draft — continue planning
+            </button>
+          ) : (
           <div className="relative" ref={statusRef}>
             <button onClick={() => setShowStatusMenu(!showStatusMenu)}
               className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${sc.bg} ${sc.text} ${sc.border}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}></span>
+              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${data.live_status === "in_progress" ? "animate-pulse" : ""}`}></span>
               {sc.label}
               <svg className={`w-3 h-3 transition-transform ${showStatusMenu ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
@@ -436,6 +677,7 @@ export default function MeetingShow() {
               </div>
             )}
           </div>
+          )}
           {data.meeting_type === "emergency" && (
             <span className="flex items-center gap-1 px-2.5 py-0.5 bg-red-500 text-white text-[11px] font-bold rounded-full">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -445,11 +687,190 @@ export default function MeetingShow() {
           {data.meeting_type === "routine" && (
             <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">Routine</span>
           )}
+          {data.meeting_type === "appointment" && (
+            <span className="px-2.5 py-0.5 bg-orange-500 text-white text-[11px] font-bold rounded-full">Appointment</span>
+          )}
           <span className="px-2.5 py-0.5 bg-white/20 text-white text-[11px] font-semibold rounded-full">{getDuration()}</span>
         </div>
       </div>
 
       <div className="px-4 py-5 space-y-4">
+        {/* Whoever called and ran this meeting is judged here, on the five
+          * standards — only the button appears for those entitled to rate it. */}
+        <RateWorkButton type="meeting" id={Number(id)} title={data.title} />
+
+        {/* Appointment for a guest (public page, or booked for someone else):
+            the guest has no account, so how to reach them is shown here. */}
+        {data.meeting_type === "appointment" && (() => {
+          // The person being met is the appointment's only participant; their
+          // answer IS the confirmation.
+          const host = (data.participants || [])[0];
+          const st = data.status === "cancelled" ? "declined" : host?.pivot?.status || "invited";
+          const conf = {
+            accepted: { label: "Confirmed", cls: "bg-emerald-100 text-emerald-800" },
+            declined: { label: "Declined", cls: "bg-red-100 text-red-700" },
+            invited:  { label: "Awaiting confirmation", cls: "bg-amber-100 text-amber-800" },
+          }[st] || { label: "Awaiting confirmation", cls: "bg-amber-100 text-amber-800" };
+          return (
+            <div className="bg-white border border-orange-200 rounded-xl p-4 text-sm flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div><span className="text-[10px] text-gray-500 block">Confirmed by</span><span className="font-semibold text-gray-800">{host?.name || "Administrators"}</span></div>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${conf.cls}`}>{conf.label}</span>
+              {st === "declined" && host?.pivot?.response_reason && (
+                <span className="text-[11px] text-red-700"><span>Reason</span>: {host.pivot.response_reason}</span>
+              )}
+              <span className="text-[11px] text-gray-500 w-full">The guest is emailed the day, time and place only after the appointment is confirmed.</span>
+            </div>
+          );
+        })()}
+        {data.meeting_type === "appointment" && data.requester_name && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm">
+            <div className="text-xs font-bold text-orange-800 uppercase tracking-wider mb-2">Appointment guest</div>
+            <div className="grid sm:grid-cols-3 gap-2 text-gray-700">
+              <div><div className="text-[10px] text-gray-500">Name</div><div className="font-semibold">{data.requester_name}</div></div>
+              <div><div className="text-[10px] text-gray-500">Phone</div><div className="font-semibold" dir="ltr">{data.requester_phone ? <a href={`tel:${data.requester_phone}`} className="text-teal-700 hover:underline">{data.requester_phone}</a> : "—"}</div></div>
+              <div><div className="text-[10px] text-gray-500">Email</div><div className="font-semibold" dir="ltr">{data.requester_email || "—"}</div></div>
+            </div>
+          </div>
+        )}
+        {/* RSVP banner — shown to the current user when they're an invitee.
+            Hidden entirely once the meeting has passed; otherwise only the
+            opposite-action button is shown so you can't re-confirm the same
+            answer (and re-notify the organizer). */}
+        {isParticipant && data.end_time && new Date(data.end_time) >= new Date() && (() => {
+          const mine = (data.participants || []).find((p) => p.id === currentUser.id);
+          const myStatus = mine?.pivot?.status || "invited";
+          const myReason = mine?.pivot?.response_reason;
+          const isAppointment = data.meeting_type === "appointment";
+          return (
+            <div className={`rounded-2xl border p-4 ${
+              myStatus === "accepted" ? "bg-emerald-50 border-emerald-200"
+              : myStatus === "declined" ? "bg-red-50 border-red-200"
+              : "bg-amber-50 border-amber-200"}`}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-xs font-bold text-gray-800">
+                    {isAppointment
+                      ? (myStatus === "accepted" ? "You confirmed this appointment"
+                        : myStatus === "declined" ? "You declined this appointment"
+                        : "Please confirm this appointment request")
+                      : myStatus === "accepted" ? "You're attending this meeting"
+                      : myStatus === "declined" ? "You marked: can't attend"
+                      : "Will you attend this meeting?"}
+                  </p>
+                  {myStatus === "declined" && myReason && (
+                    <p className="text-[11px] text-red-700 mt-1">Reason: {myReason}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Show "Attend" unless already attending */}
+                  {myStatus !== "accepted" && (
+                    <button
+                      disabled={respondingRsvp}
+                      onClick={() => respondRsvp("accepted")}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 bg-emerald-600 text-white hover:bg-emerald-700">
+                      {isAppointment ? "Confirm" : "Attend"}
+                    </button>
+                  )}
+                  {/* Show "Can't attend" unless already declined */}
+                  {myStatus !== "declined" && (
+                    <button
+                      disabled={respondingRsvp}
+                      onClick={() => respondRsvp("declined")}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold disabled:opacity-50 bg-white border border-red-300 text-red-600 hover:bg-red-50">
+                      {isAppointment ? "Decline" : "Can't attend"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Talking points captured from this meeting — the two-way link back
+            to the super-admin's notebook. */}
+        {isSuperAdmin && linkedTps.length > 0 && (
+          <div className="bg-white rounded-2xl border border-teal-100 shadow-sm p-4">
+            <div className="text-[10px] font-bold text-teal-600 uppercase tracking-wider mb-2">Talking points</div>
+            <div className="space-y-1.5">
+              {linkedTps.map((tp) => (
+                <button key={tp.id} onClick={() => navigate("/hr/talking-points")}
+                  className="w-full flex items-center gap-2 text-left hover:bg-teal-50/60 rounded-lg px-2 py-1.5 transition">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${tp.status === "completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-teal-50 text-teal-700 border-teal-200"}`}>
+                    {tp.status === "completed" ? "Done" : "Open"}
+                  </span>
+                  <span className="text-sm text-gray-800 truncate flex-1" data-no-i18n>{tp.title}</span>
+                  {tp.task && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">Task</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Continuation chain — links to earlier / later sessions of this discussion */}
+        {(data.continued_from || (data.continuations && data.continuations.length > 0)) && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-2">
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+              Continued Discussion
+            </p>
+            {data.continued_from && (
+              <button onClick={() => navigate(`/hr/meetings/show/${data.continued_from.id}`)}
+                className="w-full flex items-center gap-2 text-left text-xs text-indigo-700 hover:text-indigo-900 hover:underline">
+                <span className="text-indigo-400">←</span>
+                <span className="font-semibold">Continues from:</span>
+                <span className="truncate">{data.continued_from.title}</span>
+                <span className="text-indigo-400 ml-auto whitespace-nowrap">{fmtDate(data.continued_from.start_time)}</span>
+              </button>
+            )}
+            {(data.continuations || []).map((c) => (
+              <button key={c.id} onClick={() => navigate(`/hr/meetings/show/${c.id}`)}
+                className="w-full flex items-center gap-2 text-left text-xs text-indigo-700 hover:text-indigo-900 hover:underline">
+                <span className="text-indigo-400">→</span>
+                <span className="font-semibold">Continued in:</span>
+                <span className="truncate">{c.title}</span>
+                <span className="text-indigo-400 ml-auto whitespace-nowrap">{fmtDate(c.start_time)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Tasks carried from the previous session — shows live completion so
+            you can see at a glance what was done and what's still outstanding. */}
+        {data.continued_from && (data.continued_from.tasks || []).length > 0 && (() => {
+          const ptasks = data.continued_from.tasks || [];
+          const done = ptasks.filter((t) => t.status === "completed").length;
+          const statusColor = { pending: "bg-amber-100 text-amber-700", in_progress: "bg-blue-100 text-blue-700", completed: "bg-emerald-100 text-emerald-700" };
+          return (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className="px-5 py-3 bg-amber-50 border-b border-amber-100">
+                <p className="text-sm font-bold text-gray-800">Tasks from previous session</p>
+                <p className="text-[10px] text-amber-700">{done} of {ptasks.length} completed · carried from "{data.continued_from.title}"</p>
+              </div>
+              <div className="p-5 space-y-2">
+                {ptasks.map((t) => {
+                  const isDone = t.status === "completed";
+                  return (
+                    <div key={t.id} className={`p-3 border rounded-xl flex items-start justify-between gap-2 ${isDone ? "border-emerald-100 bg-emerald-50/40" : "border-amber-100 bg-amber-50/30"}`}>
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <span className={`mt-0.5 font-bold ${isDone ? "text-emerald-600" : "text-amber-500"}`}>{isDone ? "✓" : "○"}</span>
+                        <div className="min-w-0">
+                          <p className={`text-xs font-semibold ${isDone ? "text-gray-500 line-through" : "text-gray-800"}`}>{t.title || richTextToPlain(t.task)}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {t.staff_name || t.staff?.application?.full_name || `Staff #${t.staff_id}`}
+                            {!isDone && t.progress ? ` · ${t.progress}%` : ""}
+                            {t.deadline ? ` · due ${fmtDate(t.deadline)}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusColor[t.status] || statusColor.pending}`}>{t.status?.replace("_", " ")}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Time & Location */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -472,7 +893,7 @@ export default function MeetingShow() {
             {data.description && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Description</h3>
-                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{data.description}</p>
+                <RichTextView html={data.description} className="text-xs text-gray-700 leading-relaxed" />
               </div>
             )}
 
@@ -502,7 +923,11 @@ export default function MeetingShow() {
                   <div className="space-y-3">
                     {data.agenda_items.map((a, i) => {
                       const submitterName = a.submitted_by?.name;
-                      const canRemove = isOrganizer || (a.submitted_by_id && currentUser?.id === a.submitted_by_id);
+                      const isMine = a.submitted_by_id && currentUser?.id === a.submitted_by_id;
+                      // Author can always remove their own; managers (creator
+                      // / admin / meetings.* perm) can remove any. After the
+                      // meeting starts nothing can be removed.
+                      const canRemove = !perms.is_locked && (isMine || perms.can_manage);
                       return (
                       <div key={a.id || i} className="flex gap-3 group">
                         <div className="w-6 h-6 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</div>
@@ -546,7 +971,7 @@ export default function MeetingShow() {
                     <p className="text-[10px] text-amber-600">{notes.length} note{notes.length !== 1 ? "s" : ""} recorded</p>
                   </div>
                 </div>
-                {!showNoteForm && (
+                {!showNoteForm && perms.can_add_note && (
                   <button onClick={openNewNote}
                     className="px-2.5 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-[10px] font-medium flex items-center gap-1 transition-colors">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -615,7 +1040,9 @@ export default function MeetingShow() {
                   <div className="text-center py-6">
                     <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     <p className="text-xs text-gray-400">No notes recorded yet</p>
-                    <button onClick={openNewNote} className="mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700">Take first notes</button>
+                    {perms.can_add_note && (
+                      <button onClick={openNewNote} className="mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700">Take first notes</button>
+                    )}
                   </div>
                 )}
 
@@ -628,15 +1055,19 @@ export default function MeetingShow() {
                           {(note.recorded_by?.name || "?").charAt(0)}
                         </div>
                         <span className="text-[10px] font-medium text-gray-600">{note.recorded_by?.name || "Unknown"}</span>
-                        <span className="text-[9px] text-gray-400">{note.recorded_at ? new Date(note.recorded_at).toLocaleString() : ""}</span>
+                        <span className="text-[9px] text-gray-400">{note.recorded_at ? fmtDateTime(note.recorded_at) : ""}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => openEditNote(note)} className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        <button onClick={() => deleteNote(note.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                        {perms.can_edit_note && (
+                          <button onClick={() => openEditNote(note)} className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                        )}
+                        {perms.can_delete_note && (
+                          <button onClick={() => deleteNote(note.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -698,7 +1129,7 @@ export default function MeetingShow() {
                     <p className="text-[10px] text-indigo-600">{(data.tasks || []).length} task{(data.tasks || []).length !== 1 ? "s" : ""} assigned</p>
                   </div>
                 </div>
-                {isOrganizer && (
+                {perms.can_assign_task && (
                   <button onClick={openAssignTask} className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-[10px] font-medium flex items-center gap-1 transition-colors">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     Assign Task
@@ -716,7 +1147,7 @@ export default function MeetingShow() {
                       return (
                         <div key={t.id} className="p-3 border border-gray-100 rounded-xl hover:border-indigo-200 transition-colors">
                           <div className="flex items-start justify-between gap-2 mb-1">
-                            <p className="text-xs font-semibold text-gray-800 flex-1">{t.task}</p>
+                            <p className="text-xs font-semibold text-gray-800 flex-1">{t.title || richTextToPlain(t.task)}</p>
                             <div className="flex gap-1 flex-shrink-0">
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${priority[t.task_type] || priority.normal}`}>{t.task_type?.toUpperCase()}</span>
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${statusColor[t.status] || statusColor.pending}`}>{t.status?.replace("_", " ")}</span>
@@ -730,7 +1161,7 @@ export default function MeetingShow() {
                             {t.deadline && (
                               <span className="flex items-center gap-1">
                                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                Deadline: {new Date(t.deadline).toLocaleDateString()}
+                                Deadline: {fmtDate(t.deadline)}
                               </span>
                             )}
                           </div>
@@ -743,16 +1174,37 @@ export default function MeetingShow() {
             </div>
           </div>
 
+          {/* Customisable checklists — guests, equipment, who brings what.
+              Shared with the other module: the same panel and the same tables
+              serve a meeting's attendance and an event's guest list. */}
+          <ChecklistPanel parentType="meetings" parentId={id} />
+
+          {/* Files — agendas, photos, venue plans. Same polymorphic
+              store as the checklists, so both modules share one panel. */}
+          <AttachmentPanel parentType="meetings" parentId={id} />
+
           {/* Sidebar */}
           <div className="space-y-4">
-            {/* Participants */}
+            {/* People — the organiser, everyone invited, and anyone presenting an
+                agenda topic. The list used to hold invitees only, so a meeting
+                whose organiser invited nobody read "Participants (0)" with no
+                hint of who was actually involved. */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
               <div className="px-5 py-3 border-b border-gray-100">
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Participants ({(data.participants || []).length})</h3>
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider"><span>Participants</span> (<span data-no-i18n>{(data.participants || []).length}</span>)</h3>
               </div>
               <div className="p-3">
+                {data.organizer && (
+                  <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg bg-teal-50/60">
+                    <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                      {(data.organizer.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </div>
+                    <p className="flex-1 min-w-0 text-[11px] font-medium text-gray-800 truncate" data-no-i18n>{data.organizer.name}</p>
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-teal-600 text-white">Organizer</span>
+                  </div>
+                )}
                 {(data.participants || []).length === 0 ? (
-                  <p className="text-xs text-gray-400 italic px-2 py-2">No participants</p>
+                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-2 mt-1">Nobody else was invited to this meeting.{canUpdate && !perms.is_locked ? " Use Edit to add participants." : ""}</p>
                 ) : (
                   <div className="space-y-1">
                     {data.participants.map((p) => (
@@ -761,7 +1213,10 @@ export default function MeetingShow() {
                           {(p.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-medium text-gray-800 truncate">{p.name}</p>
+                          <p className="text-[11px] font-medium text-gray-800 truncate" data-no-i18n>{p.name}</p>
+                          {p.pivot?.status === "declined" && p.pivot?.response_reason && (
+                            <p className="text-[10px] text-red-600 truncate" title={p.pivot.response_reason}>✗ {p.pivot.response_reason}</p>
+                          )}
                         </div>
                         <span className={`px-1.5 py-0.5 rounded text-[8px] font-semibold capitalize ${
                           p.pivot?.status === "accepted" ? "bg-emerald-100 text-emerald-700"
@@ -782,7 +1237,7 @@ export default function MeetingShow() {
                 <div className="flex justify-between"><span className="text-teal-200">Organizer</span><span className="font-medium">{data.organizer?.name || "-"}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Duration</span><span className="font-medium">{getDuration()}</span></div>
                 <div className="flex justify-between"><span className="text-teal-200">Notes</span><span className="font-medium">{notes.length}</span></div>
-                <div className="flex justify-between"><span className="text-teal-200">Created</span><span className="font-medium">{data.created_at ? new Date(data.created_at).toLocaleDateString() : "-"}</span></div>
+                <div className="flex justify-between"><span className="text-teal-200">Created</span><span className="font-medium">{data.created_at ? fmtDate(data.created_at) : "-"}</span></div>
               </div>
             </div>
           </div>
@@ -791,13 +1246,28 @@ export default function MeetingShow() {
 
       {/* Propose Agenda Item Modal */}
       {showProposeAgenda && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowProposeAgenda(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 bg-gradient-to-r from-teal-500 to-teal-600">
               <h3 className="text-sm font-bold text-white">{isOrganizer ? "Add Agenda Item" : "Propose Agenda Item"}</h3>
               <p className="text-[11px] text-white/80 mt-0.5">Your proposal will be visible to the organizer and participants</p>
             </div>
             <div className="p-5 space-y-3">
+              <div className="flex rounded-xl overflow-hidden border border-gray-200 text-[11px] w-fit">
+                {[[false, "One topic"], [true, "Several at once"]].map(([m, label]) => (
+                  <button key={label} type="button" onClick={() => setBulkMode(m)}
+                    className={`px-3 py-1.5 font-semibold ${bulkMode === m ? "bg-teal-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>{label}</button>
+                ))}
+              </div>
+              {bulkMode ? (
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Topics — one per line</label>
+                  <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} rows={8} dir="auto"
+                    placeholder="Paste a bullet list, or type one topic per line"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
+                  <p className="text-[10px] text-gray-400 mt-1"><span>Bullets and numbers are removed.</span> <span data-no-i18n>{linesToItems(bulkText).length}</span> <span>topics</span></p>
+                </div>
+              ) : (<>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Topic *</label>
                 <input type="text" value={proposeForm.title} onChange={(e) => setProposeForm((p) => ({ ...p, title: e.target.value }))} placeholder="e.g. Budget review for Q2" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
@@ -806,6 +1276,7 @@ export default function MeetingShow() {
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Description</label>
                 <textarea value={proposeForm.description} onChange={(e) => setProposeForm((p) => ({ ...p, description: e.target.value }))} rows={3} placeholder="Why is this important to discuss…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white resize-none" />
               </div>
+              </>)}
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Estimated Duration (minutes)</label>
                 <input type="number" min="1" max="180" value={proposeForm.duration_min} onChange={(e) => setProposeForm((p) => ({ ...p, duration_min: parseInt(e.target.value) || 15 }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 bg-white" />
@@ -823,7 +1294,7 @@ export default function MeetingShow() {
 
       {/* Assign Task Modal */}
       {showAssignTask && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAssignTask(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600">
               <h3 className="text-sm font-bold text-white">Assign Task from Meeting</h3>
@@ -854,17 +1325,22 @@ export default function MeetingShow() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Start Date *</label>
-                  <input type="date" value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+                  <DateField value={taskForm.start_date} onChange={(e) => setTaskForm((p) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
                 </div>
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Deadline</label>
-                <input type="date" value={taskForm.deadline} onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
+                <DateField value={taskForm.deadline} onChange={(e) => setTaskForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Notes</label>
                 <textarea value={taskForm.notes} onChange={(e) => setTaskForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Additional context…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 bg-white resize-none" />
               </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={taskForm.notify_by_email} onChange={(e) => setTaskForm((p) => ({ ...p, notify_by_email: e.target.checked }))}
+                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                <span className="text-xs text-gray-700">Also email the assigned staff a link to this task</span>
+              </label>
             </div>
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={() => setShowAssignTask(false)} className="px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>

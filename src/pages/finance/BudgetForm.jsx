@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getBudget, createBudget as post, updateBudget as put, getChartOfAccounts } from "../../api/financial";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 const emptyItem = { chart_account_id: "", budgeted_amount: "", alert_threshold: 80, notes: "" };
 
 export default function BudgetForm() {
@@ -136,12 +137,12 @@ export default function BudgetForm() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
-                <input type="date" name="start_date" value={form.start_date} onChange={handleFormChange} disabled={isReadOnly}
+                <DateField name="start_date" value={form.start_date} onChange={handleFormChange} disabled={isReadOnly}
                   className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 disabled:bg-gray-50 disabled:text-gray-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
-                <input type="date" name="end_date" value={form.end_date} onChange={handleFormChange} disabled={isReadOnly}
+                <DateField name="end_date" value={form.end_date} onChange={handleFormChange} disabled={isReadOnly}
                   className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 disabled:bg-gray-50 disabled:text-gray-500" />
               </div>
             </div>

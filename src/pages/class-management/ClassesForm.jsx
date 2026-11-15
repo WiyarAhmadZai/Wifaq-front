@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const SECTIONS = ['A', 'B', 'C', 'D', 'E'];
@@ -126,9 +126,26 @@ export default function ClassesForm() {
   const [academicTerms, setAcademicTerms] = useState([]);
   const [teachers, setTeachers] = useState([]);
 
+  /* Teachers at capacity used to be missing from this list altogether, which
+   * reads as "that colleague does not exist" — and since supervising a class is
+   * what fills a teacher's hours, a class could not even re-select its own
+   * supervisor. Everyone is listed; the label carries the state. */
+  const teacherLabel = (t) => (
+    t.unavailable_reason
+      ? `${t.name} — ${t.unavailable_reason}`
+      : `${t.name}${t.available_hours != null ? ` (${t.available_hours}h available)` : ''}`
+  );
+
   useEffect(() => {
     (async () => {
       setLoadingData(true);
+      const __fd = peekCache('/class-management/classes/form-data');
+      if (__fd) {
+        setGrades(__fd?.grades || []);
+        setAcademicTerms(__fd?.academic_terms || []);
+        setTeachers(__fd?.teachers || []);
+        if (!isEdit) setLoadingData(false);
+      }
       try {
         const res = await get('/class-management/classes/form-data');
         setGrades(res.data?.grades || []);
@@ -429,11 +446,11 @@ export default function ClassesForm() {
                 <div className={err('supervisor_id') ? 'ring-2 ring-red-400 rounded-xl' : ''}>
                   <SearchSelect options={teachers} value={form.supervisor_id} onChange={v => set('supervisor_id', v || '')}
                     placeholder="Search supervisor..."
-                    getLabel={t => `${t.name}${t.available_hours != null ? ` (${t.available_hours}h available)` : ''}`}
+                    getLabel={teacherLabel}
                     getValue={t => t.id} />
                 </div>
                 {teachers.length === 0 && (
-                  <p className="text-[10px] text-amber-600 mt-1">All teachers are at full capacity</p>
+                  <p className="text-[10px] text-amber-600 mt-1">No teachers registered yet.</p>
                 )}
                 {err('supervisor_id') && (
                   <div className="mt-1.5 p-2 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
@@ -448,7 +465,7 @@ export default function ClassesForm() {
                 <Label>Assistant Teacher</Label>
                 <SearchSelect options={teachers.filter(t => t.id != form.supervisor_id)} value={form.assistant_id}
                   onChange={v => set('assistant_id', v || '')} placeholder="Search assistant..."
-                  getLabel={t => `${t.name}${t.available_hours != null ? ` (${t.available_hours}h available)` : ''}`}
+                  getLabel={teacherLabel}
                   getValue={t => t.id} />
                 {err('assistant_id') && <p className="text-red-500 text-[10px] mt-1">{err('assistant_id')}</p>}
               </div>

@@ -1,0 +1,254 @@
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { get, post, peekCache } from "../../api/axios";
+import Swal from "sweetalert2";
+import { fmtDate } from "../../utils/formErrors";
+import { TEAL, TEAL_LT, GOLD, PAPER, STATUS, Hero, Spinner, StatusPill, DimensionDots, DAY_LABEL } from "./lessonPlanUi";
+import ReflectionModal from "./ReflectionModal";
+import { useAuth } from "../../admin/context/AuthContext";
+import TeacherMultiSelect from "../../components/education/TeacherMultiSelect";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
+
+const FILTERS = [
+  { key: "", label: "All" },
+  { key: "draft", label: "Drafts" },
+  { key: "submitted", label: "Pending" },
+  { key: "returned_for_revision", label: "Returned" },
+  { key: "approved", label: "Approved" },
+  { key: "delivered", label: "Delivered" },
+  { key: "reflected", label: "Reflected" },
+];
+
+/** Mirrors LessonPlan::isEditableByTeacher() on the server. */
+const EDITABLE_STATUSES = ["draft", "returned_for_revision", "submitted", "approved"];
+
+export default function MyLessonPlans() {
+  const navigate = useNavigate();
+  const [rows, setRows] = useState([]);
+  const [counts, setCounts] = useState(null);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("");
+  const [busy, setBusy] = useState(null);
+  const [reflectPlan, setReflectPlan] = useState(null);
+
+  /* Leadership browses everybody's plans, so it needs to narrow by teacher and
+   * by text. Debounced, so typing a name is one request, not one per letter. */
+  const [teacherIds, setTeacherIds] = useState([]);
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const { user, isSuperAdmin } = useAuth();
+  // Supervisors browse their own reporting team; only super-admins see all.
+  const isLeadership = isSuperAdmin || Boolean(user?.is_lesson_plan_supervisor);
+  const title = isSuperAdmin
+    ? "Lesson Plans — All Teachers"
+    : user?.is_lesson_plan_supervisor
+      ? "Lesson Plans — My Team"
+      : "My Lesson Plans";
+  const subtitle = isSuperAdmin
+    ? "Browse every teacher's plans, reviews & reflections"
+    : user?.is_lesson_plan_supervisor
+      ? "Browse plans belonging to your assigned reporting team"
+      : "History, review status, dimensions filled & reflection";
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (filter) params.status = filter;
+    if (q) params.q = q;
+    if (teacherIds.length) params.teacher_ids = teacherIds;
+
+    // A filtered view is cheap and must never come from another filter's cache.
+    const filtered = Boolean(q) || teacherIds.length > 0;
+    const __cached = filtered ? null : peekCache("/lesson-plans", params);
+    if (__cached) {
+      setRows(__cached?.data || []);
+      setCounts(__cached?.status_counts || null);
+      setTeachers(__cached?.teachers || []);
+      setLoading(false);
+    }
+    get("/lesson-plans", { params, cache: !filtered })
+      .then((r) => {
+        setRows(r.data?.data || []);
+        setCounts(r.data?.status_counts || null);
+        setTeachers(r.data?.teachers || []);
+      })
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, [filter, q, teacherIds]);
+  useEffect(() => { load(); }, [load]);
+
+  // Every plan on screen carries its stars — one request for the whole list.
+  const { map: ratingMap } = useBulkRatings("lesson_plan", rows.map((p) => p.id));
+
+  const act = async (id, action, body) => {
+    setBusy(id);
+    try {
+      await post(`/lesson-plans/${id}/${action}`, body || {});
+      Swal.fire({ icon: "success", title: "Done", timer: 1100, showConfirmButton: false, toast: true, position: "top-end" });
+      load();
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Action failed.", "error");
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <div style={{ background: PAPER, minHeight: "100vh" }} className="pb-10">
+      <Hero title={title}
+        subtitle={subtitle}
+        right={
+          <button onClick={() => navigate("/education/lesson-plans/create")} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: GOLD, color: "#052528" }}>
+            ＋ New plan
+          </button>
+        } />
+
+      <div className="max-w-4xl mx-auto px-4 py-5">
+        {/* Leadership filters. A teacher only ever sees their own plans, so the
+          * picker would be a list of one — it is not shown to them. */}
+        {isLeadership && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="relative flex-1 min-w-[13rem]">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by teacher, title, subject or class…"
+                className="w-full ps-8 pe-3 py-2 rounded-xl text-[11px] border bg-white focus:outline-none"
+                style={{ borderColor: "#dbe8e8" }}
+              />
+              <svg className="w-3.5 h-3.5 absolute start-2.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              </svg>
+            </div>
+
+            <TeacherMultiSelect options={teachers} value={teacherIds} onChange={setTeacherIds} />
+
+            {(search || teacherIds.length > 0) && (
+              <button onClick={() => { setSearch(""); setTeacherIds([]); }}
+                className="px-3 py-2 rounded-xl text-[11px] font-bold" style={{ background: "#E8F6F6", color: TEAL }}>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Each tab carries how many plans sit behind it under the current
+          * filters — otherwise choosing a tab is a guess. */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {FILTERS.map((f) => {
+            const on = filter === f.key;
+            const n = counts ? counts[f.key] ?? 0 : null;
+            return (
+              <button key={f.key} onClick={() => setFilter(f.key)}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all inline-flex items-center gap-1.5"
+                style={on ? { background: TEAL, color: "#fff", borderColor: TEAL } : { background: "#fff", color: "#6b7280", borderColor: "#e5e7eb" }}>
+                {f.label}
+                {n !== null && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black leading-none"
+                    style={on
+                      ? { background: "rgba(255,255,255,.22)", color: "#fff" }
+                      : { background: "#eef4f4", color: n ? TEAL : "#b6c4c4" }}>
+                    {n}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {loading ? <Spinner /> : rows.length === 0 ? (
+          <div className="rounded-2xl border bg-white p-10 text-center" style={{ borderColor: "#dbe8e8" }}>
+            <p className="text-sm text-gray-400">
+              {search || teacherIds.length > 0 ? "No plan matches these filters." : "No plans here yet."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {rows.map((p) => (
+              <div key={p.id} className="rounded-2xl border bg-white p-4" style={{ borderColor: "#dbe8e8" }}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-black text-gray-800 truncate">{p.title}</p>
+                      <StatusPill status={p.status} />
+                      {ratingMap[p.id] && (
+                        <RatePill type="lesson_plan" id={p.id} title={p.title} entry={ratingMap[p.id]} />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {isLeadership && p.teacher ? <span className="font-bold text-gray-500">{p.teacher} · </span> : null}
+                      {p.subject} · {p.class} · {fmtDate(p.lesson_date)} {p.period_number ? `· ${DAY_LABEL[p.day_of_week] || ""} P${p.period_number}` : ""}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <DimensionDots filled={p.dimensions_filled} />
+                      <span className="text-[10px] text-gray-400">{p.dimensions_filled}/4 dimensions</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: "#eef4f4" }}>
+                  {isLeadership ? (
+                    <Action onClick={() => navigate(`/education/lesson-plans/show/${p.id}`)}>
+                      {p.status === "reflected" ? "View plan & reflection" : "View"}
+                    </Action>
+                  ) : (
+                  <>
+                  {/* A teacher who spots a mistake must be able to fix it. That
+                      now includes a plan already sent for review and an
+                      approved one (where the 4D content is editable but the
+                      title and homework are frozen). Only a plan a reviewer is
+                      actively reading, or one already taught, stays read-only. */}
+                  {EDITABLE_STATUSES.includes(p.status) ? (
+                    <Action onClick={() => navigate(`/education/lesson-plans/edit/${p.id}`)}>
+                      {p.status === "approved" ? "Correct plan" : "Edit"}
+                    </Action>
+                  ) : (
+                    <Action onClick={() => navigate(`/education/lesson-plans/show/${p.id}`)}>View</Action>
+                  )}
+                  {["draft", "returned_for_revision"].includes(p.status) && (
+                    <Action primary disabled={busy === p.id} onClick={() => act(p.id, "submit")}>Submit for review</Action>
+                  )}
+                  {/* Marking a lesson taught without writing it up yet is still
+                      here — it is what the reports count. */}
+                  {p.status === "approved" && (
+                    <Action disabled={busy === p.id} onClick={() => act(p.id, "deliver")}>Mark delivered</Action>
+                  )}
+                  {/* Writing up the result is itself the record that the lesson
+                      happened, so it opens straight from "approved" too — that
+                      extra click was why results went unrecorded. */}
+                  {["approved", "delivered", "reflected"].includes(p.status) && (
+                    <Action primary={p.status !== "reflected"} disabled={busy === p.id} onClick={() => setReflectPlan(p)}>
+                      {p.status === "reflected" ? "Edit lesson result" : "Add lesson result"}
+                    </Action>
+                  )}
+                  {p.status === "reflected" && p.dimensions_filled === 4 && (
+                    <Action disabled={busy === p.id} onClick={() => act(p.id, "promote")}>★ Promote to library</Action>
+                  )}
+                  </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {reflectPlan && (
+        <ReflectionModal plan={reflectPlan} onClose={() => setReflectPlan(null)} onSaved={load} />
+      )}
+    </div>
+  );
+}
+
+const Action = ({ children, onClick, primary, disabled }) => (
+  <button onClick={onClick} disabled={disabled}
+    className="px-3 py-1.5 rounded-lg text-[11px] font-bold border disabled:opacity-50"
+    style={primary ? { background: TEAL, color: "#fff", borderColor: TEAL } : { background: "#fff", color: TEAL, borderColor: "#dbe8e8" }}>
+    {children}
+  </button>
+);

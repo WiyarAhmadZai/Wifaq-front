@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const Icons = {
   ArrowLeft: () => (
@@ -122,6 +124,9 @@ export default function ParentShow() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { canUpdate } = useResourcePermissions("parents");
+  // The family's communication file lives in its own module; this page just
+  // offers the way in, and only to someone allowed to read it.
+  const { canView: canViewComms } = useResourcePermissions("parent-communications");
   const [family, setFamily] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -131,6 +136,8 @@ export default function ParentShow() {
 
   const fetchFamily = async () => {
     setLoading(true);
+    const __cached = peekCache(`/student-management/families/show/${id}`);
+    if (__cached) { setFamily(__cached?.data ?? __cached); setLoading(false); }
     try {
       const response = await get(`/student-management/families/show/${id}`);
       // API returns { success: true, data: { family object } }
@@ -188,15 +195,26 @@ export default function ParentShow() {
             </p>
           </div>
         </div>
-        {canUpdate && (
-          <button
-            onClick={() => navigate(`/student-management/parents/edit/${id}`)}
-            className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
-          >
-            <Icons.Edit />
-            Edit Family
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canViewComms && (
+            <button
+              onClick={() => navigate(`/parent-communications/history/${id}`)}
+              className="px-5 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-all flex items-center gap-2 font-medium"
+            >
+              <Icons.Phone />
+              Communication History
+            </button>
+          )}
+          {canUpdate && (
+            <button
+              onClick={() => navigate(`/student-management/parents/edit/${id}`)}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+            >
+              <Icons.Edit />
+              Edit Family
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Card */}
@@ -478,13 +496,13 @@ export default function ParentShow() {
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-gray-300 rounded-full"></span>
                 <span>
-                  Created: {new Date(family.created_at).toLocaleString()}
+                  Created: {fmtDateTime(family.created_at)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-teal-400 rounded-full"></span>
                 <span>
-                  Updated: {new Date(family.updated_at).toLocaleString()}
+                  Updated: {fmtDateTime(family.updated_at)}
                 </span>
               </div>
             </div>

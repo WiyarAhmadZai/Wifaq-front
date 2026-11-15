@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
+import { AutoRemindPicker } from "../../components/hr/Reminders";
+import RichTextField from "../../components/RichTextField";
 const TASK_TYPES = [
   { value: "urgent", label: "Urgent", color: "bg-red-100 text-red-700" },
   { value: "high", label: "High", color: "bg-orange-100 text-orange-700" },
@@ -20,11 +23,21 @@ export default function StaffTaskForm() {
 
   const [form, setForm] = useState({
     staff_id: "",       // used in edit mode
+    title: "",
     task: "",
     task_type: "normal",
+    // Bulk: a bulleted / numbered description becomes one task per item.
+    split_into_tasks: false,
+    estimate_value: "",
+    estimate_unit: "hours",
     start_date: new Date().toISOString().split("T")[0],
     deadline: "",
     notes: "",
+    // No date: the task waits in the assignee's Inbox and they pick the day.
+    no_date: false,
+    recurrence: "",
+    recurrence_until: "",
+    auto_reminders: [],
   });
 
   const [staffList, setStaffList] = useState([]);
@@ -37,6 +50,8 @@ export default function StaffTaskForm() {
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // "Also send an email" — the assigner's call, per task. Ticked by default.
+  const [emailToo, setEmailToo] = useState(true);
 
   useEffect(() => {
     fetchStaffList();
@@ -72,16 +87,48 @@ export default function StaffTaskForm() {
 
   const fetchTask = async () => {
     setLoading(true);
-    try {
-      const res = await get(`/hr/staff-tasks/${id}`);
-      const d = res.data;
+    const __cached = peekCache(`/hr/staff-tasks/${id}`);
+    if (__cached) {
+      const d = __cached;
       setForm({
         staff_id: d.staff_id || "",
+        title: d.title || "",
         task: d.task || "",
         task_type: d.task_type || "normal",
         start_date: d.start_date?.split("T")[0] || "",
         deadline: d.deadline?.split("T")[0] || "",
         notes: d.notes || "",
+        no_date: !d.start_date,
+        recurrence: d.recurrence || "",
+        recurrence_until: d.recurrence_until?.split("T")[0] || "",
+        auto_reminders: [],
+      });
+      if (d.staff) {
+        setSelectedStaff({
+          id: d.staff.id,
+          full_name: d.staff.application?.full_name || d.staff_name,
+          employee_id: d.staff.employee_id || "",
+          department: d.staff.department || "",
+          role_title: d.staff.role_title_en || "",
+        });
+      }
+      setLoading(false);
+    }
+    try {
+      const res = await get(`/hr/staff-tasks/${id}`);
+      const d = res.data;
+      setForm({
+        staff_id: d.staff_id || "",
+        title: d.title || "",
+        task: d.task || "",
+        task_type: d.task_type || "normal",
+        start_date: d.start_date?.split("T")[0] || "",
+        deadline: d.deadline?.split("T")[0] || "",
+        notes: d.notes || "",
+        no_date: !d.start_date,
+        recurrence: d.recurrence || "",
+        recurrence_until: d.recurrence_until?.split("T")[0] || "",
+        auto_reminders: [],
       });
       if (d.staff) {
         setSelectedStaff({
@@ -137,16 +184,31 @@ export default function StaffTaskForm() {
       return;
     }
 
+    // The rich-text box reports '' when blank; a required textarea used to catch this.
+    if (!String(form.task || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim()) {
+      Swal.fire("Missing", "Please describe the task.", "warning");
+      return;
+    }
+
     setSaving(true);
     try {
       if (isEdit) {
-        const submitData = { ...form };
+        const { no_date, auto_reminders: _r, estimate_value: _v, estimate_unit: _u, split_into_tasks: _s, ...submitData } = form;
+        if (no_date) submitData.start_date = null;
         if (!submitData.deadline) delete submitData.deadline;
+        if (!submitData.recurrence) { submitData.recurrence = null; submitData.recurrence_until = null; }
         await put(`/hr/staff-tasks/${id}`, submitData);
         Swal.fire({ icon: "success", title: "Task Updated!", timer: 1500, showConfirmButton: false });
       } else {
-        const { staff_id: _ignored, ...rest } = form;
-        const submitData = { ...rest, staff_ids: selectedStaffList.map(s => s.id) };
+        const { staff_id: _ignored, no_date, ...rest } = form;
+        const { estimate_value, estimate_unit, ...body } = rest;
+        if (no_date) { body.start_date = null; body.recurrence = ""; }
+        if (!body.recurrence) { delete body.recurrence; delete body.recurrence_until; }
+        if (!body.recurrence_until) delete body.recurrence_until;
+        if (!body.auto_reminders?.length) delete body.auto_reminders;
+        const perUnit = { minutes: 1, hours: 60, days: 480 }[estimate_unit] || 60; // a working day is 8h
+        const estimated_minutes = Number(estimate_value) > 0 ? Math.round(Number(estimate_value) * perUnit) : null;
+        const submitData = { ...body, staff_ids: selectedStaffList.map(s => s.id), notify_by_email: emailToo, ...(estimated_minutes ? { estimated_minutes } : {}) };
         if (!submitData.deadline) delete submitData.deadline;
         await post("/hr/staff-tasks", submitData);
         Swal.fire({
@@ -318,10 +380,20 @@ export default function StaffTaskForm() {
             </div>
           </div>
 
-          {/* Start Date */}
+          {/* Start Date — or none: the assignee chooses the day on My Check-in. */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-            <input type="date" name="start_date" value={form.start_date} onChange={handleChange} required className={inp} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">Start Date</label>
+              <label className="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" checked={form.no_date}
+                  onChange={(e) => setForm((prev) => ({ ...prev, no_date: e.target.checked, ...(e.target.checked ? { recurrence: "" } : {}) }))}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                <span>No date — they choose</span>
+              </label>
+            </div>
+            {form.no_date
+              ? <p className="px-3.5 py-2.5 rounded-xl border border-dashed border-amber-300 bg-amber-50 text-[11px] text-amber-800">It goes to their Inbox. They drag it onto a day (and time) on My Check-in.</p>
+              : <DateField name="start_date" value={form.start_date} onChange={handleChange} className={inp} />}
           </div>
 
           {/* Deadline */}
@@ -329,15 +401,78 @@ export default function StaffTaskForm() {
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Deadline <span className="text-gray-400 font-normal">(optional)</span>
             </label>
-            <input type="date" name="deadline" value={form.deadline} onChange={handleChange} className={inp} />
+            <DateField name="deadline" value={form.deadline} onChange={handleChange} className={inp} />
           </div>
         </div>
 
-        {/* Task Description */}
+        {/* Repeat — a copy of the task arrives on each day of the series. */}
+        {!form.no_date && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Repeat</label>
+              <select name="recurrence" value={form.recurrence} onChange={handleChange} className={inp}>
+                <option value="">Does not repeat</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
+                <option value="monthly">Every month</option>
+              </select>
+            </div>
+            {form.recurrence && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Repeat until <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <DateField name="recurrence_until" value={form.recurrence_until} onChange={handleChange} className={inp} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Estimated time — workload planning; shows as a countdown once the clock starts. */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Estimated time to complete <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          {/* `inp` carries w-full. On the select, `w-32` lost to it (Tailwind
+              emits w-full later), so the select went 100% wide and the number
+              box collapsed. Flex-basis beats width inside a flex row, so the
+              select is pinned to 8rem and the number takes the rest. */}
+          <div className="flex gap-2">
+            <input type="number" min="0" step="0.5" name="estimate_value" value={form.estimate_value} onChange={handleChange} placeholder="3" className={`${inp} flex-1 min-w-0`} />
+            <select name="estimate_unit" value={form.estimate_unit} onChange={handleChange} className={`${inp} basis-32 grow-0 shrink-0`}>
+              <option value="minutes">Minutes</option>
+              <option value="hours">Hours</option>
+              <option value="days">Days</option>
+            </select>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">Used for workload planning and shown next to the clock once the colleague starts the task.</p>
+        </div>
+
+        {/* Title — the short subject lists, calendars and notifications show. */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Task title <span className="text-gray-400 font-normal">(short subject)</span>
+          </label>
+          <input name="title" value={form.title} onChange={handleChange} maxLength={200} dir="auto"
+            placeholder="e.g. Prepare the monthly report" className={inp} disabled={form.split_into_tasks} />
+        </div>
+
+        {/* Task Description — rich text: bullets, numbering, bold, colours. */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Task Description *</label>
-          <textarea name="task" value={form.task} onChange={handleChange} required rows={4} placeholder="Describe the task in detail..."
-            className={inp} />
+          <RichTextField value={form.task} onChange={(html) => setForm((prev) => ({ ...prev, task: html }))}
+            rows={6} placeholder="Describe the task — use the toolbar for bullet points and numbering" />
+          {!isEdit && (
+            <label className="mt-2 flex items-start gap-2 p-2.5 rounded-xl bg-teal-50/60 border border-teal-100 cursor-pointer select-none">
+              <input type="checkbox" checked={form.split_into_tasks}
+                onChange={(e) => setForm((prev) => ({ ...prev, split_into_tasks: e.target.checked }))}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">
+                <span className="font-semibold">Make each bullet / line its own task</span>
+                <span className="block text-[11px] text-gray-500">Write a list above — every item becomes a separate task with the same dates, priority and reminders.</span>
+              </span>
+            </label>
+          )}
         </div>
 
         {/* Notes */}
@@ -345,9 +480,26 @@ export default function StaffTaskForm() {
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Notes <span className="text-gray-400 font-normal">(optional)</span>
           </label>
-          <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="Any additional notes..."
-            className={inp} />
+          <RichTextField value={form.notes} onChange={(html) => setForm((prev) => ({ ...prev, notes: html }))}
+            rows={3} placeholder="Any additional notes..." />
         </div>
+
+        {/* Reminders for the assignee, counted back from the deadline (or the day they plan it for). */}
+        {!isEdit && (
+          <AutoRemindPicker value={form.auto_reminders} onChange={(v) => setForm((prev) => ({ ...prev, auto_reminders: v }))}
+            hint="Counted back from the deadline — or, with no deadline, from the day they plan it for." />
+        )}
+
+        {/* Email as well as the bell — only when assigning; an edit notifies nobody. */}
+        {!isEdit && (
+          <div className="p-3 bg-gray-50 rounded-xl">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={emailToo} onChange={(e) => setEmailToo(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+              <span className="text-xs text-gray-700">Also email the assigned staff a link to this task</span>
+            </label>
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="flex justify-end gap-3 pt-2">

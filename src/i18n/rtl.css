@@ -1,0 +1,287 @@
+/* ============================================================================
+ * Right-to-left support for Dari (دری) and Pashto (پښتو).
+ *
+ * The interface is written with Tailwind's PHYSICAL utilities (ml-2, pr-4,
+ * text-left, left-0 …). Those do not mirror on their own when <html dir> flips,
+ * so this sheet re-points them for RTL: ml-* becomes a right margin, text-left
+ * reads right, an element pinned left is pinned right.
+ *
+ * Only the direction-sensitive utilities are listed; everything else (flexbox,
+ * grid, inset-0, logical properties) already mirrors on its own. The margin,
+ * padding and inset blocks were generated from Tailwind's spacing scale, so add
+ * new steps in the same shape if the design starts using them.
+ *
+ * ONE RULE TO REMEMBER: an anchor and its transform must be mirrored together.
+ * See the "Off-canvas panels" section at the bottom for what happens when they
+ * are not.
+ * ========================================================================== */
+
+/* Arabic-script faces, already preloaded in index.html for the letters and
+   certificates. Vazirmatn carries a full Persian/Pashto set at UI sizes. */
+[dir="rtl"] body,
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select,
+[dir="rtl"] button {
+  font-family: "Vazirmatn", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
+}
+
+/* Arabic script sits smaller than Latin at the same px and needs more leading. */
+[dir="rtl"] body { font-size: 0.9375rem; line-height: 1.75; }
+
+/* Tracking is a Latin device; on joined Arabic letterforms it breaks the word. */
+[dir="rtl"] [class*="tracking-"] { letter-spacing: 0 !important; }
+
+/* Text alignment ---------------------------------------------------------- */
+[dir="rtl"] .text-left  { text-align: right; }
+[dir="rtl"] .text-right { text-align: left; }
+
+/* Floats ------------------------------------------------------------------ */
+[dir="rtl"] .float-left  { float: right; }
+[dir="rtl"] .float-right { float: left; }
+
+/* Auto margins (the usual "push this to the far end" trick) ---------------- */
+[dir="rtl"] .ml-auto { margin-left: 0; margin-right: auto; }
+[dir="rtl"] .mr-auto { margin-right: 0; margin-left: auto; }
+
+/* Flex/grid rows written in reverse stay reversed relative to the reading
+   direction — the browser already mirrors row/row-reverse for us. */
+
+/* Horizontal space-between children --------------------------------------- */
+[dir="rtl"] [class*="space-x-"] > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+}
+
+/* Rounded corners on one side --------------------------------------------- */
+[dir="rtl"] .rounded-l-lg  { border-radius: 0 0.5rem 0.5rem 0; }
+[dir="rtl"] .rounded-r-lg  { border-radius: 0.5rem 0 0 0.5rem; }
+[dir="rtl"] .rounded-l-xl  { border-radius: 0 0.75rem 0.75rem 0; }
+[dir="rtl"] .rounded-r-xl  { border-radius: 0.75rem 0 0 0.75rem; }
+[dir="rtl"] .rounded-l-md  { border-radius: 0 0.375rem 0.375rem 0; }
+[dir="rtl"] .rounded-r-md  { border-radius: 0.375rem 0 0 0.375rem; }
+[dir="rtl"] .rounded-l-full { border-radius: 0 9999px 9999px 0; }
+[dir="rtl"] .rounded-r-full { border-radius: 9999px 0 0 9999px; }
+
+/* One-sided borders (tab underlines, timeline rails, quote bars) ----------- */
+[dir="rtl"] .border-l   { border-left-width: 0; border-right-width: 1px; }
+[dir="rtl"] .border-l-2 { border-left-width: 0; border-right-width: 2px; }
+[dir="rtl"] .border-l-4 { border-left-width: 0; border-right-width: 4px; }
+[dir="rtl"] .border-r   { border-right-width: 0; border-left-width: 1px; }
+[dir="rtl"] .border-r-2 { border-right-width: 0; border-left-width: 2px; }
+[dir="rtl"] .border-r-4 { border-right-width: 0; border-left-width: 4px; }
+
+
+/* Margins ----------------------------------------------------------------- */
+[dir="rtl"] .ml-0 { margin-left: 0; margin-right: 0px; }
+[dir="rtl"] .mr-0 { margin-right: 0; margin-left: 0px; }
+[dir="rtl"] .ml-0\.5 { margin-left: 0; margin-right: 0.125rem; }
+[dir="rtl"] .mr-0\.5 { margin-right: 0; margin-left: 0.125rem; }
+[dir="rtl"] .ml-1 { margin-left: 0; margin-right: 0.25rem; }
+[dir="rtl"] .mr-1 { margin-right: 0; margin-left: 0.25rem; }
+[dir="rtl"] .ml-1\.5 { margin-left: 0; margin-right: 0.375rem; }
+[dir="rtl"] .mr-1\.5 { margin-right: 0; margin-left: 0.375rem; }
+[dir="rtl"] .ml-2 { margin-left: 0; margin-right: 0.5rem; }
+[dir="rtl"] .mr-2 { margin-right: 0; margin-left: 0.5rem; }
+[dir="rtl"] .ml-2\.5 { margin-left: 0; margin-right: 0.625rem; }
+[dir="rtl"] .mr-2\.5 { margin-right: 0; margin-left: 0.625rem; }
+[dir="rtl"] .ml-3 { margin-left: 0; margin-right: 0.75rem; }
+[dir="rtl"] .mr-3 { margin-right: 0; margin-left: 0.75rem; }
+[dir="rtl"] .ml-3\.5 { margin-left: 0; margin-right: 0.875rem; }
+[dir="rtl"] .mr-3\.5 { margin-right: 0; margin-left: 0.875rem; }
+[dir="rtl"] .ml-4 { margin-left: 0; margin-right: 1rem; }
+[dir="rtl"] .mr-4 { margin-right: 0; margin-left: 1rem; }
+[dir="rtl"] .ml-5 { margin-left: 0; margin-right: 1.25rem; }
+[dir="rtl"] .mr-5 { margin-right: 0; margin-left: 1.25rem; }
+[dir="rtl"] .ml-6 { margin-left: 0; margin-right: 1.5rem; }
+[dir="rtl"] .mr-6 { margin-right: 0; margin-left: 1.5rem; }
+[dir="rtl"] .ml-7 { margin-left: 0; margin-right: 1.75rem; }
+[dir="rtl"] .mr-7 { margin-right: 0; margin-left: 1.75rem; }
+[dir="rtl"] .ml-8 { margin-left: 0; margin-right: 2rem; }
+[dir="rtl"] .mr-8 { margin-right: 0; margin-left: 2rem; }
+[dir="rtl"] .ml-9 { margin-left: 0; margin-right: 2.25rem; }
+[dir="rtl"] .mr-9 { margin-right: 0; margin-left: 2.25rem; }
+[dir="rtl"] .ml-10 { margin-left: 0; margin-right: 2.5rem; }
+[dir="rtl"] .mr-10 { margin-right: 0; margin-left: 2.5rem; }
+[dir="rtl"] .ml-11 { margin-left: 0; margin-right: 2.75rem; }
+[dir="rtl"] .mr-11 { margin-right: 0; margin-left: 2.75rem; }
+[dir="rtl"] .ml-12 { margin-left: 0; margin-right: 3rem; }
+[dir="rtl"] .mr-12 { margin-right: 0; margin-left: 3rem; }
+[dir="rtl"] .ml-14 { margin-left: 0; margin-right: 3.5rem; }
+[dir="rtl"] .mr-14 { margin-right: 0; margin-left: 3.5rem; }
+[dir="rtl"] .ml-16 { margin-left: 0; margin-right: 4rem; }
+[dir="rtl"] .mr-16 { margin-right: 0; margin-left: 4rem; }
+[dir="rtl"] .ml-20 { margin-left: 0; margin-right: 5rem; }
+[dir="rtl"] .mr-20 { margin-right: 0; margin-left: 5rem; }
+[dir="rtl"] .ml-24 { margin-left: 0; margin-right: 6rem; }
+[dir="rtl"] .mr-24 { margin-right: 0; margin-left: 6rem; }
+[dir="rtl"] .ml-28 { margin-left: 0; margin-right: 7rem; }
+[dir="rtl"] .mr-28 { margin-right: 0; margin-left: 7rem; }
+[dir="rtl"] .ml-32 { margin-left: 0; margin-right: 8rem; }
+[dir="rtl"] .mr-32 { margin-right: 0; margin-left: 8rem; }
+[dir="rtl"] .ml-36 { margin-left: 0; margin-right: 9rem; }
+[dir="rtl"] .mr-36 { margin-right: 0; margin-left: 9rem; }
+[dir="rtl"] .ml-40 { margin-left: 0; margin-right: 10rem; }
+[dir="rtl"] .mr-40 { margin-right: 0; margin-left: 10rem; }
+[dir="rtl"] .ml-44 { margin-left: 0; margin-right: 11rem; }
+[dir="rtl"] .mr-44 { margin-right: 0; margin-left: 11rem; }
+[dir="rtl"] .ml-48 { margin-left: 0; margin-right: 12rem; }
+[dir="rtl"] .mr-48 { margin-right: 0; margin-left: 12rem; }
+[dir="rtl"] .ml-52 { margin-left: 0; margin-right: 13rem; }
+[dir="rtl"] .mr-52 { margin-right: 0; margin-left: 13rem; }
+[dir="rtl"] .ml-56 { margin-left: 0; margin-right: 14rem; }
+[dir="rtl"] .mr-56 { margin-right: 0; margin-left: 14rem; }
+[dir="rtl"] .ml-60 { margin-left: 0; margin-right: 15rem; }
+[dir="rtl"] .mr-60 { margin-right: 0; margin-left: 15rem; }
+[dir="rtl"] .ml-64 { margin-left: 0; margin-right: 16rem; }
+[dir="rtl"] .mr-64 { margin-right: 0; margin-left: 16rem; }
+[dir="rtl"] .ml-72 { margin-left: 0; margin-right: 18rem; }
+[dir="rtl"] .mr-72 { margin-right: 0; margin-left: 18rem; }
+[dir="rtl"] .ml-80 { margin-left: 0; margin-right: 20rem; }
+[dir="rtl"] .mr-80 { margin-right: 0; margin-left: 20rem; }
+[dir="rtl"] .ml-96 { margin-left: 0; margin-right: 24rem; }
+[dir="rtl"] .mr-96 { margin-right: 0; margin-left: 24rem; }
+
+/* Padding ----------------------------------------------------------------- */
+[dir="rtl"] .pl-0 { padding-left: 0; padding-right: 0px; }
+[dir="rtl"] .pr-0 { padding-right: 0; padding-left: 0px; }
+[dir="rtl"] .pl-0\.5 { padding-left: 0; padding-right: 0.125rem; }
+[dir="rtl"] .pr-0\.5 { padding-right: 0; padding-left: 0.125rem; }
+[dir="rtl"] .pl-1 { padding-left: 0; padding-right: 0.25rem; }
+[dir="rtl"] .pr-1 { padding-right: 0; padding-left: 0.25rem; }
+[dir="rtl"] .pl-1\.5 { padding-left: 0; padding-right: 0.375rem; }
+[dir="rtl"] .pr-1\.5 { padding-right: 0; padding-left: 0.375rem; }
+[dir="rtl"] .pl-2 { padding-left: 0; padding-right: 0.5rem; }
+[dir="rtl"] .pr-2 { padding-right: 0; padding-left: 0.5rem; }
+[dir="rtl"] .pl-2\.5 { padding-left: 0; padding-right: 0.625rem; }
+[dir="rtl"] .pr-2\.5 { padding-right: 0; padding-left: 0.625rem; }
+[dir="rtl"] .pl-3 { padding-left: 0; padding-right: 0.75rem; }
+[dir="rtl"] .pr-3 { padding-right: 0; padding-left: 0.75rem; }
+[dir="rtl"] .pl-3\.5 { padding-left: 0; padding-right: 0.875rem; }
+[dir="rtl"] .pr-3\.5 { padding-right: 0; padding-left: 0.875rem; }
+[dir="rtl"] .pl-4 { padding-left: 0; padding-right: 1rem; }
+[dir="rtl"] .pr-4 { padding-right: 0; padding-left: 1rem; }
+[dir="rtl"] .pl-5 { padding-left: 0; padding-right: 1.25rem; }
+[dir="rtl"] .pr-5 { padding-right: 0; padding-left: 1.25rem; }
+[dir="rtl"] .pl-6 { padding-left: 0; padding-right: 1.5rem; }
+[dir="rtl"] .pr-6 { padding-right: 0; padding-left: 1.5rem; }
+[dir="rtl"] .pl-7 { padding-left: 0; padding-right: 1.75rem; }
+[dir="rtl"] .pr-7 { padding-right: 0; padding-left: 1.75rem; }
+[dir="rtl"] .pl-8 { padding-left: 0; padding-right: 2rem; }
+[dir="rtl"] .pr-8 { padding-right: 0; padding-left: 2rem; }
+[dir="rtl"] .pl-9 { padding-left: 0; padding-right: 2.25rem; }
+[dir="rtl"] .pr-9 { padding-right: 0; padding-left: 2.25rem; }
+[dir="rtl"] .pl-10 { padding-left: 0; padding-right: 2.5rem; }
+[dir="rtl"] .pr-10 { padding-right: 0; padding-left: 2.5rem; }
+[dir="rtl"] .pl-11 { padding-left: 0; padding-right: 2.75rem; }
+[dir="rtl"] .pr-11 { padding-right: 0; padding-left: 2.75rem; }
+[dir="rtl"] .pl-12 { padding-left: 0; padding-right: 3rem; }
+[dir="rtl"] .pr-12 { padding-right: 0; padding-left: 3rem; }
+[dir="rtl"] .pl-14 { padding-left: 0; padding-right: 3.5rem; }
+[dir="rtl"] .pr-14 { padding-right: 0; padding-left: 3.5rem; }
+[dir="rtl"] .pl-16 { padding-left: 0; padding-right: 4rem; }
+[dir="rtl"] .pr-16 { padding-right: 0; padding-left: 4rem; }
+[dir="rtl"] .pl-20 { padding-left: 0; padding-right: 5rem; }
+[dir="rtl"] .pr-20 { padding-right: 0; padding-left: 5rem; }
+[dir="rtl"] .pl-24 { padding-left: 0; padding-right: 6rem; }
+[dir="rtl"] .pr-24 { padding-right: 0; padding-left: 6rem; }
+[dir="rtl"] .pl-28 { padding-left: 0; padding-right: 7rem; }
+[dir="rtl"] .pr-28 { padding-right: 0; padding-left: 7rem; }
+[dir="rtl"] .pl-32 { padding-left: 0; padding-right: 8rem; }
+[dir="rtl"] .pr-32 { padding-right: 0; padding-left: 8rem; }
+[dir="rtl"] .pl-36 { padding-left: 0; padding-right: 9rem; }
+[dir="rtl"] .pr-36 { padding-right: 0; padding-left: 9rem; }
+[dir="rtl"] .pl-40 { padding-left: 0; padding-right: 10rem; }
+[dir="rtl"] .pr-40 { padding-right: 0; padding-left: 10rem; }
+[dir="rtl"] .pl-44 { padding-left: 0; padding-right: 11rem; }
+[dir="rtl"] .pr-44 { padding-right: 0; padding-left: 11rem; }
+[dir="rtl"] .pl-48 { padding-left: 0; padding-right: 12rem; }
+[dir="rtl"] .pr-48 { padding-right: 0; padding-left: 12rem; }
+[dir="rtl"] .pl-52 { padding-left: 0; padding-right: 13rem; }
+[dir="rtl"] .pr-52 { padding-right: 0; padding-left: 13rem; }
+[dir="rtl"] .pl-56 { padding-left: 0; padding-right: 14rem; }
+[dir="rtl"] .pr-56 { padding-right: 0; padding-left: 14rem; }
+[dir="rtl"] .pl-60 { padding-left: 0; padding-right: 15rem; }
+[dir="rtl"] .pr-60 { padding-right: 0; padding-left: 15rem; }
+[dir="rtl"] .pl-64 { padding-left: 0; padding-right: 16rem; }
+[dir="rtl"] .pr-64 { padding-right: 0; padding-left: 16rem; }
+[dir="rtl"] .pl-72 { padding-left: 0; padding-right: 18rem; }
+[dir="rtl"] .pr-72 { padding-right: 0; padding-left: 18rem; }
+[dir="rtl"] .pl-80 { padding-left: 0; padding-right: 20rem; }
+[dir="rtl"] .pr-80 { padding-right: 0; padding-left: 20rem; }
+[dir="rtl"] .pl-96 { padding-left: 0; padding-right: 24rem; }
+[dir="rtl"] .pr-96 { padding-right: 0; padding-left: 24rem; }
+
+/* Absolute positioning ---------------------------------------------------- */
+[dir="rtl"] .left-0  { left: auto; right: 0px; }
+[dir="rtl"] .right-0 { right: auto; left: 0px; }
+[dir="rtl"] .left-0\.5  { left: auto; right: 0.125rem; }
+[dir="rtl"] .right-0\.5 { right: auto; left: 0.125rem; }
+[dir="rtl"] .left-1  { left: auto; right: 0.25rem; }
+[dir="rtl"] .right-1 { right: auto; left: 0.25rem; }
+[dir="rtl"] .left-1\.5  { left: auto; right: 0.375rem; }
+[dir="rtl"] .right-1\.5 { right: auto; left: 0.375rem; }
+[dir="rtl"] .left-2  { left: auto; right: 0.5rem; }
+[dir="rtl"] .right-2 { right: auto; left: 0.5rem; }
+[dir="rtl"] .left-2\.5  { left: auto; right: 0.625rem; }
+[dir="rtl"] .right-2\.5 { right: auto; left: 0.625rem; }
+[dir="rtl"] .left-3  { left: auto; right: 0.75rem; }
+[dir="rtl"] .right-3 { right: auto; left: 0.75rem; }
+[dir="rtl"] .left-3\.5  { left: auto; right: 0.875rem; }
+[dir="rtl"] .right-3\.5 { right: auto; left: 0.875rem; }
+[dir="rtl"] .left-4  { left: auto; right: 1rem; }
+[dir="rtl"] .right-4 { right: auto; left: 1rem; }
+[dir="rtl"] .left-5  { left: auto; right: 1.25rem; }
+[dir="rtl"] .right-5 { right: auto; left: 1.25rem; }
+[dir="rtl"] .left-6  { left: auto; right: 1.5rem; }
+[dir="rtl"] .right-6 { right: auto; left: 1.5rem; }
+[dir="rtl"] .left-7  { left: auto; right: 1.75rem; }
+[dir="rtl"] .right-7 { right: auto; left: 1.75rem; }
+[dir="rtl"] .left-8  { left: auto; right: 2rem; }
+[dir="rtl"] .right-8 { right: auto; left: 2rem; }
+[dir="rtl"] .left-9  { left: auto; right: 2.25rem; }
+[dir="rtl"] .right-9 { right: auto; left: 2.25rem; }
+[dir="rtl"] .left-10  { left: auto; right: 2.5rem; }
+[dir="rtl"] .right-10 { right: auto; left: 2.5rem; }
+[dir="rtl"] .left-11  { left: auto; right: 2.75rem; }
+[dir="rtl"] .right-11 { right: auto; left: 2.75rem; }
+[dir="rtl"] .left-12  { left: auto; right: 3rem; }
+[dir="rtl"] .right-12 { right: auto; left: 3rem; }
+[dir="rtl"] .left-14  { left: auto; right: 3.5rem; }
+[dir="rtl"] .right-14 { right: auto; left: 3.5rem; }
+[dir="rtl"] .left-16  { left: auto; right: 4rem; }
+[dir="rtl"] .right-16 { right: auto; left: 4rem; }
+[dir="rtl"] .left-20  { left: auto; right: 5rem; }
+[dir="rtl"] .right-20 { right: auto; left: 5rem; }
+[dir="rtl"] .left-24  { left: auto; right: 6rem; }
+[dir="rtl"] .right-24 { right: auto; left: 6rem; }
+[dir="rtl"] .left-full  { left: auto; right: 100%; }
+[dir="rtl"] .right-full { right: auto; left: 100%; }
+[dir="rtl"] .-left-1 { left: auto; right: -0.25rem; }
+[dir="rtl"] .-right-1 { right: auto; left: -0.25rem; }
+[dir="rtl"] .-left-2 { left: auto; right: -0.5rem; }
+[dir="rtl"] .-right-2 { right: auto; left: -0.5rem; }
+
+/* Off-canvas panels & toggle knobs ---------------------------------------- *
+ * A panel that hides itself off-screen pairs an ANCHOR (right-0) with a
+ * TRANSFORM (translate-x-full). Mirroring only the anchor — as every rule above
+ * does — left the chat drawer anchored to the left edge but still pushed RIGHT
+ * to hide, so it parked in the middle of the page and looked permanently open.
+ * Negating the x translation keeps the pair consistent: the drawer now hides
+ * off the left edge, the mobile sidebar off the right, and a switch knob
+ * travels the correct way along its track.
+ *
+ * -translate-x-1/2 is excluded on purpose: paired with left-1/2 it CENTRES an
+ * element rather than mirroring it, so negating it would knock it off-centre.
+ */
+[dir="rtl"] [class*="translate-x-"]:not([class*="translate-x-1/2"]) {
+  translate: calc(var(--tw-translate-x) * -1) var(--tw-translate-y);
+}
+
+/* The activity-log slide-over is mirrored by flexbox already (justify-end
+   resolves to the left edge in RTL), but its entry keyframe still slid in from
+   the right and crossed the whole screen on the way. Same pairing, same fix. */
+@keyframes slideInRtl {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+[dir="rtl"] [class*="slideIn"] { animation-name: slideInRtl; }

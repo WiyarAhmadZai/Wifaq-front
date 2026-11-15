@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
-import { get, post, put, del } from '../../api/axios';
+import GenerateScheduleModal from "./GenerateScheduleModal";
+import { get, post, put, del, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 
 const DAY_LABELS = {
   saturday: 'Sat', sunday: 'Sun', monday: 'Mon',
   tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu',
+  // Only rendered by schools that actually teach on Friday — the API returns
+  // the days in use, so everyone else still sees a six-column week.
+  friday: 'Fri',
 };
 const DAY_LABELS_FULL = {
   saturday: 'Saturday', sunday: 'Sunday', monday: 'Monday',
   tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday',
+  friday: 'Friday',
 };
 
 const CATEGORY_COLORS = {
@@ -40,11 +45,19 @@ export default function Schedule() {
   useEffect(() => {
     (async () => {
       try {
+        const __fd = peekCache('/class-management/schedule/form-data');
+        if (__fd) {
+          setTerms(__fd?.academic_terms || []);
+          setTeachers(__fd?.teachers || []);
+          if (__fd?.academic_terms?.length) setSelectedTerm(__fd.academic_terms[0].id);
+        }
         const res = await get('/class-management/schedule/form-data');
         setTerms(res.data?.academic_terms || []);
         setTeachers(res.data?.teachers || []);
         if (res.data?.academic_terms?.length) setSelectedTerm(res.data.academic_terms[0].id);
         // Fetch grades list
+        const __g = peekCache('/grades/list');
+        if (__g) setGrades(__g?.data || []);
         const gRes = await get('/grades/list');
         setGrades(gRes.data?.data || []);
       } catch {}
@@ -55,6 +68,8 @@ export default function Schedule() {
     if (!selectedTerm) return;
     (async () => {
       try {
+        const __c = peekCache(`/class-management/schedule/form-data?academic_term_id=${selectedTerm}`);
+        if (__c) setClasses(__c?.classes || []);
         const res = await get(`/class-management/schedule/form-data?academic_term_id=${selectedTerm}`);
         setClasses(res.data?.classes || []);
       } catch {}
@@ -75,6 +90,8 @@ export default function Schedule() {
     setLoading(true);
     setAllSchedules(null);
     try {
+      const __c = peekCache(`/class-management/schedule/class?class_id=${selectedClass}`);
+      if (__c) { setScheduleData(__c); setLoading(false); }
       const res = await get(`/class-management/schedule/class?class_id=${selectedClass}`);
       setScheduleData(res.data);
     } catch { setScheduleData(null); }
@@ -150,6 +167,8 @@ export default function Schedule() {
   const fetchGradeSchedule = async () => {
     setLoading(true);
     try {
+      const __c = peekCache(`/class-management/schedule/grade?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
+      if (__c) { setGradeData(__c); setActiveGradeTab(0); setScheduleData(null); setLoading(false); }
       const res = await get(`/class-management/schedule/grade?grade_id=${selectedGrade}&academic_term_id=${selectedTerm}`);
       setGradeData(res.data);
       setActiveGradeTab(0);
@@ -161,26 +180,23 @@ export default function Schedule() {
   const fetchTeacherSchedule = async () => {
     setLoading(true);
     try {
+      const __c = peekCache(`/class-management/schedule/teacher?teacher_id=${selectedTeacher}&academic_term_id=${selectedTerm}`);
+      if (__c) { setScheduleData(__c); setLoading(false); }
       const res = await get(`/class-management/schedule/teacher?teacher_id=${selectedTeacher}&academic_term_id=${selectedTerm}`);
       setScheduleData(res.data);
     } catch { setScheduleData(null); }
     finally { setLoading(false); }
   };
 
-  const handleGenerate = async () => {
-    const confirm = await Swal.fire({
-      title: 'Generate Schedule?',
-      html: '<p class="text-sm text-gray-600">This will <strong>clear all existing schedules</strong> for this term and auto-generate new ones based on grade subjects and teacher assignments.</p>',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#0d9488',
-      confirmButtonText: 'Generate',
-    });
-    if (!confirm.isConfirmed) return;
-
+  const handleGenerate = async ({ holidays, periods_per_day }) => {
     setGenerating(true);
     try {
-      const res = await post('/class-management/schedule/generate', { academic_term_id: selectedTerm });
+      const res = await post('/class-management/schedule/generate', {
+        academic_term_id: selectedTerm,
+        holidays,
+        periods_per_day,
+      });
+      setGenerateOpen(false);
       const summary = res.data?.summary;
       let html = `<p class="text-sm font-semibold mb-2">${res.data?.message}</p>`;
       if (summary?.classes?.length) {
@@ -201,7 +217,20 @@ export default function Schedule() {
         setClasses(r.data?.classes || []);
       } catch {}
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.message || 'Failed to generate', 'error');
+      /* The generator refuses rather than half-scheduling, and it names the
+       * subject that will not fit — "5 periods needed but once-per-day rule
+       * caps at 4". Dropping that detail for a bare "Failed to generate"
+       * leaves the user with nothing to act on, so it is shown in full and
+       * the modal stays open to be adjusted. */
+      const data = error.response?.data;
+      const reasons = data?.errors;
+      let html = `<p class="text-sm">${data?.message || 'Failed to generate'}</p>`;
+      if (Array.isArray(reasons) && reasons.length) {
+        html += '<ul class="text-left text-xs mt-3 space-y-1 max-h-56 overflow-y-auto">'
+          + reasons.map((r) => `<li class="text-gray-700">• ${r}</li>`).join('')
+          + '</ul>';
+      }
+      Swal.fire({ icon: 'error', title: 'Could not generate', html, confirmButtonColor: '#0d9488' });
     } finally {
       setGenerating(false);
     }
@@ -242,6 +271,12 @@ export default function Schedule() {
   const [editorTeacherId, setEditorTeacherId] = useState('');
   const [editorSaving, setEditorSaving] = useState(false);
 
+  /* Asked before anything is destroyed: which days the school is closed,
+   * how long a day runs, and when each teacher cannot teach. All three
+   * used to be assumed, and the assumption was wrong often enough that
+   * somebody re-did the timetable by hand every term. */
+  const [generateOpen, setGenerateOpen] = useState(false);
+
   const handleDragStart = (entry) => {
     setDragEntry(entry);
   };
@@ -263,6 +298,18 @@ export default function Schedule() {
       if (entry?.id) params.append('entry_id', entry.id);
       const res = await get(`/class-management/schedule/cell-options?${params.toString()}`);
       setEditorOptions(res.data);
+
+      // A period already on the timetable but saved without a teacher gets the
+      // assigned one suggested too. The auto-fill used to run only when the
+      // subject dropdown changed, so reopening such a cell showed "No teacher"
+      // even though Grade Subjects had someone assigned to it all along.
+      if (entry?.subject_id && !entry?.teacher_id) {
+        const subj = res.data?.subjects?.find(x => x.id == entry.subject_id);
+        const def = subj?.default_teacher_id
+          ? res.data?.teachers?.find(t => t.id == subj.default_teacher_id)
+          : null;
+        if (def && !def.is_busy) setEditorTeacherId(String(def.id));
+      }
     } catch {
       setEditorOptions(null);
       Swal.fire('Error', 'Failed to load options', 'error');
@@ -286,8 +333,9 @@ export default function Schedule() {
     }
     setEditorSaving(true);
     try {
-      const isPrimary = editorOptions?.is_primary_grade;
-      const teacherId = isPrimary ? editorOptions?.class_supervisor_id : (editorTeacherId || null);
+      // Whoever was picked, in every grade. A primary class used to have the
+      // supervisor's id sent here regardless of the choice on screen.
+      const teacherId = editorTeacherId || null;
 
       if (editorCell?.entry?.id) {
         await put(`/class-management/schedule/entry/${editorCell.entry.id}`, {
@@ -553,7 +601,7 @@ export default function Schedule() {
               Clear
             </button>
           )}
-          <button onClick={handleGenerate} disabled={!selectedTerm || generating}
+          <button onClick={() => setGenerateOpen(true)} disabled={!selectedTerm || generating}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50">
             {generating ? (
               <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Generating...</>
@@ -917,6 +965,13 @@ export default function Schedule() {
       )}
 
       {/* Cell Editor Modal */}
+      <GenerateScheduleModal
+        open={generateOpen}
+        generating={generating}
+        onClose={() => setGenerateOpen(false)}
+        onGenerate={handleGenerate}
+      />
+
       {editorOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
@@ -943,17 +998,6 @@ export default function Schedule() {
               </div>
             ) : editorOptions ? (
               <div className="p-5 space-y-4">
-                {editorOptions.is_primary_grade && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-                    <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-[11px] text-amber-800">
-                      Primary grade — teacher is automatically the class supervisor.
-                    </p>
-                  </div>
-                )}
-
                 {/* Subject dropdown with hours used */}
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Subject *</label>
@@ -1014,7 +1058,7 @@ export default function Schedule() {
                 </div>
 
                 {/* Teacher dropdown */}
-                {editorSubjectId && !editorOptions.is_primary_grade && (() => {
+                {editorSubjectId && (() => {
                   const subj = editorOptions.subjects.find(s => s.id == editorSubjectId);
                   if (!subj) return null;
                   return (
@@ -1029,7 +1073,7 @@ export default function Schedule() {
                           const isCurrent = editorCell?.entry?.teacher_id == t.id;
                           return (
                             <option key={`default-${t.id}`} value={t.id} disabled={t.is_busy && !isCurrent}>
-                              ⭐ {t.name}{t.is_busy && !isCurrent ? ' (busy)' : ''} — assigned to this subject
+                              ⭐ {t.name}{t.is_busy && !isCurrent ? ' (busy)' : ''}{t.is_other_branch ? ' (another branch)' : ''}{t.is_inactive ? ' (inactive)' : ''} — assigned to this subject
                             </option>
                           );
                         })()}
@@ -1039,7 +1083,7 @@ export default function Schedule() {
                             const isCurrent = editorCell?.entry?.teacher_id == t.id;
                             return (
                               <option key={t.id} value={t.id} disabled={t.is_busy && !isCurrent}>
-                                {t.name}{t.is_busy ? (isCurrent ? ' (current)' : ' — busy at this time') : ` — ${t.weekly_hours}h capacity`}
+                                {t.name}{t.is_other_branch ? ' (another branch)' : ''}{t.is_inactive ? ' (inactive)' : ''}{t.is_busy ? (isCurrent ? ' (current)' : ' — busy at this time') : ` — ${t.weekly_hours}h capacity`}
                               </option>
                             );
                           })}
@@ -1047,6 +1091,20 @@ export default function Schedule() {
                       {!subj.default_teacher_id && (
                         <p className="text-[10px] text-amber-600 mt-1">⚠ No default teacher assigned to this subject in Grade Subjects.</p>
                       )}
+                      {/* There IS an assigned teacher, but the field is empty —
+                          say which of the two reasons it is, instead of leaving
+                          "No teacher" to look like nobody was ever assigned. */}
+                      {subj.default_teacher_id && !editorTeacherId && (() => {
+                        const t = editorOptions.teachers.find(t => t.id == subj.default_teacher_id);
+                        const who = subj.default_teacher_name || `Teacher #${subj.default_teacher_id}`;
+                        return (
+                          <p className="text-[10px] text-amber-600 mt-1">
+                            ⚠ {who} is assigned to this subject in Grade Subjects but {t
+                              ? 'is already teaching at this day and period'
+                              : 'is not available for this class'} — choose someone else for this period.
+                          </p>
+                        );
+                      })()}
                       {editorTeacherId && editorTeacherId != subj.default_teacher_id && subj.default_teacher_id && (
                         <p className="text-[10px] text-amber-600 mt-1">ℹ This is an override — the default teacher for this subject is {subj.default_teacher_name}.</p>
                       )}
@@ -1054,33 +1112,6 @@ export default function Schedule() {
                   );
                 })()}
 
-                {/* Primary grade: show supervisor as the auto-assigned teacher */}
-                {editorOptions.is_primary_grade && editorSubjectId && (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Teacher (Class Supervisor)</label>
-                    {(() => {
-                      const supervisorTeacher = editorOptions.teachers.find(t => t.id == editorOptions.class_supervisor_id);
-                      if (!supervisorTeacher) {
-                        return (
-                          <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
-                            <p className="text-xs text-amber-800">No supervisor assigned to this class</p>
-                          </div>
-                        );
-                      }
-                      const isBusy = supervisorTeacher.is_busy && editorCell?.entry?.teacher_id != supervisorTeacher.id;
-                      return (
-                        <div className={`p-3 rounded-xl border ${isBusy ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-200'}`}>
-                          <p className={`text-sm font-semibold ${isBusy ? 'text-red-700' : 'text-teal-800'}`}>
-                            {supervisorTeacher.name}
-                          </p>
-                          {isBusy && (
-                            <p className="text-[10px] text-red-600 mt-1">⚠ Supervisor is already busy at this time</p>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
               </div>
             ) : null}
 

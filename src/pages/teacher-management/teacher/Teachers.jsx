@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del } from '../../../api/axios';
+import { get, del, peekCache } from '../../../api/axios';
 import Swal from 'sweetalert2';
 
 export default function Teachers() {
@@ -18,7 +18,10 @@ export default function Teachers() {
       params.append('page', page);
       if (search) params.append('search', search);
       if (filterStatus) params.append('status', filterStatus);
-      const res = await get(`/teacher-management/teachers/list?${params.toString()}`);
+      const url = `/teacher-management/teachers/list?${params.toString()}`;
+      const __cached = peekCache(url);
+      if (__cached) { setItems(__cached?.data || []); if (__cached?.meta) setMeta(__cached.meta); setLoading(false); }
+      const res = await get(url);
       setItems(res.data?.data || []);
       if (res.data?.meta) setMeta(res.data.meta);
     } catch {

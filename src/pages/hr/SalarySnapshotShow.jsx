@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get } from '../../api/axios';
+import { get, peekCache } from '../../api/axios';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
 const DEMO = {
@@ -21,6 +21,11 @@ export default function SalarySnapshotShow() {
   useEffect(() => { fetchData(); }, [id]);
 
   const fetchData = async () => {
+    const __cached = peekCache(`/hr/salary-snapshots/${id}`);
+    if (__cached) {
+      setData(__cached?.data || __cached);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/salary-snapshots/${id}`);
       setData(res.data?.data || res.data);

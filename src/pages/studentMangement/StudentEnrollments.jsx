@@ -1,8 +1,29 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import TransferStepsModal, { TRANSFER_STEPS } from "./TransferStepsModal";
+import ListExportActions from "../../components/ListExportActions";
+import StudentAvatar from "../../components/students/StudentAvatar";
+
+import { fmtDate } from "../../utils/formErrors";
+
+// Columns used for Excel export / print of the enrollments list.
+const EXPORT_COLUMNS = [
+  { key: "student_id", label: "Student ID" },
+  { key: "name", label: "Name", exportValue: (it) => `${it.first_name || ""} ${it.last_name || ""}`.trim() },
+  // Same order as the table, so an export reads like what was on screen.
+  { key: "father", label: "Father Name", exportValue: (it) => it.family?.father_name || "" },
+  { key: "father_phone", label: "Father Number", exportValue: (it) => it.family?.father_phone || "" },
+  { key: "class", label: "Class", exportValue: (it) => it.school_class?.class_name || "" },
+  { key: "term", label: "Academic Term", exportValue: (it) => it.academic_term?.name || "" },
+  { key: "family_id", label: "Family ID", exportValue: (it) => it.family?.family_id || "" },
+  { key: "fee", label: "Monthly Fee", exportValue: (it) => (it.final_fee ? Number(it.final_fee) : "") },
+  { key: "enrolled", label: "Enrolled At", exportValue: (it) => (it.phase_2_completed_at ? fmtDate(it.phase_2_completed_at) : "") },
+  { key: "status", label: "Status", exportValue: (it) => it.status || "" },
+  { key: "type", label: "Type", exportValue: (it) => it.enrollment_type || "" },
+  { key: "transfer", label: "Transfer", exportValue: (it) => (it.enrollment_type === "transfer" ? (it.transfer_case_status || "pending") : "") },
+];
 
 const TRANSFER_STEP_SHORT = {
   transfer_agreement: "Agreement done",
@@ -35,12 +56,14 @@ export default function StudentEnrollments() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterGrade, setFilterGrade] = useState("");
   const [filterClass, setFilterClass] = useState("");
   const [filterTerm, setFilterTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
 
+  const [grades, setGrades] = useState([]);
   const [classes, setClasses] = useState([]);
   const [terms, setTerms] = useState([]);
   const [transferStudent, setTransferStudent] = useState(null);
@@ -53,11 +76,15 @@ export default function StudentEnrollments() {
         params.append("page", page);
         params.append("registration_status", "phase_2");
         if (search) params.append("search", search);
+        if (filterGrade) params.append("grade_id", filterGrade);
         if (filterClass) params.append("class_id", filterClass);
         if (filterTerm) params.append("academic_term_id", filterTerm);
         if (filterStatus) params.append("status", filterStatus);
 
-        const res = await get(`/student-management/students/list?${params.toString()}`);
+        const __url = `/student-management/students/list?${params.toString()}`;
+        const __cached = peekCache(__url);
+        if (__cached) { setItems(__cached?.data || []); if (__cached?.meta) setMeta(__cached.meta); setLoading(false); }
+        const res = await get(__url);
         setItems(res.data?.data || []);
         if (res.data?.meta) setMeta(res.data.meta);
       } catch {
@@ -66,28 +93,57 @@ export default function StudentEnrollments() {
         setLoading(false);
       }
     },
-    [search, filterClass, filterTerm, filterStatus],
+    [search, filterGrade, filterClass, filterTerm, filterStatus],
   );
 
   useEffect(() => {
     const t = setTimeout(() => fetchItems(1), 400);
     return () => clearTimeout(t);
-  }, [search, filterClass, filterTerm, filterStatus]);
+  }, [fetchItems]);
+
+  // Pull every page (with the current filters) for the Excel/Print export.
+  const fetchAllEnrollments = useCallback(async () => {
+    const all = [];
+    let page = 1, last = 1;
+    do {
+      const params = new URLSearchParams();
+      params.append("page", page);
+      params.append("per_page", 1000);
+      params.append("registration_status", "phase_2");
+      if (search) params.append("search", search);
+      if (filterGrade) params.append("grade_id", filterGrade);
+      if (filterClass) params.append("class_id", filterClass);
+      if (filterTerm) params.append("academic_term_id", filterTerm);
+      if (filterStatus) params.append("status", filterStatus);
+      const res = await get(`/student-management/students/list?${params.toString()}`);
+      const data = res.data?.data || [];
+      if (Array.isArray(data)) all.push(...data);
+      last = res.data?.meta?.last_page || 1;
+      page += 1;
+    } while (page <= last && page <= 200);
+    return all;
+  }, [search, filterGrade, filterClass, filterTerm, filterStatus]);
 
   useEffect(() => {
     (async () => {
       try {
-        const r1 = await get("/class-management/classes/list?per_page=1000");
-        setClasses(r1.data?.data || []);
-      } catch {}
-      try {
-        const r2 = await get("/academic-terms/list");
-        setTerms(r2.data?.data || []);
-      } catch {}
+        const optionsUrl = "/student-management/students/filter-options";
+        const applyOptions = (options) => {
+          if (!options) return;
+          setGrades(options.grades || []);
+          setClasses(options.classes || []);
+          setTerms(options.academic_terms || []);
+        };
+        applyOptions(peekCache(optionsUrl));
+        const response = await get(optionsUrl);
+        applyOptions(response.data);
+      } catch (error) {
+        console.error("Failed to load enrollment filters", error);
+      }
     })();
   }, []);
 
-  const activeFilters = [filterClass, filterTerm, filterStatus].filter(Boolean).length;
+  const activeFilters = [filterGrade, filterClass, filterTerm, filterStatus].filter(Boolean).length;
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
@@ -103,7 +159,10 @@ export default function StudentEnrollments() {
     if (res.isConfirmed) {
       try {
         await del(`/student-management/students/delete/${id}`);
-      } catch {}
+      } catch (error) {
+        Swal.fire("Error", error.response?.data?.message || "Could not remove this enrollment.", "error");
+        return;
+      }
       fetchItems(meta.current_page);
       Swal.fire({ icon: "success", title: "Deleted", timer: 1500, showConfirmButton: false });
     }
@@ -123,15 +182,18 @@ export default function StudentEnrollments() {
           <h1 className="text-lg font-bold text-gray-800">Phase 2 Enrollments</h1>
           <p className="text-xs text-gray-400 mt-0.5">Officially enrolled students — Phase 2 completed</p>
         </div>
-        <button
-          onClick={() => navigate("/student-management/student-enrollments/create")}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Enrollment
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <ListExportActions getRows={fetchAllEnrollments} columns={EXPORT_COLUMNS} title="Phase 2 Enrollments" />
+          <button
+            onClick={() => navigate("/student-management/student-enrollments/create")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Enrollment
+          </button>
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -177,7 +239,7 @@ export default function StudentEnrollments() {
           </button>
           {(activeFilters > 0 || search) && (
             <button
-              onClick={() => { setSearch(""); setFilterClass(""); setFilterTerm(""); setFilterStatus(""); }}
+              onClick={() => { setSearch(""); setFilterGrade(""); setFilterClass(""); setFilterTerm(""); setFilterStatus(""); }}
               className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
             >
               Clear
@@ -185,7 +247,14 @@ export default function StudentEnrollments() {
           )}
         </div>
         {filterOpen && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 border-t border-gray-100">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Grade</label>
+              <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">
+                <option value="">All Grades</option>
+                {grades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Class</label>
               <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 bg-white">
@@ -227,13 +296,14 @@ export default function StudentEnrollments() {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Student</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Student ID</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Father Name</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Class</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Family</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Fee</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Enrolled</th>
                   <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Transfer</th>
+                  <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">Father Number</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -247,23 +317,25 @@ export default function StudentEnrollments() {
                       onClick={() => navigate(`/student-management/student-enrollments/show/${item.id}`)}
                     >
                       <td className="px-4 py-3">
+                        <span className="text-xs font-mono text-gray-600">{item.student_id || `#${item.id}`}</span>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {(item.first_name || "?").charAt(0)}{(item.last_name || "").charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{item.first_name} {item.last_name}</p>
-                            <p className="text-[10px] font-mono text-gray-400">{item.student_id || `#${item.id}`}</p>
-                          </div>
+                          {/* Was initials-only, so a child with a registration
+                              photo on file still showed as two letters. */}
+                          <StudentAvatar student={item} size="md" rounded="rounded-xl" />
+                          <p className="text-sm font-semibold text-gray-800">{item.first_name} {item.last_name}</p>
                         </div>
+                      </td>
+                      {/* The number moved to its own column, so this one is
+                          just the name — it was labelled "Family" before, which
+                          read as a household rather than a person. */}
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-700">{item.family?.father_name || "—"}</p>
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-700">{item.school_class?.class_name || "—"}</p>
                         <p className="text-[10px] text-gray-400">{item.academic_term?.name || ""}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-700">{item.family?.father_name || "—"}</p>
-                        <p className="text-[10px] text-gray-400">{item.family?.father_phone || ""}</p>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="text-xs font-semibold text-gray-800">
@@ -272,7 +344,7 @@ export default function StudentEnrollments() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="text-[11px] text-gray-500">
-                          {item.phase_2_completed_at ? new Date(item.phase_2_completed_at).toLocaleDateString() : "—"}
+                          {item.phase_2_completed_at ? fmtDate(item.phase_2_completed_at) : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -281,28 +353,13 @@ export default function StudentEnrollments() {
                           {st.label}
                         </span>
                       </td>
+                      {/* Was the transfer status. That control still lives in
+                          the row actions, where it already was — nothing is
+                          lost by giving the space to a number people need. */}
                       <td className="px-4 py-3 text-center">
-                        {item.enrollment_type !== "transfer" ? (
-                          <span className="text-xs text-gray-300">—</span>
-                        ) : item.transfer_case_status === "completed" ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full"
-                            title="Transfer process completed"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                            completed
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setTransferStudent(item); }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full whitespace-nowrap"
-                          >
-                            {lastCompletedTransferLabel(item) || "Start"}
-                          </button>
-                        )}
+                        {item.family?.father_phone
+                          ? <span dir="ltr" className="text-xs text-gray-700 whitespace-nowrap">{item.family.father_phone}</span>
+                          : <span className="text-xs text-gray-300">—</span>}
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
@@ -314,11 +371,11 @@ export default function StudentEnrollments() {
                                   ? "text-emerald-600 hover:bg-emerald-50"
                                   : "text-amber-600 hover:bg-amber-50"
                               }`}
-                              title={
+                              title={`Transfer: ${
                                 item.transfer_case_status === "completed"
-                                  ? "Transfer: completed"
-                                  : `Transfer: ${item.transfer_case_status || "pending"}`
-                              }
+                                  ? "completed"
+                                  : (lastCompletedTransferLabel(item) || item.transfer_case_status || "pending")
+                              }`}
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />

@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const statusConfig = {
   draft: { color: "bg-gray-100 text-gray-700", dot: "bg-gray-400", label: "Draft" },
@@ -15,6 +18,9 @@ const statusConfig = {
 export default function JobOfferShow() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/job-offers");
   const { canUpdate, canDelete } = useResourcePermissions("applications");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +31,8 @@ export default function JobOfferShow() {
 
   const fetchData = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/job-offers/${id}`);
+    if (__cached) { setData(__cached); setLoading(false); }
     try {
       const response = await get(`/recruitment/job-offers/${id}`);
       setData(response.data);
@@ -49,7 +57,7 @@ export default function JobOfferShow() {
       try {
         await del(`/recruitment/job-offers/${id}`);
         Swal.fire("Deleted", "Job offer deleted", "success");
-        navigate("/recruitment/job-offers");
+        goBack();
       } catch {
         Swal.fire("Error", "Failed to delete", "error");
       }
@@ -91,7 +99,7 @@ export default function JobOfferShow() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/recruitment/job-offers")} className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors">
+          <button onClick={goBack} className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
@@ -187,7 +195,7 @@ export default function JobOfferShow() {
               <div className="p-4 bg-gray-50 rounded-lg">
                 <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Start Date</p>
                 <p className="text-sm font-medium text-gray-800">
-                  {data.start_date ? new Date(data.start_date).toLocaleDateString() : "-"}
+                  {data.start_date ? fmtDate(data.start_date) : "-"}
                 </p>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
@@ -252,7 +260,7 @@ export default function JobOfferShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created</p>
-                  <p className="text-xs font-medium text-gray-800">{data.created_at ? new Date(data.created_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.created_at ? fmtDateTime(data.created_at) : "-"}</p>
                 </div>
               </div>
               <div className="w-px h-4 bg-gray-200 ml-4"></div>
@@ -264,7 +272,7 @@ export default function JobOfferShow() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
-                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? new Date(data.updated_at).toLocaleString() : "-"}</p>
+                  <p className="text-xs font-medium text-gray-800">{data.updated_at ? fmtDateTime(data.updated_at) : "-"}</p>
                 </div>
               </div>
             </div>

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del } from '../api/axios';
+import { get, del, peekCache } from '../api/axios';
 import Swal from 'sweetalert2';
+
+import { fmtDate, fmtDateTime } from "../utils/formErrors";
+import { useAuth } from "../admin/context/AuthContext";
 
 const Icons = {
   ArrowLeft: () => (
@@ -83,24 +86,44 @@ const DetailRow = ({ label, value, isStatus = false }) => (
   </div>
 );
 
-export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, editRoute, deleteEndpoint = null }) {
+export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, editRoute, deleteEndpoint = null, permissionBase = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Permission resolution. If no base provided → all true (legacy behavior),
+  // mirroring CrudPage so callers opt in by passing `permissionBase`.
+  const permCheck = (action) => {
+    if (!permissionBase) return true;
+    return hasPermission(`${permissionBase}.${action}`) || hasPermission(`${permissionBase}.manage`);
+  };
+  const canUpdate = permCheck("update");
+  const canDelete = permCheck("delete");
 
   useEffect(() => {
     fetchItem();
   }, [id]);
 
   const fetchItem = async () => {
-    setLoading(true);
+    const url = `${apiEndpoint}/${id}`;
+    // Stale-while-revalidate: paint the cached record instantly (no spinner),
+    // then revalidate. The server returns 304 when unchanged, or fresh data.
+    const cached = peekCache(url);
+    if (cached) {
+      setData(cached?.data || cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const response = await get(`${apiEndpoint}/${id}`);
+      const response = await get(url);
       const itemData = response.data?.data || response.data;
       setData(itemData);
     } catch (error) {
-      Swal.fire('Error', 'Failed to load data', 'error');
+      // Keep the cached record visible on failure; only error out when blank.
+      if (!cached) Swal.fire('Error', 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
@@ -140,13 +163,13 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
       return value ? 'Yes' : 'No';
     }
     if (field.type === 'date' && value) {
-      return new Date(value).toLocaleDateString();
+      return fmtDate(value);
     }
     if (field.name === 'created_at' && value) {
-      return new Date(value).toLocaleString();
+      return fmtDateTime(value);
     }
     if (field.name === 'updated_at' && value) {
-      return new Date(value).toLocaleString();
+      return fmtDateTime(value);
     }
     return value || '-';
   };
@@ -193,20 +216,24 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => navigate(`${editRoute}/${id}`)}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Edit />
-            Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
-          >
-            <Icons.Trash />
-            Delete
-          </button>
+          {canUpdate && editRoute && (
+            <button
+              onClick={() => navigate(`${editRoute}/${id}`)}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Edit />
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-xs font-medium"
+            >
+              <Icons.Trash />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -265,7 +292,7 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created On</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.created_at ? new Date(data.created_at).toLocaleString() : '-'}
+                    {data.created_at ? fmtDateTime(data.created_at) : '-'}
                   </p>
                 </div>
               </div>
@@ -277,7 +304,7 @@ export default function CrudShowPage({ title, apiEndpoint, fields, listRoute, ed
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last Updated</p>
                   <p className="text-xs font-medium text-gray-800">
-                    {data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}
+                    {data.updated_at ? fmtDateTime(data.updated_at) : '-'}
                   </p>
                 </div>
               </div>

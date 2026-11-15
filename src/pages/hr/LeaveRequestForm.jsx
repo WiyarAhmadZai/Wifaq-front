@@ -1,7 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
+import Select2 from "../../components/hr/Select2";
+import { useAuth } from "../../admin/context/AuthContext";
+
+import { fmtDate } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
+const HR_ROLES = ["super-admin", "admin", "hr-manager"];
 
 const LEAVE_TYPES = [
   { value: "", label: "Select Leave Type" },
@@ -24,82 +31,118 @@ const leaveTypeInfo = {
   other: { color: "purple", icon: "M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z", desc: "Other type of leave" },
 };
 
-export default function LeaveRequestForm() {
+export default function LeaveRequestForm({ assignMode = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
-  const dropdownRef = useRef(null);
+  const { hasRole, hasPermission, loading: authLoading } = useAuth();
+  const isHr = HR_ROLES.some((r) => hasRole(r));
+  const canAssign = isHr && (hasPermission("leave-request.assign") || hasPermission("leave-request.manage"));
 
   const [form, setForm] = useState({
     staff_id: "",
     leave_type: "",
     from_date: new Date().toISOString().split("T")[0],
     to_date: "",
-    total_days: 1,
     reason: "",
     coverage_plan: "",
     status: "pending",
   });
 
   const [staffList, setStaffList] = useState([]);
-  const [filteredStaff, setFilteredStaff] = useState([]);
-  const [staffSearch, setStaffSearch] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchStaff();
-    if (isEdit) fetchLeaveRequest();
-  }, [id]);
+  // Total days is computed live from the dates — never stored in the DB.
+  const totalDays = (() => {
+    if (!form.from_date) return 0;
+    const from = new Date(form.from_date);
+    const to = form.to_date ? new Date(form.to_date) : from;
+    const diff = Math.floor((to - from) / (1000 * 60 * 60 * 24)) + 1;
+    return diff > 0 ? diff : 0;
+  })();
 
-  // Auto-calculate total days
-  useEffect(() => {
-    if (form.from_date && form.to_date) {
-      const from = new Date(form.from_date);
-      const to = new Date(form.to_date);
-      const diff = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
-      if (diff > 0) {
-        setForm((p) => ({ ...p, total_days: diff }));
-      }
-    }
-  }, [form.from_date, form.to_date]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowDropdown(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
+  // HR path — pull every active staff so they can submit on behalf of anyone.
   const fetchStaff = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const branchParam = user.branch_id ? `&branch_id=${user.branch_id}` : "";
-      const res = await get(`/hr/staff/list?per_page=1000&status=active${branchParam}`);
+      const res = await get(`/hr/staff/list?per_page=1000&status=active`);
       const data = res.data?.data || res.data || [];
       setStaffList(Array.isArray(data) ? data : []);
-      setFilteredStaff(Array.isArray(data) ? data : []);
     } catch {
-      console.error("Failed to fetch staff");
+      setStaffList([]);
     }
   };
 
-  const fetchLeaveRequest = async () => {
+  // Non-HR path — fetch the caller's own profile, derive their staff record,
+  // and lock the form's staff_id to that. Even if there's no staff record yet
+  // we still build a card from the user info so the form is usable; the
+  // backend will accept the user-id fallback (see LeaveRequestController).
+  const bindSelfStaff = async () => {
+    try {
+      const res = await get("/profile");
+      const data = res.data?.data;
+      const staff = data?.staff;
+      if (staff?.id) {
+        const synthesized = {
+          id: staff.id,
+          employee_id: staff.employee_id,
+          department: staff.department,
+          role_title_en: staff.role_title_en,
+          application: { full_name: data.user?.name },
+          full_name: data.user?.name,
+        };
+        setSelectedStaff(synthesized);
+        setForm((p) => ({ ...p, staff_id: staff.id }));
+      } else if (data?.user) {
+        // No staff row — show what we have so the form is still usable.
+        // The backend lazy-creates a Staff row on /profile fetch, so this
+        // branch is the no-staff fallback (e.g. lazy-create failed for some
+        // reason). We still let the user submit; backend resolves staff
+        // server-side from the authenticated user.
+        setSelectedStaff({
+          id: null,
+          employee_id: "—",
+          department: data.user.branch?.name || "—",
+          role_title_en: "—",
+          application: { full_name: data.user.name },
+          full_name: data.user.name,
+        });
+        // Leave staff_id empty; backend will fall back to the logged-in user.
+      }
+    } catch {
+      // Tolerate — submit handler will surface a meaningful error if needed.
+    }
+  };
+
+  const fetchLeaveRequest = useCallback(async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/leave-requests/${id}`);
+    if (__cached) {
+      const d = __cached?.data || __cached;
+      setForm({
+        staff_id: d.staff_id || "",
+        leave_type: d.leave_type || "",
+        from_date: d.from_date ? fmtDate(d.from_date) : "",
+        to_date: d.to_date ? fmtDate(d.to_date) : "",
+        reason: d.reason || "",
+        coverage_plan: d.coverage_plan || "",
+        status: d.status || "pending",
+      });
+      if (d.staff) {
+        setSelectedStaff(d.staff);
+      }
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/leave-requests/${id}`);
       const d = res.data?.data || res.data;
       setForm({
         staff_id: d.staff_id || "",
         leave_type: d.leave_type || "",
-        from_date: d.from_date ? d.from_date.split("T")[0] : "",
-        to_date: d.to_date ? d.to_date.split("T")[0] : "",
-        total_days: d.total_days || 1,
+        from_date: d.from_date ? fmtDate(d.from_date) : "",
+        to_date: d.to_date ? fmtDate(d.to_date) : "",
         reason: d.reason || "",
         coverage_plan: d.coverage_plan || "",
         status: d.status || "pending",
@@ -107,7 +150,6 @@ export default function LeaveRequestForm() {
       // Set the selected staff for the info card
       if (d.staff) {
         setSelectedStaff(d.staff);
-        setStaffSearch(d.staff.application?.full_name || d.staff.full_name || `Staff #${d.staff.employee_id}`);
       }
     } catch {
       Swal.fire("Error", "Failed to load leave request", "error");
@@ -115,35 +157,32 @@ export default function LeaveRequestForm() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
 
-  const handleStaffSearch = (e) => {
-    const q = e.target.value.toLowerCase();
-    setStaffSearch(e.target.value);
-    setShowDropdown(true);
-    setFilteredStaff(
-      staffList.filter((s) => {
-        const name = (s.application?.full_name || s.full_name || "").toLowerCase();
-        const empId = (s.employee_id || "").toLowerCase();
-        const dept = (s.department || "").toLowerCase();
-        return name.includes(q) || empId.includes(q) || dept.includes(q);
-      })
-    );
-  };
+  useEffect(() => {
+    // Wait until AuthContext settles so we don't briefly run the staff-self
+    // branch for an HR user (or vice-versa).
+    if (authLoading) return;
+    if (assignMode && !canAssign) {
+      navigate("/hr/leave-request");
+      return;
+    }
+    if (isHr) {
+      fetchStaff();
+    } else {
+      bindSelfStaff();
+    }
+    if (id) fetchLeaveRequest();
+  }, [id, isHr, authLoading, assignMode, canAssign, navigate, fetchLeaveRequest]);
 
-  const selectStaff = (staff) => {
-    setSelectedStaff(staff);
-    setForm((p) => ({ ...p, staff_id: staff.id }));
-    setStaffSearch(staff.application?.full_name || staff.full_name || `Staff #${staff.employee_id}`);
-    setShowDropdown(false);
+  const selectStaff = (staffId) => {
+    const staff = staffList.find((s) => String(s.id) === String(staffId));
+    setSelectedStaff(staff || null);
+    setForm((p) => ({ ...p, staff_id: staffId || "" }));
+    if (errors.staff_id) setErrors((p) => ({ ...p, staff_id: null }));
     if (errors.staff_id) setErrors((p) => ({ ...p, staff_id: null }));
   };
 
-  const clearStaff = () => {
-    setSelectedStaff(null);
-    setForm((p) => ({ ...p, staff_id: "" }));
-    setStaffSearch("");
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -153,14 +192,16 @@ export default function LeaveRequestForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validate
+    // Validate. HR users must pick a staff member; regular users submit on
+    // their own behalf so a missing staff_id is fine — the backend resolves
+    // it from the authenticated user.
     const errs = {};
-    if (!form.staff_id) errs.staff_id = "Please select a staff member";
+    if ((isHr || assignMode) && !form.staff_id) errs.staff_id = "Please select a staff member";
     if (!form.leave_type) errs.leave_type = "Leave type is required";
     if (!form.from_date) errs.from_date = "Start date is required";
-    if (!form.total_days || form.total_days < 1) errs.total_days = "Must be at least 1 day";
-    if (!form.coverage_plan) errs.coverage_plan = "Coverage plan is required";
-    if (form.leave_type === "other" && !form.reason) errs.reason = "Reason is required for Other leave type";
+    if (totalDays < 1) errs.from_date = "Dates produce zero days";
+    if (!assignMode && !form.coverage_plan) errs.coverage_plan = "Coverage plan is required";
+    if ((assignMode || form.leave_type === "other") && !form.reason) errs.reason = "A reason is required";
 
     if (Object.keys(errs).length) {
       setErrors(errs);
@@ -172,13 +213,38 @@ export default function LeaveRequestForm() {
       if (isEdit) {
         await put(`/hr/leave-requests/${id}`, form);
         Swal.fire("Updated!", "Leave request updated successfully.", "success");
+      } else if (assignMode) {
+        await post("/hr/leave-requests/assign", {
+          ...form,
+          coverage_plan: form.coverage_plan || undefined,
+        });
+        Swal.fire("Assigned!", "Leave has been assigned and approved for the staff member.", "success");
       } else {
         await post("/hr/leave-requests", form);
         Swal.fire("Created!", "Leave request submitted successfully.", "success");
       }
       navigate("/hr/leave-request");
     } catch (err) {
-      if (err.response?.status === 422 && err.response?.data?.errors) {
+      // Backend blocks a new request when an existing pending or
+      // still-active approved leave is in the way. Surface that prominently
+      // — for regular staff the staff_id field is hidden, so a plain
+      // field-level error would be invisible.
+      const blocker = err.response?.data?.blocker;
+      if (err.response?.status === 422 && blocker) {
+        const label = blocker.status === "pending" ? "Pending leave request" : "Active approved leave";
+        const range = blocker.from_date
+          ? (blocker.to_date && blocker.to_date !== blocker.from_date
+              ? `${blocker.from_date} → ${blocker.to_date}`
+              : blocker.from_date)
+          : "-";
+        Swal.fire({
+          icon: "warning",
+          title: "Cannot submit a new request",
+          html: `<p style="margin:0 0 8px 0">${err.response.data.message || "An existing leave request is blocking this one."}</p>` +
+                `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px;text-align:left;font-size:12px;color:#374151"><b>${label} #${blocker.id}</b><br>Type: ${blocker.leave_type}<br>When: ${range}</div>`,
+          confirmButtonColor: "#0d9488",
+        });
+      } else if (err.response?.status === 422 && err.response?.data?.errors) {
         const serverErrors = {};
         Object.entries(err.response.data.errors).forEach(([k, v]) => { serverErrors[k] = v[0]; });
         setErrors(serverErrors);
@@ -225,8 +291,8 @@ export default function LeaveRequestForm() {
             </svg>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Leave Request" : "New Leave Request"}</h1>
-            <p className="text-xs text-teal-100 mt-0.5">Submit a request for time off</p>
+            <h1 className="text-sm font-bold text-white">{isEdit ? "Edit Leave Request" : assignMode ? "Assign Leave" : "New Leave Request"}</h1>
+            <p className="text-xs text-teal-100 mt-0.5">{assignMode ? "Record approved leave on a staff member's behalf" : "Submit a request for time off"}</p>
           </div>
         </div>
       </div>
@@ -241,62 +307,39 @@ export default function LeaveRequestForm() {
               </svg>
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-800">Staff Member</p>
-              <p className="text-[10px] text-teal-600">Search and select the employee</p>
+              <p className="text-sm font-bold text-gray-800">{isHr ? "Staff Member" : "Submitting as"}</p>
+              <p className="text-[10px] text-teal-600">
+                {isHr ? "Search and select the employee" : "Your details are filled in automatically"}
+              </p>
             </div>
           </div>
 
           <div className="p-5">
-            {/* Search Input */}
-            <div className="relative" ref={dropdownRef}>
-              <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Select Staff *</label>
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  value={staffSearch}
-                  onChange={handleStaffSearch}
-                  onFocus={() => setShowDropdown(true)}
-                  placeholder="Search by name, employee ID, or department..."
-                  className={`w-full pl-10 pr-10 py-2.5 border rounded-xl text-xs transition-all focus:ring-2 focus:outline-none ${errors.staff_id ? "border-red-400 bg-red-50 focus:ring-red-300" : "border-gray-200 bg-white hover:border-gray-300 focus:ring-teal-400"}`}
+            {isHr ? (
+              <>
+                <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Select Staff *</label>
+                <Select2
+                  value={form.staff_id}
+                  onChange={selectStaff}
+                  options={staffList.map((s) => ({
+                    value: s.id,
+                    label: `${staffName(s)} — ${staffEmpId(s)}${s.department ? " · " + s.department : ""}`,
+                  }))}
+                  placeholder={staffList.length === 0 ? "Loading staff…" : "Search by name, employee ID, or department…"}
+                  error={!!errors.staff_id}
                 />
-                {selectedStaff && (
-                  <button onClick={clearStaff} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                {errors.staff_id && <p className="text-red-500 text-[10px] mt-1">{errors.staff_id}</p>}
+                {staffList.length === 0 && (
+                  <p className="text-amber-600 text-[10px] mt-1">No active staff found. Make sure staff are registered and marked active.</p>
                 )}
-              </div>
-              {errors.staff_id && <p className="text-red-500 text-[10px] mt-1">{errors.staff_id}</p>}
-
-              {/* Dropdown */}
-              {showDropdown && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
-                  {filteredStaff.length === 0 ? (
-                    <div className="px-4 py-3 text-xs text-gray-400">No staff found</div>
-                  ) : (
-                    filteredStaff.map((s) => (
-                      <div key={s.id} onClick={() => selectStaff(s)}
-                        className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 border-b border-gray-50 last:border-0 ${form.staff_id === s.id ? "bg-teal-50" : ""}`}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 text-[10px] font-bold flex-shrink-0">
-                            {staffInitials(s)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-800 truncate">{staffName(s)}</p>
-                            <p className="text-[10px] text-gray-400">{staffEmpId(s)} &middot; {staffDept(s)} &middot; {staffPosition(s)}</p>
-                          </div>
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold capitalize ${s.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>{s.status}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+              </>
+            ) : (
+              !selectedStaff && (
+                <p className="text-amber-600 text-xs">
+                  Loading your profile… if this persists, refresh the page.
+                </p>
+              )
+            )}
 
             {/* Staff Info Card */}
             {selectedStaff && (
@@ -348,9 +391,16 @@ export default function LeaveRequestForm() {
               {/* Leave Type */}
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Leave Type *</label>
-                <select name="leave_type" value={form.leave_type} onChange={handleChange} className={inputClass("leave_type")}>
-                  {LEAVE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <Select2
+                  value={form.leave_type}
+                  onChange={(v) => {
+                    setForm((p) => ({ ...p, leave_type: v || "" }));
+                    if (errors.leave_type) setErrors((p) => ({ ...p, leave_type: null }));
+                  }}
+                  options={LEAVE_TYPES.filter((t) => t.value).map((t) => ({ value: t.value, label: t.label }))}
+                  placeholder="Select leave type…"
+                  error={!!errors.leave_type}
+                />
                 {errors.leave_type && <p className="text-red-500 text-[10px] mt-1">{errors.leave_type}</p>}
               </div>
 
@@ -368,27 +418,28 @@ export default function LeaveRequestForm() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">From Date *</label>
-                  <input type="date" name="from_date" value={form.from_date} onChange={handleChange} className={inputClass("from_date")} />
+                  <DateField name="from_date" value={form.from_date} onChange={handleChange} className={inputClass("from_date")} />
                   {errors.from_date && <p className="text-red-500 text-[10px] mt-1">{errors.from_date}</p>}
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">To Date</label>
-                  <input type="date" name="to_date" value={form.to_date} onChange={handleChange} min={form.from_date} className={inputClass("to_date")} />
+                  <DateField name="to_date" value={form.to_date} onChange={handleChange} min={form.from_date} className={inputClass("to_date")} />
                   {errors.to_date && <p className="text-red-500 text-[10px] mt-1">{errors.to_date}</p>}
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Total Days *</label>
-                  <input type="number" name="total_days" value={form.total_days} onChange={handleChange} min={1}
-                    className={inputClass("total_days")} readOnly={!!(form.from_date && form.to_date)} />
-                  <p className="text-[9px] text-gray-400 mt-0.5">{form.from_date && form.to_date ? "Auto-calculated from dates" : "Enter manually or set both dates"}</p>
-                  {errors.total_days && <p className="text-red-500 text-[10px] mt-1">{errors.total_days}</p>}
+                  <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">Total Days</label>
+                  <div className="w-full px-3 py-2.5 border border-teal-200 rounded-xl bg-teal-50 flex items-center justify-between">
+                    <span className="text-base font-bold text-teal-700">{totalDays}</span>
+                    <span className="text-[10px] text-teal-600">day{totalDays === 1 ? "" : "s"}</span>
+                  </div>
+                  <p className="text-[9px] text-gray-400 mt-0.5">Auto-calculated from the dates above (not stored).</p>
                 </div>
               </div>
 
               {/* Reason */}
               <div>
                 <label className="block text-[11px] font-semibold text-gray-600 mb-1.5">
-                  Reason {form.leave_type === "other" && <span className="text-red-500">*</span>}
+                  Reason {(assignMode || form.leave_type === "other") && <span className="text-red-500">*</span>}
                 </label>
                 <textarea name="reason" value={form.reason} onChange={handleChange} rows={3}
                   placeholder="Explain the reason for your leave request..."
@@ -399,7 +450,7 @@ export default function LeaveRequestForm() {
           </div>
 
           {/* Coverage Plan */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {!assignMode && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-3 bg-teal-50 border-b border-teal-100 flex items-center gap-2.5">
               <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -419,7 +470,7 @@ export default function LeaveRequestForm() {
                 className={inputClass("coverage_plan")} />
               {errors.coverage_plan && <p className="text-red-500 text-[10px] mt-1">{errors.coverage_plan}</p>}
             </div>
-          </div>
+          </div>}
 
           {/* Status (edit only) */}
           {isEdit && (
@@ -468,8 +519,8 @@ export default function LeaveRequestForm() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div><span className="text-teal-200 block text-[9px]">Employee</span><span className="font-medium">{staffName(selectedStaff)}</span></div>
                 <div><span className="text-teal-200 block text-[9px]">Leave Type</span><span className="font-medium capitalize">{form.leave_type}</span></div>
-                <div><span className="text-teal-200 block text-[9px]">Duration</span><span className="font-medium">{form.total_days} day{form.total_days > 1 ? "s" : ""}</span></div>
-                <div><span className="text-teal-200 block text-[9px]">Dates</span><span className="font-medium">{form.from_date}{form.to_date ? ` to ${form.to_date}` : ""}</span></div>
+                <div><span className="text-teal-200 block text-[9px]">Duration</span><span className="font-medium">{totalDays} day{totalDays === 1 ? "" : "s"}</span></div>
+                <div><span className="text-teal-200 block text-[9px]">Dates</span><span className="font-medium">{fmtDate(form.from_date)}{form.to_date ? ` to ${fmtDate(form.to_date)}` : ""}</span></div>
               </div>
             </div>
           )}
@@ -488,7 +539,7 @@ export default function LeaveRequestForm() {
               {saving ? (
                 <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</>
               ) : (
-                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Request" : "Submit Request"}</>
+                <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>{isEdit ? "Update Request" : assignMode ? "Assign Approved Leave" : "Submit Request"}</>
               )}
             </button>
           </div>

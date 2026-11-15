@@ -45,6 +45,11 @@ export default function UserFormModal({ mode = "create", user = null, roles = []
     })();
   }, [canPickBranch]);
 
+  // Seed the form once when the modal opens for a given user. Depend on the
+  // user's id (a stable value) — NOT the `user` object itself, which the parent
+  // re-creates as a new literal on every render. Depending on the object would
+  // re-run this effect on each parent re-render (e.g. the auth poll) and wipe
+  // whatever the admin has typed.
   useEffect(() => {
     if (isEdit && user) {
       setForm({
@@ -56,7 +61,8 @@ export default function UserFormModal({ mode = "create", user = null, roles = []
         roles: new Set(user.roles || []),
       });
     }
-  }, [isEdit, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, user?.id]);
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const errOf = (k) => errors[k]?.[0];

@@ -1,9 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { DisciplineList } from "./StaffDiscipline";
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del, API_BASE_URL as _API } from '../../api/axios';
+import { get, post, del, API_BASE_URL as _API, peekCache } from '../../api/axios';
 const STORAGE_URL = _API.replace(/\/api\/?$/, '');
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import WelcomeLetterModal from '../../components/WelcomeLetterModal';
+import ExperienceLetterModal from '../../components/ExperienceLetterModal';
+import OnboardingWelcomeModal from '../../components/OnboardingWelcomeModal';
+import { getStaffOnboarding } from '../../api/onboarding';
+import { useI18n } from '../../i18n/I18nContext';
+import StaffGallery from './StaffGallery';
+import { StaffEvaluation } from '../../components/hr/StaffRatings';
+import { useBulkRatings } from '../../components/hr/ratingKit';
+import StaffTaskCalendar from '../../components/hr/StaffTaskCalendar';
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 const DOCUMENT_TYPES = {
   cv_resume: { label: "CV/Resume", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", color: "blue" },
@@ -29,11 +41,19 @@ export default function StaffShow() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewingDoc, setViewingDoc] = useState(null);
+  // Whether the viewer may rate this person — the header's ★ Rate shows only then.
+  const { map: ratingMap } = useBulkRatings("staff", [Number(id)]);
+  const canRate = Boolean(ratingMap[Number(id)]?.can_rate);
 
   useEffect(() => { fetchItem(); }, [id]);
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/staff/show/${id}`);
+    if (__cached) {
+      setData(__cached?.data || __cached);
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/staff/show/${id}`);
       setData(response.data?.data || response.data);
@@ -85,6 +105,13 @@ export default function StaffShow() {
               <p className="text-xs text-teal-100 mt-0.5">Viewing staff record</p>
             </div>
             <div className="flex gap-2">
+              {/* The Evaluation section is far down a long page; this gets there. */}
+              {canRate && (
+                <button onClick={() => document.getElementById("evaluation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-500 text-amber-950 text-xs font-bold rounded-xl transition-colors">
+                  ★ Rate
+                </button>
+              )}
               {canUpdate && (
                 <button onClick={() => navigate(`/hr/staff/edit/${id}`)}
                   className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-colors">
@@ -119,11 +146,47 @@ export default function StaffShow() {
                 <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full capitalize ${status === 'active' ? 'bg-white/30 text-white' : 'bg-red-400/30 text-white'}`}>
                   {status}
                 </span>
+                {data.current_leave && (
+                  <span className="flex items-center gap-1 px-2.5 py-0.5 bg-amber-400 text-amber-900 text-[11px] font-bold rounded-full"
+                    title={`On ${data.current_leave.leave_type} leave${data.current_leave.to_date ? ` until ${data.current_leave.to_date}` : ""}`}>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    ON LEAVE
+                    {data.current_leave.to_date && data.current_leave.to_date !== data.current_leave.from_date && (
+                      <span className="font-medium opacity-80">· until {fmtDate(data.current_leave.to_date)}</span>
+                    )}
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* On-leave callout — only while the leave period is active */}
+      {data.current_leave && (
+        <div className="max-w-full mx-auto px-4 pt-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-amber-900 capitalize">
+                Currently on {data.current_leave.leave_type} leave
+              </p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                {fmtDate(data.current_leave.from_date)}
+                {data.current_leave.to_date && data.current_leave.to_date !== data.current_leave.from_date
+                  ? ` → ${fmtDate(data.current_leave.to_date)}` : ""}
+                {data.current_leave.reason ? ` · ${data.current_leave.reason}` : ""}
+              </p>
+            </div>
+            <button onClick={() => navigate(`/hr/leave-request/show/${data.current_leave.id}`)}
+              className="px-3 py-1.5 text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg hover:bg-amber-100 whitespace-nowrap">
+              View request
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-full mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -136,7 +199,7 @@ export default function StaffShow() {
                 <Field label="Full Name" value={app?.full_name || name} />
                 <Field label="Email" value={app?.email} />
                 <Field label="Phone" value={app?.contact_number} />
-                <Field label="Date of Birth" value={app?.date_of_birth?.split('T')[0]} />
+                <Field label="Date of Birth" value={fmtDate(app?.date_of_birth)} />
                 <Field label="Address" value={app?.current_address} />
                 <Field label="Place of Origin" value={app?.place_of_origin} />
                 <Field label="Father's Name" value={data.father_name} />
@@ -159,7 +222,7 @@ export default function StaffShow() {
                     <p className="text-[10px] text-emerald-500 font-semibold uppercase tracking-wider mb-3">Accepted Offer</p>
                     <div className="grid grid-cols-3 gap-4">
                       <Field label="Salary" value={app.offer.salary_amount ? `${app.offer.salary_currency || 'AFN'} ${Number(app.offer.salary_amount).toLocaleString()}` : null} />
-                      <Field label="Start Date" value={app.offer.start_date?.split('T')[0]} />
+                      <Field label="Start Date" value={fmtDate(app.offer.start_date)} />
                       <Field label="Offer Status" value={app.offer.status} />
                     </div>
                   </div>
@@ -167,15 +230,68 @@ export default function StaffShow() {
               </Section>
             )}
 
+            {/* Self-profile — what the employee entered on their own MyProfile
+                screen. Surfaced here (read-only) so admin/HR can actually read
+                the narrative, skills and personal notes they gave us. */}
+            <SelfProfileSection profile={data.self_profile} />
+
+            {/* Information log — the part the brief asked for by name: a button
+                to add anything we learn as we go (interviews, one-to-ones, a
+                conversation with a family member). Every entry keeps WHO put it
+                on the record and WHEN it came to light, and nothing is ever
+                overwritten. */}
+            <InfoLogSection
+              staffId={data.id}
+              entries={data.info_entries}
+              options={data.info_entry_options}
+              canAdd={canUpdate}
+              onChanged={fetchItem}
+            />
+
             {/* Employment Details */}
             <Section title="Employment Details" icon="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <Field label="Hire Date" value={data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
+                <Field label="Hire Date" value={data.created_at ? fmtDate(data.created_at) : '—'} />
                 <Field label="Branch" value={branchName} />
                 <Field label="Department" value={data.department || data.job_requisition?.department} />
                 <Field label="Position Title" value={data.role_title_en?.replace(/_/g, ' ')} />
                 <Field label="Contract Type" value={data.contract_type?.replace('_', ' ') || CONTRACT_LABELS[app?.job_posting?.requisition?.employment_type] || '—'} />
               </div>
+            </Section>
+
+            {/* Lifecycle letters — welcome on day one, experience on exit */}
+            <LettersSection staffId={data.id} staffName={name} canEdit={canUpdate} />
+
+            {/* Onboarding — welcome message sent, and quiz progress */}
+            <OnboardingSection staffId={data.id} staffName={name} />
+
+            {/* Photos & memories — their time at WEN, not another list of
+                dates. Sits above Documents because it is the part anybody
+                opening a leaving or birthday profile is actually here for.
+                The section hides itself when the viewer may not see it. */}
+            <Section title="Photos & Memories" icon="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+              <StaffGallery staffId={data.id} staffName={name} />
+            </Section>
+
+            {/* Task calendar — what they work on which day, and how far each task
+                has got. The server shows it to admins/HR, the person's
+                supervisors and the person; for anyone else it renders nothing. */}
+            <div id="task-calendar">
+              <Section title="Task calendar" icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                <StaffTaskCalendar staffId={data.id} staffName={name} />
+              </Section>
+            </div>
+
+            {/* Evaluation — star ratings on the five standards, by week, month and
+                year. Hides itself for viewers who may not see them. */}
+            <div id="disciplinary" className="scroll-mt-4" />
+            <Section title="Discipline & Correction" icon="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z">
+              <DisciplineList params={{ staff_id: data.id }} showStaff={false} />
+            </Section>
+
+            <div id="evaluation" className="scroll-mt-4" />
+            <Section title="Evaluation" icon="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z">
+              <StaffEvaluation staffId={data.id} name={name} />
             </Section>
 
             {/* Documents */}
@@ -200,7 +316,7 @@ export default function StaffShow() {
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-gray-800">{docType.label}</p>
                               <p className="text-[10px] text-gray-500 truncate mt-0.5">{doc.file_url?.split('/').pop()}</p>
-                              {doc.uploaded_at && <p className="text-[10px] text-gray-400 mt-0.5">{new Date(doc.uploaded_at).toLocaleDateString()}</p>}
+                              {doc.uploaded_at && <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.uploaded_at)}</p>}
                               <div className={`mt-2 w-full py-1.5 px-3 ${colors.btn} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all`}>
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -221,6 +337,10 @@ export default function StaffShow() {
                 </div>
               )}
             </Section>
+
+            {/* Attendance, Leave & Payroll — connects attendance stats, leave
+                requests and the contract-driven salary deduction. */}
+            <AttendancePayrollSection staffId={id} navigate={navigate} />
           </div>
 
           {/* Right Sidebar */}
@@ -275,9 +395,9 @@ export default function StaffShow() {
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Timeline</p>
               <div className="space-y-3">
                 {[
-                  { label: 'Hired', date: data.created_at ? new Date(data.created_at).toLocaleDateString() : null },
-                  { label: 'Record Created', date: data.created_at ? new Date(data.created_at).toLocaleDateString() : null },
-                  { label: 'Last Updated', date: data.updated_at ? new Date(data.updated_at).toLocaleDateString() : null },
+                  { label: 'Hired', date: data.created_at ? fmtDate(data.created_at) : null },
+                  { label: 'Record Created', date: data.created_at ? fmtDate(data.created_at) : null },
+                  { label: 'Last Updated', date: data.updated_at ? fmtDate(data.updated_at) : null },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
@@ -307,7 +427,7 @@ export default function StaffShow() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">{viewingDoc.label}</h3>
-                  {viewingDoc.uploaded_at && <p className="text-sm text-gray-500">Uploaded: {new Date(viewingDoc.uploaded_at).toLocaleDateString()}</p>}
+                  {viewingDoc.uploaded_at && <p className="text-sm text-gray-500">Uploaded: {fmtDate(viewingDoc.uploaded_at)}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -366,6 +486,464 @@ export default function StaffShow() {
   );
 }
 
+const money = (n, cur = "AFN") => `${Number(n || 0).toLocaleString()} ${cur}`;
+const LEAVE_TONE = {
+  approved: "bg-emerald-100 text-emerald-700",
+  pending: "bg-amber-100 text-amber-700",
+  rejected: "bg-red-100 text-red-700",
+};
+
+// Attendance statistics + leave requests + contract-driven salary deduction.
+// Ties the attendance, leave and payroll subsystems together on the profile.
+function AttendancePayrollSection({ staffId, navigate }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await get(`/hr/staff/${staffId}/attendance-summary`);
+        if (alive) setData(res.data?.data || null);
+      } catch {
+        if (alive) setData(null);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [staffId]);
+
+  return (
+    <Section title="Attendance, Leave & Payroll" icon="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+      {loading ? (
+        <div className="flex justify-center py-6"><div className="animate-spin h-6 w-6 border-4 border-teal-100 border-t-teal-600 rounded-full" /></div>
+      ) : !data ? (
+        <p className="text-sm text-gray-400 text-center py-4">No attendance/payroll data.</p>
+      ) : (
+        <div className="space-y-5">
+          {/* Attendance stats */}
+          <div>
+            <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider mb-2">Attendance (all recorded days)</p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              <MiniStat label="Present" value={data.attendance.present} tone="text-emerald-600" />
+              <MiniStat label="Absent" value={data.attendance.absent} tone="text-red-600" />
+              <MiniStat label="Late" value={data.attendance.late} tone="text-amber-600" />
+              <MiniStat label="Leave" value={data.attendance.leave} tone="text-purple-600" />
+              <MiniStat label="Rate" value={`${data.attendance.rate}%`} tone="text-teal-700" />
+              <MiniStat label="This month" value={`${data.attendance.month_present}P / ${data.attendance.month_absent}A`} tone="text-gray-700" />
+            </div>
+          </div>
+
+          {/* Salary deduction (contract-connected) */}
+          <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-700">This month's salary deduction</span>
+              {data.contract
+                ? <span className="text-[11px] text-gray-500">Salary {money(data.contract.salary, data.contract.salary_currency)} · daily {money(data.payroll_deduction.daily_rate, data.contract.salary_currency)}</span>
+                : <span className="text-[11px] text-amber-600">No active contract</span>}
+            </div>
+            <div className="p-4">
+              {data.payroll_deduction.chargeable_days === 0 ? (
+                <p className="text-xs text-emerald-700">
+                  ✓ No deduction — {data.payroll_deduction.paid_leave_days}/{data.payroll_deduction.free_allowance} paid leaves used this month.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-1.5 mb-2">
+                    {data.payroll_deduction.lines.map((l, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">{l.label} <span className="text-gray-400">({l.days} day{l.days === 1 ? "" : "s"})</span></span>
+                        <span className="font-semibold text-red-600">− {money(l.amount, data.contract?.salary_currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-sm">
+                    <span className="font-bold text-gray-700">Total deduction</span>
+                    <span className="font-bold text-red-600">− {money(data.payroll_deduction.deduction, data.contract?.salary_currency)}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1.5">{data.payroll_deduction.reason}</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Leave requests */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-teal-500 font-semibold uppercase tracking-wider">
+                Leave requests · {data.leaves.approved} approved · {data.leaves.pending} pending
+              </p>
+              <button onClick={() => navigate("/hr/leave-request")} className="text-[11px] text-teal-600 hover:underline">View all</button>
+            </div>
+            {data.leaves.recent.length === 0 ? (
+              <p className="text-xs text-gray-400">No leave requests.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {data.leaves.recent.slice(0, 5).map((l) => (
+                  <button key={l.id} onClick={() => navigate(`/hr/leave-request/show/${l.id}`)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-100 hover:bg-gray-50 text-left">
+                    <span className="text-xs text-gray-700 capitalize">{l.leave_type} · {fmtDate(l.from_date)}{l.to_date && l.to_date !== l.from_date ? ` → ${fmtDate(l.to_date)}` : ""}</span>
+                    <span className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] text-gray-400">{l.total_days}d</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${LEAVE_TONE[l.status] || "bg-gray-100 text-gray-600"}`}>{l.status}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function MiniStat({ label, value, tone = "text-gray-800" }) {
+  return (
+    <div className="bg-gray-50 rounded-lg border border-gray-100 px-2 py-2 text-center">
+      <div className={`text-base font-bold ${tone}`}>{value}</div>
+      <div className="text-[9px] text-gray-400 uppercase tracking-wide mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+/**
+ * Onboarding on the staff record: the welcome message HR sent (name,
+ * languages, when) and how far this person has got with the quiz.
+ *
+ * The section is what turns the quiz from "a link we emailed" into something
+ * HR can actually follow up — a failed attempt shows which section was missed.
+ */
+function OnboardingSection({ staffId, staffName }) {
+  const { t } = useI18n();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [compose, setCompose] = useState(false);
+  const [showFormAnswers, setShowFormAnswers] = useState(false);
+
+  // No synchronous setState here: `loading` starts true and is only cleared
+  // once the request settles, which keeps this callable straight from an
+  // effect without triggering a cascading render.
+  const load = useCallback(() => {
+    getStaffOnboarding(staffId)
+      .then((r) => setData(r.data?.data || null))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [staffId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const quiz = data?.quiz;
+  const orientation = data?.orientation;
+  const staffForm = data?.staff_form;
+  const messages = data?.messages || [];
+  const last = messages[0];
+
+  return (
+    <Section title="Onboarding" icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z">
+      <div className="space-y-2.5">
+        {/* Welcome message */}
+        <div className="flex items-center gap-3 p-3.5 rounded-xl border border-teal-200 bg-teal-50">
+          <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800">Welcome message</p>
+            <p className="text-[10px] text-gray-500 truncate">
+              {last
+                ? `Sent ${fmtDate(last.sent_at || last.created_at)} · ${(last.languages || []).join(', ')}`
+                : 'Not sent yet'}
+            </p>
+          </div>
+          <button
+            onClick={() => setCompose(true)}
+            className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors flex-shrink-0"
+          >
+            {last ? 'Re-send' : 'Send'}
+          </button>
+        </div>
+
+        {/* Orientation guide — how far they have read, and the self-check
+            lines they answered "not yet", which is what HR follows up on. */}
+        {orientation && orientation.total > 0 && (
+          <div className={`p-3.5 rounded-xl border ${
+            orientation.completed_at ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                orientation.completed_at ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'
+              }`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800">Orientation guide</p>
+                <p className="text-[10px] text-gray-500">
+                  {t('{} of {} chapters read', orientation.read_count, orientation.total)}
+                  {' · '}
+                  {t('{} of {} self-check lines answered', orientation.self_check_answered, orientation.self_check_total)}
+                  {orientation.completed_at ? ` · ${t('Confirmed on {}.', fmtDate(orientation.completed_at))}` : ''}
+                </p>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${
+                orientation.completed_at
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : orientation.read_count === 0
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {orientation.completed_at ? 'Read' : orientation.read_count === 0 ? 'Not started' : 'In progress'}
+              </span>
+            </div>
+            {orientation.not_yet?.length > 0 && (
+              <div className="mt-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Answered "not yet"</p>
+                <ul data-no-i18n dir="rtl" className="mt-1 space-y-0.5 text-xs text-gray-700 orientation-text list-disc ps-5">
+                  {orientation.not_yet.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quiz */}
+        <div className={`p-3.5 rounded-xl border ${
+          quiz?.passed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              quiz?.passed ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+            }`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Onboarding quiz</p>
+              <p className="text-[10px] text-gray-500">
+                {loading
+                  ? 'Loading…'
+                  : !quiz || quiz.attempts === 0
+                  ? 'Not attempted yet'
+                  : `${quiz.attempts} attempt${quiz.attempts === 1 ? '' : 's'} · best ${quiz.best_percent}% · pass mark ${quiz.pass_mark}%`}
+              </p>
+            </div>
+            {quiz && (
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${
+                quiz.passed
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : quiz.attempts === 0
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {quiz.passed ? 'Passed' : quiz.attempts === 0 ? 'Pending' : 'Not passed'}
+              </span>
+            )}
+          </div>
+
+          {/* Where the gap is, from the most recent sitting. */}
+          {quiz?.history?.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {(quiz.history[quiz.history.length - 1].section_scores || []).map((sec) => (
+                <span key={sec.key} className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                  sec.percent === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-amber-700 border border-amber-200'
+                }`}>
+                  {sec.title} {sec.score}/{sec.total}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Staff profile form — the comprehensive intake the person fills as
+            the third onboarding step. HR reads status here and can expand the
+            answers. */}
+        <div className={`p-3.5 rounded-xl border ${
+          staffForm?.submitted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              staffForm?.submitted ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'
+            }`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Staff profile form</p>
+              <p className="text-[10px] text-gray-500">
+                {staffForm?.submitted
+                  ? `Submitted ${fmtDate(staffForm.submitted_at)} · ${staffForm.completion}% of required answered`
+                  : staffForm?.exists
+                  ? `Draft · ${staffForm.completion}% of required answered`
+                  : 'Not started'}
+              </p>
+            </div>
+            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${
+              staffForm?.submitted
+                ? 'bg-emerald-100 text-emerald-700'
+                : staffForm?.exists
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              {staffForm?.submitted ? 'Submitted' : staffForm?.exists ? 'Draft' : 'Pending'}
+            </span>
+          </div>
+
+          {staffForm?.answers && Object.keys(staffForm.answers).length > 0 && (
+            <>
+              <button
+                onClick={() => setShowFormAnswers((v) => !v)}
+                className="mt-2.5 text-[11px] font-semibold text-teal-700 hover:underline"
+              >
+                {showFormAnswers ? 'Hide answers' : 'View answers'}
+              </button>
+              {showFormAnswers && (
+                <div className="mt-2 rounded-lg bg-white border border-gray-200 p-3 max-h-80 overflow-y-auto">
+                  <dl className="space-y-2">
+                    {(staffForm.schema || []).flatMap((sec) =>
+                      (sec.fields || []).map((f) => {
+                        const raw = staffForm.answers[f.key];
+                        const shown = formatAnswer(f, raw);
+                        if (!shown) return [];
+                        return (
+                          <div key={f.key} className="text-xs">
+                            <dt className="font-semibold text-gray-500">{f.label}</dt>
+                            <dd className="text-gray-800">{shown}</dd>
+                          </div>
+                        );
+                      })
+                    )}
+                  </dl>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {compose && (
+        <OnboardingWelcomeModal
+          staffId={staffId}
+          initialName={staffName}
+          onClose={() => setCompose(false)}
+          onSent={load}
+        />
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Render one stored answer for HR as readable text, using the schema field to
+ * map coded choices to labels and to flatten repeatable groups. Returns '' for
+ * an unanswered field so the view can skip it.
+ */
+function formatAnswer(field, raw) {
+  const labelFor = (v) => field.options?.[v] ?? v;
+  switch (field.type) {
+    case 'checkbox':
+      return raw ? 'Yes' : '';
+    case 'multiselect':
+      return Array.isArray(raw) && raw.length ? raw.map(labelFor).join(', ') : '';
+    case 'group': {
+      if (!Array.isArray(raw) || !raw.length) return '';
+      const sub = field.fields || [];
+      return raw
+        .map((row) =>
+          sub
+            .map((f) => `${f.label}: ${row[f.key] || '—'}`)
+            .join(' · ')
+        )
+        .join('\n');
+    }
+    case 'select':
+    case 'radio':
+      return raw ? labelFor(raw) : '';
+    default:
+      return raw == null ? '' : String(raw);
+  }
+}
+
+/**
+ * Lifecycle letters on the staff record.
+ *
+ * The welcome letter is always present (it is rendered on demand from fixed
+ * text, so there is no blank state). Experience letters only appear once the
+ * person has actually left and one has been raised.
+ */
+function LettersSection({ staffId, staffName, canEdit }) {
+  const [letters, setLetters] = useState([]);
+  const [openWelcome, setOpenWelcome] = useState(false);
+  const [openLetter, setOpenLetter] = useState(null);
+
+  const load = useCallback(() => {
+    get(`/hr/staff/${staffId}/letters`, { cache: false })
+      .then((r) => setLetters(r.data?.data || []))
+      .catch(() => setLetters([]));
+  }, [staffId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const experience = letters.filter((l) => l.type === 'experience');
+
+  return (
+    <Section title="Letters" icon="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
+      <div className="space-y-2.5">
+        <button onClick={() => setOpenWelcome(true)}
+          className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-teal-200 bg-teal-50 hover:shadow-md transition-all text-left">
+          <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800">Welcome Letter</p>
+            <p className="text-[10px] text-gray-500">Day one · English · دری · پښتو</p>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-700">Final</span>
+        </button>
+
+        {experience.map((l) => (
+          <button key={l.id} onClick={() => setOpenLetter(l)}
+            className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-purple-200 bg-purple-50 hover:shadow-md transition-all text-left">
+            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Experience Letter</p>
+              <p className="text-[10px] text-gray-500 truncate">
+                {l.start_date || '—'} → {l.end_date || '—'}
+                {l.tenure_label ? ` · ${l.tenure_label}` : ''}
+              </p>
+            </div>
+            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+              l.status === 'draft' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+            }`}>{l.status}</span>
+          </button>
+        ))}
+
+        {experience.length === 0 && (
+          <p className="text-[11px] text-gray-400 px-1">
+            The experience letter is raised automatically when this person&apos;s contract ends or their status is set to terminated.
+          </p>
+        )}
+      </div>
+
+      {openWelcome && (
+        <WelcomeLetterModal staffId={staffId} staffName={staffName} onClose={() => setOpenWelcome(false)} />
+      )}
+      {openLetter && (
+        <ExperienceLetterModal
+          letterId={openLetter.id}
+          staffName={staffName}
+          canEdit={canEdit}
+          onClose={() => setOpenLetter(null)}
+          onSaved={load}
+        />
+      )}
+    </Section>
+  );
+}
+
 function Section({ title, icon, children }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -388,5 +966,247 @@ function Field({ label, value }) {
       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
       <p className="text-sm font-semibold text-gray-800 capitalize">{value || '—'}</p>
     </div>
+  );
+}
+
+/**
+ * The employee's own narrative profile — the answers they typed into their
+ * MyProfile screen (skills, languages, dreams, growth areas, family).
+ * Read-only here: this is the admin/HR view of what they told us about
+ * themselves, sitting beside everything else on their record.
+ */
+function SelfProfileSection({ profile }) {
+  const chips = (arr) =>
+    Array.isArray(arr) && arr.length
+      ? (
+        <div className="flex flex-wrap gap-1.5">
+          {arr.map((s, i) => (
+            <span key={i} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-100">{s}</span>
+          ))}
+        </div>
+      ) : <span className="text-sm text-gray-400">—</span>;
+
+  const hasAny = profile && (
+    profile.education || profile.previous_experience || profile.strengths || profile.aspirations ||
+    profile.growth_areas || profile.family_status || profile.personal_notes ||
+    (profile.languages || []).length || (profile.skills || []).length || (profile.certifications || []).length
+  );
+
+  if (!hasAny) {
+    return (
+      <Section title="Self-Profile (employee)" icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z">
+        <p className="text-sm text-gray-400">
+          This person has not filled in their own profile yet. It appears here once they complete the
+          self-profile on their MyProfile page.
+        </p>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title="Self-Profile (employee)" icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <Field label="Education" value={profile.education} />
+          <Field label="Family Status" value={profile.family_status} />
+          <Field label="Dependents" value={profile.dependents != null ? String(profile.dependents) : null} />
+        </div>
+        <SelfRow label="Languages">{chips(profile.languages)}</SelfRow>
+        <SelfRow label="Skills">{chips(profile.skills)}</SelfRow>
+        <SelfRow label="Certifications">{chips(profile.certifications)}</SelfRow>
+        <SelfText label="Previous experience" value={profile.previous_experience} />
+        <SelfText label="Strengths" value={profile.strengths} />
+        <SelfText label="Aspirations" value={profile.aspirations} />
+        <SelfText label="Growth areas" value={profile.growth_areas} />
+        <SelfText label="Personal notes" value={profile.personal_notes} />
+      </div>
+    </Section>
+  );
+}
+
+function SelfRow({ label, children }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function SelfText({ label, value }) {
+  if (!value) return null;
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap" dir="auto">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * The running information log.
+ *
+ * HR reads everything else on this page as fixed fields. This is the free-form
+ * counterweight: a single "＋ Add information" button that drops a new, dated,
+ * attributed record onto the top of the timeline whenever something comes to
+ * mind — an interview, a one-to-one, a call to a family member, a plain
+ * observation. Nothing here edits what came before, so the history of what was
+ * known, by whom, and when is never lost.
+ */
+const TODAY = new Date().toISOString().slice(0, 10);
+const INFO_TONES = {
+  achievement: 'bg-emerald-100 text-emerald-700',
+  concern: 'bg-red-100 text-red-700',
+  performance: 'bg-indigo-100 text-indigo-700',
+  conduct: 'bg-purple-100 text-purple-700',
+  financial: 'bg-amber-100 text-amber-700',
+  health: 'bg-cyan-100 text-cyan-700',
+  family: 'bg-pink-100 text-pink-700',
+  training: 'bg-teal-100 text-teal-700',
+  general: 'bg-gray-100 text-gray-600',
+};
+
+function InfoLogSection({ staffId, entries, options, canAdd, onChanged }) {
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const sources = options?.sources || {};
+  const infoTypes = options?.info_types || {};
+  const blank = () => ({
+    occurred_on: TODAY,
+    source: Object.keys(sources)[0] || 'one_on_one',
+    info_type: Object.keys(infoTypes)[0] || 'general',
+    met_with: '',
+    details: '',
+    action_needed: '',
+    needs_followup: false,
+  });
+  const [form, setForm] = useState(blank());
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  const list = Array.isArray(entries) ? entries : [];
+
+  const submit = async () => {
+    if (!form.details.trim()) {
+      Swal.fire('Required', 'Please describe the information you learned.', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await post(`/hr/staff/${staffId}/info-entries`, form);
+      Swal.fire({ icon: 'success', title: 'Recorded', timer: 1200, showConfirmButton: false });
+      setForm(blank());
+      setAdding(false);
+      onChanged && onChanged();
+    } catch (err) {
+      const errors = err?.response?.data?.errors;
+      const msg = errors ? Object.values(errors).flat().join('\n') : 'Could not save the entry.';
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = 'w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none';
+  const labelCls = 'block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1';
+
+  return (
+    <Section title="Information Log" icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11px] text-gray-500">Facts learned as we go — interviews, meetings, family contacts. Each entry keeps who recorded it and when.</p>
+        {canAdd && (
+          <button onClick={() => setAdding((a) => !a)}
+            className="ml-3 flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white hover:bg-teal-700 transition-colors">
+            {adding ? 'Close' : '＋ Add information'}
+          </button>
+        )}
+      </div>
+
+      {adding && canAdd && (
+        <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 mb-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Date learned</label>
+              <input type="date" max={TODAY} value={form.occurred_on} onChange={(e) => set('occurred_on', e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className={labelCls}>How we learned it</label>
+              <select value={form.source} onChange={(e) => set('source', e.target.value)} className={inp}>
+                {Object.entries(sources).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Type of information</label>
+              <select value={form.info_type} onChange={(e) => set('info_type', e.target.value)} className={inp}>
+                {Object.entries(infoTypes).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Who we spoke with (optional)</label>
+            <input value={form.met_with} onChange={(e) => set('met_with', e.target.value)} placeholder="e.g. the person themselves, a supervisor, a family member" className={inp} />
+          </div>
+          <div>
+            <label className={labelCls}>What we learned</label>
+            <textarea value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} placeholder="The information, in your own words" className={inp} dir="auto" />
+          </div>
+          <div>
+            <label className={labelCls}>What the school should do (optional)</label>
+            <textarea value={form.action_needed} onChange={(e) => set('action_needed', e.target.value)} rows={2} className={inp} dir="auto" />
+          </div>
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer w-fit">
+            <input type="checkbox" checked={form.needs_followup} onChange={(e) => set('needs_followup', e.target.checked)} />
+            Needs follow-up
+          </label>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => { setForm(blank()); setAdding(false); }} className="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 text-gray-500">Cancel</button>
+            <button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Save record</button>
+          </div>
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+          <p className="text-sm text-gray-400">No information logged yet.</p>
+        </div>
+      ) : (
+        <div className="relative">
+          <span className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-teal-200 via-gray-200 to-transparent" aria-hidden />
+          <div className="space-y-4">
+            {list.map((row, i) => (
+              <div key={row.id || i} className="relative pl-7">
+                <span className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white"
+                  style={{ background: i === 0 ? '#0D5C63' : '#cbd5d5', boxShadow: '0 0 0 1px #e5e7eb' }} aria-hidden />
+                <div className={`rounded-2xl border bg-white overflow-hidden ${i === 0 ? 'border-teal-200 shadow-sm' : 'border-gray-100'}`}>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50/70 border-b border-gray-100 flex-wrap">
+                    {i === 0 && <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-600 text-white uppercase tracking-wider">Latest</span>}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600">{sources[row.source] || row.source}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${INFO_TONES[row.info_type] || 'bg-gray-100 text-gray-600'}`}>{infoTypes[row.info_type] || row.info_type}</span>
+                    {row.needs_followup && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">Follow-up</span>}
+                    {row.recorded_by?.name && (
+                      <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{row.recorded_by.name}</span></span>
+                    )}
+                    <span className="text-[10px] text-gray-400 ml-auto">
+                      Learned {fmtDate(row.occurred_on)}{row.created_at ? ` · entered ${fmtDateTime(row.created_at)}` : ''}
+                    </span>
+                  </div>
+                  <div className="p-4 space-y-2.5">
+                    {row.met_with && (
+                      <p className="text-[11px] text-gray-500">Spoke with: <span className="font-semibold text-gray-700" data-no-i18n>{row.met_with}</span></p>
+                    )}
+                    <p className="text-[14px] leading-6 text-gray-800 whitespace-pre-wrap" dir="auto">{row.details}</p>
+                    {row.action_needed && (
+                      <div className="rounded-lg bg-teal-50/60 border-l-2 border-teal-300 px-3 py-2">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-teal-500 mb-0.5">Action needed</p>
+                        <p className="text-[13px] text-gray-700 whitespace-pre-wrap" dir="auto">{row.action_needed}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFeeInvoices, getFeeInvoiceMonths } from "../../api/financial";
+import { peekCache } from "../../api/axios";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 /**
  * Class-level fee-collection report.
@@ -46,6 +49,12 @@ export default function ClassCollectionReport() {
 
   // Load the dropdown options once and pick the most recent by default.
   useEffect(() => {
+    const __cached = peekCache('/financial/fees/invoices/months');
+    if (__cached) {
+      const list = Array.isArray(__cached.data) ? __cached.data : [];
+      setMonths(list);
+      if (list.length > 0 && !period) setPeriod(list[0]);
+    }
     getFeeInvoiceMonths()
       .then((res) => {
         const list = Array.isArray(res.data?.data) ? res.data.data : [];
@@ -169,7 +178,7 @@ export default function ClassCollectionReport() {
             {months.length === 0 && <option value="">(no periods)</option>}
             {months.map((m) => (
               <option key={m} value={m}>
-                {new Date(m).toLocaleString("default", { month: "long", year: "numeric" })}
+                {fmtDateTime(m)}
               </option>
             ))}
           </select>

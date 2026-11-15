@@ -1,17 +1,22 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
+import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 export default function QuickAttendance() {
   const navigate = useNavigate();
+  // Marking attendance is a write — gate it behind `attendance.manage`.
+  const { canManage } = useResourcePermissions("attendance");
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
     return d.toISOString().slice(0, 10);
   });
   const [dailySheet, setDailySheet] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(null); // employee_id or "row-id" when updating
+  const [actionLoading, setActionLoading] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     fetchDailySheet();
@@ -20,13 +25,28 @@ export default function QuickAttendance() {
   const fetchDailySheet = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache(`/hr/attendances/daily-sheet?date=${selectedDate}`);
+      if (__cached) {
+        setDailySheet(__cached);
+        setLoading(false);
+      }
       const response = await get(
         `/hr/attendances/daily-sheet?date=${selectedDate}`,
       );
       setDailySheet(response.data);
     } catch (error) {
       console.error("Failed to load daily sheet", error);
-      Swal.fire("Error", "Failed to load attendance sheet", "error");
+      // Show what the server actually said. "Failed to load attendance sheet"
+      // is the same message whether the date is invalid, a permission is
+      // missing, or a column does not exist — which makes a production report
+      // impossible to act on. The API sends `error` to admins only.
+      const data = error.response?.data;
+      const detail = data?.error || data?.message;
+      Swal.fire({
+        icon: "error",
+        title: "Failed to load attendance sheet",
+        text: detail || `The server returned ${error.response?.status || "an error"}.`,
+      });
       setDailySheet(null);
     } finally {
       setLoading(false);
@@ -45,12 +65,25 @@ export default function QuickAttendance() {
           "info",
         );
       } else {
-        // Use backend quick check-in so Time In is taken automatically by the system
-        await post("/hr/attendances/check-in", {
+        const response = await post("/hr/attendances/check-in", {
           employee_id: row.employee.id,
         });
+        const updatedAttendance = response.data.attendance;
+        setDailySheet(prev => ({
+          ...prev,
+          rows: prev.rows.map(r => 
+            r.employee.id === row.employee.id 
+              ? { 
+                  ...r, 
+                  status: updatedAttendance.status,
+                  arrived: updatedAttendance.arrived ? updatedAttendance.arrived.substring(0, 5) : null,
+                  check_out: updatedAttendance.check_out ? updatedAttendance.check_out.substring(0, 5) : null,
+                  attendance_id: updatedAttendance.id
+                }
+              : r
+          )
+        }));
       }
-      await fetchDailySheet();
     } catch (error) {
       const msg =
         error.response?.data?.error ||
@@ -75,16 +108,30 @@ export default function QuickAttendance() {
           "info",
         );
       } else {
-        await post("/hr/attendances/check-out", {
+        const response = await post("/hr/attendances/check-out", {
           employee_id: row.employee.id,
         });
+        const updatedAttendance = response.data.attendance;
+        setDailySheet(prev => ({
+          ...prev,
+          rows: prev.rows.map(r => 
+            r.employee.id === row.employee.id 
+              ? { 
+                  ...r, 
+                  status: r.status,
+                  arrived: r.arrived,
+                  check_out: updatedAttendance.check_out ? updatedAttendance.check_out.substring(0, 5) : null,
+                  working_hours: response.data.working_hours
+                }
+              : r
+          )
+        }));
         Swal.fire(
           "Success",
           "Check-out recorded. Time Out set by system.",
           "success",
         );
       }
-      await fetchDailySheet();
     } catch (error) {
       const msg =
         error.response?.data?.error ||
@@ -108,16 +155,31 @@ export default function QuickAttendance() {
         arrived: null,
         check_out: null,
       };
+      let response;
       if (row.attendance_id) {
-        await put(`/hr/attendances/${row.attendance_id}`, payload);
+        response = await put(`/hr/attendances/${row.attendance_id}`, payload);
       } else {
-        await post("/hr/attendances", {
+        response = await post("/hr/attendances", {
           date: selectedDate,
           employee_id: row.employee.id,
           status: "absent",
         });
       }
-      await fetchDailySheet();
+      const updatedAttendance = response.data;
+      setDailySheet(prev => ({
+        ...prev,
+        rows: prev.rows.map(r => 
+          r.employee.id === row.employee.id 
+            ? { 
+                ...r, 
+                status: updatedAttendance.status,
+                arrived: null,
+                check_out: null,
+                attendance_id: updatedAttendance.id
+              }
+            : r
+        )
+      }));
     } catch (error) {
       const msg =
         error.response?.data?.error ||
@@ -160,8 +222,39 @@ export default function QuickAttendance() {
     row.arrived &&
     !row.check_out;
   const quickLimitReached = dailySheet?.quick_limit_reached === true;
-  // Once this staff has both Time In and Time Out, no more changes allowed for that staff
+  // Weekly rest day (e.g. Friday) or an announced holiday: the school is
+  // closed, everyone counts present, and nothing may be recorded.
+  const closure = dailySheet?.closure || null;
+  const isClosedDay = dailySheet?.non_working_day === true;
   const isRowLocked = (row) => !!(row.arrived && row.check_out);
+
+  // Recording window: today only, 6 AM–10 PM (regular 6 AM–4 PM + overtime to
+  // 10 PM). The backend enforces this too; here we mirror it so the buttons are
+  // disabled with a clear reason instead of failing on click.
+  const nowHour = new Date().getHours();
+  const withinWindow = selectedDate === today && nowHour >= 6 && nowHour < 22;
+  const windowMessage =
+    selectedDate !== today
+      ? "Attendance can only be recorded for today."
+      : nowHour < 6
+        ? "Attendance opens at 6:00 AM."
+        : nowHour >= 22
+          ? "Attendance is closed for today (recording ends at 10:00 PM)."
+          : null;
+  const actionsDisabled = quickLimitReached || !withinWindow || isClosedDay;
+
+  const formatTime12Hour = (time24) => {
+    if (!time24) return "";
+    const [hours, minutes] = time24.split(":");
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const filteredRows = dailySheet?.rows?.filter((row) =>
+    row.employee.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   return (
     <div className="px-4 py-6 mx-auto">
@@ -195,18 +288,52 @@ export default function QuickAttendance() {
             <strong>Pending</strong> (not absent).
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-black bg-white">
-            Date
-          </label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-          />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-black bg-white">
+              Date
+            </label>
+            <DateField
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              disabled
+              className="bg-gray-100 border border-slate-300 rounded-lg px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search staff name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            />
+          </div>
         </div>
       </div>
+
+      {isClosedDay && (
+        <div className="mb-4 p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm flex items-start gap-3">
+          <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span>
+            <b>{closure?.name || "Holiday"}</b> — the school is closed
+            {closure?.type === "weekend" ? " (weekly rest day)" : ""}. Every staff
+            member counts as <b>present</b> and no attendance is recorded. Salaries are
+            not reduced for this date.
+          </span>
+        </div>
+      )}
+
+      {windowMessage && !isClosedDay && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center gap-2">
+          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>{windowMessage} Recording is open today from <b>6:00 AM to 10:00 PM</b> (regular 6 AM–4 PM, overtime until 10 PM).</span>
+        </div>
+      )}
 
       {quickLimitReached && (
         <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center gap-2">
@@ -283,7 +410,7 @@ export default function QuickAttendance() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {dailySheet.rows.map((row) => (
+                {filteredRows.map((row) => (
                   <tr key={row.employee.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-xs font-medium text-teal-600">
                       #{String(row.index).padStart(4, "0")}
@@ -299,39 +426,31 @@ export default function QuickAttendance() {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-800">
-                      {row.employee.department || "—"}
+                      {row.employee.department || "�"}
                     </td>
                     <td className="px-3 py-2">{getStatusBadge(row.status)}</td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        value={row.arrived || ""}
-                        disabled
-                        readOnly
-                        className="w-20 rounded px-1 py-0.5 text-[10px] bg-gray-100 border border-transparent text-gray-500 cursor-not-allowed"
-                      />
+                    <td className="px-3 py-2 text-xs text-gray-600">
+                      {formatTime12Hour(row.arrived)}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-600">
+                      {formatTime12Hour(row.check_out)}
                     </td>
                     <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        value={row.check_out || ""}
-                        disabled
-                        readOnly
-                        className="w-20 rounded px-1 py-0.5 text-[10px] bg-gray-100 border border-transparent text-gray-500 cursor-not-allowed"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      {isRowLocked(row) ? (
+                      {isClosedDay ? (
+                        <p className="text-xs text-center text-emerald-700 italic">
+                          Holiday — present
+                        </p>
+                      ) : isRowLocked(row) ? (
                         <p className="text-xs text-center text-slate-500 italic">
                           Completed
                         </p>
+                      ) : !canManage ? (
+                        <p className="text-xs text-center text-slate-400">—</p>
                       ) : (
                         <div className="flex justify-center items-center gap-1 flex-wrap">
                           <button
                             onClick={() => handleMarkPresent(row)}
-                            disabled={
-                              actionLoading != null || quickLimitReached
-                            }
+                            disabled={actionLoading != null || actionsDisabled}
                             title="Mark Present (Time In by system)"
                             className={`p-1 rounded transition-colors ${
                               isPresentLike(row.status)
@@ -359,11 +478,7 @@ export default function QuickAttendance() {
                           </button>
                           <button
                             onClick={() => handleCheckOut(row)}
-                            disabled={
-                              actionLoading != null ||
-                              !canCheckOut(row) ||
-                              quickLimitReached
-                            }
+                            disabled={actionLoading != null || !canCheckOut(row) || actionsDisabled}
                             title="Time Out (recorded by system)"
                             className={`p-1 rounded transition-colors ${
                               canCheckOut(row)
@@ -391,9 +506,7 @@ export default function QuickAttendance() {
                           </button>
                           <button
                             onClick={() => handleMarkAbsent(row)}
-                            disabled={
-                              actionLoading != null || quickLimitReached
-                            }
+                            disabled={actionLoading != null || actionsDisabled}
                             title="Mark Absent"
                             className={`p-1 rounded transition-colors ${
                               row.status === "absent" || row.status === "leave"
@@ -432,3 +545,6 @@ export default function QuickAttendance() {
     </div>
   );
 }
+
+
+

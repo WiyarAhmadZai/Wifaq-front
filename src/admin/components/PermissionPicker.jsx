@@ -4,10 +4,18 @@ import { useMemo, useState } from "react";
  * Grid of permissions grouped by module. The selected set is held by the parent.
  * Expects:
  *   permissions: array of { id, name } from /access/permissions
- *   value: Set<string> | string[] of selected permission names
+ *   value: Set<string> | string[] of selected permission names (whether they
+ *     originally came from a role or were direct — the admin can toggle any)
  *   onChange: (newSet: Set<string>) => void
  *   readOnly: boolean (optional)
  */
+/* Permissions whose name alone does not say what they do. */
+const PERMISSION_LABELS = {
+  "student-profiles.view-all": "Student profiles: all classes",
+  "student-profiles.scope-taught-classes": "Student profiles: only the classes they teach",
+  "student-profiles.scope-homeroom": "Student profiles: only their own homeroom class",
+};
+
 export default function PermissionPicker({ permissions, value, onChange, readOnly = false }) {
   const [filter, setFilter] = useState("");
 
@@ -36,18 +44,42 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
       .filter((g) => g.items.length > 0);
   }, [grouped, filter]);
 
+  // Each module's "Receive section notifications" permission, by module name.
+  // Opening a section's page requires it (PathPermissionGate), so granting any
+  // action in the module must bring it along — otherwise a user given the
+  // section is bounced to /403 for want of one easy-to-miss checkbox.
+  const notifByModule = useMemo(() => {
+    const map = {};
+    (permissions || []).forEach((p) => {
+      if (p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")) {
+        map[p.name.split(".", 1)[0]] = p.name;
+      }
+    });
+    return map;
+  }, [permissions]);
+
   const toggle = (name) => {
     if (readOnly) return;
     const next = new Set(selected);
-    if (next.has(name)) next.delete(name);
-    else next.add(name);
+    if (next.has(name)) {
+      next.delete(name);
+    } else {
+      next.add(name);
+      const isNotif = name.endsWith(".notifications") || name.endsWith(".notifications.receive");
+      if (!isNotif) {
+        const notif = notifByModule[name.split(".", 1)[0]];
+        if (notif) next.add(notif);
+      }
+    }
     onChange(next);
   };
 
   const toggleGroup = (group, allChecked) => {
     if (readOnly) return;
     const next = new Set(selected);
-    group.items.forEach((p) => (allChecked ? next.delete(p.name) : next.add(p.name)));
+    group.items.forEach((p) => {
+      if (allChecked) next.delete(p.name); else next.add(p.name);
+    });
     onChange(next);
   };
 
@@ -99,7 +131,11 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
                       disabled={readOnly}
                       className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
                     />
-                    <span className="text-gray-700 break-all">{p.name.split(".").slice(1).join(".") || p.name}</span>
+                    <span className="text-gray-700 break-all">
+                      {PERMISSION_LABELS[p.name] || (p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")
+                        ? "Receive section notifications"
+                        : p.name.split(".").slice(1).join(".") || p.name)}
+                    </span>
                   </label>
                 ))}
               </div>

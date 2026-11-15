@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
+import { DateField } from "../../components/hr/HrUI";
 const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400";
 
 const CONTRACT_TYPES = [
@@ -88,6 +89,23 @@ export default function VendorContractsForm() {
 
   const fetchContract = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/vendor-contracts/show/${id}`);
+    if (__cached) {
+      const d = __cached;
+      setForm({
+        vendor_id: d.vendor_id || "",
+        contract_type: d.contract_type || "supply",
+        description: d.description || "",
+        start_date: d.start_date?.split("T")[0] || "",
+        end_date: d.end_date?.split("T")[0] || "",
+        amount: d.amount || "",
+        currency: d.currency || "AFN",
+        payment_terms: d.payment_terms || "",
+        notes: d.notes || "",
+      });
+      if (d.vendor) setSelectedVendor(d.vendor);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/vendor-contracts/show/${id}`);
       const d = res.data;
@@ -290,11 +308,11 @@ export default function VendorContractsForm() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-              <input type="date" name="start_date" value={form.start_date} onChange={handleChange} required className={inp} />
+              <DateField name="start_date" value={form.start_date} onChange={handleChange} required className={inp} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">End Date *</label>
-              <input type="date" name="end_date" value={form.end_date} onChange={handleChange} required className={inp} />
+              <DateField name="end_date" value={form.end_date} onChange={handleChange} required className={inp} />
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">

@@ -10,7 +10,10 @@ export const TRANSFER_STEPS = [
   { key: "transfer_itminaniya", label: "Itminaniya" },
 ];
 
-export default function TransferStepsModal({ student, onClose, onSaved }) {
+// `readOnly` — the caller may look at the transfer progress but holds no
+// update grant on the student, so ticking a step would only earn a 403 on
+// save. Steps are frozen and the Save button is dropped entirely.
+export default function TransferStepsModal({ student, onClose, onSaved, readOnly = false }) {
   const [state, setState] = useState(() => ({
     transfer_agreement: Boolean(student.transfer_agreement),
     transfer_first_parcha: Boolean(student.transfer_first_parcha),
@@ -77,7 +80,7 @@ export default function TransferStepsModal({ student, onClose, onSaved }) {
               {TRANSFER_STEPS.map((item, index) => {
                 const isChecked = state[item.key];
                 const prevChecked = index === 0 || state[TRANSFER_STEPS[index - 1].key];
-                const isDisabled = !prevChecked;
+                const isDisabled = readOnly || !prevChecked;
                 return (
                   <button
                     key={item.key}
@@ -147,7 +150,8 @@ export default function TransferStepsModal({ student, onClose, onSaved }) {
               onChange={(e) => setState((p) => ({ ...p, transfer_additional_notes: e.target.value }))}
               placeholder="Any additional notes about the transfer process..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 focus:outline-none resize-none"
+              readOnly={readOnly}
+              className={`w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-400 focus:outline-none resize-none ${readOnly ? "bg-gray-50 text-gray-500" : ""}`}
             />
           </div>
         </div>
@@ -159,13 +163,15 @@ export default function TransferStepsModal({ student, onClose, onSaved }) {
           >
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2"
-          >
-            {saving ? "Saving..." : "Save Progress"}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {saving ? "Saving..." : "Save Progress"}
+            </button>
+          )}
         </div>
       </div>
     </div>

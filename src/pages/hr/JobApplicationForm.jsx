@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, post, put } from '../../api/axios';
+import { get, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { handleValidationErrors } from "../../utils/formErrors";
 
@@ -34,6 +34,25 @@ export default function JobApplicationForm() {
 
   const fetchItem = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/job-applications/${id}`);
+    if (__cached) {
+      const data = __cached;
+      setFormData({
+        full_name: data.full_name || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        position_applied: data.position_applied || '',
+        qualification: data.qualification || '',
+        experience: data.experience || '',
+        expected_salary: data.expected_salary || '',
+        cv: null,
+        notes: data.notes || '',
+      });
+      if (data.cv_path) {
+        setCvFileName(data.cv_path.split('/').pop());
+      }
+      setLoading(false);
+    }
     try {
       const response = await get(`/hr/job-applications/${id}`);
       const data = response.data;

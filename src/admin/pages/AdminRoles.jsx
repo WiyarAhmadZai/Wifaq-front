@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { accessApi } from "../services/accessApi";
+import { peekCache } from "../../api/axios";
 import { useAuth } from "../context/AuthContext";
 import Can from "../guards/Can";
 
@@ -18,6 +19,9 @@ export default function AdminRoles() {
 
   const fetchItems = async (page = 1) => {
     setLoading(true);
+    const __q = new URLSearchParams({ page, search }).toString();
+    const __cached = peekCache(`/access/roles${__q ? `?${__q}` : ""}`);
+    if (__cached) { setItems(__cached?.data || []); if (__cached?.meta) setMeta(__cached.meta); setLoading(false); }
     try {
       const res = await accessApi.listRoles({ page, search });
       setItems(res.data?.data || []);

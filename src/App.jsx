@@ -5,16 +5,23 @@ import {
   Route,
   Navigate,
   useParams,
+  useLocation,
 } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./admin/context/AuthContext";
+import { I18nProvider } from "./i18n/I18nContext";
+import { ChatProvider } from "./chat/ChatContext";
+import CallManager from "./chat/CallManager";
 import Protected from "./admin/guards/Protected";
+import BroadcastModal from "./components/BroadcastModal";
 
 const AdminRoles = lazy(() => import("./admin/pages/AdminRoles"));
 const AdminRoleShow = lazy(() => import("./admin/pages/AdminRoleShow"));
 const AdminPermissions = lazy(() => import("./admin/pages/AdminPermissions"));
 const AdminUsers = lazy(() => import("./admin/pages/AdminUsers"));
 const AdminUserShow = lazy(() => import("./admin/pages/AdminUserShow"));
+const ActivityLogs = lazy(() => import("./admin/pages/ActivityLogs"));
+const Trash = lazy(() => import("./admin/pages/Trash"));
 const Forbidden = lazy(() => import("./admin/pages/Forbidden"));
 
 // Loading spinner shown while lazy components load
@@ -40,6 +47,33 @@ const L = (fn) => {
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Login = lazy(() => import("./pages/Login"));
 const MyProfile = lazy(() => import("./pages/MyProfile"));
+const MyOnboarding = lazy(() => import("./pages/onboarding/MyOnboarding"));
+const MyChildrenObservations = lazy(() => import("./pages/parent/MyChildrenObservations"));
+const OnboardingQuiz = lazy(() => import("./pages/onboarding/OnboardingQuiz"));
+const OrientationResources = lazy(() => import("./pages/onboarding/OrientationResources"));
+const StaffProfileForm = lazy(() => import("./pages/onboarding/StaffProfileForm"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Settings = lazy(() => import("./pages/Settings"));
+const ChatSettings = lazy(() => import("./pages/system/ChatSettings"));
+const Backups = lazy(() => import("./pages/system/Backups"));
+const Bugs = lazy(() => import("./pages/system/Bugs"));
+
+// DOB module — student / teacher / staff birthdays
+const StudentBirthdays = lazy(() => import("./pages/birthdays/StudentBirthdays"));
+const TeacherBirthdays = lazy(() => import("./pages/birthdays/TeacherBirthdays"));
+const StaffBirthdays = lazy(() => import("./pages/birthdays/StaffBirthdays"));
+
+// HR — VATS / Welfare / Holidays (new modules)
+const VatsDashboard = lazy(() => import("./pages/hr/VatsDashboard"));
+const VatsObservations = lazy(() => import("./pages/hr/VatsObservations"));
+const VatsSlips = lazy(() => import("./pages/hr/VatsSlips"));
+const VatsCards = lazy(() => import("./pages/hr/VatsCards"));
+const VatsInterventions = lazy(() => import("./pages/hr/VatsInterventions"));
+const WelfareDashboard = lazy(() => import("./pages/hr/WelfareDashboard"));
+const WelfareCheckin = lazy(() => import("./pages/hr/WelfareCheckin"));
+const WelfareAlerts = lazy(() => import("./pages/hr/WelfareAlerts"));
+const WelfareBenefits = lazy(() => import("./pages/hr/WelfareBenefits"));
+const Holidays = lazy(() => import("./pages/hr/Holidays"));
 
 // HR Pages - List
 const Staff = lazy(() => import("./pages/hr/Staff"));
@@ -54,16 +88,117 @@ const Jobs = lazy(() => import("./pages/hr/Jobs"));
 const JobApplication = lazy(() => import("./pages/hr/JobApplication"));
 const AddVendor = lazy(() => import("./pages/hr/AddVendor"));
 const StaffTask = lazy(() => import("./pages/hr/StaffTask"));
+const DailyWorks = lazy(() => import("./pages/hr/DailyWorks"));
+const EduDashboard = lazy(() => import("./pages/education/EduDashboard"));
+const DailyObservation = lazy(() => import("./pages/education/DailyObservation"));
+const CaseSearch = lazy(() => import("./pages/education/CaseSearch"));
+const ObservationReports = lazy(() => import("./pages/education/ObservationReports"));
+const StaffFaq = lazy(() => import("./pages/hr/StaffFaq"));
+const Committees = lazy(() => import("./pages/hr/Committees"));
+const Monitoring = lazy(() => import("./pages/education/Monitoring"));
+const MonitoringRecords = lazy(() => import("./pages/education/MonitoringRecords"));
+const Elicitation = lazy(() => import("./pages/education/Elicitation"));
+const Synthesis = lazy(() => import("./pages/education/Synthesis"));
+const AnnualReview = lazy(() => import("./pages/education/AnnualReview"));
+const QuickFourD = lazy(() => import("./pages/education/QuickFourD"));
+const StudentCards = lazy(() => import("./pages/education/StudentCards"));
+const CardRankings = lazy(() => import("./pages/education/CardRankings"));
+// Weekly Recognition — the weekly, topic-scoped screens inside Student Development.
+const WeeklyTopic = lazy(() => import("./pages/education/WeeklyTopic"));
+const WeeklyNominate = lazy(() => import("./pages/education/WeeklyNominate"));
+const WeeklyReview = lazy(() => import("./pages/education/WeeklyReview"));
+const WeeklyHistory = lazy(() => import("./pages/education/WeeklyHistory"));
+const WeeklyAnnualWinner = lazy(() => import("./pages/education/WeeklyAnnualWinner"));
+const ScienceProjects = lazy(() => import("./pages/education/ScienceProjects"));
+// Morning Assembly Program — its own light module.
+const AssemblyCalendar = lazy(() => import("./pages/assembly/AssemblyCalendar"));
+const AssemblyPlan = lazy(() => import("./pages/assembly/AssemblyPlan"));
+const AssemblyAgenda = lazy(() => import("./pages/assembly/AssemblyAgenda"));
+const AssemblyRunSheet = lazy(() => import("./pages/assembly/AssemblyRunSheet"));
+const AssemblyArchive = lazy(() => import("./pages/assembly/AssemblyArchive"));
+const MyAssemblyRoles = lazy(() => import("./pages/assembly/MyAssemblyRoles"));
+
+// The 100 Essential Books — recommendation intake + curation.
+const EssentialBooks = lazy(() => import("./pages/library/EssentialBooks"));
+const EssentialBookForm = lazy(() => import("./pages/library/EssentialBookForm"));
+const EssentialBookShow = lazy(() => import("./pages/library/EssentialBookShow"));
+
+// System-wide broadcasts — the once-a-day notice everyone sees.
+const Broadcasts = lazy(() => import("./pages/broadcasts/Broadcasts"));
+const BroadcastForm = lazy(() => import("./pages/broadcasts/BroadcastForm"));
+
+// Parent Communication — the log of every contact with a family.
+const ParentCommunications = lazy(() => import("./pages/parent/ParentCommunications"));
+const ParentCommunicationForm = lazy(() => import("./pages/parent/ParentCommunicationForm"));
+const ParentCommunicationShow = lazy(() => import("./pages/parent/ParentCommunicationShow"));
+const ParentCommunicationHistory = lazy(() => import("./pages/parent/ParentCommunicationHistory"));
+const ParentFollowUps = lazy(() => import("./pages/parent/ParentFollowUps"));
+const ParentCommunicationReports = lazy(() => import("./pages/parent/ParentCommunicationReports"));
+const ParentCallGuide = lazy(() => import("./pages/parent/ParentCallGuide"));
+const ParentRatings = lazy(() => import("./pages/parent/ParentRatings"));
+const ParentGoldenRecord = lazy(() => import("./pages/parent/ParentGoldenRecord"));
+const FeeExtensionPortal = lazy(() => import("./pages/parent/FeeExtensionPortal"));
+const LessonPlanDashboard = lazy(() => import("./pages/education/LessonPlanDashboard"));
+const LessonPlanForm = lazy(() => import("./pages/education/LessonPlanForm"));
+const MyLessonPlans = lazy(() => import("./pages/education/MyLessonPlans"));
+const LessonPlanReview = lazy(() => import("./pages/education/LessonPlanReview"));
+const LessonPlanInsights = lazy(() => import("./pages/education/LessonPlanInsights"));
+const LessonPlanTemplates = lazy(() => import("./pages/education/LessonPlanTemplates"));
+const LessonPlanShow = lazy(() => import("./pages/education/LessonPlanShow"));
+const LessonPlanBridge = lazy(() => import("./pages/education/LessonPlanBridge"));
+const LessonPlanCurriculum = lazy(() => import("./pages/education/LessonPlanCurriculum"));
+const ClassGradebook = lazy(() => import("./pages/education/ClassGradebook"));
+const NewAssessment = lazy(() => import("./pages/education/NewAssessment"));
+const AssessmentList = lazy(() => import("./pages/education/AssessmentList"));
+const AssessmentDetail = lazy(() => import("./pages/education/AssessmentDetail"));
+const AssessmentQuestions = lazy(() => import("./pages/education/AssessmentQuestions"));
+const MarkingScreen = lazy(() => import("./pages/education/MarkingScreen"));
+const StudentGradeHistory = lazy(() => import("./pages/education/StudentGradeHistory"));
+const HomeworkQueue = lazy(() => import("./pages/education/HomeworkQueue"));
+const AssignHomework = lazy(() => import("./pages/education/AssignHomework"));
+const TermExamSheet = lazy(() => import("./pages/education/TermExamSheet"));
+const ExamResults = lazy(() => import("./pages/education/ExamResults"));
+const ReportCards = lazy(() => import("./pages/education/ExamResults").then((module) => ({ default: module.ReportCardsPage })));
+const PromotionBoard = lazy(() => import("./pages/education/PromotionBoard"));
+const WeeklyAssessments = lazy(() => import("./pages/education/WeeklyAssessments"));
+const StudentAcademicHistory = lazy(() => import("./pages/education/StudentAcademicHistory"));
+const GradebookDashboard = lazy(() => import("./pages/education/GradebookDashboard"));
 const Planner = lazy(() => import("./pages/hr/Planner"));
 const VisitorLog = lazy(() => import("./pages/hr/VisitorLog"));
+const Drive = lazy(() => import("./pages/drive/DriveHome"));
+const Mailbox = lazy(() => import("./chat/components/MailboxPage"));
+const DriveDocument = lazy(() => import("./pages/drive/DriveDocument"));
+const StudentScan = lazy(() => import("./pages/studentMangement/StudentScan"));
+const Questionnaires = lazy(() => import("./pages/questionnaire/Questionnaires"));
+const QuestionnaireForm = lazy(() => import("./pages/questionnaire/QuestionnaireForm"));
+const Guides = lazy(() => import("./pages/guides/Guides"));
+const QuestionnaireResponses = lazy(() => import("./pages/questionnaire/QuestionnaireResponses"));
+const QuestionnaireShow = lazy(() => import("./pages/questionnaire/QuestionnaireShow"));
+const MyQuestionnaire = lazy(() => import("./pages/questionnaire/MyQuestionnaire"));
+const ParentGradebook = lazy(() => import("./pages/parent/ParentGradebook"));
 const HRReports = lazy(() => import("./pages/hr/HRReports"));
 const Meetings = lazy(() => import("./pages/hr/Meetings"));
+const MeetingsAndEvents = lazy(() => import("./pages/hr/MeetingsAndEvents"));
+const MeetingEventForm = lazy(() => import("./pages/hr/MeetingEventForm"));
 const MeetingForm = lazy(() => import("./pages/hr/MeetingForm"));
 const MeetingShow = lazy(() => import("./pages/hr/MeetingShow"));
 const Events = lazy(() => import("./pages/hr/Events"));
 const EventForm = lazy(() => import("./pages/hr/EventForm"));
 const EventShow = lazy(() => import("./pages/hr/EventShow"));
 const SalarySnapshot = lazy(() => import("./pages/hr/SalarySnapshot"));
+
+// Planning module — Annual / Monthly / Weekly plans (top-level "Planning" menu).
+const PlanningDashboard = lazy(() => import("./pages/planning/PlanningDashboard"));
+const MyPlans = lazy(() => import("./pages/planning/MyPlans"));
+const PlanForm = lazy(() => import("./pages/planning/PlanForm"));
+const PlanShow = lazy(() => import("./pages/planning/PlanShow"));
+const PlanApprovals = lazy(() => import("./pages/planning/Approvals"));
+const DepartmentPlans = lazy(() => import("./pages/planning/DepartmentPlans"));
+const PlanCheckIn = lazy(() => import("./pages/planning/CheckIn"));
+const PlanReflect = lazy(() => import("./pages/planning/Reflect"));
+const PlanCascadeResult = lazy(() => import("./pages/planning/CascadeResult"));
+const PlanTemplates = lazy(() => import("./pages/planning/Templates"));
+const PlanningCalendar = lazy(() => import("./pages/planning/PlanningCalendar"));
 
 // HR Pages - Form
 const StaffForm = lazy(() => import("./pages/hr/StaffForm"));
@@ -83,6 +218,7 @@ const SalarySnapshotForm = lazy(() => import("./pages/hr/SalarySnapshotForm"));
 
 // HR Pages - Show
 const StaffShow = lazy(() => import("./pages/hr/StaffShow"));
+const StaffDiscipline = lazy(() => import("./pages/hr/StaffDiscipline"));
 const ContractsShow = lazy(() => import("./pages/hr/ContractsShow"));
 const VendorContractsShow = lazy(() => import("./pages/hr/VendorContractsShow"));
 const AgreementsShow = lazy(() => import("./pages/hr/AgreementsShow"));
@@ -92,6 +228,12 @@ const JobsShow = lazy(() => import("./pages/hr/JobsShow"));
 const JobApplicationShow = lazy(() => import("./pages/hr/JobApplicationShow"));
 const AddVendorShow = lazy(() => import("./pages/hr/AddVendorShow"));
 const StaffTaskShow = lazy(() => import("./pages/hr/StaffTaskShow"));
+const MyCheckIn = lazy(() => import("./pages/hr/MyCheckIn"));
+const MyTasks = lazy(() => import("./pages/hr/MyTasks"));
+const DayView = lazy(() => import("./pages/hr/DayView"));
+const TeamOverview = lazy(() => import("./pages/hr/TeamOverview"));
+const TaskLeaderboard = lazy(() => import("./pages/hr/TaskLeaderboard"));
+const TalkingPoints = lazy(() => import("./pages/hr/TalkingPoints"));
 const PlannerShow = lazy(() => import("./pages/hr/PlannerShow"));
 const VisitorLogShow = lazy(() => import("./pages/hr/VisitorLogShow"));
 const SalarySnapshotShow = lazy(() => import("./pages/hr/SalarySnapshotShow"));
@@ -113,8 +255,16 @@ const VehicleForm = lazy(() => import("./pages/studentMangement/VehicleForm"));
 const Students = lazy(() => import("./pages/studentMangement/Students"));
 const EnrolledStudents = lazy(() => import("./pages/studentMangement/EnrolledStudents"));
 const FoundationRequests = lazy(() => import("./pages/studentMangement/FoundationRequests"));
+const StudentAttendance = lazy(() => import("./pages/students/StudentAttendance"));
+const StudentAttendanceReport = lazy(() => import("./pages/students/StudentAttendanceReport"));
+const MyChildrenAttendance = lazy(() => import("./pages/students/MyChildrenAttendance"));
 const FoundationRequestShow = lazy(() => import("./pages/studentMangement/FoundationRequestShow"));
 const StudentForm = lazy(() => import("./pages/studentMangement/StudentForm"));
+const StudentShow = lazy(() => import("./pages/studentMangement/StudentShow"));
+const StudentProfile = lazy(() => import("./pages/studentMangement/StudentProfile"));
+const PostsFeed = lazy(() => import("./pages/posts/PostsFeed"));
+const PostPage = lazy(() => import("./pages/posts/PostPage"));
+const StudentGallery = lazy(() => import("./pages/studentMangement/StudentGallery"));
 const StudentEnrollments = lazy(() => import("./pages/studentMangement/StudentEnrollments"));
 const StudentEnrollmentForm = lazy(() => import("./pages/studentMangement/StudentEnrollmentForm"));
 
@@ -127,11 +277,16 @@ const TeachersShow = lazy(() => import("./pages/teacher-management/teacher/Teach
 const Branches = lazy(() => import("./pages/branches/Branches"));
 const BranchForm = lazy(() => import("./pages/branches/BranchForm"));
 const BranchShow = lazy(() => import("./pages/branches/BranchShow"));
+const Departments = lazy(() => import("./pages/hr/Departments"));
+const DepartmentForm = lazy(() => import("./pages/hr/DepartmentForm"));
+const PositionTitles = lazy(() => import("./pages/recruitment/PositionTitles"));
+const PositionTitleForm = lazy(() => import("./pages/recruitment/PositionTitleForm"));
 
 // Class Management
 const Classes = lazy(() => import("./pages/class-management/Classes"));
 const ClassesForm = lazy(() => import("./pages/class-management/ClassesForm"));
 const ClassesShow = lazy(() => import("./pages/class-management/ClassesShow"));
+const ClassStudents = lazy(() => import("./pages/class-management/ClassStudents"));
 const GradeSubjects = lazy(() => import("./pages/class-management/GradeSubjects"));
 const Subjects = lazy(() => import("./pages/class-management/Subjects"));
 const SubjectsForm = lazy(() => import("./pages/class-management/SubjectsForm"));
@@ -153,6 +308,10 @@ const JobPostingShow = lazy(() => import("./pages/recruitment/JobPostingShow"));
 const Applications = lazy(() => import("./pages/recruitment/Applications"));
 const ApplicationForm = lazy(() => import("./pages/recruitment/ApplicationForm"));
 const ApplicationShow = lazy(() => import("./pages/recruitment/ApplicationShow"));
+const PublicApplicationForm = lazy(() => import("./pages/recruitment/PublicApplicationForm"));
+const PublicQuestionnaire = lazy(() => import("./pages/public/PublicQuestionnaire"));
+const PublicFeeExtension = lazy(() => import("./pages/public/PublicFeeExtension"));
+const BookAppointment = lazy(() => import("./pages/hr/BookAppointment"));
 const CandidatePool = lazy(() => import("./pages/recruitment/CandidatePool"));
 const CandidatePoolForm = lazy(() => import("./pages/recruitment/CandidatePoolForm"));
 const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolShow"));
@@ -161,6 +320,9 @@ const CandidatePoolShow = lazy(() => import("./pages/recruitment/CandidatePoolSh
 const FeePayments = lazy(() => import("./pages/finance/FeePayments"));
 const FeePaymentForm = lazy(() => import("./pages/finance/FeePaymentForm"));
 const FinanceDashboard = lazy(() => import("./pages/finance/FinanceDashboard"));
+const BalanceSheet = lazy(() => import("./pages/finance/BalanceSheet"));
+const MonthlyReport = lazy(() => import("./pages/finance/MonthlyReport"));
+const QuickEntry = lazy(() => import("./pages/finance/QuickEntry"));
 const FinanceAccounts = lazy(() => import("./pages/finance/Accounts"));
 const AccountForm = lazy(() => import("./pages/finance/AccountForm"));
 const ChartOfAccounts = lazy(() => import("./pages/finance/ChartOfAccounts"));
@@ -175,10 +337,13 @@ const FeeInvoices = lazy(() => import("./pages/finance/FeeInvoices"));
 const FeeInvoiceForm = lazy(() => import("./pages/finance/FeeInvoiceForm"));
 const FeeInvoiceShow = lazy(() => import("./pages/finance/FeeInvoiceShow"));
 const BillingRun = lazy(() => import("./pages/finance/BillingRun"));
+const Payroll = lazy(() => import("./pages/finance/Payroll"));
 const Cashier = lazy(() => import("./pages/finance/Cashier"));
 const StudentPayments = lazy(() => import("./pages/finance/StudentPayments"));
 const ClassCollectionReport = lazy(() => import("./pages/finance/ClassCollectionReport"));
+const LeadershipReport = lazy(() => import("./pages/finance/LeadershipReport"));
 const FinanceInbox = lazy(() => import("./pages/finance/FinanceInbox"));
+const FeeExtensions = lazy(() => import("./pages/finance/FeeExtensions"));
 const Parties = lazy(() => import("./pages/finance/Parties"));
 const PartyForm = lazy(() => import("./pages/finance/PartyForm"));
 const PartyLedger = lazy(() => import("./pages/finance/PartyLedger"));
@@ -229,24 +394,85 @@ function RedirectToCashier() {
   return <Navigate to={`/finance/cashier${studentId ? `?student_id=${studentId}` : ""}`} replace />;
 }
 
+// Old careers URLs → /careers/jobs, keeping any ?job= preselect intact.
+function CareersRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/careers/jobs${search}`} replace />;
+}
+
 function App() {
+  // Vite fills BASE_URL from the build's `base` — "/" at a domain root,
+  // "/folder/" for a subfolder build. Routing has to agree with what the assets
+  // were built for, or a subfolder deploy loads its JS and then 404s on every
+  // single route.
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL}>
+      <I18nProvider>
       <AuthProvider>
+        <ChatProvider>
+        {/* Audio/video calls — rings on any page, not only the chat. */}
+        <CallManager />
         <Suspense fallback={<PageLoader />}>
+          {/* The day's announcement, also on the sign-in page. Self-gating: it
+              draws nothing unless a live broadcast exists, and falls back to
+              the public endpoint while nobody is signed in. */}
+          <BroadcastModal />
           <Routes>
             <Route path="/login" element={<PublicRoute>{L(() => import("./pages/Login"))}</PublicRoute>} />
             <Route path="/403" element={<Suspense fallback={<PageLoader />}><Forbidden /></Suspense>} />
 
+            {/* Public careers page — shareable link, no login required */}
+            <Route path="/careers/jobs" element={<Suspense fallback={<PageLoader />}><PublicApplicationForm /></Suspense>} />
+            <Route path="/careers/job" element={<CareersRedirect />} />
+            <Route path="/careers/apply" element={<CareersRedirect />} />
+            <Route path="/apply" element={<CareersRedirect />} />
+
+            {/* Public weekly questionnaire — shareable link, no login required */}
+            <Route path="/questionnaire" element={<Suspense fallback={<PageLoader />}><PublicQuestionnaire /></Suspense>} />
+            <Route path="/parent-questionnaire" element={<Navigate to="/questionnaire" replace />} />
+
+            {/* Public appointment booking — a visitor books time with a staff member, no login */}
+            <Route path="/book-appointment" element={<Suspense fallback={<PageLoader />}><BookAppointment isPublic /></Suspense>} />
+
+            {/* Where a scanned student ID card lands. Deliberately short, so
+                the printed QR code stays coarse enough to read off plastic, and
+                outside the app shell because it is opened on a phone by someone
+                who may still need to sign in. It grants nothing by itself — the
+                server decides what the scanner may see. */}
+            <Route path="/s/:token" element={<Suspense fallback={<PageLoader />}><StudentScan /></Suspense>} />
+
+            {/* Public fee payment extension — a no-login form the fee
+                officer shares with a family. The token in the URL is
+                scoped to ONE student, so a visitor can only ever
+                submit for that child. */}
+            <Route path="/fee-extension/:token" element={<Suspense fallback={<PageLoader />}><PublicFeeExtension /></Suspense>} />
+
+            {/* One post on its own page — the link Share copies. Outside the
+                app shell: a public post opens for anyone, signed in or not. */}
+            <Route path="/post/:id" element={<Suspense fallback={<PageLoader />}><PostPage /></Suspense>} />
+
+            {/* Messages as a page of its own — what the drawer's "open in a
+                separate window" button opens. Outside the Layout on purpose:
+                a window opened for mail carries no system navigation. */}
+            <Route path="/mailbox" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><Mailbox /></Suspense></ProtectedRoute>} />
+
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-            <Route path="departments" element={<Placeholder title="Departments" />} />
+            <Route path="departments" element={<Navigate to="/hr/departments" replace />} />
             <Route path="payroll" element={<Placeholder title="Payroll" />} />
             <Route path="leave-requests" element={<Placeholder title="Leave Requests" />} />
             <Route path="number-puzzle" element={<Placeholder title="Number Puzzle" />} />
             <Route path="profile" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
             <Route path="profile/:userId" element={<Suspense fallback={<PageLoader />}><MyProfile /></Suspense>} />
-            <Route path="settings" element={<Placeholder title="Settings" />} />
+            {/* Onboarding — every signed-in user has their own; no permission gate. */}
+            <Route path="onboarding" element={<Suspense fallback={<PageLoader />}><MyOnboarding /></Suspense>} />
+            <Route path="onboarding/quiz" element={<Suspense fallback={<PageLoader />}><OnboardingQuiz /></Suspense>} />
+            <Route path="onboarding/orientation" element={<Suspense fallback={<PageLoader />}><OrientationResources /></Suspense>} />
+            <Route path="onboarding/profile-form" element={<Suspense fallback={<PageLoader />}><StaffProfileForm /></Suspense>} />
+            {/* Appointments — anyone signed in may book time with any staff member. */}
+            <Route path="hr/book-appointment" element={<Suspense fallback={<PageLoader />}><BookAppointment /></Suspense>} />
+            <Route path="notifications" element={<Suspense fallback={<PageLoader />}><Notifications /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="support" element={<Placeholder title="Support" />} />
 
             {/* Teacher Management */}
@@ -261,10 +487,56 @@ function App() {
             <Route path="branches/create" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/edit/:id" element={<Suspense fallback={<PageLoader />}><BranchForm /></Suspense>} />
             <Route path="branches/show/:id" element={<Suspense fallback={<PageLoader />}><BranchShow /></Suspense>} />
+
+            {/* Drive — private per-user file manager */}
+            <Route path="drive" element={<Suspense fallback={<PageLoader />}><Drive /></Suspense>} />
+            {/* A document written in Drive. Under /drive so it inherits the
+                same path permission as the module it belongs to. */}
+            <Route path="drive/documents/:id" element={<Suspense fallback={<PageLoader />}><DriveDocument /></Suspense>} />
+
+            {/* Questionnaires — weekly parent evaluations */}
+            <Route path="questionnaires" element={<Suspense fallback={<PageLoader />}><Questionnaires /></Suspense>} />
+            <Route path="guides" element={<Suspense fallback={<PageLoader />}><Guides /></Suspense>} />
+            <Route path="questionnaires/create" element={<Suspense fallback={<PageLoader />}><QuestionnaireForm /></Suspense>} />
+            <Route path="questionnaires/edit/:id" element={<Suspense fallback={<PageLoader />}><QuestionnaireForm /></Suspense>} />
+            <Route path="questionnaires/:id/responses" element={<Suspense fallback={<PageLoader />}><QuestionnaireResponses /></Suspense>} />
+            <Route path="questionnaires/:id" element={<Suspense fallback={<PageLoader />}><QuestionnaireShow /></Suspense>} />
+            {/* Parent's own questionnaire (reached from the bell notification) */}
+            <Route path="my-questionnaire" element={<Suspense fallback={<PageLoader />}><MyQuestionnaire /></Suspense>} />
+            <Route path="my-children" element={<Suspense fallback={<PageLoader />}><ParentGradebook /></Suspense>} />
+            {/* A family's own page: every observation and card for their own
+                children. Scoped on the server from the signed-in account. */}
+            <Route path="my-children/observations" element={<Suspense fallback={<PageLoader />}><MyChildrenObservations /></Suspense>} />
+
+            {/* Fee Payment Extension — the parent's own screen. The
+                server scopes it to the caller's own children. */}
+            <Route path="fee-extensions" element={<Suspense fallback={<PageLoader />}><FeeExtensionPortal /></Suspense>} />
+
+            {/* Planning — Annual / Monthly / Weekly plans */}
+            <Route path="planning" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />
+            <Route path="planning/dashboard" element={<Suspense fallback={<PageLoader />}><PlanningDashboard /></Suspense>} />
+            <Route path="planning/plans" element={<Suspense fallback={<PageLoader />}><MyPlans /></Suspense>} />
+            <Route path="planning/plans/create" element={<Suspense fallback={<PageLoader />}><PlanForm /></Suspense>} />
+            <Route path="planning/plans/edit/:id" element={<Suspense fallback={<PageLoader />}><PlanForm /></Suspense>} />
+            <Route path="planning/plans/show/:id" element={<Suspense fallback={<PageLoader />}><PlanShow /></Suspense>} />
+            <Route path="planning/plans/checkin/:id" element={<Suspense fallback={<PageLoader />}><PlanCheckIn /></Suspense>} />
+            <Route path="planning/plans/reflect/:id" element={<Suspense fallback={<PageLoader />}><PlanReflect /></Suspense>} />
+            <Route path="planning/plans/cascade/:id" element={<Suspense fallback={<PageLoader />}><PlanCascadeResult /></Suspense>} />
+            <Route path="planning/approvals" element={<Suspense fallback={<PageLoader />}><PlanApprovals /></Suspense>} />
+            <Route path="planning/department" element={<Suspense fallback={<PageLoader />}><DepartmentPlans /></Suspense>} />
+            <Route path="planning/calendar" element={<Suspense fallback={<PageLoader />}><PlanningCalendar /></Suspense>} />
+            <Route path="planning/templates" element={<Suspense fallback={<PageLoader />}><PlanTemplates /></Suspense>} />
+            <Route path="hr/departments" element={<Suspense fallback={<PageLoader />}><Departments /></Suspense>} />
+            <Route path="hr/departments/create" element={<Suspense fallback={<PageLoader />}><DepartmentForm /></Suspense>} />
+            <Route path="hr/departments/edit/:id" element={<Suspense fallback={<PageLoader />}><DepartmentForm /></Suspense>} />
+            <Route path="recruitment/position-titles" element={<Suspense fallback={<PageLoader />}><PositionTitles /></Suspense>} />
+            <Route path="recruitment/position-titles/create" element={<Suspense fallback={<PageLoader />}><PositionTitleForm /></Suspense>} />
+            <Route path="recruitment/position-titles/edit/:id" element={<Suspense fallback={<PageLoader />}><PositionTitleForm /></Suspense>} />
             <Route path="class-management/classes" element={<Suspense fallback={<PageLoader />}><Classes /></Suspense>} />
             <Route path="class-management/classes/create" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />
             <Route path="class-management/classes/edit/:id" element={<Suspense fallback={<PageLoader />}><ClassesForm /></Suspense>} />
             <Route path="class-management/classes/show/:id" element={<Suspense fallback={<PageLoader />}><ClassesShow /></Suspense>} />
+            <Route path="class-management/classes/students/:id" element={<Suspense fallback={<PageLoader />}><ClassStudents /></Suspense>} />
             <Route path="class-management/grade-subjects" element={<Suspense fallback={<PageLoader />}><GradeSubjects /></Suspense>} />
             <Route path="class-management/subjects" element={<Suspense fallback={<PageLoader />}><Subjects /></Suspense>} />
             <Route path="class-management/subjects/create" element={<Suspense fallback={<PageLoader />}><SubjectsForm /></Suspense>} />
@@ -288,6 +560,7 @@ function App() {
             <Route path="hr/staff/create" element={<Suspense fallback={<PageLoader />}><StaffForm /></Suspense>} />
             <Route path="hr/staff/edit/:id" element={<Suspense fallback={<PageLoader />}><StaffForm /></Suspense>} />
             <Route path="hr/staff/show/:id" element={<Suspense fallback={<PageLoader />}><StaffShow /></Suspense>} />
+            <Route path="hr/disciplinary" element={<Suspense fallback={<PageLoader />}><StaffDiscipline /></Suspense>} />
             <Route path="hr/staff-logs" element={<Suspense fallback={<PageLoader />}><StaffLogs /></Suspense>} />
             <Route path="hr/contracts" element={<Suspense fallback={<PageLoader />}><Contracts /></Suspense>} />
             <Route path="hr/contracts/create" element={<Suspense fallback={<PageLoader />}><ContractsForm /></Suspense>} />
@@ -309,6 +582,7 @@ function App() {
             <Route path="hr/attendance/show/:id" element={<Suspense fallback={<PageLoader />}><AttendanceShow /></Suspense>} />
             <Route path="hr/leave-request" element={<Suspense fallback={<PageLoader />}><LeaveRequest /></Suspense>} />
             <Route path="hr/leave-request/create" element={<Suspense fallback={<PageLoader />}><LeaveRequestForm /></Suspense>} />
+            <Route path="hr/leave-request/assign" element={<Suspense fallback={<PageLoader />}><LeaveRequestForm assignMode /></Suspense>} />
             <Route path="hr/leave-request/edit/:id" element={<Suspense fallback={<PageLoader />}><LeaveRequestForm /></Suspense>} />
             <Route path="hr/leave-request/show/:id" element={<Suspense fallback={<PageLoader />}><LeaveRequestShow /></Suspense>} />
             <Route path="hr/jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
@@ -327,6 +601,111 @@ function App() {
             <Route path="hr/staff-task/create" element={<Suspense fallback={<PageLoader />}><StaffTaskForm /></Suspense>} />
             <Route path="hr/staff-task/edit/:id" element={<Suspense fallback={<PageLoader />}><StaffTaskForm /></Suspense>} />
             <Route path="hr/staff-task/show/:id" element={<Suspense fallback={<PageLoader />}><StaffTaskShow /></Suspense>} />
+            {/* Operations Hub — Live Status */}
+            <Route path="hr/my-check-in" element={<Suspense fallback={<PageLoader />}><MyCheckIn /></Suspense>} />
+            <Route path="hr/my-tasks" element={<Suspense fallback={<PageLoader />}><MyTasks /></Suspense>} />
+            <Route path="hr/day-view" element={<Suspense fallback={<PageLoader />}><DayView /></Suspense>} />
+            <Route path="hr/team-overview" element={<Suspense fallback={<PageLoader />}><TeamOverview /></Suspense>} />
+            <Route path="hr/task-leaderboard" element={<Suspense fallback={<PageLoader />}><TaskLeaderboard /></Suspense>} />
+            <Route path="hr/talking-points" element={<Suspense fallback={<PageLoader />}><TalkingPoints /></Suspense>} />
+            <Route path="hr/talking-points/:id" element={<Suspense fallback={<PageLoader />}><TalkingPoints /></Suspense>} />
+            <Route path="hr/daily-works" element={<Suspense fallback={<PageLoader />}><DailyWorks /></Suspense>} />
+            <Route path="education/dashboard" element={<Suspense fallback={<PageLoader />}><EduDashboard /></Suspense>} />
+            <Route path="education/observations" element={<Suspense fallback={<PageLoader />}><DailyObservation /></Suspense>} />
+            <Route path="education/case-library" element={<Suspense fallback={<PageLoader />}><CaseSearch /></Suspense>} />
+            <Route path="education/observation-reports" element={<Suspense fallback={<PageLoader />}><ObservationReports /></Suspense>} />
+            <Route path="handbook" element={<Suspense fallback={<PageLoader />}><StaffFaq /></Suspense>} />
+            <Route path="hr/planner/committees" element={<Suspense fallback={<PageLoader />}><Committees /></Suspense>} />
+            <Route path="education/monitoring" element={<Suspense fallback={<PageLoader />}><Monitoring /></Suspense>} />
+            <Route path="education/monitoring/:monitoringId/records" element={<Suspense fallback={<PageLoader />}><MonitoringRecords /></Suspense>} />
+            <Route path="education/elicitation" element={<Suspense fallback={<PageLoader />}><Elicitation /></Suspense>} />
+            <Route path="education/synthesis" element={<Suspense fallback={<PageLoader />}><Synthesis /></Suspense>} />
+            <Route path="education/annual-review" element={<Suspense fallback={<PageLoader />}><AnnualReview /></Suspense>} />
+            <Route path="posts" element={<Suspense fallback={<PageLoader />}><PostsFeed /></Suspense>} />
+            <Route path="education/4d-self-rating" element={<Suspense fallback={<PageLoader />}><QuickFourD /></Suspense>} />
+            {/* No id: StudentProfile shows its student finder. */}
+            <Route path="education/student-profiles" element={<Suspense fallback={<PageLoader />}><StudentProfile /></Suspense>} />
+            <Route path="education/cards" element={<Suspense fallback={<PageLoader />}><StudentCards /></Suspense>} />
+            <Route path="education/card-rankings" element={<Suspense fallback={<PageLoader />}><CardRankings /></Suspense>} />
+
+            {/* Weekly Recognition — Best Performer of the Week */}
+            <Route path="education/weekly-recognition" element={<Suspense fallback={<PageLoader />}><WeeklyTopic /></Suspense>} />
+            <Route path="education/weekly-recognition/nominate" element={<Suspense fallback={<PageLoader />}><WeeklyNominate /></Suspense>} />
+            <Route path="education/weekly-recognition/review" element={<Suspense fallback={<PageLoader />}><WeeklyReview /></Suspense>} />
+            <Route path="education/weekly-recognition/history" element={<Suspense fallback={<PageLoader />}><WeeklyHistory /></Suspense>} />
+            <Route path="education/weekly-recognition/annual-winner" element={<Suspense fallback={<PageLoader />}><WeeklyAnnualWinner /></Suspense>} />
+            <Route path="education/science-projects" element={<Suspense fallback={<PageLoader />}><ScienceProjects /></Suspense>} />
+
+            {/* Morning Assembly Program */}
+            <Route path="assembly/calendar" element={<Suspense fallback={<PageLoader />}><AssemblyCalendar /></Suspense>} />
+            <Route path="assembly/templates" element={<Suspense fallback={<PageLoader />}><AssemblyArchive /></Suspense>} />
+            <Route path="assembly/plan" element={<Suspense fallback={<PageLoader />}><AssemblyPlan /></Suspense>} />
+            <Route path="assembly/plan/:id" element={<Suspense fallback={<PageLoader />}><AssemblyPlan /></Suspense>} />
+            <Route path="assembly/:id/agenda" element={<Suspense fallback={<PageLoader />}><AssemblyAgenda /></Suspense>} />
+            <Route path="assembly/:id/run-sheet" element={<Suspense fallback={<PageLoader />}><AssemblyRunSheet /></Suspense>} />
+            {/* Student / parent portal — no permission tag; the server scopes it
+                to the caller's own students and refuses anyone else. */}
+            <Route path="assembly/my-responsibilities" element={<Suspense fallback={<PageLoader />}><MyAssemblyRoles /></Suspense>} />
+
+            {/* The 100 Essential Books */}
+            <Route path="library/essential-books" element={<Suspense fallback={<PageLoader />}><EssentialBooks /></Suspense>} />
+            <Route path="library/essential-books/create" element={<Suspense fallback={<PageLoader />}><EssentialBookForm /></Suspense>} />
+            <Route path="library/essential-books/edit/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookForm /></Suspense>} />
+            <Route path="library/essential-books/show/:id" element={<Suspense fallback={<PageLoader />}><EssentialBookShow /></Suspense>} />
+
+            {/* Parent Communication. `follow-ups` and `reports` are listed
+                before `show/:id` so the literal segments always win over the
+                parameterised route. */}
+            <Route path="parent-communications" element={<Suspense fallback={<PageLoader />}><ParentCommunications /></Suspense>} />
+            <Route path="parent-communications/follow-ups" element={<Suspense fallback={<PageLoader />}><ParentFollowUps /></Suspense>} />
+            <Route path="parent-communications/reports" element={<Suspense fallback={<PageLoader />}><ParentCommunicationReports /></Suspense>} />
+            <Route path="parent-communications/call-guide" element={<Suspense fallback={<PageLoader />}><ParentCallGuide /></Suspense>} />
+
+            {/* Parent engagement ratings. "golden-record" is listed before the
+                bare list so the literal segment always wins. */}
+            <Route path="parent-ratings/golden-record" element={<Suspense fallback={<PageLoader />}><ParentGoldenRecord /></Suspense>} />
+            <Route path="parent-ratings" element={<Suspense fallback={<PageLoader />}><ParentRatings /></Suspense>} />
+            <Route path="parent-communications/create" element={<Suspense fallback={<PageLoader />}><ParentCommunicationForm /></Suspense>} />
+            <Route path="parent-communications/edit/:id" element={<Suspense fallback={<PageLoader />}><ParentCommunicationForm /></Suspense>} />
+            <Route path="parent-communications/show/:id" element={<Suspense fallback={<PageLoader />}><ParentCommunicationShow /></Suspense>} />
+            <Route path="parent-communications/history/:familyId" element={<Suspense fallback={<PageLoader />}><ParentCommunicationHistory /></Suspense>} />
+
+            {/* Broadcasts */}
+            <Route path="broadcasts" element={<Suspense fallback={<PageLoader />}><Broadcasts /></Suspense>} />
+            <Route path="broadcasts/create" element={<Suspense fallback={<PageLoader />}><BroadcastForm /></Suspense>} />
+            <Route path="broadcasts/edit/:id" element={<Suspense fallback={<PageLoader />}><BroadcastForm /></Suspense>} />
+            <Route path="education/lesson-plans" element={<Suspense fallback={<PageLoader />}><LessonPlanDashboard /></Suspense>} />
+            <Route path="education/lesson-plans/my" element={<Suspense fallback={<PageLoader />}><MyLessonPlans /></Suspense>} />
+            <Route path="education/lesson-plans/create" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />
+            <Route path="education/lesson-plans/edit/:id" element={<Suspense fallback={<PageLoader />}><LessonPlanForm /></Suspense>} />
+            <Route path="education/lesson-plans/show/:id" element={<Suspense fallback={<PageLoader />}><LessonPlanShow /></Suspense>} />
+            <Route path="education/lesson-plans/review" element={<Suspense fallback={<PageLoader />}><LessonPlanReview /></Suspense>} />
+            <Route path="education/lesson-plans/insights" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights /></Suspense>} />
+            <Route path="education/lesson-plans/bridge" element={<Suspense fallback={<PageLoader />}><LessonPlanBridge /></Suspense>} />
+            <Route path="education/lesson-plans/balance" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights initialTab="balance" /></Suspense>} />
+            <Route path="education/lesson-plans/coverage" element={<Suspense fallback={<PageLoader />}><LessonPlanInsights initialTab="coverage" /></Suspense>} />
+            <Route path="education/lesson-plans/curriculum" element={<Suspense fallback={<PageLoader />}><LessonPlanCurriculum /></Suspense>} />
+            <Route path="education/lesson-plans/templates" element={<Suspense fallback={<PageLoader />}><LessonPlanTemplates /></Suspense>} />
+
+            {/* Gradebook + Homework */}
+            <Route path="education/gradebook" element={<Suspense fallback={<PageLoader />}><ClassGradebook /></Suspense>} />
+            <Route path="education/gradebook/mark" element={<Suspense fallback={<PageLoader />}><MarkingScreen /></Suspense>} />
+            <Route path="education/gradebook/assessments" element={<Suspense fallback={<PageLoader />}><AssessmentList /></Suspense>} />
+            <Route path="education/gradebook/assessments/new" element={<Suspense fallback={<PageLoader />}><NewAssessment /></Suspense>} />
+            <Route path="education/gradebook/assessments/:id" element={<Suspense fallback={<PageLoader />}><AssessmentDetail /></Suspense>} />
+            <Route path="education/gradebook/assessments/:id/questions" element={<Suspense fallback={<PageLoader />}><AssessmentQuestions /></Suspense>} />
+            <Route path="education/gradebook/homework" element={<Suspense fallback={<PageLoader />}><HomeworkQueue /></Suspense>} />
+            <Route path="education/gradebook/homework/new" element={<Suspense fallback={<PageLoader />}><AssignHomework /></Suspense>} />
+            <Route path="education/gradebook/analytics" element={<Suspense fallback={<PageLoader />}><GradebookDashboard /></Suspense>} />
+            <Route path="education/gradebook/student/:studentId/subject/:subjectId" element={<Suspense fallback={<PageLoader />}><StudentGradeHistory /></Suspense>} />
+            <Route path="education/gradebook/term-exams" element={<Suspense fallback={<PageLoader />}><TermExamSheet /></Suspense>} />
+            <Route path="education/subject-marks/chaharnima" element={<Suspense fallback={<PageLoader />}><ExamResults examType="chaharnima" /></Suspense>} />
+            <Route path="education/subject-marks/salana" element={<Suspense fallback={<PageLoader />}><ExamResults examType="salana" /></Suspense>} />
+            <Route path="education/report-cards/chaharnima" element={<Suspense fallback={<PageLoader />}><ReportCards examType="chaharnima" /></Suspense>} />
+            <Route path="education/report-cards/salana" element={<Suspense fallback={<PageLoader />}><ReportCards examType="salana" /></Suspense>} />
+            <Route path="education/gradebook/promotion" element={<Suspense fallback={<PageLoader />}><PromotionBoard /></Suspense>} />
+            <Route path="education/gradebook/weekly" element={<Suspense fallback={<PageLoader />}><WeeklyAssessments /></Suspense>} />
+            <Route path="education/gradebook/student/:studentId/academic-history" element={<Suspense fallback={<PageLoader />}><StudentAcademicHistory /></Suspense>} />
             <Route path="hr/planner" element={<Suspense fallback={<PageLoader />}><Planner /></Suspense>} />
             <Route path="hr/planner/create" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
             <Route path="hr/planner/edit/:id" element={<Suspense fallback={<PageLoader />}><PlannerForm /></Suspense>} />
@@ -336,6 +715,25 @@ function App() {
             <Route path="hr/visitor-log/edit/:id" element={<Suspense fallback={<PageLoader />}><VisitorLogForm /></Suspense>} />
             <Route path="hr/visitor-log/show/:id" element={<Suspense fallback={<PageLoader />}><VisitorLogShow /></Suspense>} />
             <Route path="hr/reports" element={<Suspense fallback={<PageLoader />}><HRReports /></Suspense>} />
+
+            {/* HR — VATS, Welfare, Holidays */}
+            <Route path="hr/vats" element={<Suspense fallback={<PageLoader />}><VatsDashboard /></Suspense>} />
+            <Route path="hr/vats/observations" element={<Suspense fallback={<PageLoader />}><VatsObservations /></Suspense>} />
+            <Route path="hr/vats/slips" element={<Suspense fallback={<PageLoader />}><VatsSlips /></Suspense>} />
+            <Route path="hr/vats/cards" element={<Suspense fallback={<PageLoader />}><VatsCards /></Suspense>} />
+            <Route path="hr/vats/interventions" element={<Suspense fallback={<PageLoader />}><VatsInterventions /></Suspense>} />
+            <Route path="hr/welfare" element={<Suspense fallback={<PageLoader />}><WelfareDashboard /></Suspense>} />
+            <Route path="hr/welfare/checkin" element={<Suspense fallback={<PageLoader />}><WelfareCheckin /></Suspense>} />
+            <Route path="hr/welfare/alerts" element={<Suspense fallback={<PageLoader />}><WelfareAlerts /></Suspense>} />
+            <Route path="hr/welfare/benefits" element={<Suspense fallback={<PageLoader />}><WelfareBenefits /></Suspense>} />
+            <Route path="hr/holidays" element={<Suspense fallback={<PageLoader />}><Holidays /></Suspense>} />
+
+            {/* Combined planner — meetings and events on one timeline.
+                The per-module screens below stay as they were: the combined
+                list links into them rather than replacing them. */}
+            <Route path="hr/meetings-events" element={<Suspense fallback={<PageLoader />}><MeetingsAndEvents /></Suspense>} />
+            {/* One form for either kind — the type is a toggle inside it. */}
+            <Route path="hr/meetings-events/create" element={<Suspense fallback={<PageLoader />}><MeetingEventForm /></Suspense>} />
 
             {/* HR Routes - Meetings */}
             <Route path="hr/meetings" element={<Suspense fallback={<PageLoader />}><Meetings /></Suspense>} />
@@ -354,7 +752,24 @@ function App() {
             <Route path="student-management/enrolled-students" element={<Suspense fallback={<PageLoader />}><EnrolledStudents /></Suspense>} />
             <Route path="student-management/students/create" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
             <Route path="student-management/students/edit/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
-            <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentForm /></Suspense>} />
+            <Route path="student-management/students/show/:id" element={<Suspense fallback={<PageLoader />}><StudentShow /></Suspense>} />
+            <Route path="student-management/students/profile/:id" element={<Suspense fallback={<PageLoader />}><StudentProfile /></Suspense>} />
+            {/* Student Gallery — find the child, then add their photos. The
+                album itself also sits on the profile; this is the way in for
+                whoever has a photograph in hand and needs to file it. */}
+            <Route path="student-management/student-gallery" element={
+              <Protected permission="student-gallery.view">
+                <Suspense fallback={<PageLoader />}><StudentGallery /></Suspense>
+              </Protected>
+            } />
+            {/* Student register. `/report` and `/my-children` must be declared
+                BEFORE the bare attendance route or the prefix match would
+                swallow them. */}
+            <Route path="student-management/attendance/report" element={<Suspense fallback={<PageLoader />}><StudentAttendanceReport /></Suspense>} />
+            {/* Parent portal — no permission; the server scopes it to the
+                family that owns the login. */}
+            <Route path="student-management/attendance/my-children" element={<Suspense fallback={<PageLoader />}><MyChildrenAttendance /></Suspense>} />
+            <Route path="student-management/attendance" element={<Suspense fallback={<PageLoader />}><StudentAttendance /></Suspense>} />
             <Route path="student-management/foundation-requests" element={<Suspense fallback={<PageLoader />}><FoundationRequests /></Suspense>} />
             <Route path="student-management/foundation-requests/show/:id" element={<Suspense fallback={<PageLoader />}><FoundationRequestShow /></Suspense>} />
             <Route path="student-management/student-enrollments" element={<Suspense fallback={<PageLoader />}><StudentEnrollments /></Suspense>} />
@@ -387,6 +802,9 @@ function App() {
             {/* Finance */}
             <Route path="finance" element={<Suspense fallback={<PageLoader />}><FinanceDashboard /></Suspense>} />
             <Route path="finance/dashboard" element={<Suspense fallback={<PageLoader />}><FinanceDashboard /></Suspense>} />
+            <Route path="finance/balance-sheet" element={<Suspense fallback={<PageLoader />}><BalanceSheet /></Suspense>} />
+            <Route path="finance/monthly-report" element={<Suspense fallback={<PageLoader />}><MonthlyReport /></Suspense>} />
+            <Route path="finance/quick-entry" element={<Suspense fallback={<PageLoader />}><QuickEntry /></Suspense>} />
             <Route path="finance/accounts" element={<Suspense fallback={<PageLoader />}><FinanceAccounts /></Suspense>} />
             <Route path="finance/accounts/create" element={<Suspense fallback={<PageLoader />}><AccountForm /></Suspense>} />
             <Route path="finance/accounts/edit/:id" element={<Suspense fallback={<PageLoader />}><AccountForm /></Suspense>} />
@@ -403,9 +821,11 @@ function App() {
             <Route path="finance/budgets/create" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/budgets/edit/:id" element={<Suspense fallback={<PageLoader />}><BudgetForm /></Suspense>} />
             <Route path="finance/billing-runs" element={<Suspense fallback={<PageLoader />}><BillingRun /></Suspense>} />
+            <Route path="finance/payroll" element={<Suspense fallback={<PageLoader />}><Payroll /></Suspense>} />
             <Route path="finance/cashier" element={<Suspense fallback={<PageLoader />}><Cashier /></Suspense>} />
             <Route path="finance/students/:studentId/payments" element={<Suspense fallback={<PageLoader />}><StudentPayments /></Suspense>} />
             <Route path="finance/reports/class-collection" element={<Suspense fallback={<PageLoader />}><ClassCollectionReport /></Suspense>} />
+            <Route path="finance/reports/leadership" element={<Suspense fallback={<PageLoader />}><LeadershipReport /></Suspense>} />
             {/* Old paths now redirect to the single Cashier flow. */}
             <Route path="finance/fee-payments/create" element={<Navigate to="/finance/cashier" replace />} />
             <Route path="finance/student-statements" element={<Navigate to="/finance/cashier" replace />} />
@@ -414,6 +834,8 @@ function App() {
             <Route path="finance/fee-invoices/create" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/edit/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceForm /></Suspense>} />
             <Route path="finance/fee-invoices/show/:id" element={<Suspense fallback={<PageLoader />}><FeeInvoiceShow /></Suspense>} />
+            {/* Fee Payment Extensions — the fee officer's review queue */}
+            <Route path="finance/fee-extensions" element={<Suspense fallback={<PageLoader />}><FeeExtensions /></Suspense>} />
             <Route path="finance/fee-payments" element={<Suspense fallback={<PageLoader />}><FeePayments /></Suspense>} />
             {/* /finance/fee-payments/create is handled above by redirect to /finance/cashier */}
             <Route path="finance/fee-payments/edit/:id" element={<Suspense fallback={<PageLoader />}><FeePaymentForm /></Suspense>} />
@@ -423,6 +845,7 @@ function App() {
             <Route path="finance/journal-entries/show/:id" element={<Suspense fallback={<PageLoader />}><JournalEntryShow /></Suspense>} />
             <Route path="finance/parties" element={<Suspense fallback={<PageLoader />}><Parties /></Suspense>} />
             <Route path="finance/parties/create" element={<Suspense fallback={<PageLoader />}><PartyForm /></Suspense>} />
+            <Route path="finance/parties/edit/:id" element={<Suspense fallback={<PageLoader />}><PartyForm /></Suspense>} />
             <Route path="finance/parties/:id/ledger" element={<Suspense fallback={<PageLoader />}><PartyLedger /></Suspense>} />
             <Route path="finance/inbox" element={<Suspense fallback={<PageLoader />}><FinanceInbox /></Suspense>} />
 
@@ -496,10 +919,56 @@ function App() {
                 <Suspense fallback={<PageLoader />}><AdminUserShow /></Suspense>
               </Protected>
             } />
+            <Route path="admin/activity-logs" element={
+              <Protected permission="activity-logs.view">
+                <Suspense fallback={<PageLoader />}><ActivityLogs /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/trash" element={
+              <Protected permission="trash.view">
+                <Suspense fallback={<PageLoader />}><Trash /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/chat-settings" element={
+              <Protected role="super-admin">
+                <Suspense fallback={<PageLoader />}><ChatSettings /></Suspense>
+              </Protected>
+            } />
+            <Route path="admin/backups" element={
+              <Protected role="super-admin">
+                <Suspense fallback={<PageLoader />}><Backups /></Suspense>
+              </Protected>
+            } />
+
+            {/* DOB — birthdays for students, teachers and staff */}
+            <Route path="dob/students" element={
+              <Protected permission="birthdays.student.view">
+                <Suspense fallback={<PageLoader />}><StudentBirthdays /></Suspense>
+              </Protected>
+            } />
+            <Route path="dob/teachers" element={
+              <Protected permission="birthdays.teacher.view">
+                <Suspense fallback={<PageLoader />}><TeacherBirthdays /></Suspense>
+              </Protected>
+            } />
+            <Route path="dob/staff" element={
+              <Protected permission="birthdays.staff.view">
+                <Suspense fallback={<PageLoader />}><StaffBirthdays /></Suspense>
+              </Protected>
+            } />
+
+            {/* Bugs & Errors — every user can report + track their own */}
+            <Route path="bugs" element={
+              <Protected permission="bugs.view">
+                <Suspense fallback={<PageLoader />}><Bugs /></Suspense>
+              </Protected>
+            } />
           </Route>
           </Routes>
         </Suspense>
+        </ChatProvider>
       </AuthProvider>
+      </I18nProvider>
     </Router>
   );
 }

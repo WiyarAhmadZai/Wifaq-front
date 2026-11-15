@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { handleValidationErrors } from "../../utils/formErrors";
 
+import { DateField } from "../../components/hr/HrUI";
 export default function AcademicTermForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -15,6 +16,10 @@ export default function AcademicTermForm() {
     start_date: "",
     end_date: "",
     is_current: false,
+    semester1_start: "",
+    semester1_end: "",
+    semester2_start: "",
+    semester2_end: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -29,6 +34,8 @@ export default function AcademicTermForm() {
 
   const fetchTerm = async () => {
     setLoading(true);
+    const __cached = peekCache(`/academic-terms/show/${id}`);
+    if (__cached) { setFormData(__cached); setLoading(false); }
     try {
       const response = await get(`/academic-terms/show/${id}`);
       setFormData(response.data);
@@ -100,14 +107,27 @@ export default function AcademicTermForm() {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Start Date *</label>
-          <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} required className={getFieldClass("start_date")} />
+          <DateField name="start_date" value={formData.start_date} onChange={handleChange} required className={getFieldClass("start_date")} />
           {getFieldError("start_date") && <p className="text-red-500 text-[10px] mt-1">{getFieldError("start_date")}</p>}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">End Date *</label>
-          <input type="date" name="end_date" value={formData.end_date} onChange={handleChange} required className={getFieldClass("end_date")} />
+          <DateField name="end_date" value={formData.end_date} onChange={handleChange} required className={getFieldClass("end_date")} />
           {getFieldError("end_date") && <p className="text-red-500 text-[10px] mt-1">{getFieldError("end_date")}</p>}
         </div>
+        {/* Semesters — what the student report's "Semester 1 / 2" choice uses. */}
+        <div className="md:col-span-2 border-t border-gray-100 pt-4">
+          <p className="text-xs font-semibold text-gray-800">Semesters</p>
+          <p className="text-[11px] text-gray-500 mt-0.5">Used for semester-wise student reports. Leave empty if not needed.</p>
+        </div>
+        {[["semester1_start", "Semester 1 start"], ["semester1_end", "Semester 1 end"],
+          ["semester2_start", "Semester 2 start"], ["semester2_end", "Semester 2 end"]].map(([field, label]) => (
+          <div key={field}>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+            <DateField name={field} value={formData[field] || ""} onChange={handleChange} className={getFieldClass(field)} />
+            {getFieldError(field) && <p className="text-red-500 text-[10px] mt-1">{getFieldError(field)}</p>}
+          </div>
+        ))}
         <div className="md:col-span-2 flex items-center gap-2">
           <input type="checkbox" name="is_current" id="is_current" checked={formData.is_current} onChange={handleChange} className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500" />
           <label htmlFor="is_current" className="text-xs font-medium text-gray-700">Set as Current Term</label>

@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get } from "../../api/axios";
+import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
 
 export default function GradeShow() {
   const navigate = useNavigate();
@@ -17,6 +19,8 @@ export default function GradeShow() {
 
   const fetchGrade = async () => {
     setLoading(true);
+    const __cached = peekCache(`/grades/show/${id}`);
+    if (__cached) { setGrade(__cached?.data ?? __cached); setLoading(false); }
     try {
       const response = await get(`/grades/show/${id}`);
       setGrade(response.data?.data || response.data);
@@ -107,8 +111,8 @@ export default function GradeShow() {
         <div className="px-6 pb-5 pt-0 border-t border-gray-100 mt-2">
           <div className="flex flex-wrap gap-5 text-xs text-gray-400 pt-4">
             <span>ID: #{grade.id}</span>
-            <span>Created: {new Date(grade.created_at).toLocaleString()}</span>
-            <span>Updated: {new Date(grade.updated_at).toLocaleString()}</span>
+            <span>Created: {fmtDateTime(grade.created_at)}</span>
+            <span>Updated: {fmtDateTime(grade.updated_at)}</span>
           </div>
         </div>
       </div>

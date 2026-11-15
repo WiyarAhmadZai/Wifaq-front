@@ -1,9 +1,70 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { get, put, post, del } from "../../api/axios";
+import useSmartBack from "../../hooks/useSmartBack";
+import { get, put, post, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "../../api/axios";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+import { useAuth } from "../../admin/context/AuthContext";
+
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+
+import { DateField } from "../../components/hr/HrUI";
+import OnboardingWelcomeModal from "../../components/OnboardingWelcomeModal";
+
+/**
+ * Turn whatever an applicant typed into a social box into an openable URL.
+ *
+ * They rarely paste a full link — the real data in the table looks like
+ * `ahmad.sadat.edu`, a Facebook username. Wrapping that in an <a href> as-is
+ * produces a relative link that resolves against our own domain and 404s, so
+ * the value has to be classified first:
+ *
+ *   1. already absolute (http/https)      → use unchanged
+ *   2. a bare link (www. or the platform's
+ *      own domain)                        → prefix https://
+ *   3. anything else                      → treat as a handle and hang it off
+ *                                           the platform's profile base
+ *
+ * Returns null when there is nothing usable, so the caller renders plain text
+ * rather than a link that goes nowhere.
+ */
+const SOCIAL_BASES = {
+  Facebook:    { base: "https://facebook.com/",  hosts: ["facebook.com", "fb.com", "fb.me", "m.facebook.com"] },
+  Instagram:   { base: "https://instagram.com/", hosts: ["instagram.com", "instagr.am"] },
+  "Twitter/X": { base: "https://x.com/",         hosts: ["x.com", "twitter.com", "mobile.twitter.com"] },
+  YouTube:     { base: "https://youtube.com/",   hosts: ["youtube.com", "youtu.be", "m.youtube.com"] },
+};
+
+function socialUrl(platform, raw) {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+
+  const cfg = SOCIAL_BASES[platform];
+  if (!cfg) return null;
+
+  // 1. Already a full URL.
+  if (/^https?:\/\//i.test(value)) return value;
+
+  // 2. Looks like a link the user typed without the scheme.
+  const lower = value.toLowerCase();
+  if (lower.startsWith("www.") || cfg.hosts.some((h) => lower.startsWith(h) || lower.startsWith("m." + h))) {
+    return "https://" + value.replace(/^\/+/, "");
+  }
+
+  // 3. A handle. Strip a leading @ or slash; YouTube handles carry the @ in
+  //    the path, the others do not.
+  const handle = value.replace(/^[@/]+/, "");
+  if (!handle) return null;
+  return cfg.base + (platform === "YouTube" ? "@" + handle : handle);
+}
+
+const STEP_BAR_COLORS = {
+  blue: "bg-blue-300",
+  teal: "bg-teal-300",
+  cyan: "bg-cyan-300",
+  emerald: "bg-emerald-300",
+};
 
 const STEPS = [
   { key: "received", label: "Received", desc: "Application received", color: "blue", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
@@ -28,6 +89,7 @@ const DOCUMENT_TYPES = {
   identity_document: { label: "Identity Document", icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2", color: "teal" },
   educational_document: { label: "Educational Document", icon: "M12 14l9-5-9-5-9 5 9 5z", color: "teal" },
   work_samples: { label: "Work Samples", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z", color: "cyan" },
+  voice_introduction: { label: "Voice Introduction", icon: "M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 18v3m-3 0h6", color: "emerald" },
 };
 
 const SCREENING_CHECKLIST = [
@@ -39,10 +101,191 @@ const SCREENING_CHECKLIST = [
   { id: "experience_relevant", label: "Work experience is relevant to role" },
 ];
 
+/* 1–5 star control. Read-only when `onChange` is omitted, which is how other
+ * reviewers' ratings are rendered in the feedback list. */
+const StarRating = ({ value = 0, onChange, size = "w-7 h-7" }) => (
+  <div className="flex items-center gap-1">
+    {[1, 2, 3, 4, 5].map((n) => (
+      <button
+        key={n}
+        type="button"
+        disabled={!onChange}
+        onClick={() => onChange?.(n)}
+        title={onChange ? `${n} star${n > 1 ? "s" : ""}` : undefined}
+        aria-label={`${n} star${n > 1 ? "s" : ""}`}
+        className={onChange ? "transition-transform hover:scale-110 cursor-pointer" : "cursor-default"}
+      >
+        <svg className={`${size} ${n <= value ? "text-amber-400" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      </button>
+    ))}
+  </div>
+);
+
+const EMPTY_REVIEW = { rating: 0, recommendation: "", comment: "", flagged_to_hr: false };
+
+/* The applicant's picked options, in the words the form showed them. */
+const HOW_HEARD_TEXT = { social_media: "Social media", friend: "Friend or acquaintance", job_ad: "Job advertisement", website: "Wifaq website", other: "Other" };
+const howHeardText = (v) => (v ? HOW_HEARD_TEXT[v] || v : "");
+const SCENARIO_TEXT = { a: "Take firm disciplinary action to keep order in the class", b: "Try to understand the root cause of the student’s behaviour", c: "Involve the parents or guardians to address the issue", d: "Change my teaching approach to connect better with the student" };
+const scenarioText = (v) => (v ? SCENARIO_TEXT[v] || v : "");
+
+/* One labelled value; an empty answer says so instead of vanishing. */
+function AnswerRow({ label, value, wide = false, plain = false }) {
+  const empty = value == null || value === "" || (Array.isArray(value) && value.length === 0);
+  return (
+    <div className={wide ? "sm:col-span-2" : ""}>
+      <p className="text-xs text-gray-500 font-semibold mb-1">{label}</p>
+      <div className={plain ? "" : "p-3 bg-gray-50 rounded-xl"}>
+        {empty
+          ? <p className="text-sm text-gray-400 italic">Not answered</p>
+          : <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line break-words" dir="auto" data-no-i18n>{value}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* A titled block of the application, numbered like the form's steps. */
+function AnswerBlock({ n, title, children }) {
+  return (
+    <section className="rounded-xl border border-gray-200 overflow-hidden">
+      <h3 className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-sm font-bold text-gray-800 flex items-center gap-2">
+        <span className="w-6 h-6 rounded-lg bg-teal-600 text-white text-[11px] flex items-center justify-center" data-no-i18n>{n}</span>
+        <span>{title}</span>
+      </h3>
+      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * The whole application exactly as the applicant submitted it — every step of
+ * the public form, every answer — so the first review step needs nothing else.
+ */
+function SubmittedApplication({ data, formatDate }) {
+  const gender = data.gender === "male" ? "Male" : data.gender === "female" ? "Female" : "";
+  const exps = data.work_experiences || data.workExperiences || [];
+  const skills = (data.unique_skill || []).filter(Boolean);
+  let n = 0;
+  return (
+    <div className="space-y-4">
+      <AnswerBlock n={++n} title="About You">
+        <AnswerRow plain label="Full Name" value={data.full_name} />
+        <AnswerRow plain label="Contact Number" value={data.contact_number} />
+        <AnswerRow plain label="Email" value={data.email} />
+        <AnswerRow plain label="Tazkira Number" value={data.national_id} />
+        <AnswerRow plain label="Date of Birth" value={data.date_of_birth ? formatDate(data.date_of_birth) : ""} />
+        <div>
+          <p className="text-xs text-gray-500 font-semibold mb-1">Gender</p>
+          {gender ? <p className="text-sm text-gray-800">{gender}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+        </div>
+        <AnswerRow plain label="Native Language" value={data.native_language} />
+        <AnswerRow plain label="Place of Origin" value={data.place_of_origin} />
+        <AnswerRow plain label="Current Address" value={data.current_address} wide />
+        <AnswerRow label="Introduction" value={data.introduction} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Social Media">
+        {[["Facebook", data.facebook], ["Instagram", data.instagram], ["Twitter/X", data.twitter_x], ["YouTube", data.youtube]].map(([label, v]) => {
+          const href = socialUrl(label, v);
+          return (
+            <div key={label}>
+              <p className="text-xs text-gray-500 font-semibold mb-1">{label}</p>
+              {href
+                ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all" data-no-i18n>{v}</a>
+                : v ? <p className="text-sm text-gray-800 break-all" data-no-i18n>{v}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+            </div>
+          );
+        })}
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Motivation">
+        <AnswerRow label="Motivation for This Role" value={data.motivation} wide />
+        <div className="sm:col-span-2">
+          <p className="text-xs text-gray-500 font-semibold mb-1">Unique Skills</p>
+          {skills.length
+            ? <div className="flex flex-wrap gap-2">{skills.map((sk, i) => <span key={i} className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm" dir="auto" data-no-i18n>{sk}</span>)}</div>
+            : <p className="text-sm text-gray-400 italic">Not answered</p>}
+        </div>
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Education">
+        <AnswerRow plain label="Education Level" value={data.education_level ? data.education_level.replace(/_/g, " ") : ""} />
+        <AnswerRow plain label="Field of Study" value={data.field_of_study} />
+        <AnswerRow plain label="Institution Name" value={data.institution_name} />
+        <div>
+          <p className="text-xs text-gray-500 font-semibold mb-1">Total Experience</p>
+          <p className="text-sm text-gray-800"><span data-no-i18n>{data.total_experience_years || 0}</span> <span>years</span></p>
+        </div>
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Work Experience">
+        <div className="sm:col-span-2 space-y-3">
+          {exps.length ? exps.map((exp, i) => (
+            <div key={i} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex justify-between items-start gap-2 mb-1">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800" dir="auto" data-no-i18n>{exp.job_title || "—"}</p>
+                  <p className="text-sm text-gray-600" dir="auto" data-no-i18n>{exp.company_name || "—"}</p>
+                </div>
+                {exp.duration && <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded shrink-0" dir="auto" data-no-i18n>{exp.duration}</span>}
+              </div>
+              {exp.responsibilities && <p className="text-sm text-gray-700 whitespace-pre-line break-words" dir="auto" data-no-i18n>{exp.responsibilities}</p>}
+            </div>
+          )) : <p className="text-sm text-gray-400 italic">No work experience provided</p>}
+        </div>
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="About Wifaq">
+        <AnswerRow label="Your key talents and skills" value={data.key_skills} wide />
+        <div>
+          <p className="text-xs text-gray-500 font-semibold mb-1">How did you hear about Wifaq?</p>
+          {data.how_heard ? <p className="text-sm text-gray-800">{howHeardText(data.how_heard)}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+        </div>
+        <AnswerRow label="Do you know anyone at Wifaq?" value={data.known_person} />
+        <AnswerRow label="What do you know about the Wifaq Education Network?" value={data.about_wifaq} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Values & attitude">
+        <div className="sm:col-span-2">
+          <p className="text-xs text-gray-500 font-semibold mb-1">A student is persistently disruptive in class and shows little interest in learning. What do you do?</p>
+          <div className="p-3 bg-gray-50 rounded-xl">
+            {data.scenario_answer ? <p className="text-sm text-gray-800">{scenarioText(data.scenario_answer)}</p> : <p className="text-sm text-gray-400 italic">Not answered</p>}
+          </div>
+        </div>
+        <AnswerRow label="How do you define responsibility?" value={data.responsibility_definition} wide />
+        <AnswerRow label="Describe a time you went beyond your basic duty" value={data.beyond_duty_example} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Life principles & self-discipline">
+        <AnswerRow label="Who or what inspires you most in life?" value={data.inspiration} wide />
+        <AnswerRow label="What are your core principles and values?" value={data.life_principles} wide />
+        <AnswerRow label="How do you manage your time and daily work?" value={data.time_management} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Vision & awareness">
+        <AnswerRow label="What are the two major problems in the world today that you think need to be solved?" value={data.world_problems} wide />
+        <AnswerRow label="What is one major problem in Afghanistan that must be solved?" value={data.afghanistan_problem} wide />
+        <AnswerRow label="What are the two things you think you can do to bring positive change to the world?" value={data.positive_change} wide />
+      </AnswerBlock>
+
+      <AnswerBlock n={++n} title="Additional Comments">
+        <AnswerRow label="Additional Comments" value={data.notes} wide />
+      </AnswerBlock>
+    </div>
+  );
+}
+
 export default function ApplicationShow() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { canUpdate, canDelete } = useResourcePermissions("applications");
+  // Back returns to wherever the user came from — the filtered/paginated
+  // list, a dashboard, a search hit — not always to the top of the module.
+  const goBack = useSmartBack("/recruitment/applications");
+  const { canCreate, canUpdate, canDelete } = useResourcePermissions("applications");
+  // Reviewer identity comes from the session — never typed in.
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checklist, setChecklist] = useState({});
@@ -50,6 +293,11 @@ export default function ApplicationShow() {
   const [activeTab, setActiveTab] = useState("overview");
   const [viewingDoc, setViewingDoc] = useState(null); // Document being viewed in modal
   const [documents, setDocuments] = useState([]); // Separate state for documents
+  /* What WEN already knows about this person: earlier applications, the
+   * candidate pools they sit in, and any staff record from a time they worked
+   * here. Three records that never used to be connected, so a returning
+   * colleague was screened as a stranger. */
+  const [history, setHistory] = useState(null);
 
   // Interview scheduling state for Shortlisted stage
   const [interviewData, setInterviewData] = useState({
@@ -81,6 +329,9 @@ export default function ApplicationShow() {
   });
   const [existingOffer, setExistingOffer] = useState(null);
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  // The welcome-message prompt. Opens by itself the moment the candidate is
+  // hired, and can be reopened from the hired banner for a re-send.
+  const [showWelcomeCompose, setShowWelcomeCompose] = useState(false);
   const [offerMode, setOfferMode] = useState("form"); // "form" | "view"
   const [pendingResponsibilityFile, setPendingResponsibilityFile] = useState(null);
 
@@ -93,6 +344,12 @@ export default function ApplicationShow() {
   const [showPoolModal, setShowPoolModal] = useState(false);
   const [selectedPoolId, setSelectedPoolId] = useState("");
   const [poolNotes, setPoolNotes] = useState("");
+
+  // Reviewer screening feedback state
+  const [reviews, setReviews] = useState([]);
+  const [reviewsMeta, setReviewsMeta] = useState(null);
+  const [reviewForm, setReviewForm] = useState(EMPTY_REVIEW);
+  const [isSavingReview, setIsSavingReview] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -115,10 +372,20 @@ export default function ApplicationShow() {
 
   const fetchData = async () => {
     setLoading(true);
+    const __cached = peekCache(`/recruitment/applications/${id}`);
+    if (__cached) {
+      const appData = __cached?.data || __cached;
+      setData(appData);
+      if (appData?.documents) {
+        setDocuments(appData.documents);
+      }
+      setLoading(false);
+    }
     try {
       const response = await get(`/recruitment/applications/${id}`);
       const appData = response.data?.data || response.data;
       setData(appData);
+      setHistory(response.data?.history || null);
       if (appData?.documents) {
         setDocuments(appData.documents);
       }
@@ -158,6 +425,86 @@ export default function ApplicationShow() {
       const res = await get(`/recruitment/applications/${id}/pools`);
       setCandidatePools(res.data?.data || []);
     } catch {}
+  };
+
+  /* Reviews are re-fetched when the signed-in user resolves, so "my review"
+   * can be identified and pre-loaded into the form. */
+  useEffect(() => {
+    if (id) fetchReviews();
+  }, [id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchReviews = async () => {
+    try {
+      const res = await get(`/recruitment/applications/${id}/reviews`);
+      const list = res.data?.data || [];
+      setReviews(list);
+      setReviewsMeta(res.data?.meta || null);
+
+      // Pre-load this reviewer's own feedback so saving edits it rather than
+      // looking like a blank slate — the API upserts on (application, reviewer).
+      const mine = list.find((r) => r.reviewer_id === user?.id);
+      setReviewForm(mine
+        ? {
+            rating: mine.rating || 0,
+            recommendation: mine.recommendation || "",
+            comment: mine.comment || "",
+            flagged_to_hr: !!mine.flagged_to_hr,
+          }
+        : EMPTY_REVIEW);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+    }
+  };
+
+  const handleSaveReview = async () => {
+    if (!reviewForm.rating) {
+      Swal.fire("Rating required", "Please select a rating from 1 to 5 stars.", "error");
+      return;
+    }
+    if (!reviewForm.recommendation) {
+      Swal.fire("Recommendation required", "Please choose Recommend or Not Recommend.", "error");
+      return;
+    }
+
+    setIsSavingReview(true);
+    try {
+      const res = await post(`/recruitment/applications/${id}/reviews`, reviewForm);
+      if (res.data?.success) {
+        await fetchReviews();
+        Swal.fire({
+          title: "Saved!",
+          text: res.data.message || "Your review has been saved",
+          icon: "success",
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to save your review", "error");
+    } finally {
+      setIsSavingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId) => {
+    const result = await Swal.fire({
+      title: "Delete your review?",
+      text: "Your rating, recommendation and comment will be removed.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Delete",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      await del(`/recruitment/applications/${id}/reviews/${reviewId}`);
+      await fetchReviews();
+    } catch (error) {
+      Swal.fire("Error", error.response?.data?.message || "Failed to delete review", "error");
+    }
   };
 
   const fetchAvailablePools = async () => {
@@ -211,7 +558,11 @@ export default function ApplicationShow() {
 
     setIsUpdating(true);
     try {
-      await put(`/recruitment/applications/${id}`, { ...data, status: newStatus});
+      // Send ONLY the status. Posting the whole record made update() see a
+      // work_experiences array and delete/recreate every row on each stage
+      // move, churning ids and leaving soft-deleted orphans. Every rule in
+      // UpdateApplicationRequest is `sometimes`, so a lone status validates.
+      await put(`/recruitment/applications/${id}`, { status: newStatus });
       setData((prev) => ({ ...prev, status: newStatus }));
       Swal.fire({
         title: "Updated!",
@@ -465,9 +816,16 @@ export default function ApplicationShow() {
   const handleOfferResponse = async (response) => {
     const messages = {
       accepted: { title: "Confirm Hiring", text: `Are you sure you want to hire ${data.full_name}? This will finalize the recruitment process and send a welcome email.`, confirmText: "Yes, Hire", color: "#059669" },
+      // Kept as a map so declined / negotiated can be wired back in without
+      // reshaping the handler. Reading msg.title off an unknown key used to
+      // throw before the confirm dialog ever opened.
     };
 
     const msg = messages[response];
+    if (!msg) {
+      Swal.fire("Error", `Unsupported offer response: ${response}`, "error");
+      return;
+    }
     const confirmResult = await Swal.fire({
       title: msg.title,
       text: msg.text,
@@ -492,13 +850,18 @@ export default function ApplicationShow() {
         setData((prev) => ({ ...prev, status: "hired" }));
         setExistingOffer(res.data.data);
 
-        Swal.fire({
+        await Swal.fire({
           title: "Hired!",
-          text: `${data.full_name} has been successfully hired. A welcome email has been sent.`,
+          text: `${data.full_name} has been successfully hired. Next: send the welcome message.`,
           icon: "success",
-          timer: 2500,
+          timer: 2000,
           showConfirmButton: false,
         });
+
+        // HR is prompted rather than left to remember: the welcome message
+        // carries the orientation link AND the quiz link, and HR chooses the
+        // name and the language(s) it goes out in.
+        setShowWelcomeCompose(true);
       }
     } catch (error) {
       Swal.fire("Error", error.response?.data?.message || "Failed to record response", "error");
@@ -660,8 +1023,8 @@ export default function ApplicationShow() {
   const currentStep = STEPS[getCurrentStepIndex()] || STEPS[0];
   const colors = COLOR_STYLES[currentStep.color] || COLOR_STYLES.teal;
 
-  const formatDate = (date) => date ? new Date(date).toLocaleDateString() : "—";
-  const formatDateTime = (date) => date ? new Date(date).toLocaleString() : "—";
+  const formatDate = (date) => date ? fmtDate(date) : "—";
+  const formatDateTime = (date) => date ? fmtDateTime(date) : "—";
 
   if (loading) {
     return (
@@ -717,7 +1080,7 @@ export default function ApplicationShow() {
     <div className="px-4 py-6 mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/recruitment/applications")} className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
+        <button onClick={goBack} className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
@@ -772,7 +1135,7 @@ export default function ApplicationShow() {
                   </span>
                 </div>
                 {idx < STEPS.length - 1 && (
-                  <div className={`h-1 flex-1 mx-4 rounded-full ${isPast ? `bg-${step.color}-300` : "bg-gray-200"}`} />
+                  <div className={`h-1 flex-1 mx-4 rounded-full ${isPast ? (STEP_BAR_COLORS[step.color] || "bg-gray-300") : "bg-gray-200"}`} />
                 )}
               </div>
             );
@@ -786,6 +1149,87 @@ export default function ApplicationShow() {
         <TabButton tab="full-info" label="Full Application" icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         <TabButton tab="documents" label={`Documents (${documents?.length || 0})`} icon="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </div>
+
+      {/* We have met this person before — say so before anyone starts
+          screening them from scratch. */}
+      {activeTab === "overview" && history?.has_history && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="px-6 py-3 border-b border-amber-200/70 flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-sm font-bold text-amber-900">WEN has met this applicant before</h3>
+          </div>
+          <div className="p-5 space-y-4">
+
+            {history.former_staff?.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider mb-2">Worked at WEN</p>
+                <div className="space-y-2">
+                  {history.former_staff.map(s => (
+                    <div key={s.id} className="bg-white rounded-xl border border-amber-200 px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-800">{s.role || 'Staff'} — {s.employee_id}</span>
+                        {s.branch && <span className="text-[11px] text-gray-500">{s.branch}</span>}
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{s.status}</span>
+                      </div>
+                      {s.termination_reason_label && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          Left: {s.termination_reason_label}{s.exit_date ? ` (${s.exit_date})` : ''}
+                        </p>
+                      )}
+                      {/* The whole point of recording the reason: whether this
+                          person can be taken back is answered before, not after,
+                          the interview. */}
+                      <p className={`text-xs font-semibold mt-1 ${s.rehire_eligible === true ? 'text-green-700' : s.rehire_eligible === false ? 'text-red-700' : 'text-gray-500'}`}>
+                        {s.rehire_eligible === true ? '✓ Eligible for rehire'
+                          : s.rehire_eligible === false ? '✕ Not eligible for rehire'
+                          : '• Rehire eligibility not decided'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {history.previous_applications?.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider mb-2">
+                  <span>Earlier applications</span> ({history.previous_applications.length})
+                </p>
+                <div className="space-y-1.5">
+                  {history.previous_applications.map(p => (
+                    <button key={p.id} type="button" onClick={() => navigate(`/recruitment/applications/show/${p.id}`)}
+                      className="w-full text-left bg-white rounded-xl border border-amber-200 px-4 py-2.5 hover:border-amber-400 transition-colors">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm text-gray-800">{p.position || 'Position not recorded'}</span>
+                        <span className="text-[11px] text-gray-500">{p.applied_at}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        <span className="capitalize">{String(p.status || '').replace(/_/g, ' ')}</span>
+                        {p.matched_on?.length > 0 && <> · same {p.matched_on.join(', ')}</>}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {history.candidate_pools?.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider mb-2">Already in the candidate registry</p>
+                <div className="flex flex-wrap gap-2">
+                  {history.candidate_pools.map((p, i) => (
+                    <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white border border-amber-200 text-gray-700">
+                      {p.pool}{p.category ? ` · ${p.category}` : ''}{p.rating ? ` · ${p.rating}★` : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* OVERVIEW TAB */}
       {activeTab === "overview" && (
@@ -809,35 +1253,12 @@ export default function ApplicationShow() {
                 </div>
                 
                 <div className="p-6 bg-white">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Applied For</p>
-                      <p className="text-sm font-medium text-gray-800">{data.job_posting?.title || "—"}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Contact</p>
-                      <p className="text-sm font-medium text-gray-800">{data.contact_number || "—"}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Date of Birth</p>
-                      <p className="text-sm font-medium text-gray-800">{formatDate(data.date_of_birth)}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</p>
-                      <p className="text-sm font-medium text-gray-800">{data.email || "—"}</p>
-                    </div>
+                  <div className="p-4 mb-5 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Applied For</p>
+                    <p className="text-sm font-medium text-gray-800" data-no-i18n>{data.job_posting?.title || "—"}</p>
                   </div>
-
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Introduction</p>
-                      <p className="text-sm text-gray-700 leading-relaxed">{data.introduction || "No introduction provided"}</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Motivation</p>
-                      <p className="text-sm text-gray-700 leading-relaxed">{data.motivation || "No motivation provided"}</p>
-                    </div>
-                  </div>
+                  {/* Everything the applicant submitted, step by step as they filled it. */}
+                  <SubmittedApplication data={data} formatDate={formatDate} />
 
                   {canUpdate && (
                     <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100">
@@ -1068,12 +1489,10 @@ export default function ApplicationShow() {
                       {/* Interview Date */}
                       <div>
                         <label className="text-xs text-gray-500 mb-1.5 block">Interview Date</label>
-                        <input
-                          type="date"
+                        <DateField
                           value={interviewData.interview_date}
                           onChange={(e) => setInterviewData({ ...interviewData, interview_date: e.target.value })}
-                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                        />
+                          className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
                       </div>
 
                       {/* Interview Time */}
@@ -1185,7 +1604,7 @@ export default function ApplicationShow() {
                         </div>
                         <div>
                           <p className="text-xs text-cyan-600 mb-1">Date</p>
-                          <p className="text-sm font-medium text-gray-800">{interviewSchedule.interview_date}</p>
+                          <p className="text-sm font-medium text-gray-800">{fmtDate(interviewSchedule.interview_date)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-cyan-600 mb-1">Time</p>
@@ -1480,8 +1899,17 @@ export default function ApplicationShow() {
                           </button>
                         )}
 
-                        {/* Accept & Confirm Hiring - only for sent or draft */}
-                        {["draft", "sent"].includes(existingOffer.status) && (
+                        {/* Confirm hiring.
+                          *
+                          * Also shown when the offer is already `accepted` but the
+                          * application never reached `hired`. That combination used to
+                          * be a dead end: the button was gated on draft/sent only, so
+                          * the moment an offer was marked accepted without the hire
+                          * going through, the last step vanished and nothing on the
+                          * page could finish the recruitment. The endpoint is
+                          * idempotent, so re-confirming is safe. */}
+                        {(["draft", "sent"].includes(existingOffer.status) ||
+                          (existingOffer.status === "accepted" && !isHired)) && (
                           <button
                             onClick={() => handleOfferResponse("accepted")}
                             disabled={isSubmittingOffer}
@@ -1490,7 +1918,11 @@ export default function ApplicationShow() {
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
-                            {isSubmittingOffer ? "Processing..." : "Accept & Confirm Hiring"}
+                            {isSubmittingOffer
+                              ? "Processing..."
+                              : existingOffer.status === "accepted"
+                                ? "Complete Hiring"
+                                : "Accept & Confirm Hiring"}
                           </button>
                         )}
                       </div>
@@ -1559,12 +1991,10 @@ export default function ApplicationShow() {
                         {/* Start Date */}
                         <div>
                           <label className="text-xs text-gray-500 mb-1.5 block">Start Date *</label>
-                          <input
-                            type="date"
+                          <DateField
                             value={offerData.start_date}
                             onChange={(e) => setOfferData({ ...offerData, start_date: e.target.value })}
-                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                          />
+                            className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
                         </div>
 
                         {/* Daily Hours */}
@@ -1781,6 +2211,26 @@ export default function ApplicationShow() {
                   </div>
                 </div>
 
+                {/* Onboarding welcome message — sent once at hire, re-sendable
+                    here. Carries the orientation link and the quiz link. */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-gray-800">Welcome message</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Orientation link and onboarding quiz, in the language(s) you choose.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowWelcomeCompose(true)}
+                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Compose &amp; send
+                  </button>
+                </div>
+
                 {/* Hiring Details */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
                   {/* Candidate Card */}
@@ -1943,6 +2393,207 @@ export default function ApplicationShow() {
                 <p className="text-sm text-gray-500">Application is in {data.status?.replace(/_/g, " ")} stage</p>
               </div>
             )}
+
+            {/* ── REVIEWER SCREENING FEEDBACK ──────────────────────────────
+              * Independent per-reviewer feedback. Shown at every stage, so a
+              * second opinion can be recorded whenever it is formed. */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-800">Reviewer Screening Feedback</h2>
+                    <p className="text-xs text-gray-500">Each reviewer records their own independent assessment</p>
+                  </div>
+                </div>
+                {reviewsMeta?.total > 0 && (
+                  <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-semibold flex-shrink-0">
+                    {reviewsMeta.total} review{reviewsMeta.total === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+
+              {/* Aggregate across all reviewers */}
+              {reviewsMeta?.total > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-4 bg-gray-50/60 border-b border-gray-100">
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Average</p>
+                    <p className="text-lg font-bold text-amber-500">{reviewsMeta.average_rating || 0} <span className="text-xs text-gray-400">/ 5</span></p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Recommend</p>
+                    <p className="text-lg font-bold text-emerald-600">{reviewsMeta.recommended || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Not Recommend</p>
+                    <p className="text-lg font-bold text-red-500">{reviewsMeta.not_recommended || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Flagged to HR</p>
+                    <p className="text-lg font-bold text-orange-500">{reviewsMeta.flagged_to_hr || 0}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* This reviewer's own feedback */}
+              {(canCreate || canUpdate) && (
+                <div className="p-6 space-y-5 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-[10px] flex-shrink-0">
+                      {(user?.name || "?").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Reviewing as <span className="font-semibold text-gray-800">{user?.name || "current user"}</span>
+                      {reviewsMeta?.my_review_id ? " — editing your existing review" : ""}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Rating <span className="text-red-400">*</span></p>
+                    <div className="flex items-center gap-3">
+                      <StarRating value={reviewForm.rating} onChange={(n) => setReviewForm((p) => ({ ...p, rating: n }))} />
+                      <span className="text-xs text-gray-400">{reviewForm.rating ? `${reviewForm.rating} / 5` : "Not rated yet"}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Recommendation <span className="text-red-400">*</span></p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setReviewForm((p) => ({ ...p, recommendation: "up" }))}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                          reviewForm.recommendation === "up"
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-700 ring-2 ring-emerald-100"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300"
+                        }`}
+                      >
+                        <span className="text-base">👍</span> Recommend
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReviewForm((p) => ({ ...p, recommendation: "down" }))}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                          reviewForm.recommendation === "down"
+                            ? "bg-red-50 border-red-300 text-red-700 ring-2 ring-red-100"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-red-300"
+                        }`}
+                      >
+                        <span className="text-base">👎</span> Not Recommend
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Comment</p>
+                    <textarea
+                      value={reviewForm.comment}
+                      onChange={(e) => setReviewForm((p) => ({ ...p, comment: e.target.value }))}
+                      rows={4}
+                      maxLength={5000}
+                      placeholder="Your assessment of this candidate — strengths, concerns, anything the panel should know…"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white outline-none transition-colors placeholder-gray-400"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all bg-white border-gray-200 hover:border-orange-300">
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={reviewForm.flagged_to_hr}
+                      onChange={(e) => setReviewForm((p) => ({ ...p, flagged_to_hr: e.target.checked }))}
+                    />
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${reviewForm.flagged_to_hr ? "bg-orange-500 border-orange-500" : "border-gray-300"}`}>
+                      {reviewForm.flagged_to_hr && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className={`text-sm ${reviewForm.flagged_to_hr ? "text-orange-700 font-medium" : "text-gray-700"}`}>
+                      Flag this applicant for HR attention
+                    </span>
+                  </label>
+
+                  <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSaveReview}
+                      disabled={isSavingReview}
+                      className="flex-1 py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {isSavingReview ? "Saving..." : reviewsMeta?.my_review_id ? "Update My Review" : "Submit My Review"}
+                    </button>
+                    {reviewsMeta?.my_review_id && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReview(reviewsMeta.my_review_id)}
+                        className="px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-semibold text-sm hover:bg-red-100 transition-all"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Every reviewer's feedback, newest first */}
+              <div className="p-6">
+                {reviews.length > 0 ? (
+                  <div className="space-y-3">
+                    {reviews.map((rev) => {
+                      const isMine = rev.reviewer_id === user?.id;
+                      const reviewerName = rev.reviewer?.name || "Unknown reviewer";
+                      return (
+                        <div key={rev.id} className={`p-4 rounded-xl border ${isMine ? "bg-teal-50/40 border-teal-200" : "bg-gray-50 border-gray-200"}`}>
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 font-bold text-[10px] flex-shrink-0">
+                                {reviewerName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">
+                                  {reviewerName}
+                                  {isMine && <span className="ml-2 px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded text-[9px] font-bold uppercase">You</span>}
+                                </p>
+                                <p className="text-[10px] text-gray-400">{formatDateTime(rev.created_at)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <StarRating value={rev.rating || 0} size="w-4 h-4" />
+                              {rev.recommendation === "up" && (
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-semibold">👍 Recommend</span>
+                              )}
+                              {rev.recommendation === "down" && (
+                                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] font-semibold">👎 Not Recommend</span>
+                              )}
+                              {rev.flagged_to_hr && (
+                                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-semibold">⚑ Flagged to HR</span>
+                              )}
+                            </div>
+                          </div>
+                          {rev.comment && (
+                            <p className="text-sm text-gray-700 leading-relaxed mt-3 whitespace-pre-line">{rev.comment}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-500">No reviewer feedback yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Be the first to record an assessment for this applicant.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Sidebar */}
@@ -2316,6 +2967,18 @@ export default function ApplicationShow() {
                   <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Current Address</p>
                   <p className="text-sm text-gray-700">{data.current_address || "—"}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Tazkira Number</p>
+                  <p className="text-sm font-medium text-gray-800" data-no-i18n>{data.national_id || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Gender</p>
+                  <p className="text-sm text-gray-700">{data.gender === "male" ? "Male" : data.gender === "female" ? "Female" : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Native Language</p>
+                  <p className="text-sm text-gray-700" dir="auto" data-no-i18n>{data.native_language || "—"}</p>
+                </div>
               </div>
               <div className="mt-6">
                 <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Introduction</p>
@@ -2343,19 +3006,56 @@ export default function ApplicationShow() {
                   { label: "Instagram", value: data.instagram, icon: "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" },
                   { label: "Twitter/X", value: data.twitter_x, icon: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" },
                   { label: "YouTube", value: data.youtube, icon: "M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
-                      <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-                        <path d={item.icon} />
-                      </svg>
+                ].map((item) => {
+                  const href = socialUrl(item.label, item.value);
+                  // Same tile either way; only a usable value becomes a link,
+                  // so "Not provided" is never clickable.
+                  const inner = (
+                    <>
+                      <div className={`w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0 ${
+                        href ? "group-hover:bg-blue-50" : ""}`}>
+                        <svg className={`w-4 h-4 ${href ? "text-gray-600 group-hover:text-blue-600" : "text-gray-400"}`}
+                          fill="currentColor" viewBox="0 0 24 24">
+                          <path d={item.icon} />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500">{item.label}</p>
+                        <p className={`text-sm font-medium truncate ${
+                          href ? "text-blue-600 group-hover:text-blue-700 group-hover:underline" : "text-gray-400"}`}>
+                          {item.value || "Not provided"}
+                        </p>
+                      </div>
+                      {href && (
+                        <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-600 flex-shrink-0"
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      )}
+                    </>
+                  );
+
+                  return href ? (
+                    <a
+                      key={item.label}
+                      href={href}
+                      target="_blank"
+                      // noopener: without it the opened page can reach back
+                      // through window.opener and navigate this tab. These are
+                      // URLs typed by an applicant, so they are untrusted.
+                      rel="noopener noreferrer"
+                      title={`Open ${item.label} — ${href}`}
+                      className="group flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-blue-50/60 transition-colors"
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <div key={item.label} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                      {inner}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-500">{item.label}</p>
-                      <p className="text-sm font-medium text-gray-800">{item.value || "Not provided"}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2389,6 +3089,43 @@ export default function ApplicationShow() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Application Answers — everything else the applicant wrote */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-gray-800">Application Answers</h2>
+            </div>
+            <div className="p-6 space-y-6">
+              {[
+                  { title: "About Wifaq", items: [{ q: "Your key talents and skills", v: data.key_skills }, { q: "How did you hear about Wifaq?", v: howHeardText(data.how_heard) }, { q: "What do you know about the Wifaq Education Network?", v: data.about_wifaq }, { q: "Do you know anyone at Wifaq?", v: data.known_person }] },
+                  { title: "Values & attitude", items: [{ q: "A student is persistently disruptive in class and shows little interest in learning. What do you do?", v: scenarioText(data.scenario_answer) }, { q: "How do you define responsibility?", v: data.responsibility_definition }, { q: "Describe a time you went beyond your basic duty", v: data.beyond_duty_example }] },
+                  { title: "Life principles & self-discipline", items: [{ q: "Who or what inspires you most in life?", v: data.inspiration }, { q: "What are your core principles and values?", v: data.life_principles }, { q: "How do you manage your time and daily work?", v: data.time_management }] },
+                  { title: "Vision & awareness", items: [{ q: "What are the two major problems in the world today that you think need to be solved?", v: data.world_problems }, { q: "What is one major problem in Afghanistan that must be solved?", v: data.afghanistan_problem }, { q: "What are the two things you think you can do to bring positive change to the world?", v: data.positive_change }] },
+                  { title: null, items: [{ q: "Additional Comments", v: data.notes }] },
+                ].map((g, gi) => (
+                <div key={gi}>
+                  {g.title && <h3 className="text-sm font-bold text-indigo-700 mb-3">{g.title}</h3>}
+                  <div className="space-y-3">
+                    {g.items.map((it) => (
+                      <div key={it.q}>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">{it.q}</p>
+                        <div className="p-3 bg-gray-50 rounded-xl">
+                          {it.v
+                            ? <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line break-words" dir="auto">{it.v}</p>
+                            : <p className="text-sm text-gray-400 italic">Not answered</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -2587,6 +3324,14 @@ export default function ApplicationShow() {
                   alt="Document"
                   className="max-w-full max-h-[70vh] rounded-lg shadow-lg"
                 />
+              ) : viewingDoc.document_type === "voice_introduction" || viewingDoc.file_url?.match(/\.(webm|ogg|m4a|mp3|wav|aac)$/i) ? (
+                <div className="w-full max-w-xl text-center p-8 bg-white rounded-xl shadow-sm">
+                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 18v3m-3 0h6" /></svg>
+                  </div>
+                  <p className="text-gray-700 font-medium mb-4">Voice Introduction</p>
+                  <audio controls src={getDocumentUrl(viewingDoc.file_url)} className="w-full" />
+                </div>
               ) : (
                 <div className="text-center p-8">
                   <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2621,6 +3366,14 @@ export default function ApplicationShow() {
             </div>
           </div>
         </div>
+      )}
+
+      {showWelcomeCompose && (
+        <OnboardingWelcomeModal
+          applicationId={id}
+          initialName={data.full_name}
+          onClose={() => setShowWelcomeCompose(false)}
+        />
       )}
     </div>
   );

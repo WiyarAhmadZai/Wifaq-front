@@ -1,8 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { put } from "../../api/axios";
+import { put, get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import CrudPage from "../../components/CrudPage";
+
+import { fmtDate } from "../../utils/formErrors";
+import StudentAvatar from "../../components/students/StudentAvatar";
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+];
+
+const SPECIAL_STATUS_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "orphan", label: "Orphan" },
+  { value: "employee_child", label: "Employee child" },
+  { value: "fourth_child", label: "Fourth child" },
+];
 
 const specialStatusBadge = (val) => {
   if (!val || val === "none") return <span className="text-xs text-gray-400">—</span>;
@@ -197,6 +212,22 @@ function TransferStepsModal({ student, onClose, onSaved }) {
 export default function Students() {
   const [transferStudent, setTransferStudent] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [grades, setGrades] = useState([]);
+  const [classes, setClasses] = useState([]);
+  useEffect(() => {
+    const __g = peekCache("/grades/list");
+    if (__g) setGrades((__g?.data || __g || []).map((g) => ({ value: g.id, label: g.name })));
+    const __c = peekCache("/class-management/classes/list?per_page=1000");
+    if (__c) setClasses((__c?.data || __c || []).map((c) => ({ value: c.id, label: c.class_name })));
+    get("/grades/list").then((r) => setGrades((r.data?.data || r.data || []).map((g) => ({ value: g.id, label: g.name })))).catch(() => {});
+    get("/class-management/classes/list?per_page=1000").then((r) => setClasses((r.data?.data || r.data || []).map((c) => ({ value: c.id, label: c.class_name })))).catch(() => {});
+  }, []);
+  const studentFilters = [
+    { key: "grade_id", label: "Grade", options: grades },
+    { key: "class_id", label: "Class", options: classes },
+    { key: "gender", label: "Gender", options: GENDER_OPTIONS },
+    { key: "special_status", label: "Special status", options: SPECIAL_STATUS_OPTIONS },
+  ];
 
   const transferColumn = {
     key: "transfer_case_status",
@@ -239,11 +270,23 @@ export default function Students() {
         apiEndpoint="/student-management/students/list"
         deleteEndpoint="/student-management/students/delete"
         baseParams={PHASE_1_PARAMS}
+        filters={studentFilters}
         listColumns={[
           { key: "student_id", label: "Student ID" },
-          { key: "full_name", label: "Name", render: (_, item) => `${item.first_name} ${item.last_name}` },
+          { 
+            key: "full_name", 
+            label: "Name", 
+            render: (_, item) => (
+              <div className="flex items-center gap-2">
+                <StudentAvatar student={item} size="sm" />
+                <span className="text-sm font-medium text-gray-800">
+                  {item.first_name} {item.last_name}
+                </span>
+              </div>
+            )
+          },
           { key: "school_class", label: "Class", render: (_, item) => item.school_class?.class_name || "—" },
-          { key: "date_of_birth", label: "DOB", render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
+          { key: "date_of_birth", label: "DOB", render: (v) => v ? fmtDate(v) : "—" },
           { key: "final_fee", label: "Fee", render: (v) => v ? `${Number(v).toLocaleString()} AFN` : "—" },
           { key: "special_status", label: "Special", render: specialStatusBadge },
           transferColumn,

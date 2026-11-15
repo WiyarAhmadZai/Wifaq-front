@@ -1,0 +1,1583 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { get, put, post, del, peekCache } from "../../api/axios";
+import { toastSuccess, toastError } from "../../utils/toast";
+import Modal from "../../components/Modal";
+import { fmtDate, fmtDateTime } from "../../utils/formErrors";
+import Swal from "sweetalert2";
+import { exportSheetsToExcel } from "../../utils/listExport";
+import { useI18n } from "../../i18n/I18nContext";
+import GuideButton from "../../components/GuideButton";
+
+/* ── 4D dimension accents ── */
+const DIMS = [
+  { key: "intellectual", ar: "ذهنی", label: "Intellectual", color: "#14919B" },
+  { key: "character", ar: "شخصیتی", label: "Character", color: "#C9A227" },
+  { key: "social", ar: "اجتماعی", label: "Social", color: "#1A7A4C" },
+  { key: "practical", ar: "عملی", label: "Practical", color: "#6B4FA0" },
+];
+const CLIM = [["", "—"], ["often", "Often"], ["sometimes", "Sometimes"], ["rarely", "Rarely"], ["never", "Never"]];
+
+/* ── field definitions for the append-log sections ── */
+const F = (name, label, opts = {}) => ({ name, label, ...opts });
+const STORY_FIELDS = [
+  F("life_story", "Life narrative · قصه زندگی", { area: true }),
+  F("influential_person", "Most influential person"), F("influence_reason", "…why", { area: true }),
+  F("perceived_talents", "Perceived talents"), F("career_aspiration", "Career aspiration"),
+  F("favourite_activities", "Favourite activities"), F("favourite_subjects", "Favourite subjects"),
+  F("hardest_subjects", "Hardest subjects"), F("self_description", "Self-description", { area: true }),
+];
+/* What a teacher brings back from a parent meeting or a home visit.
+   `sel` fields render as dropdowns and show as chips on the timeline, so the
+   source and the kind of information are readable at a glance. */
+const INFO_ENTRY_FIELDS = [
+  F("occurred_on", "Date learned · تاریخ", { date: true }),
+  F("source", "How we learned it · منبع", { sel: [
+    ["parent_meeting", "Parent meeting"], ["home_visit", "Home visit"], ["phone_call", "Phone call"],
+    ["parent_message", "Message from parent"], ["student", "From the student"], ["other", "Other"],
+  ] }),
+  F("info_type", "Type of information · نوعیت", { sel: [
+    ["general", "General"], ["family", "Family situation"], ["health", "Health"], ["behaviour", "Behaviour"],
+    ["academic", "Academic"], ["financial", "Financial"], ["safeguarding", "Safeguarding concern"],
+    ["achievement", "Achievement"],
+  ] }),
+  F("met_with", "Who we spoke with · با کی"),
+  F("details", "What we learned · معلومات", { area: true }),
+  F("action_needed", "What the school should do · اقدام", { area: true }),
+  F("needs_followup", "Needs follow-up", { bool: true }),
+];
+const ASPIR_FIELDS = [
+  F("want_to_know_discover", "ذهنی — want to know / discover", { area: true }),
+  F("want_to_be_do", "شخصیتی — want to be / do", { area: true }),
+  F("want_to_help", "اجتماعی — want to help", { area: true }),
+  F("want_to_build_create", "عملی — want to build / create", { area: true }),
+  F("when_grow_up", "When I grow up"), F("when_grow_up_reason", "…because", { area: true }),
+  F("literal_dreams", "Dreams (خواب‌ها)", { area: true }),
+];
+const DEEP_FIELDS = [
+  F("intellectual_likes_thinking_about", "ذهنی — likes thinking about", { area: true }),
+  F("intellectual_best_learning_time", "ذهنی — best learning time", { sel: [["", "—"], ["morning", "Morning"], ["noon", "Noon"], ["evening", "Evening"], ["night", "Night"]] }),
+  F("intellectual_learning_style", "ذهنی — learning style", { sel: [["", "—"], ["visual", "Visual"], ["audio", "Audio"], ["practical", "Practical"], ["mixed", "Mixed"]] }),
+  F("intellectual_unanswered_question", "ذهنی — an unanswered question"),
+  F("character_most_important_value", "شخصیتی — most important value"),
+  F("character_moral_hero", "شخصیتی — moral hero"), F("character_close_to_god_when", "شخصیتی — feels close to God when"),
+  F("social_group_role", "اجتماعی — group role", { sel: [["", "—"], ["leader", "Leader"], ["collaborator", "Collaborator"], ["observer", "Observer"]] }),
+  F("social_how_helps_others", "اجتماعی — how helps others"), F("social_what_people_say", "اجتماعی — what people say"),
+  F("practical_likes_to_make", "عملی — likes to make"), F("practical_proud_skill", "عملی — proud skill"),
+];
+const FAMILY_FIELDS = [
+  F("major_decisions_by", "Major decisions by", { sel: [["", "—"], ["father", "Father"], ["mother", "Mother"], ["both", "Both"], ["other", "Other"]] }),
+  F("parents_discuss", "Parents discuss", { sel: [["", "—"], ["regularly", "Regularly"], ["sometimes", "Sometimes"], ["rarely", "Rarely"], ["never", "Never"]] }),
+  F("household_voice_raising", "Household — voice raising", { sel: CLIM }),
+  F("child_anger", "Child — anger", { sel: CLIM }),
+  F("chronic_illness_present", "Chronic illness", { bool: true }), F("chronic_illness_details", "…details", { area: true }),
+  F("mental_health_concern", "Mental-health concern", { bool: true }), F("mental_health_details", "…details", { area: true }),
+  F("migration_plans", "Migration plans", { bool: true }), F("migration_destination", "…destination"),
+  F("influence_effect_on_child", "Influence on the child", { area: true }),
+  F("parents_dreams", "Parents' dreams for the child", { area: true }),
+  F("additional_info", "Anything else the school should know", { area: true }),
+];
+const INTERVIEW_FIELDS = [
+  F("eye_contact", "Eye contact", { sel: [["", "—"], ["good", "Good"], ["average", "Average"], ["weak", "Weak"], ["avoidant", "Avoidant"]] }),
+  F("self_confidence", "Confidence", { sel: [["", "—"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]] }),
+  F("comfort_speaking", "Comfort speaking", { sel: [["", "—"], ["comfortable", "Comfortable"], ["cautious", "Cautious"], ["very_cautious", "Very cautious"]] }),
+  F("honesty_signal", "Honesty signal", { sel: [["", "—"], ["honest", "Honest"], ["cautious", "Cautious"], ["possibly_hiding", "Possibly hiding"]] }),
+  F("behavioural_notes", "Conduct notes", { area: true }),
+  F("what_stood_out_student", "What stood out — student", { area: true }),
+  F("what_stood_out_family", "What stood out — family", { area: true }),
+  F("identified_strengths", "Identified strengths", { area: true }),
+  F("potential_concerns", "Potential concerns", { area: true }),
+  F("areas_needing_attention", "Areas needing attention", { area: true }),
+  F("mentor_teacher_suggestion", "Mentor-teacher suggestion", { area: true }),
+  F("needs_followup", "Needs follow-up", { bool: true }), F("followup_details", "…details", { area: true }),
+];
+
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "checklist", label: "Checklist" },
+  { key: "story", label: "Life Story" },
+  { key: "aspirations", label: "Aspirations" },
+  { key: "fourd", label: "4D Ratings" },
+  { key: "deepself", label: "Deep Self" },
+  { key: "habits", label: "Daily Habits" },
+  { key: "family", label: "Family" },
+  { key: "familydeep", label: "Home", sensitive: true },
+  { key: "observations", label: "Observations" },
+  // What teachers learn at parent meetings and on home visits.
+  { key: "infolog", label: "Parent & Home" },
+  { key: "portrait", label: "Portrait" },
+  // Photographs of the child. Its own permission (student-gallery.*), so a
+  // colleague who may read the profile does not automatically get the album.
+  { key: "gallery", label: "Gallery" },
+  { key: "interview", label: "Interviewer", sensitive: true },
+  { key: "updates", label: "Updates" },
+  // Past years' reports, semester / winter reports, notices and certificates.
+  { key: "archive", label: "Reports & Certificates" },
+  { key: "caredesk", label: "Care Desk" },
+];
+
+import StaffGallery from "../hr/StaffGallery";
+import { AuthImage, FullScreenImage } from "../../components/AuthImage";
+import { RatePill } from "../../components/hr/StaffRatings";
+import { useBulkRatings } from "../../components/hr/ratingKit";
+
+/* /education/student-profiles (no id) is the finder; with an id, the profile. */
+export default function StudentProfile() {
+  const { id } = useParams();
+  return id ? <StudentProfileView /> : <StudentProfileFinder />;
+}
+
+/* ════════════════ the شناسنامه finder ════════════════
+   The Student Development menu's way in. A teacher sees their own students at
+   once; anyone can search by name or student code. The list holds only
+   children this viewer may open — the server filters it (openable=1). */
+function StudentProfileFinder() {
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      get(`/student-management/student-profiles/search?openable=1&q=${encodeURIComponent(q.trim())}`, { cache: false })
+        .then((r) => setRows(r.data?.data || []))
+        .catch(() => setRows([]));
+    }, q ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  return (
+    <div className="min-h-screen bg-gray-50/60 pb-10">
+      <div className="max-w-4xl mx-auto px-4 pt-6 space-y-4">
+        <div>
+          <h1 className="text-lg font-bold text-gray-800">Student Profiles · شناسنامه</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Find a student and open their شناسنامه.</p>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus
+          placeholder="Search by name or student code…"
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+        {rows === null ? <Spinner /> : rows.length === 0 ? (
+          <EmptyState title={q ? "No student found" : "Type a name to search"}
+            hint={q ? "Only students you may open are listed." : "Your own students appear here automatically."} />
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+            {rows.map((st) => (
+              <button key={st.id} type="button" onClick={() => navigate(`/student-management/students/profile/${st.id}`)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-start hover:bg-teal-50/50 transition-colors">
+                <span className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-black shrink-0">
+                  {`${st.first_name?.[0] || ""}${st.last_name?.[0] || ""}`.toUpperCase() || "?"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <bdi dir="auto" className="block text-sm font-semibold text-gray-800 truncate" data-no-i18n>{st.first_name} {st.last_name}</bdi>
+                  <span className="block text-[11px] text-gray-400 font-mono" data-no-i18n>{st.student_id}{st.school_class?.class_name ? ` · ${st.school_class.class_name}` : ""}</span>
+                </span>
+                <span className="text-teal-600 text-xs font-bold shrink-0">شناسنامه →</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StudentProfileView() {
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const [params, setParams] = useSearchParams();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  // ?tab=gallery opens straight on the album: the Student Gallery screen links
+  // here after somebody picks a child, and making them click the tab again is
+  // friction on the one journey that already knows where it is going.
+  const [tab, setTab] = useState(TABS.some((t) => t.key === params.get("tab")) ? params.get("tab") : "overview");
+  // Switching tabs also mirrors the choice into ?tab=, so a refresh (or a
+  // shared/back-button link) lands back on the same tab instead of Overview.
+  // replace:true keeps the browser history clean — one entry per profile visit.
+  const changeTab = (key) => {
+    setTab(key);
+    const p = new URLSearchParams(params);
+    p.set("tab", key);
+    setParams(p, { replace: true });
+  };
+  const [saving, setSaving] = useState(false);
+  // The child's photo, enlarged over the page. An overlay and not a route, so
+  // closing it returns you to the very tab and scroll position you left.
+  const [zoomPhoto, setZoomPhoto] = useState(false);
+  // The report follows the interface language unless the reader picks another.
+  const { lang: uiLang } = useI18n();
+
+  /* The شناسنامه is somebody's work — kept, updated, written on. It is rated as
+   * the work of the class supervisor (or whoever the backend attributes it to). */
+  const { map: fileRating } = useBulkRatings("student_profile", [id]);
+
+  // Auto-save registry (see switchTab). Hooks stay above every early return —
+  // below them, the loading render and the loaded one would run different hooks.
+  const pendingRef = useRef(null);
+  const registerPending = useCallback((entry) => { pendingRef.current = entry; }, []);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const __cached = peekCache(`/student-management/students/${id}/profile`);
+    if (__cached) { setData(__cached?.data || null); setLoading(false); }
+    get(`/student-management/students/${id}/profile`)
+      .then((r) => setData(r.data?.data || null))
+      .catch((e) => { toastError(e.response?.data?.message || "Failed to load profile"); navigate("/student-management/students"); })
+      .finally(() => setLoading(false));
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
+
+  // Closing or reloading the page with unsaved text: the browser asks first.
+  // (The text itself is also kept as a draft — see useAutoSave.)
+  useEffect(() => {
+    const warn = (e) => { if (pendingRef.current?.dirty()) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
+  const save = async (method, path, body, msg = "Recorded") => {
+    setSaving(true);
+    try {
+      await (method === "put" ? put : post)(`/student-management/students/${id}/profile${path}`, body);
+      toastSuccess(msg);
+      load();
+      return true;
+    } catch (e) {
+      toastError(e.response?.data?.message || Object.values(e.response?.data?.errors || {})[0]?.[0] || "Failed to save");
+      return false;
+    } finally { setSaving(false); }
+  };
+
+  /* Remove a logged record. Gated on the server by student-profiles.delete and
+   * limited to the record's author (or leadership), so this only ever clears a
+   * mistake the caller is allowed to clear. */
+  const remove = async (path, msg = "Record deleted") => {
+    setSaving(true);
+    try {
+      await del(`/student-management/students/${id}/profile${path}`);
+      toastSuccess(msg);
+      load();
+      return true;
+    } catch (e) {
+      toastError(e.response?.data?.message || "Failed to delete");
+      return false;
+    } finally { setSaving(false); }
+  };
+
+  /* The report, over a period, in the format the reader needs.
+   *
+   * One dialog rather than two buttons: the period is the question people
+   * actually have ("the whole of last year", "both years, start to finish"),
+   * and it applies the same way whichever format comes out. A blank period
+   * means the entire record, which is what the old buttons always produced. */
+  const [reporting, setReporting] = useState(false);
+
+  const askReport = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const yearsAgo = (n) => { const d = new Date(); d.setFullYear(d.getFullYear() - n); return d.toISOString().slice(0, 10); };
+    const joined = data?.student?.enrollment_date || "";
+    const terms = data?.report_terms || [];
+    let reportLang = uiLang;
+    const thisMonth = today.slice(0, 7);
+
+    const { isConfirmed, value } = await Swal.fire({
+      title: "Student report",
+      html: `
+        <div style="text-align:start;font-size:13px">
+          <p style="font-weight:700;margin-bottom:6px">Period</p>
+          <select id="rp-range" class="swal2-select" style="margin:0 0 10px;width:100%">
+            <option value="monthly">Monthly report</option>
+            <option value="semester1">Semester 1 report</option>
+            <option value="semester2">Semester 2 report</option>
+            <option value="annual">Annual report</option>
+            <option value="all">Whole record — everything</option>
+            <option value="since-joined">Since they joined${joined ? ` (${joined})` : ""}</option>
+            <option value="2y">Last two years</option>
+            <option value="1y">Last year</option>
+            <option value="custom">Choose the dates…</option>
+          </select>
+          <div id="rp-month-box" style="margin-bottom:10px">
+            <p style="font-weight:700;margin-bottom:6px">Month</p>
+            <input id="rp-month" type="month" class="swal2-input" style="margin:0;width:100%" value="${thisMonth}" max="${thisMonth}">
+          </div>
+          <div id="rp-term-box" style="display:none;margin-bottom:10px">
+            <p style="font-weight:700;margin-bottom:6px">School year</p>
+            <select id="rp-term" class="swal2-select" style="margin:0;width:100%">
+              ${terms.map((t) => `<option value="${t.id}"${t.is_current ? " selected" : ""}>${t.name}</option>`).join("")}
+            </select>
+          </div>
+          <div id="rp-dates" style="display:none;gap:8px;margin-bottom:10px">
+            <input id="rp-from" type="date" class="swal2-input" style="margin:0" max="${today}">
+            <input id="rp-to" type="date" class="swal2-input" style="margin:0" max="${today}">
+          </div>
+          <p style="font-weight:700;margin-bottom:6px">Report language</p>
+          <select id="rp-lang" class="swal2-select" style="margin:0 0 10px;width:100%">
+            <option value="dr"${uiLang === "dr" ? " selected" : ""}>دری — راست به چپ</option>
+            <option value="ps"${uiLang === "ps" ? " selected" : ""}>پښتو — له ښي نه کیڼ ته</option>
+            <option value="en"${uiLang === "en" ? " selected" : ""}>English</option>
+          </select>
+          <p style="font-weight:700;margin-bottom:6px">Format</p>
+          <select id="rp-format" class="swal2-select" style="margin:0;width:100%">
+            <option value="pdf">PDF — to save or send</option>
+            <option value="doc">Word — editable, for the annual report</option>
+            <option value="print">Print — opens in a new tab</option>
+            <option value="excel">Excel — the records as a spreadsheet</option>
+          </select>
+        </div>`,
+      didOpen: () => {
+        const sel = document.getElementById("rp-range");
+        const box = document.getElementById("rp-dates");
+        const monthBox = document.getElementById("rp-month-box");
+        const termBox = document.getElementById("rp-term-box");
+        sel.addEventListener("change", () => {
+          box.style.display = sel.value === "custom" ? "flex" : "none";
+          monthBox.style.display = sel.value === "monthly" ? "block" : "none";
+          termBox.style.display = ["semester1", "semester2", "annual"].includes(sel.value) ? "block" : "none";
+        });
+      },
+      showCancelButton: true,
+      confirmButtonText: "Produce report",
+      confirmButtonColor: "#0D5C63",
+      preConfirm: () => {
+        const range = document.getElementById("rp-range").value;
+        const format = document.getElementById("rp-format").value;
+        reportLang = document.getElementById("rp-lang").value;
+        let from = "", to = "";
+        // Named periods: the server turns them into dates and a report title.
+        if (range === "monthly") {
+          const month = document.getElementById("rp-month").value;
+          if (!month) { Swal.showValidationMessage("Choose a month."); return false; }
+          return { kind: "monthly", month, format };
+        }
+        if (["semester1", "semester2", "annual"].includes(range)) {
+          const termId = document.getElementById("rp-term")?.value;
+          const term = terms.find((t) => String(t.id) === String(termId));
+          if (!term) { Swal.showValidationMessage("No school year is set up yet."); return false; }
+          if (!term[range]) {
+            Swal.showValidationMessage(range === "annual"
+              ? "This school year has no start and end date."
+              : "Semester dates are not set for this school year. Add them under Academic Terms.");
+            return false;
+          }
+          return { kind: range, termId, termName: term.name, format };
+        }
+        if (range === "custom") {
+          from = document.getElementById("rp-from").value;
+          to = document.getElementById("rp-to").value;
+          if (from && to && from > to) { Swal.showValidationMessage("The first date must come before the second."); return false; }
+        } else if (range === "since-joined") from = joined;
+        else if (range === "2y") from = yearsAgo(2);
+        else if (range === "1y") from = yearsAgo(1);
+        return { from, to, format };
+      },
+    });
+    if (!isConfirmed) return;
+    runReport({ ...value, lang: reportLang });
+  };
+
+  /* The report payload as a workbook: one sheet per kind of record, because
+     they have nothing in common but the child they belong to. */
+  const reportToExcel = (d, fileBase) => {
+    if (!d) { toastError("The report came back empty."); return; }
+    const txt = (v) => (v == null ? "" : String(v));
+    const sheets = [
+      { name: "Achievements", headers: ["Date", "Kind", "Detail", "Given by"],
+        rows: [
+          ...(d.awards || []).map((a) => [txt(a.announced_at).slice(0, 10), "Weekly award", txt(a.topic?.title || a.citation), ""]),
+          ...(d.merit_cards || []).map((c) => [txt(c.issued_on).slice(0, 10), `${txt(c.color)} card`, txt(c.reason), txt(c.issuer?.name)]),
+        ] },
+      { name: "Parent meetings", headers: ["Date", "Source", "Type", "Spoke with", "What we learned", "Action", "Recorded by"],
+        rows: (d.info_entries || []).map((e) => [txt(e.occurred_on).slice(0, 10), txt(e.source), txt(e.info_type),
+          txt(e.met_with), txt(e.details), txt(e.action_needed), txt(e.recorded_by?.name)]) },
+      { name: "Observations", headers: ["Date", "Category", "Dimension", "Description", "Recommendation", "Observer"],
+        rows: (d.observations || []).map((o) => [txt(o.observed_on).slice(0, 10), txt(o.category), txt(o.dimension),
+          txt(o.description), txt(o.recommendation), txt(o.observer?.name)]) },
+      { name: "4D ratings", headers: ["Date", "Intellectual", "Personal", "Social", "Practical", "Evidence"],
+        rows: (d.ratings || []).map((r) => [txt(r.created_at).slice(0, 10), txt(r.intellectual), txt(r.personal),
+          txt(r.social), txt(r.practical), txt(r.evidence)]) },
+      { name: "Profile updates", headers: ["Date", "Type", "Summary", "Flags"],
+        rows: (d.updates || []).map((u) => [txt(u.reviewed_at || u.created_at).slice(0, 10), txt(u.update_type),
+          txt(u.major_changes_summary), txt(u.flags_raised)]) },
+    ];
+    if (!exportSheetsToExcel(sheets, fileBase)) {
+      toastError("There is nothing in that period to export.");
+    }
+  };
+
+  const runReport = async ({ from, to, format, kind, month, termId, termName, lang }) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    if (kind) qs.set("kind", kind);
+    if (lang) qs.set("lang", lang);
+    if (month) qs.set("month", month);
+    if (termId) qs.set("academic_term_id", termId);
+    const name = (data?.student?.full_name || "student").replace(/\s+/g, "-");
+    const suffix = kind === "monthly" ? `-${month}`
+      : kind ? `-${kind}-${termName}`
+      : from || to ? `-${from || "start"}_${to || "today"}` : "";
+    setReporting(true);
+    try {
+      if (format === "excel") {
+        qs.set("format", "json");
+        const r = await get(`/student-management/students/${id}/profile/report?${qs}`, { cache: false });
+        await reportToExcel(r.data?.data, `${name}${suffix}`);
+      } else {
+        if (format === "pdf" || format === "doc") qs.set("format", format);
+        const r = await get(`/student-management/students/${id}/profile/report?${qs}`, { responseType: "blob" });
+        const type = { pdf: "application/pdf", doc: "application/msword" }[format] || "text/html";
+        const url = URL.createObjectURL(new Blob([r.data], { type }));
+        if (format === "pdf" || format === "doc") {
+          const a = document.createElement("a");
+          a.href = url; a.download = `profile-${name}${suffix}.${format}`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 4000);
+        } else {
+          window.open(url, "_blank");
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }
+      }
+    } catch (e) {
+      toastError(e.response?.data?.message || "The report could not be produced.");
+    } finally { setReporting(false); }
+  };
+
+  if (loading) return <div className="min-h-screen bg-gray-50/60"><Spinner /></div>;
+  if (!data) return null;
+
+  const s = data.student, can = data.can || {};
+  const tabs = TABS.filter((t) => !t.sensitive || can.view_sensitive);
+  const initials = `${s.first_name?.[0] || ""}${s.last_name?.[0] || ""}`.toUpperCase();
+  /* Auto-save. A section with a half-filled form registers itself here; moving
+   * to another tab saves it first, so a teacher who clicks on without pressing
+   * Save no longer loses what they typed. A save the server rejects stays as a
+   * draft in the browser and reopens, filled in, when they come back. */
+  const switchTab = async (key) => {
+    const pending = pendingRef.current;
+    if (key !== tab && pending?.dirty()) {
+      const ok = await pending.flush();
+      if (!ok) toastError("Not saved yet — kept as a draft. It will reopen when you come back to this tab.");
+    }
+    changeTab(key);
+  };
+  const ctx = { data, save, remove, saving, can, registerPending };
+
+  return (
+    <div className="min-h-screen bg-gray-50/60 pb-10">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-teal-600 to-emerald-700 px-5 pt-5 pb-16">
+        <div className="flex items-center justify-between">
+          <button onClick={() => navigate(-1)} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={askReport} disabled={reporting}
+              title="The full record over any period — PDF, Word, print, or Excel"
+              className="px-3 py-2 bg-white text-teal-700 hover:bg-teal-50 rounded-xl text-sm font-semibold disabled:opacity-60">
+              {reporting ? "Preparing…" : "📄 Report"}
+            </button>
+            <button onClick={() => navigate(`/student-management/students/show/${id}`)} className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-semibold">Full record →</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 -mt-12 mx-auto">
+        {/* Identity card */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 flex-wrap">
+          {s.photo_url ? (
+            <img src={s.photo_url} alt={s.full_name || "Student"}
+              onClick={() => setZoomPhoto(true)} title="click to enlarge"
+              className="w-20 h-20 rounded-2xl object-cover border border-teal-100 shrink-0 cursor-zoom-in"
+              // A photo that will not load must not leave an empty box where a
+              // face should be — drop back to the initials underneath.
+              onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }} />
+          ) : null}
+          <div className="w-20 h-20 rounded-2xl bg-teal-100 text-teal-700 items-center justify-center text-2xl font-black shrink-0"
+            style={{ display: s.photo_url ? "none" : "flex" }}>{initials || "?"}</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-gray-800">{s.full_name}</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700">{data.profile?.access_level || "L1"}</span>
+              {s.class && <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-700">شناسنامه</span>}
+              <GuideButton module="student-profile" />
+              {fileRating[id] && (
+                <RatePill type="student_profile" id={id} title={`شناسنامه · ${s.full_name}`} entry={fileRating[id]} />
+              )}
+            </div>
+            <p className="text-sm text-gray-500 mt-1 font-mono">{s.student_id}</p>
+            <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500 flex-wrap">
+              <span>{s.class || "No class"}</span>{s.grade && <span>· {s.grade}</span>}{s.age && <span>· Age {s.age}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-1.5 flex gap-1 overflow-x-auto">
+          {tabs.map((t) => (
+            <button key={t.key} onClick={() => switchTab(t.key)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${tab === t.key ? "bg-teal-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-50"}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 space-y-4">
+          {tab === "overview" && <Overview {...ctx} />}
+          {tab === "story" && <LogSection {...ctx} title="Life Story · قصه شخصی" items={data.intake_personal} path="/intake" dateKey="recorded_at" fields={STORY_FIELDS} context />}
+          {tab === "aspirations" && <LogSection {...ctx} title="Dreams & Aspirations · رویاها" items={data.aspirations} path="/aspirations" dateKey="recorded_at" fields={ASPIR_FIELDS} />}
+          {tab === "fourd" && <FourD {...ctx} />}
+          {tab === "deepself" && <LogSection {...ctx} title="Deep 4D Self-Knowledge · خودشناسی عمیق" items={data.deep_self_knowledge} path="/deep-self" dateKey="recorded_at" fields={DEEP_FIELDS} context />}
+          {tab === "habits" && <Habits {...ctx} />}
+          {tab === "family" && <FamilyTab {...ctx} />}
+          {tab === "familydeep" && <LogSection {...ctx} title="Home Environment · وضعیت خانه" subtitle="Confidential — never shared with family" sensitive items={data.sensitive?.family_situation} path="/family-situation" dateKey="recorded_at" fields={FAMILY_FIELDS} />}
+          {tab === "observations" && <Observations {...ctx} />}
+          {tab === "infolog" && (
+            <LogSection {...ctx} title="Parent Meetings & Home Visits · ملاقات والدین"
+              subtitle="New information about the child, in the order it was learned"
+              items={data.info_entries} path="/info-entries" dateKey="occurred_on" fields={INFO_ENTRY_FIELDS}
+              canAdd={can.record_info} />
+          )}
+          {tab === "portrait" && <Portrait {...ctx} />}
+          {/* Every picture of this child the school holds: their own photo, the
+              album curated on the Student Gallery screen, and the photographs
+              teachers attached to an observation. The same gallery component the
+              staff profile uses — one screen, a different subject. */}
+          {tab === "gallery" && <GalleryTab {...ctx} />}
+          {tab === "interview" && <LogSection {...ctx} title="Interviewer Observations · مشاهدات مصاحبه" subtitle="Confidential — internal use only" sensitive items={data.sensitive?.interview_observation} path="/interview" dateKey="interviewed_at" fields={INTERVIEW_FIELDS} />}
+          {tab === "updates" && <Updates {...ctx} />}
+          {tab === "archive" && <ArchiveTab {...ctx} id={id} load={load} />}
+          {tab === "checklist" && <ChecklistTab {...ctx} id={id} load={load} />}
+          {tab === "caredesk" && <CareDesk {...ctx} />}
+        </div>
+      </div>
+
+      {zoomPhoto && s.photo_url && (
+        <FullScreenImage src={s.photo_url} alt={s.full_name || "Student"}
+          caption={s.full_name} onClose={() => setZoomPhoto(false)} />
+      )}
+    </div>
+  );
+}
+
+/* ════════════════ gallery: every picture of this child ════════════════
+
+   Three sources, one screen. The child's own photo sits at the top because it
+   is the fastest way to be sure you are looking at the right person; the album
+   underneath it is the curated one, written by whoever holds `student-gallery`;
+   and the observation photographs at the bottom are evidence a teacher filed,
+   which nobody curates and which arrives here read-only.
+
+   Clicking any of them fills the screen. The ✕ puts the page back exactly as it
+   was — the viewer is an overlay, not a route, so the tab you were on, the
+   scroll position and anything half-typed all survive the look.            */
+function GalleryTab({ data }) {
+  const s = data.student;
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const [zoom, setZoom] = useState(null);   // { src | authSrc, alt, caption }
+  const shots = data.development?.observation_photos || [];
+  const initials = `${s.first_name?.[0] || ""}${s.last_name?.[0] || ""}`.toUpperCase();
+  const showPhoto = Boolean(s.photo_url) && !photoFailed;
+
+  return (
+    <div className="space-y-4">
+      {/* ── the child's own picture ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center gap-4 flex-wrap">
+          <button type="button"
+            disabled={!showPhoto}
+            onClick={() => showPhoto && setZoom({ src: s.photo_url, alt: s.full_name || "Student", caption: s.full_name })}
+            title={showPhoto ? "click to enlarge" : undefined}
+            className="relative shrink-0 group disabled:cursor-default">
+            {showPhoto ? (
+              <img src={s.photo_url} alt={s.full_name || "Student"}
+                onError={() => setPhotoFailed(true)}
+                className="w-28 h-28 rounded-2xl object-cover border border-teal-100" />
+            ) : (
+              <div className="w-28 h-28 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center text-3xl font-black">
+                {initials || "?"}
+              </div>
+            )}
+            {showPhoto && (
+              <span className="absolute inset-0 hidden group-hover:flex items-center justify-center gap-1
+                               bg-black/40 rounded-2xl text-white text-[11px] font-bold">🔍 Zoom</span>
+            )}
+          </button>
+          <div className="min-w-0 flex-1">
+            <bdi dir="auto" className="block text-sm font-bold text-gray-800">{s.full_name}</bdi>
+            <p className="text-[11px] text-gray-500 mt-0.5 font-mono">{s.student_id}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">{[s.class, s.grade].filter(Boolean).join(" · ")}</p>
+            {!s.photo_url && (
+              <p className="text-[11px] text-gray-400 mt-1">No profile photo yet — it is uploaded on the student's registration form.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── the album ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <p className="text-xs font-bold text-gray-500 mb-3">Gallery</p>
+        <StaffGallery subject="student" subjectId={s.id} subjectName={s.full_name} />
+      </div>
+
+      {/* ── evidence a teacher attached to an observation ── */}
+      {shots.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <p className="text-xs font-bold text-gray-500">From observations</p>
+          <p className="text-[11px] text-gray-400 mb-3">Photographs recorded with an observation. Read-only — they belong to that record.</p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+            {shots.map((p) => {
+              const path = `/student-observations/${p.observation_id}/photo/${p.index}`;
+              return (
+                <button key={`${p.observation_id}-${p.index}`} type="button"
+                  onClick={() => setZoom({ authSrc: path, alt: p.name || "Observation photo", caption: p.observed_on })}
+                  className="relative aspect-square rounded-xl overflow-hidden border border-gray-100
+                             hover:ring-2 hover:ring-teal-400 transition-all">
+                  <AuthImage src={path} alt={p.name || "Observation photo"} className="w-full h-full object-cover" />
+                  {p.observed_on && (
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/55 text-white text-[9px]">
+                      {p.observed_on}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {zoom && <FullScreenImage {...zoom} onClose={() => setZoom(null)} />}
+    </div>
+  );
+}
+
+/* ════════════════ auto-save ════════════════
+   One section's open form: kept in the browser as a draft while it is being
+   typed (so a reload or a closed tab loses nothing), offered to the page's
+   tab switcher so it is saved to the server before the teacher moves on, and
+   restored — still open, still filled in — if that save did not go through.
+   Drafts are per user, per student, per section. */
+function useAutoSave({ section, data, can, open, form, editingId, isDirty, submit, restore, registerPending }) {
+  const key = `wen.sp-draft:${can?.my_user_id || 0}:${data?.student?.id || 0}:${section}`;
+  const latest = useRef({});
+  latest.current = { open, isDirty, submit };
+
+  // Restore a draft left behind last time.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) { const d = JSON.parse(raw); restore(d.form, d.editingId || null); }
+    } catch { /* storage blocked — nothing to restore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  // Keep the draft in step with the form.
+  useEffect(() => {
+    try {
+      if (open && isDirty()) localStorage.setItem(key, JSON.stringify({ form, editingId }));
+      else localStorage.removeItem(key);
+    } catch { /* storage blocked — the tab-switch save still works */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, open, form, editingId]);
+
+  // Offer this form to the tab switcher.
+  useEffect(() => {
+    if (!registerPending) return undefined;
+    registerPending({
+      dirty: () => Boolean(latest.current.open && latest.current.isDirty()),
+      flush: async () => latest.current.submit(),
+    });
+    return () => registerPending(null);
+  }, [registerPending]);
+
+  return { clearDraft: () => { try { localStorage.removeItem(key); } catch { /* ignore */ } } };
+}
+const sameForm = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const DraftNote = () => (
+  <p className="text-[10px] text-gray-500">💾 Auto-saved when you move to another tab — and kept as a draft until then.</p>
+);
+
+/* ════════════════ generic append-log section ════════════════ */
+function LogSection({ title, subtitle, items = [], path, dateKey, fields, context, sensitive, save, remove, saving, can, canAdd, data, registerPending }) {
+  // Most logs are the class supervisor's to write; the parent/home one is open
+  // to every teacher of the child, so it passes its own flag.
+  const mayAdd = canAdd ?? can.update;
+  const [adding, setAdding] = useState(false);
+  // A date field opens on today and a dropdown on its first option: the
+  // common case should need no typing, and the server rejects an empty one.
+  const blank = () => Object.fromEntries(
+    fields.map((f) => [f.name,
+      f.bool ? false : f.date ? new Date().toISOString().slice(0, 10) : f.sel ? f.sel[0][0] : ""])
+      .concat(context ? [["context", "intake"]] : []));
+  const [form, setForm] = useState(blank());
+  // The record being corrected, or null while adding a new one.
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  const list = Array.isArray(items) ? items : items ? [items] : [];
+
+  // What the form looked like when it opened — "dirty" means changed from this.
+  const baseline = useRef(blank());
+  const close = () => { setForm(blank()); setEditingId(null); setAdding(false); baseline.current = blank(); clearDraft(); };
+  const startEdit = (row) => {
+    const values = fromRow(row, fields, context);
+    baseline.current = values;
+    setForm(values);
+    setEditingId(row.id);
+    setAdding(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const submit = async () => {
+    const ok = editingId
+      ? await save("put", `/entries${path}/${editingId}`, form, "Record updated")
+      : await save("post", path, form, "Recorded");
+    if (ok) close();
+    return ok;
+  };
+  const doDelete = async (row) => {
+    if (!(await confirmDelete())) return;
+    await remove(`/entries${path}/${row.id}`, "Record deleted");
+  };
+  const { clearDraft } = useAutoSave({
+    section: path, data, can, open: adding, form, editingId,
+    isDirty: () => !sameForm(form, baseline.current), submit, registerPending,
+    restore: (f, id) => { setForm({ ...blank(), ...f }); setEditingId(id); setAdding(true); },
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card title={title} subtitle={subtitle} sensitive={sensitive}
+        action={(mayAdd || editingId) && <button onClick={() => (adding ? close() : setAdding(true))} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
+        {sensitive && <SensitiveBanner />}
+        {adding && (mayAdd || editingId) && (
+          <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
+            {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
+            <DraftNote />
+            {context && <Seg label="Context" value={form.context} onChange={(v) => set("context", v)} options={[["intake", "Intake"], ["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]]} />}
+            {fields.map((f) => <FieldInput key={f.name} f={f} value={form[f.name]} onChange={(v) => set(f.name, v)} />)}
+            <div className="flex justify-end gap-2">
+              <button onClick={close} className="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 text-gray-500">Cancel</button>
+              <button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">{editingId ? "Save changes" : "Save record"}</button>
+            </div>
+          </div>
+        )}
+        {list.length === 0 ? (
+          <EmptyState title="No records yet" hint={mayAdd ? "Add the first record — it'll start the timeline below." : "Nothing has been recorded for this student."} />
+        ) : (
+          <Timeline list={list} fields={fields} dateKey={dateKey}
+            isMine={(row) => isMine(row, can)} onEdit={startEdit}
+            onDelete={remove ? doDelete : undefined} canDelete={(row) => mayDeleteRow(row, can)} />
+        )}
+      </Card>
+    </div>
+  );
+}
+/* Only the person who wrote a record may correct it — the server enforces the
+   same rule; this just keeps the ✎ off everybody else's records. */
+// Super-admin may edit/delete every record; everyone else only their own.
+const isMine = (row, can) => Boolean(can?.super_admin)
+  || Boolean(row?.recorded_by?.id && can?.my_user_id && Number(row.recorded_by.id) === Number(can.my_user_id));
+/* A saved row back into form values: nulls to "", dates to YYYY-MM-DD. */
+const fromRow = (row, fields, context) => Object.fromEntries(
+  fields.map((f) => [f.name,
+    f.bool ? !!row[f.name] : f.date ? String(row[f.name] || "").slice(0, 10) : (row[f.name] ?? (f.sel ? f.sel[0][0] : ""))])
+    .concat(context ? [["context", row.context || "intake"]] : []));
+const EditBtn = ({ onClick }) => (
+  <button type="button" onClick={onClick} title="Edit this record — only you can, because you wrote it"
+    className="px-2 py-0.5 rounded-lg text-[10px] font-bold border border-amber-300 text-amber-700 bg-white hover:bg-amber-50">✎ Edit</button>
+);
+const DeleteBtn = ({ onClick }) => (
+  <button type="button" onClick={onClick} title="Delete this record"
+    className="px-2 py-0.5 rounded-lg text-[10px] font-bold border border-red-300 text-red-700 bg-white hover:bg-red-50">🗑 Delete</button>
+);
+/* Who may remove a logged record: its author (or leadership) who also holds
+ * the delete grant. Mirrors the server's rule so the button never offers a
+ * delete the API would refuse. */
+const mayDeleteRow = (row, can) => Boolean(can?.delete_record) && (isMine(row, can) || Boolean(can?.manage_access));
+/* Ask before deleting — a removed record is gone, not filed away. */
+const confirmDelete = async () => {
+  const r = await Swal.fire({
+    title: "Delete this record?",
+    text: "It will be removed from the شناسنامه. This cannot be undone.",
+    icon: "warning", showCancelButton: true, confirmButtonColor: "#B83230", confirmButtonText: "Delete",
+  });
+  return r.isConfirmed;
+};
+const labelFor = (f, v) => f.sel ? (f.sel.find((o) => o[0] === v)?.[1] || v) : v;
+const hasVal = (f, row) => f.bool ? !!row[f.name] : (row[f.name] !== null && row[f.name] !== "" && row[f.name] !== undefined);
+
+/* A vertical thread of dated record cards — narrative featured, short values as chips. */
+function Timeline({ list, fields, dateKey, isMine: mine = () => false, onEdit, onDelete, canDelete = () => false }) {
+  return (
+    <div className="relative">
+      <span className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-teal-200 via-gray-200 to-transparent" aria-hidden />
+      <div className="space-y-5">
+        {list.map((row, i) => {
+          const date = row[dateKey] || row.created_at;
+          const chips = fields.filter((f) => (f.sel || f.bool || !f.area) && hasVal(f, row));
+          const blocks = fields.filter((f) => f.area && hasVal(f, row));
+          const lead = blocks[0]; const rest = blocks.slice(1);
+          const latest = i === 0;
+          return (
+            <div key={row.id || i} className="relative pl-7">
+              <span className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white"
+                style={{ background: latest ? "#0D5C63" : "#cbd5d5", boxShadow: "0 0 0 1px #e5e7eb" }} aria-hidden />
+              <div className={`rounded-2xl border bg-white overflow-hidden ${latest ? "border-teal-200 shadow-sm" : "border-gray-100"}`}>
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50/70 border-b border-gray-100 flex-wrap">
+                  {latest && <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-600 text-white uppercase tracking-wider">Latest</span>}
+                  {row.context && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 capitalize">{row.context}</span>}
+                  <span className="text-[11px] font-semibold text-gray-600">{relativeTime(date)}</span>
+                  {/* Who put it on the record. Shown wherever the server sends
+                      it — every append-only log on this profile stamps it. */}
+                  {row.recorded_by?.name && (
+                    <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{row.recorded_by.name}</span></span>
+                  )}
+                  <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(date)}</span>
+                  {onEdit && mine(row) && <EditBtn onClick={() => onEdit(row)} />}
+                  {onDelete && canDelete(row) && <DeleteBtn onClick={() => onDelete(row)} />}
+                </div>
+                <div className="p-4 space-y-3">
+                  {chips.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {chips.map((f) => (
+                        <span key={f.name} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-100">
+                          <span className="text-teal-400 font-normal">{f.label.replace(/^[^—]*—\s*/, "")}:</span> {f.bool ? "Yes" : labelFor(f, row[f.name])}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {lead && (
+                    <div className="rounded-xl bg-gray-50/70 px-3.5 py-3 border-l-2 border-teal-300">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">{lead.label}</p>
+                      <p className="text-[15px] leading-7 text-gray-800 whitespace-pre-wrap" dir="auto">{row[lead.name]}</p>
+                    </div>
+                  )}
+                  {rest.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2.5">
+                      {rest.map((f) => (
+                        <div key={f.name}>
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{f.label}</p>
+                          <p className="text-[13px] leading-relaxed text-gray-700 mt-0.5 whitespace-pre-wrap" dir="auto">{row[f.name]}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function relativeTime(v) {
+  if (!v) return "";
+  const d = new Date(v); if (isNaN(d)) return "";
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)} wk ago`;
+  if (days < 365) return `${Math.floor(days / 30)} mo ago`;
+  return `${Math.floor(days / 365)} yr ago`;
+}
+
+/* ════════════════ 4D ratings (history + add) ════════════════ */
+function FourD({ data, save, remove, saving, can, registerPending }) {
+  const ratings = data.four_d_self_ratings || [];
+  const [adding, setAdding] = useState(false);
+  const blank = { rated_by: "student", context: "intake", evidence: "", ...Object.fromEntries(DIMS.flatMap((d) => [[`${d.key}_score`, ""], [`${d.key}_note`, ""]])) };
+  const [form, setForm] = useState(blank);
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const baseline = useRef(blank);
+  const close = () => { setForm(blank); setEditingId(null); setAdding(false); baseline.current = blank; clearDraft(); };
+  const startEdit = (r) => {
+    const values = Object.fromEntries(Object.keys(blank).map((k) => [k, r[k] ?? blank[k]]));
+    baseline.current = values;
+    setForm(values);
+    setEditingId(r.id); setAdding(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const submit = async () => {
+    const ok = editingId
+      ? await save("put", `/entries/4d-rating/${editingId}`, form, "Record updated")
+      : await save("post", "/4d-rating", form, "Rating recorded");
+    if (ok) close();
+    return ok;
+  };
+  const doDelete = async (r) => {
+    if (!(await confirmDelete())) return;
+    await remove(`/entries/4d-rating/${r.id}`, "Record deleted");
+  };
+  const { clearDraft } = useAutoSave({
+    section: "4d-rating", data, can, open: adding, form, editingId,
+    isDirty: () => !sameForm(form, baseline.current), submit, registerPending,
+    restore: (f, id) => { setForm({ ...blank, ...f }); setEditingId(id); setAdding(true); },
+  });
+
+  return (
+    <Card title="4D Self-Rating · ارزیابی چهاربعدی"
+      action={(can.update || editingId) && <button onClick={() => (adding ? close() : setAdding(true))} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add rating"}</button>}>
+      {adding && (can.update || editingId) && (
+        <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
+          {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
+          <DraftNote />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Seg label="Rated by" value={form.rated_by} onChange={(v) => set("rated_by", v)} options={[["student", "Student"], ["parent", "Parent"], ["mentor", "Mentor"]]} />
+            <Seg label="Context" value={form.context} onChange={(v) => set("context", v)} options={[["intake", "Intake"], ["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]]} />
+          </div>
+          {DIMS.map((d) => (
+            <div key={d.key}>
+              <p className="text-[11px] font-bold mb-1" style={{ color: d.color }}>{d.ar} · {d.label}</p>
+              <div className="flex gap-2">
+                <input type="number" min={0} max={10} step={0.1} value={form[`${d.key}_score`]} onChange={(e) => set(`${d.key}_score`, e.target.value)} placeholder="0–10" className={`${inp} w-24 text-center`} />
+                <input value={form[`${d.key}_note`]} onChange={(e) => set(`${d.key}_note`, e.target.value)} placeholder="note" className={`${inp} flex-1`} dir="auto" />
+              </div>
+            </div>
+          ))}
+          <textarea value={form.evidence} onChange={(e) => set("evidence", e.target.value)} placeholder="Evidence (for parent/mentor)" className={txt} dir="auto" rows={2} />
+          <div className="flex justify-end"><button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">{editingId ? "Save changes" : "Record rating"}</button></div>
+        </div>
+      )}
+      {ratings.length === 0 ? (
+        <EmptyState title="No 4D ratings yet" hint={can.update ? "Add a student, parent, or mentor rating to start the trajectory." : "No ratings recorded."} />
+      ) : (
+        <div className="relative">
+          <span className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-teal-200 via-gray-200 to-transparent" aria-hidden />
+          <div className="space-y-5">
+            {ratings.map((r, i) => (
+              <div key={r.id} className="relative pl-7">
+                <span className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white" style={{ background: i === 0 ? "#0D5C63" : "#cbd5d5", boxShadow: "0 0 0 1px #e5e7eb" }} aria-hidden />
+                <div className={`rounded-2xl border bg-white overflow-hidden ${i === 0 ? "border-teal-200 shadow-sm" : "border-gray-100"}`}>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50/70 border-b border-gray-100 flex-wrap">
+                    {i === 0 && <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-600 text-white uppercase tracking-wider">Latest</span>}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 capitalize">{r.rated_by}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 capitalize">{r.context}</span>
+                    <span className="text-[11px] font-semibold text-gray-600">{relativeTime(r.rated_at || r.created_at)}</span>
+                    {r.recorded_by?.name && (
+                      <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{r.recorded_by.name}</span></span>
+                    )}
+                    <span className="text-[10px] text-gray-400 ml-auto">{fmtDateTime(r.rated_at || r.created_at)}</span>
+                    {isMine(r, can) && <EditBtn onClick={() => startEdit(r)} />}
+                    {remove && mayDeleteRow(r, can) && <DeleteBtn onClick={() => doDelete(r)} />}
+                  </div>
+                  <div className="p-4 space-y-2.5">
+                    {DIMS.map((d) => {
+                      const sc = r[`${d.key}_score`];
+                      const pct = sc != null ? Math.max(0, Math.min(100, Number(sc) * 10)) : 0;
+                      return (
+                        <div key={d.key}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[12px] font-bold w-20" dir="rtl" style={{ color: d.color }}>{d.ar}</span>
+                            <span className="text-[10px] text-gray-400 flex-1">{d.label}</span>
+                            <span className="text-sm font-black text-gray-800">{sc ?? "—"}<span className="text-[10px] text-gray-400 font-normal">/10</span></span>
+                          </div>
+                          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: d.color }} />
+                          </div>
+                          {r[`${d.key}_note`] && <p className="text-[11px] text-gray-500 mt-1" dir="auto">{r[`${d.key}_note`]}</p>}
+                        </div>
+                      );
+                    })}
+                    {r.evidence && <p className="text-[11px] text-gray-500 pt-1 border-t border-gray-50" dir="auto"><b className="text-gray-600">Evidence:</b> {r.evidence}</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ════════════════ habits (history + add) ════════════════ */
+const HABITS = [
+  ["habit_teeth", "برس دندان", "🦷"], ["habit_bed", "آماده کردن بستر", "🛏️"], ["habit_clothes", "منظم کردن لباس", "👕"],
+  ["habit_quran", "تلاوت قرآن", "📖"], ["habit_prayers", "نمازهای روزانه", "🕌"], ["habit_mosque_father", "مسجد با پدر", "🕋"],
+];
+function Habits({ data, save, remove, saving, can, registerPending }) {
+  const list = data.daily_habits || [];
+  const [adding, setAdding] = useState(false);
+  const blank = { sleep_time: "", wake_time: "", ...Object.fromEntries(HABITS.map((h) => [h[0], false])) };
+  const [form, setForm] = useState(blank);
+  const [editingId, setEditingId] = useState(null);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const baseline = useRef(blank);
+  const close = () => { setForm(blank); setEditingId(null); setAdding(false); baseline.current = blank; clearDraft(); };
+  const startEdit = (h) => {
+    const values = Object.fromEntries(Object.keys(blank).map((k) => [k, typeof blank[k] === "boolean" ? !!h[k] : (h[k] ?? "")]));
+    baseline.current = values;
+    setForm(values);
+    setEditingId(h.id); setAdding(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const submit = async () => {
+    const ok = editingId
+      ? await save("put", `/entries/habits/${editingId}`, form, "Record updated")
+      : await save("post", "/habits", form, "Recorded");
+    if (ok) close();
+    return ok;
+  };
+  const doDelete = async (h) => {
+    if (!(await confirmDelete())) return;
+    await remove(`/entries/habits/${h.id}`, "Record deleted");
+  };
+  const { clearDraft } = useAutoSave({
+    section: "habits", data, can, open: adding, form, editingId,
+    isDirty: () => !sameForm(form, baseline.current), submit, registerPending,
+    restore: (f, id) => { setForm({ ...blank, ...f }); setEditingId(id); setAdding(true); },
+  });
+  return (
+    <Card title="Daily Habits · عادت‌های روزانه"
+      action={(can.update || editingId) && <button onClick={() => (adding ? close() : setAdding(true))} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white">{adding ? "Close" : "＋ Add record"}</button>}>
+      {adding && (can.update || editingId) && (
+        <div className={`rounded-xl border p-4 mb-4 space-y-3 ${editingId ? "border-amber-200 bg-amber-50/40" : "border-teal-100 bg-teal-50/40"}`}>
+          {editingId && <p className="text-xs font-bold text-amber-700">✎ Editing your record</p>}
+          <DraftNote />
+          <div className="grid grid-cols-2 gap-2">
+            <LblInput label="Sleep time" value={form.sleep_time} onChange={(v) => set("sleep_time", v)} placeholder="e.g. 22:00" />
+            <LblInput label="Wake time" value={form.wake_time} onChange={(v) => set("wake_time", v)} placeholder="e.g. 05:30" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {HABITS.map(([k, ar]) => (
+              <label key={k} className="flex items-center gap-2 text-xs cursor-pointer rounded-lg border border-gray-200 px-2 py-1.5">
+                <input type="checkbox" checked={form[k]} onChange={(e) => set(k, e.target.checked)} /><span dir="rtl">{ar}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end"><button onClick={submit} disabled={saving} className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">{editingId ? "Save changes" : "Record"}</button></div>
+        </div>
+      )}
+      {list.length === 0 ? <Empty>No records yet.</Empty> : (
+        <div className="space-y-3">
+          {list.map((h) => (
+            <div key={h.id} className="rounded-xl border border-gray-100 p-3">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-[11px] text-gray-500">Sleep {h.sleep_time || "—"} · Wake {h.wake_time || "—"}</span>
+                {h.recorded_by?.name && (
+                  <span className="text-[10px] text-gray-500">· <span>by</span> <span data-no-i18n>{h.recorded_by.name}</span></span>
+                )}
+                <span className="text-[11px] text-gray-400 ml-auto">{fmtDateTime(h.recorded_at || h.created_at)}</span>
+                {isMine(h, can) && <EditBtn onClick={() => startEdit(h)} />}
+                {remove && mayDeleteRow(h, can) && <DeleteBtn onClick={() => doDelete(h)} />}
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                {HABITS.map(([k, ar, ico]) => (
+                  <div key={k} className="rounded-lg p-1.5 text-center bg-gray-50">
+                    <div className="text-base">{ico}</div>
+                    <p className="text-[9px] text-gray-500" dir="rtl">{ar}</p>
+                    <p className="text-[10px] font-bold" style={{ color: h[k] ? "#1A7A4C" : "#C0392B" }}>{h[k] ? "✓" : "✗"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ════════════════ overview (head + access + updates summary) ════════════════ */
+function Overview({ data, save, saving, can }) {
+  const s = data.student, p = data.profile || {}, fam = data.family || {}, c = data.development?.counts || {};
+  const [lvlOpen, setLvlOpen] = useState(false);
+  const [lvl, setLvl] = useState(p.access_level || "L1");
+  const [reason, setReason] = useState("");
+  const submitLevel = async () => { if (await save("put", "/access-level", { access_level: lvl, access_level_reason: reason }, "Access level set")) { setLvlOpen(false); setReason(""); } };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Observations" value={c.observations ?? 0} color="indigo" />
+        <StatTile label="4D ratings" value={(data.four_d_self_ratings || []).length} color="teal" />
+        <StatTile label="Records" value={(data.intake_personal || []).length + (data.deep_self_knowledge || []).length + (data.aspirations || []).length} color="emerald" />
+        <StatTile label="Portraits" value={(data.character_portraits || []).length} color="amber" />
+      </div>
+
+      <Card title="Admin Record · معلومات اداری" action={can.manage_access && <button onClick={() => setLvlOpen(true)} className="text-xs font-bold text-teal-700">Set access ▸</button>}>
+        <Grid>
+          <Field k="Family" v={fam.family_id ? `${fam.family_id} — ${fam.father_name}` : "—"} />
+          <Field k="Mentor (رهنما)" v={p.mentor_teacher?.name} />
+          <Field k="Interviewer" v={p.interviewer?.name} />
+          <Field k="Interview date" v={p.interview_date ? fmtDate(p.interview_date) : "—"} />
+          <Field k="Access level" v={p.access_level || "L1"} hl />
+          <Field k="Set by" v={p.access_set_by?.name} />
+          <Field k="Next update" v={p.next_update_due} />
+          <Field k="Class supervisor" v={can.update ? "you can record ✓" : "supervisor only"} />
+        </Grid>
+      </Card>
+
+      {can.update && (
+        <EditHead p={p} save={save} saving={saving} />
+      )}
+
+      <Modal open={lvlOpen} onClose={() => setLvlOpen(false)} title="Set access level" subtitle="Controls who can see this profile's depth"
+        footer={<>
+          <button onClick={() => setLvlOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 text-gray-500">Cancel</button>
+          <button onClick={submitLevel} disabled={saving} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Set level</button>
+        </>}>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">Access level</p>
+        <div className="flex gap-2 mb-3">
+          {[["L1", "L1 · basic"], ["L2", "L2 · extended"], ["L3", "L3 · full"]].map(([v, l]) => (
+            <button key={v} onClick={() => setLvl(v)} className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border ${lvl === v ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-500 border-gray-200"}`}>{l}</button>
+          ))}
+        </div>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">Reason (optional)</p>
+        <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className={txt} dir="auto" />
+      </Modal>
+    </div>
+  );
+}
+function EditHead({ p, save, saving }) {
+  const [form, setForm] = useState({ interview_location: p.interview_location || "", interview_attendees: p.interview_attendees || "", intake_form_url: p.intake_form_url || "", next_update_due: p.next_update_due || "" });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  return (
+    <Card title="Edit profile head">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <LblInput label="Interview location" value={form.interview_location} onChange={(v) => set("interview_location", v)} />
+        <LblInput label="Attendees" value={form.interview_attendees} onChange={(v) => set("interview_attendees", v)} />
+        <LblInput label="Intake form URL" value={form.intake_form_url} onChange={(v) => set("intake_form_url", v)} />
+        <LblInput label="Next update due" value={form.next_update_due} onChange={(v) => set("next_update_due", v)} placeholder="e.g. 1404/07" />
+      </div>
+      <div className="flex justify-end mt-3"><button onClick={() => save("put", "/head", form, "Profile saved")} disabled={saving} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Save</button></div>
+    </Card>
+  );
+}
+
+function FamilyTab({ data }) {
+  const f = data.family || {};
+  return (
+    <Card title="Family Information · معلومات فامیل">
+      <Grid>
+        <Field k="Father" v={f.father_name} /><Field k="Father occupation" v={f.father_occupation} />
+        <Field k="Father phone" v={f.father_phone} /><Field k="Mother" v={f.mother_name} />
+        <Field k="Mother phone" v={f.mother_phone} /><Field k="Members" v={f.number_of_family_members} />
+        <Field k="Province" v={f.permanent_province} /><Field k="District" v={f.permanent_district} />
+      </Grid>
+    </Card>
+  );
+}
+
+const OBS_CAT = {
+  positive: { bg: "bg-emerald-50", fg: "text-emerald-700", b: "#1A7A4C", label: "Positive" },
+  routine: { bg: "bg-gray-50", fg: "text-gray-600", b: "#5d7273", label: "Routine" },
+  concern: { bg: "bg-amber-50", fg: "text-amber-700", b: "#9a6a12", label: "Concern" },
+  urgent: { bg: "bg-red-50", fg: "text-red-700", b: "#C0392B", label: "Urgent" },
+};
+function Observations({ data }) {
+  const obs = data.development?.observations || [];
+  return (
+    <Card title="Observation Log · سوابق مشاهده" subtitle="Read-only — recorded via the observation module">
+      {obs.length === 0 ? <Empty>No observations recorded.</Empty> : (
+        <div className="space-y-2.5">
+          {obs.map((o) => {
+            const cat = OBS_CAT[o.category] || OBS_CAT.routine;
+            return (
+              <div key={o.id} className="rounded-xl border-l-4 p-3 border border-gray-100" style={{ borderLeftColor: cat.b }}>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cat.bg} ${cat.fg}`}>{cat.label}</span>
+                  <span className="text-[10px] text-gray-400 capitalize">{o.dimension}</span>
+                  {o.monitoring_flag ? <span className="text-[10px] font-bold text-red-600">⚑ monitoring</span> : null}
+                  <span className="text-[10px] text-gray-400 ml-auto">{fmtDate(o.observed_on)}</span>
+                </div>
+                <p className="text-[12px] text-gray-800" dir="auto">{o.description}</p>
+                {o.recommendation && <p className="text-[11px] mt-1 text-teal-700" dir="auto">↪ {o.recommendation}</p>}
+                {o.observer && <p className="text-[10px] text-gray-400 mt-1">by {o.observer}</p>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* سیمای شخصیتی متعلم — the teacher's term-end narrative (twice a year).
+ * Only the narrative is required; every guiding question is optional. */
+const NARRATIVE_FIELDS = [
+  F("term", "Term", { sel: [["term1", "End of term 1"], ["term2", "End of term 2"]] }),
+  F("academic_year", "Academic year (e.g. 1404)"),
+  F("teacher_role", "Your role with this student", { sel: [["mentor", "Mentor teacher (استاد رهنما)"], ["subject", "Subject teacher"], ["activity", "Activity teacher"], ["other", "Other"]] }),
+  F("acquaintance", "How long have you known this student?"),
+  F("written_on", "Date written", { date: true }),
+  F("narrative", "Narrative · روایت — write freely, in the first person", { area: true }),
+  F("habits", "Habits: which habits, good or bad, have taken root in this student?", { area: true }),
+  F("moral_instincts", "Moral instincts: faced with a moral decision, what is their first natural reaction?", { area: true }),
+  F("in_silence", "In silence: who is this student when alone, away from others' eyes?", { area: true }),
+  F("anger_calm", "Anger and calm: what angers them, and what calms them?", { area: true }),
+  F("hidden_talent", "Unopened talent: what pull or talent do you see that has not yet blossomed?", { area: true }),
+  F("inner_conflict", "Inner conflict: what struggle or contradiction do you see inside them?", { area: true }),
+  F("relations_others", "With others: classmates, teachers, the weaker and the stronger — what does it say about their heart?", { area: true }),
+  F("relation_self", "With themselves: hard or easy on themselves? Do they know themselves yet?", { area: true }),
+  F("one_image", "One image, one sentence, one moment that defines this student", { area: true }),
+  F("open_question", "Open question: what about this student is still a question for you?", { area: true }),
+  F("future", "Future: on this path, what kind of person will they be in five years?", { area: true }),
+  F("growth_path", "Path of growth: the clearest way Wifaq could help this student grow", { area: true }),
+  F("message_next_mentor", "Message to next year's mentor teacher", { area: true }),
+];
+const CONFIDENTIAL_FIELD = F("confidential_note", "Confidential note to the tarbiyati-psychology team (restricted)", { area: true });
+
+function Portrait(props) {
+  const { data, can } = props;
+  return (
+    <div className="space-y-4">
+      <LogSection {...props} title="سیمای شخصیتی متعلم · Character Portrait (twice a year)"
+        subtitle="A teacher's narrative of who this student is — written at the end of each term. Honesty is better than completeness."
+        items={data.portrait_narratives} path="/portrait-narrative" dateKey="written_on"
+        fields={can.view_sensitive ? [...NARRATIVE_FIELDS, CONFIDENTIAL_FIELD] : NARRATIVE_FIELDS}
+        canAdd={can.record_info} />
+      <PortraitDraft {...props} />
+    </div>
+  );
+}
+
+function PortraitDraft({ data, save, saving, can, registerPending }) {
+  const portraits = data.character_portraits || [];
+  const approved = portraits.find((p) => p.status === "approved");
+  const [notes, setNotes] = useState(""); const [draft, setDraft] = useState("");
+  const submitDraft = async () => {
+    const ok = await save("post", "/portrait", { raw_teacher_notes: notes, draft_portrait_dari: draft, context: "term_end" }, "Draft saved");
+    if (ok) { setNotes(""); setDraft(""); clearDraft(); }
+    return ok;
+  };
+  const { clearDraft } = useAutoSave({
+    section: "portrait", data, can, open: Boolean(can.update), form: { notes, draft }, editingId: null,
+    isDirty: () => Boolean(notes.trim() || draft.trim()), submit: submitDraft, registerPending,
+    restore: (f) => { setNotes(f?.notes || ""); setDraft(f?.draft || ""); },
+  });
+  const [approveTarget, setApproveTarget] = useState(null); const [approveText, setApproveText] = useState("");
+  const doApprove = async () => { if (await save("put", `/portrait/${approveTarget.id}/approve`, { approved_portrait_dari: approveText }, "Portrait approved")) setApproveTarget(null); };
+  return (
+    <div className="space-y-4">
+      <Card title="سیمای شخصیتی · Character Portrait">
+        {approved ? (<>
+          <p className="text-[14px] leading-loose text-gray-800 pl-3.5 border-l-4 border-amber-400" dir="auto">{approved.approved_portrait_dari}</p>
+          <p className="text-[10px] text-gray-400 mt-2">Approved {fmtDateTime(approved.approved_at)} · {approved.context}</p>
+        </>) : <Empty>No approved portrait yet.</Empty>}
+      </Card>
+      {can.update && (
+        <Card title="Draft a portrait">
+          <p className="text-[11px] text-gray-500 mb-2">Raw notes (later: AI drafts the سیما). For now write the draft, then approve.</p>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Raw teacher notes" className={txt} dir="auto" rows={2} />
+          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Draft portrait (Dari)" className={`${txt} mt-2`} dir="auto" rows={3} />
+          <div className="flex justify-end mt-2"><button disabled={saving || (!notes && !draft)} onClick={submitDraft} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Save draft</button></div>
+        </Card>
+      )}
+      {can.update && portraits.filter((p) => p.status === "draft").map((p) => (
+        <Card key={p.id} title={`Draft · ${p.context}`}>
+          <p className="text-[12px] text-gray-700 whitespace-pre-wrap" dir="auto">{p.draft_portrait_dari || p.raw_teacher_notes}</p>
+          <div className="flex justify-end mt-2"><button onClick={() => { setApproveTarget(p); setApproveText(p.draft_portrait_dari || ""); }} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600">Review & approve →</button></div>
+        </Card>
+      ))}
+      <Modal open={!!approveTarget} onClose={() => setApproveTarget(null)} title="Approve portrait" subtitle="The final سیما will surface on the profile"
+        footer={<>
+          <button onClick={() => setApproveTarget(null)} className="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 text-gray-500">Cancel</button>
+          <button onClick={doApprove} disabled={saving || !approveText.trim()} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-600 disabled:opacity-50">Approve</button>
+        </>}>
+        <textarea value={approveText} onChange={(e) => setApproveText(e.target.value)} rows={7} className={txt} dir="auto" placeholder="Final approved سیما (Dari)" />
+      </Modal>
+    </div>
+  );
+}
+
+const UPDATE_FIELDS = [
+  F("update_type", "Update type", { sel: [["grade4", "Grade 4"], ["grade7", "Grade 7"], ["ad_hoc", "Ad-hoc"]] }),
+  F("major_changes_summary", "Major changes", { area: true }), F("changes_to_4d", "Changes to 4D", { area: true }),
+  F("changes_to_family", "Changes to family", { area: true }), F("changes_to_aspirations", "Changes to aspirations", { area: true }),
+  F("flags_raised", "Flags raised", { area: true }),
+];
+function Updates(props) {
+  return <LogSection {...props} title="Longitudinal Updates · آپدیت‌ها" items={props.data.profile_updates} path="/updates" dateKey="created_at" fields={UPDATE_FIELDS} />;
+}
+
+function CareDesk({ data }) {
+  const obs = data.development?.observations || [];
+  const urgent = obs.filter((o) => o.category === "urgent");
+  const concern = obs.filter((o) => o.category === "concern");
+  const talent = obs.filter((o) => o.category === "positive");
+  const Cluster = ({ title, color, items }) => items.length === 0 ? null : (
+    <Card title={title}>
+      <div className="space-y-1.5">
+        {items.slice(0, 6).map((o) => (
+          <div key={o.id} className="text-[12px] text-gray-700 py-1 border-b border-gray-50 last:border-0" dir="auto">{o.description} <span className="text-[10px] text-gray-400">· {fmtDate(o.observed_on)}</span></div>
+        ))}
+      </div>
+    </Card>
+  );
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500">Derived from recent observations. (AI-ranked Dari synthesis is a future add-on.)</p>
+      <Cluster title="🔴 Urgent · فوری" items={urgent} />
+      <Cluster title="🟡 Wellbeing · روان" items={concern} />
+      <Cluster title="🌟 Talent to nurture · استعداد" items={talent} />
+      {urgent.length + concern.length + talent.length === 0 && <Card title="Care Desk"><Empty>Nothing flagged — clear.</Empty></Card>}
+    </div>
+  );
+}
+
+/* ════════════════ atoms ════════════════ */
+const inp = "px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-300 w-full";
+const txt = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-teal-300";
+
+const Spinner = () => <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" /></div>;
+const Card = ({ title, subtitle, action, children }) => (
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+    <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
+      <div><h3 className="text-sm font-bold text-gray-800">{title}</h3>{subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}</div>
+      {action}
+    </div>
+    <div className="p-5">{children}</div>
+  </div>
+);
+const Grid = ({ children }) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3">{children}</div>;
+const Field = ({ k, v, hl }) => (
+  <div><p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{k}</p>
+    <p className={`text-sm mt-0.5 ${hl ? "font-bold text-teal-700" : "text-gray-800"}`} dir="auto">{v || "—"}</p></div>
+);
+const TILE = { teal: "border-teal-100 bg-teal-50/60 text-teal-700", emerald: "border-emerald-100 bg-emerald-50/60 text-emerald-700", indigo: "border-indigo-100 bg-indigo-50/60 text-indigo-700", amber: "border-amber-100 bg-amber-50/60 text-amber-700" };
+const StatTile = ({ label, value, color = "teal" }) => (
+  <div className={`rounded-2xl border p-4 ${TILE[color]}`}>
+    <p className="text-[10px] font-bold uppercase tracking-wide">{label}</p>
+    <p className="text-2xl font-black text-gray-800 mt-1 leading-none">{value}</p>
+  </div>
+);
+const Empty = ({ children }) => <p className="text-sm text-gray-400 text-center py-6">{children}</p>;
+const EmptyState = ({ title, hint }) => (
+  <div className="text-center py-10">
+    <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mx-auto mb-3">
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+    </div>
+    <p className="text-sm font-bold text-gray-600">{title}</p>
+    {hint && <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">{hint}</p>}
+  </div>
+);
+const SensitiveBanner = () => (
+  <div className="rounded-xl px-3 py-2 text-[11px] flex items-center gap-2 mb-3 bg-red-50 text-red-700 border border-red-100">🔒 Confidential — internal use only, never shared with family.</div>
+);
+const Seg = ({ label, value, onChange, options }) => (
+  <div>
+    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">{label}</p>
+    <div className="flex flex-wrap gap-1.5">
+      {options.map(([v, l]) => (
+        <button key={v} onClick={() => onChange(v)} className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border ${value === v ? "bg-teal-600 text-white border-teal-600" : "bg-white text-gray-500 border-gray-200"}`}>{l}</button>
+      ))}
+    </div>
+  </div>
+);
+const LblInput = ({ label, value, onChange, placeholder }) => (
+  <div><p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">{label}</p>
+    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={inp} /></div>
+);
+function FieldInput({ f, value, onChange }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">{f.label}</p>
+      {f.bool ? (
+        <label className="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} /> Yes</label>
+      ) : f.date ? (
+        <input type="date" value={value || ""} max={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => onChange(e.target.value)} className={inp} />
+      ) : f.sel ? (
+        <select value={value} onChange={(e) => onChange(e.target.value)} className={inp}>{f.sel.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+      ) : f.area ? (
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} className={txt} dir="auto" />
+      ) : (
+        <input value={value} onChange={(e) => onChange(e.target.value)} className={inp} dir="auto" />
+      )}
+    </div>
+  );
+}
+
+/* Past reports, notices and certificates — uploaded files on the شناسنامه. */
+/**
+ * The student-profile guide's checklist (written in Guides by a super-admin):
+ * the teacher filling the profile ticks each source they talked to and used,
+ * with an optional note. Each tick shows who gave it and when.
+ */
+function ChecklistTab({ id, data, can, load }) {
+  const lists = data.checklist || [];
+  const [busy, setBusy] = useState(null);
+  const [notes, setNotes] = useState({});
+  const mayTick = Boolean(can?.record_info);
+
+  const tick = async (guideId, item, checked) => {
+    const k = `${guideId}:${item.key}`;
+    setBusy(k);
+    try {
+      await post(`/student-management/students/${id}/profile/checklist`, {
+        guide_id: guideId, item_key: item.key, checked, note: notes[k] ?? item.tick?.note ?? "",
+      });
+      load();
+    } catch (e) {
+      toastError(e.response?.data?.message || "Could not update the checklist.");
+    } finally { setBusy(null); }
+  };
+
+  if (!lists.length) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-500">
+        No checklist yet. A super-admin adds it on the Guides page (module: Student Profile).
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {lists.map((g) => {
+        const done = g.items.filter((i) => i.tick).length;
+        const pct = g.items.length ? Math.round((done / g.items.length) * 100) : 0;
+        return (
+          <div key={g.guide_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-gray-800">✅ <span dir="auto" data-no-i18n>{g.title}</span></h3>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${done === g.items.length ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                <span data-no-i18n>{done} / {g.items.length}</span> <span>done</span>
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 rounded-full bg-gray-100 overflow-hidden"><div className="h-full bg-teal-500" style={{ width: `${pct}%` }} /></div>
+            <div className="mt-3 divide-y divide-gray-100">
+              {g.items.map((item, idx) => {
+                const k = `${g.guide_id}:${item.key}`;
+                return (
+                  <div key={item.key} className="py-3 flex gap-3">
+                    <input type="checkbox" checked={Boolean(item.tick)} disabled={!mayTick || busy === k}
+                      onChange={(e) => tick(g.guide_id, item, e.target.checked)}
+                      className="w-5 h-5 mt-0.5 text-teal-600 rounded focus:ring-teal-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm font-semibold ${item.tick ? "text-gray-500 line-through" : "text-gray-800"}`} dir="auto">
+                        <span data-no-i18n>{idx + 1}. {item.text}</span>
+                      </div>
+                      {item.detail && <div className="text-xs text-gray-500 whitespace-pre-line mt-0.5" dir="auto" data-no-i18n>{item.detail}</div>}
+                      {item.tick ? (
+                        <div className="text-[11px] text-emerald-700 mt-1">
+                          ✓ <span data-no-i18n>{item.tick.checked_by}</span> · <span data-no-i18n>{fmtDateTime(item.tick.checked_at)}</span>
+                          {item.tick.note && <span className="text-gray-600" data-no-i18n> — {item.tick.note}</span>}
+                        </div>
+                      ) : mayTick && (
+                        <input value={notes[k] || ""} onChange={(e) => setNotes((n) => ({ ...n, [k]: e.target.value }))} dir="auto"
+                          placeholder="Note (optional) — then tick the box"
+                          className="mt-1.5 w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-teal-300" />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ArchiveTab({ id, data, can, load }) {
+  const types = data.archive_types || {};
+  const rows = data.archive || [];
+  const blank = { document_type: "archive_annual", title: "", academic_year: "", file: null };
+  const [form, setForm] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState("");
+  const fileRef = useRef(null);
+  const mayDelete = (d) => Boolean(can?.manage_access || can?.super_admin
+    || (d.uploaded_by?.id && Number(d.uploaded_by.id) === Number(can?.my_user_id)));
+
+  const upload = async () => {
+    if (!form.file) return toastError("Choose a file to upload");
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("document_type", form.document_type);
+      if (form.title.trim()) body.append("title", form.title.trim());
+      if (form.academic_year.trim()) body.append("academic_year", form.academic_year.trim());
+      body.append("file", form.file);
+      await post(`/student-management/students/${id}/profile/archive`, body);
+      toastSuccess("Document uploaded");
+      setForm(blank);
+      if (fileRef.current) fileRef.current.value = "";
+      load();
+    } catch (e) {
+      toastError(e.response?.data?.message || Object.values(e.response?.data?.errors || {})[0]?.[0] || "Failed to upload");
+    } finally { setBusy(false); }
+  };
+
+  const remove = async (d) => {
+    if (!(await confirmDelete())) return;
+    try {
+      await del(`/student-management/students/${id}/profile/archive/${d.id}`);
+      toastSuccess("Record deleted");
+      load();
+    } catch (e) { toastError(e.response?.data?.message || "Failed to delete"); }
+  };
+
+  const shown = filter ? rows.filter((d) => d.document_type === filter) : rows;
+  return (
+    <div className="space-y-4">
+      {can?.record_info && (
+        <Card title="Upload a report or certificate">
+          <div className="grid sm:grid-cols-3 gap-3">
+            <label className="text-xs text-gray-500">Type
+              <select value={form.document_type} onChange={(e) => setForm({ ...form, document_type: e.target.value })}
+                className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white">
+                {Object.entries(types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </label>
+            <label className="text-xs text-gray-500">Title (optional)
+              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} dir="auto"
+                className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+            </label>
+            <label className="text-xs text-gray-500">Academic year (e.g. 1404)
+              <input value={form.academic_year} onChange={(e) => setForm({ ...form, academic_year: e.target.value })}
+                className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+            </label>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap mt-3">
+            <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+              onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} className="text-sm" />
+            <button onClick={upload} disabled={busy}
+              className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-teal-600 disabled:opacity-50">
+              {busy ? "Uploading…" : "Upload"}
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">PDF, image or Word file, up to 20 MB.</p>
+        </Card>
+      )}
+
+      <Card title="Reports & Certificates">
+        <div className="flex gap-2 flex-wrap mb-3">
+          <button onClick={() => setFilter("")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold ${filter === "" ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-600"}`}>All</button>
+          {Object.entries(types).map(([k, v]) => (
+            <button key={k} onClick={() => setFilter(k)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold ${filter === k ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-600"}`}>{v}</button>
+          ))}
+        </div>
+        {shown.length === 0 ? <Empty>No documents uploaded yet.</Empty> : (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {shown.map((d) => (
+              <div key={d.id} className="flex gap-3 p-3 rounded-xl border border-gray-200 bg-white">
+                <a href={d.url} target="_blank" rel="noreferrer" className="shrink-0">
+                  {d.is_image
+                    ? <img src={d.url} alt="" className="w-16 h-16 object-cover rounded-lg border" />
+                    : <div className="w-16 h-16 rounded-lg border bg-gray-50 flex items-center justify-center text-2xl">📄</div>}
+                </a>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold text-teal-700">{types[d.document_type] || d.document_type}</div>
+                  <div className="text-sm font-bold text-gray-800 truncate" dir="auto">{d.title || d.original_name}</div>
+                  <div className="text-[11px] text-gray-500">
+                    {d.academic_year && <>{d.academic_year} · </>}{fmtDate(d.uploaded_at)}{d.uploaded_by && <> · {d.uploaded_by.name}</>}
+                  </div>
+                  <div className="flex gap-2 mt-1.5">
+                    <a href={d.url} target="_blank" rel="noreferrer"
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold border border-teal-300 text-teal-700 bg-white hover:bg-teal-50">View</a>
+                    {mayDelete(d) && <DeleteBtn onClick={() => remove(d)} />}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}

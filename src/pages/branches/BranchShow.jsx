@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
+import { get, peekCache } from "../../api/axios";
 
 const Icons = {
   ArrowLeft: () => (
@@ -36,9 +37,6 @@ const Icons = {
   ),
 };
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-
 export default function BranchShow() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -51,29 +49,28 @@ export default function BranchShow() {
   }, [id]);
 
   const fetchBranch = async () => {
-    setLoading(true);
+    const url = `/branches/show/${id}`;
+    // Route through the shared axios client so this page benefits from the
+    // ETag/304 cache like every other page. Paint cached data instantly.
+    const cached = peekCache(url);
+    if (cached) {
+      setItem(cached?.data || cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/branches/show/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setItem(result.data);
-        }
-      } else {
-        Swal.fire("Error", "Failed to fetch branch data", "error");
-        navigate("/branches");
+      const response = await get(url);
+      const result = response.data;
+      if (result?.success || result?.data) {
+        setItem(result.data ?? result);
       }
     } catch (error) {
       console.error("Error fetching branch:", error);
-      Swal.fire("Error", "Failed to fetch branch data", "error");
-      navigate("/branches");
+      if (!cached) {
+        Swal.fire("Error", "Failed to fetch branch data", "error");
+        navigate("/branches");
+      }
     } finally {
       setLoading(false);
     }

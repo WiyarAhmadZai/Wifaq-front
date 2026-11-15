@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBudgets, deleteBudget, approveBudget, closeBudget } from "../../api/financial";
+import { peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const dummy = [
@@ -35,6 +36,8 @@ export default function Budgets() {
   const fetchBudgets = async () => {
     setLoading(true);
     try {
+      const __cached = peekCache('/financial/budgets', {});
+      if (__cached) { setItems(__cached?.data || []); setLoading(false); }
       const response = await getBudgets();
       setItems(response.data?.data || []);
     } catch (error) {

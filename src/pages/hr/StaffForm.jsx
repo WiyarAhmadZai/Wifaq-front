@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, API_BASE_URL } from "../../api/axios";
+import { get, post, API_BASE_URL, peekCache } from "../../api/axios";
+import { listDepartments } from "../../api/departments";
 import Swal from "sweetalert2";
 
 const STEPS = [
@@ -11,6 +12,37 @@ const STEPS = [
 ];
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+/**
+ * Server field name -> what the field is called on screen.
+ *
+ * The API namespaces the applicant's own details under `application.*`, which
+ * is a fact about the payload, not something HR should have to decode.
+ */
+const FIELD_LABELS = {
+  application_id: "Applicant",
+  father_name: "Father's name",
+  blood_type: "Blood type",
+  branch_id: "Branch",
+  branch_ids: "Branches",
+  department_id: "Department",
+  job_requisition_id: "Job requisition",
+  supervisor_ids: "Supervisors",
+  role_title_en: "Role title",
+  contract_type: "Contract type",
+  "application.full_name": "Full name",
+  "application.email": "Email",
+  "application.contact_number": "Phone",
+  "application.current_address": "Current address",
+  "application.place_of_origin": "Place of origin",
+  "application.date_of_birth": "Date of birth",
+  "application.gender": "Gender",
+  "application.native_language": "Native language",
+  "application.education_level": "Education level",
+  "application.field_of_study": "Field of study",
+  "application.institution_name": "Institution",
+  "application.total_experience_years": "Years of experience",
+};
 const CONTRACT_LABELS = { full_time: "Full Time", part_time: "Part Time", contract: "Contract", temporary: "Temporary", internship: "Internship", FT: "Full Time", PT: "Part Time", TEMP: "Temporary", CONTRACT: "Contract", INTERNSHIP: "Internship" };
 
 const DOCUMENT_TYPES = { cv_resume: "CV/Resume", identity_document: "Identity Document", educational_document: "Educational Document", work_samples: "Work Samples" };
@@ -84,6 +116,79 @@ function SearchSelect({ options, value, onChange, placeholder = 'Search or selec
   );
 }
 
+function MultiSearchSelect({ options, value = [], onChange, placeholder = 'Search or select...' }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selectedIds = new Set((Array.isArray(value) ? value : []).map(String));
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const filtered = options.filter((option) => option.label.toLowerCase().includes(query.toLowerCase()));
+  const toggle = (id) => {
+    const next = new Set(selectedIds);
+    if (next.has(String(id))) next.delete(String(id));
+    else next.add(String(id));
+    onChange([...next]);
+    setOpen(true);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+        placeholder={placeholder}
+        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+      />
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {options.filter((option) => selectedIds.has(String(option.value))).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => toggle(option.value)}
+              className="px-2 py-1 rounded-lg bg-teal-50 text-teal-700 text-xs hover:bg-teal-100"
+            >
+              {option.label} ×
+            </button>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400">No results found</p>
+            ) : filtered.map((option) => {
+              const checked = selectedIds.has(String(option.value));
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => toggle(option.value)}
+                  className={`w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm transition-colors ${checked ? 'bg-teal-50 text-teal-800' : 'hover:bg-teal-50 text-gray-700'}`}
+                >
+                  <span className={`w-4 h-4 border rounded flex items-center justify-center text-[10px] ${checked ? 'bg-teal-600 border-teal-600 text-white' : 'border-gray-300'}`}>
+                    {checked ? '✓' : ''}
+                  </span>
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const StepCard = ({ step, children }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
     <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 rounded-t-2xl flex items-center gap-3">
@@ -100,6 +205,37 @@ const StepCard = ({ step, children }) => (
     <div className="p-5 space-y-5">{children}</div>
   </div>
 );
+
+// Mirrors App\Enum\EducationLevel — the column is a backed enum, so free text
+// would be rejected on save.
+const EDUCATION_LEVELS = [
+  { value: "grade_12_baccalaureate", label: "Grade 12 / Baccalaureate" },
+  { value: "diploma_post_baccalaureate", label: "Diploma / Post-baccalaureate" },
+  { value: "bachelors_degree", label: "Bachelor's Degree" },
+  { value: "masters_degree", label: "Master's Degree" },
+  { value: "doctorate", label: "Doctorate" },
+  { value: "other", label: "Other" },
+];
+
+const GENDERS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
+
+/** One labelled input inside the applicant's personal-details grid. */
+function AppField({ label, value, onChange, type = "text", options }) {
+  const cls = "w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none bg-white";
+  return (
+    <div className="bg-white rounded-lg p-2 border border-teal-100">
+      <label className="block text-[9px] font-semibold text-teal-500 uppercase tracking-wider mb-1">{label}</label>
+      {options ? (
+        <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} className={cls}>
+          <option value="">—</option>
+          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className={cls} />
+      )}
+    </div>
+  );
+}
 
 export default function StaffForm() {
   const navigate = useNavigate();
@@ -120,18 +256,52 @@ export default function StaffForm() {
   const [hiredApplicants, setHiredApplicants] = useState([]);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
 
   const [form, setForm] = useState({
     application_id: "",
     father_name: "", blood_type: "",
     profile_photo: null,
-    branch_id: "", job_requisition_id: "",
-    role_title_en: "", status: "active",
+    branch_id: "", branch_ids: [], department_id: "", job_requisition_id: "",
+    role_title_en: "", status: "active", supervisor_ids: [],
+  });
+
+  /**
+   * The applicant's own details. These live on the APPLICATION record, not on
+   * staff, so they are edited separately and posted under `application[...]`.
+   * HR needs them editable: applicants mistype their own name, phone and
+   * education all the time, and the letters and profile read from here.
+   */
+  const [appForm, setAppForm] = useState({
+    full_name: "", email: "", contact_number: "", date_of_birth: "",
+    gender: "", native_language: "", place_of_origin: "", current_address: "",
+    education_level: "", field_of_study: "", institution_name: "",
+    total_experience_years: "",
+  });
+  const setApp = (k, v) => setAppForm((f) => ({ ...f, [k]: v }));
+
+  /** Seed the editable applicant fields from a hired-applicant record. */
+  const seedAppForm = (a) => setAppForm({
+    full_name: a?.full_name || "",
+    email: a?.email || "",
+    contact_number: a?.contact_number || "",
+    date_of_birth: (a?.date_of_birth || "").split("T")[0],
+    gender: a?.gender || "",
+    native_language: a?.native_language || "",
+    place_of_origin: a?.place_of_origin || "",
+    current_address: a?.current_address || "",
+    education_level: (typeof a?.education_level === "object" ? a?.education_level?.value : a?.education_level) || "",
+    field_of_study: a?.field_of_study || "",
+    institution_name: a?.institution_name || "",
+    total_experience_years: a?.total_experience_years ?? "",
   });
 
   useEffect(() => {
     fetchHiredApplicants();
     fetchBranches();
+    fetchSupervisors();
+    fetchDepartments();
     if (isEdit) loadStaff();
   }, [id]);
 
@@ -150,79 +320,130 @@ export default function StaffForm() {
     try { const res = await get('/branches/list'); setBranches(res.data?.data || res.data || []); } catch { setBranches([]); }
   };
 
+  // Approver for this person's leave and other requests.
+  const fetchSupervisors = async () => {
+    try {
+      const res = await get('/hr/staff/supervisors/list');
+      setSupervisors(res.data?.data || []);
+    } catch {
+      setSupervisors([]);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await listDepartments({ active_only: 1 });
+      setDepartments(res.data?.data || res.data || []);
+    } catch {
+      setDepartments([]);
+    }
+  };
+
+  const seedStaff = (d) => {
+    setForm(prev => ({
+      ...prev,
+      application_id: d.application_id || "",
+      father_name: d.father_name || "",
+      blood_type: d.blood_type || "",
+      branch_id: d.branch_id || "",
+      branch_ids: d.branches?.length
+        ? [
+          ...(d.branch_id ? [String(d.branch_id)] : []),
+          ...d.branches.filter((branch) => String(branch.id) !== String(d.branch_id)).map((branch) => String(branch.id)),
+        ]
+        : (d.branch_id ? [String(d.branch_id)] : []),
+      department: d.department || "",
+      department_id: d.department_id || "",
+      supervisor_ids: d.supervisors?.length
+        ? d.supervisors.map((supervisor) => String(supervisor.id))
+        : (d.supervisor_id ? [String(d.supervisor_id)] : []),
+      role_title_en: d.role_title_en || "",
+      contract_type: d.contract_type || "",
+      status: d.status || "active",
+    }));
+    if (d.profile_photo) {
+      setPhotoPreview(`${API_BASE_URL.replace(/\/api\/?$/, '')}/storage/${d.profile_photo}`);
+    }
+    if (d.application) {
+      seedAppForm(d.application);
+      setSelectedApplicant({
+        ...d.application,
+        position: d.role_title_en || d.application.job_posting?.requisition?.position_title || d.application.job_posting?.title || '',
+        department: d.department || d.application.job_posting?.requisition?.department || '',
+        employment_type: d.contract_type || d.application.job_posting?.requisition?.employment_type || '',
+        documents: d.application.documents || [],
+        offer: d.application.offer,
+      });
+    }
+  };
+
   const loadStaff = async () => {
     setLoading(true);
+    const __cached = peekCache(`/hr/staff/show/${id}`);
+    if (__cached) {
+      seedStaff(__cached?.data || __cached);
+      setLoading(false);
+    }
     try {
       const res = await get(`/hr/staff/show/${id}`);
       const d = res.data?.data || res.data;
-      setForm(prev => ({
-        ...prev,
-        application_id: d.application_id || "",
-        father_name: d.father_name || "",
-        blood_type: d.blood_type || "",
-        branch_id: d.branch_id || "",
-        department: d.department || "",
-        role_title_en: d.role_title_en || "",
-        contract_type: d.contract_type || "",
-        status: d.status || "active",
-      }));
-      if (d.profile_photo) {
-        setPhotoPreview(`${API_BASE_URL.replace(/\/api\/?$/, '')}/storage/${d.profile_photo}`);
+      // A conditional GET whose cached copy vanished can hand us an empty body.
+      // Treat that as a failure rather than seeding the form with undefined,
+      // which would silently blank every field on the page.
+      if (!d || typeof d !== "object" || !d.id) {
+        throw new Error("Empty staff payload");
       }
-      if (d.application) {
-        setSelectedApplicant({
-          ...d.application,
-          position: d.role_title_en || d.application.job_posting?.requisition?.position_title || d.application.job_posting?.title || '',
-          department: d.department || d.application.job_posting?.requisition?.department || '',
-          employment_type: d.contract_type || d.application.job_posting?.requisition?.employment_type || '',
-          documents: d.application.documents || [],
-          offer: d.application.offer,
-        });
-      }
+      seedStaff(d);
     } catch {
       Swal.fire("Error", "Failed to load staff data", "error");
-      navigate("/hr/staff");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const set = (name, value) => setForm(prev => ({ ...prev, [name]: value }));
-  const handle = (e) => set(e.target.name, e.target.value);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handle = (e) => {
+    const { name, value, type, checked } = e.target;
+    set(name, type === 'checkbox' ? checked : value);
+  };
 
   const handleFileChange = (e) => {
-    const { name, files } = e.target;
-    if (files && files[0]) {
-      set(name, files[0]);
-      if (name === "profile_photo") {
-        const reader = new FileReader();
-        reader.onloadend = () => setPhotoPreview(reader.result);
-        reader.readAsDataURL(files[0]);
-      }
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    set('profile_photo', file);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
       setShowCamera(true);
-      setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); } }, 100);
+      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = stream; }, 100);
     } catch { Swal.fire("Error", "Could not access camera.", "error"); }
   };
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const canvas = canvasRef.current; const video = videoRef.current;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    canvas.toBlob((blob) => {
-      if (blob) { const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' }); set('profile_photo', file); setPhotoPreview(canvas.toDataURL('image/jpeg')); }
-      stopCamera(); setShowPhotoModal(false);
-    }, 'image/jpeg', 0.9);
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    setShowCamera(false);
   };
 
-  const stopCamera = () => {
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
-    setShowCamera(false);
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    // The hidden <canvas ref={canvasRef}> in the modal exists for this.
+    const canvas = canvasRef.current || document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      const file = new File([blob], 'profile.png', { type: 'image/png' });
+      set('profile_photo', file);
+      setPhotoPreview(URL.createObjectURL(file));
+      stopCamera();
+    }, 'image/png');
   };
 
   const handleApplicantSelect = (appId) => {
@@ -230,21 +451,27 @@ export default function StaffForm() {
     const applicant = hiredApplicants.find(a => String(a.id) === String(appId));
     if (applicant) {
       setSelectedApplicant(applicant);
+      seedAppForm(applicant);
+      // Match the applicant's department name to a department record so the
+      // Department dropdown is pre-selected (case/whitespace insensitive).
+      const deptName = String(applicant.department || '').trim().toLowerCase();
+      const matchedDept = deptName ? departments.find(d => String(d.name || '').trim().toLowerCase() === deptName) : null;
       setForm(prev => ({
         ...prev,
         application_id: appId,
         job_requisition_id: applicant.job_requisition_id || prev.job_requisition_id,
         department: applicant.department || prev.department,
+        department_id: matchedDept?.id || prev.department_id,
         role_title_en: applicant.position || prev.role_title_en,
         contract_type: applicant.employment_type || prev.contract_type,
       }));
-    } else { setSelectedApplicant(null); }
+    } else { setSelectedApplicant(null); seedAppForm(null); }
   };
 
   const canNext = () => {
     if (step === 1) return form.application_id || isEdit;
     if (step === 3) {
-      if (!form.branch_id) return false;
+      if (!(form.branch_ids?.length || form.branch_id)) return false;
     }
     return true;
   };
@@ -255,16 +482,52 @@ export default function StaffForm() {
     try {
       const formData = new FormData();
       Object.entries(form).forEach(([key, val]) => {
+        if (key === "branch_ids") {
+          if (val.length) val.forEach((branchId) => formData.append("branch_ids[]", branchId));
+          else formData.append("branch_ids", "");
+          return;
+        }
+        if (key === "supervisor_ids") {
+          if (val.length) val.forEach((supervisorId) => formData.append("supervisor_ids[]", supervisorId));
+          else formData.append("supervisor_ids", "");
+          return;
+        }
         if (val !== null && val !== undefined && val !== "") {
           formData.append(key, typeof val === 'boolean' ? (val ? '1' : '0') : val);
         }
+      });
+      // Applicant details go up nested so the backend can tell them apart from
+      // the staff columns and write them to the application record.
+      Object.entries(appForm).forEach(([key, val]) => {
+        if (val !== null && val !== undefined) formData.append(`application[${key}]`, val);
       });
       if (isEdit) { formData.append('_method', 'PUT'); await post(`/hr/staff/update/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); }
       else { await post("/hr/staff/store", formData, { headers: { 'Content-Type': 'multipart/form-data' } }); }
       Swal.fire({ icon: "success", title: isEdit ? "Staff Updated!" : "Staff Registered!", timer: 2000, showConfirmButton: false });
       navigate("/hr/staff");
     } catch (error) {
-      Swal.fire("Error", error.response?.data?.message || "Failed to save staff", "error");
+      /* A 422 arrives as { errors: { "application.email": ["..."] } }, and this
+       * only ever read `message` — so every validation failure showed the same
+       * "Failed to save staff" and HR had no way to know which field the server
+       * objected to. Now it names them. */
+      const bag = error.response?.data?.errors;
+      if (bag && Object.keys(bag).length) {
+        const lines = Object.entries(bag).map(([field, msgs]) => {
+          const label = FIELD_LABELS[field] || field.replace(/^application\./, "").replace(/_/g, " ");
+          const msg = (Array.isArray(msgs) ? msgs[0] : msgs) || "is not valid";
+          // Laravel's message already names the field in its own words; the
+          // label is what HR sees on screen, so both are shown.
+          return `<li style="margin-bottom:4px"><b>${label}</b> — ${msg}</li>`;
+        });
+        Swal.fire({
+          icon: "error",
+          title: "Please correct these fields",
+          html: `<ul style="text-align:start;padding-inline-start:18px;font-size:13px">${lines.join("")}</ul>`,
+          confirmButtonColor: "#0d9488",
+        });
+      } else {
+        Swal.fire("Error", error.response?.data?.message || "Failed to save staff", "error");
+      }
     } finally { setSaving(false); }
   };
 
@@ -290,19 +553,20 @@ export default function StaffForm() {
           </div>
           <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase flex-shrink-0">Hired</span>
         </div>
-        <div className="px-5 py-3 grid grid-cols-3 md:grid-cols-5 gap-3">
-          {[
-            { l: "Email", v: a.email },
-            { l: "Phone", v: a.contact_number },
-            { l: "DOB", v: a.date_of_birth?.split("T")[0] },
-            { l: "Education", v: a.education_level },
-            { l: "Contract", v: CONTRACT_LABELS[a.employment_type] || a.employment_type },
-          ].map(f => (
-            <div key={f.l} className="min-w-0">
-              <p className="text-[9px] font-semibold text-gray-400 uppercase">{f.l}</p>
-              <p className="text-[11px] font-medium text-gray-700 truncate">{f.v || "—"}</p>
-            </div>
-          ))}
+        {/* Editable on every step — this header is where HR actually notices a
+            wrong email or date, so it must be fixable without navigating back
+            to step 1. Bound to the same appForm state, so both stay in sync. */}
+        <div className="px-5 py-3 grid grid-cols-2 md:grid-cols-5 gap-3">
+          <AppField label="Email" type="email" value={appForm.email} onChange={(v) => setApp("email", v)} />
+          <AppField label="Phone" value={appForm.contact_number} onChange={(v) => setApp("contact_number", v)} />
+          <AppField label="DOB" type="date" value={appForm.date_of_birth} onChange={(v) => setApp("date_of_birth", v)} />
+          <AppField label="Education" options={EDUCATION_LEVELS} value={appForm.education_level} onChange={(v) => setApp("education_level", v)} />
+          <div className="bg-white rounded-lg p-2 border border-gray-100">
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Contract</p>
+            <p className="text-[11px] font-medium text-gray-700 truncate py-1.5">
+              {CONTRACT_LABELS[a.employment_type] || a.employment_type || "—"}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -375,23 +639,38 @@ export default function StaffForm() {
                     <span className="ml-auto px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase">Hired</span>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {[
-                      { label: "Email", value: selectedApplicant.email },
-                      { label: "Phone", value: selectedApplicant.contact_number },
-                      { label: "Date of Birth", value: selectedApplicant.date_of_birth?.split("T")[0] },
-                      { label: "Education", value: selectedApplicant.education_level },
-                      { label: "Field of Study", value: selectedApplicant.field_of_study },
-                      { label: "Institution", value: selectedApplicant.institution_name },
-                      { label: "Experience", value: selectedApplicant.total_experience_years ? `${selectedApplicant.total_experience_years} years` : null },
-                      { label: "Contract Type", value: CONTRACT_LABELS[selectedApplicant.employment_type] || selectedApplicant.employment_type },
-                      { label: "Address", value: selectedApplicant.current_address },
-                    ].map(f => (
-                      <div key={f.label} className="bg-white rounded-lg p-2.5 border border-teal-100">
-                        <p className="text-[9px] font-semibold text-teal-500 uppercase tracking-wider">{f.label}</p>
-                        <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{f.value || "—"}</p>
-                      </div>
-                    ))}
+                  {/* Editable. Applicants routinely mistype their own details,
+                      and these feed the login account, the welcome letter and
+                      the staff profile — so HR must be able to correct them. */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider">
+                        Personal details
+                      </p>
+                      <span className="text-[10px] text-teal-500">Editable — corrections are saved to the applicant record</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <AppField label="Full Name" value={appForm.full_name} onChange={(v) => setApp("full_name", v)} />
+                      <AppField label="Email" type="email" value={appForm.email} onChange={(v) => setApp("email", v)} />
+                      <AppField label="Phone" value={appForm.contact_number} onChange={(v) => setApp("contact_number", v)} />
+                      <AppField label="Date of Birth" type="date" value={appForm.date_of_birth} onChange={(v) => setApp("date_of_birth", v)} />
+                      <AppField label="Gender" options={GENDERS} value={appForm.gender} onChange={(v) => setApp("gender", v)} />
+                      <AppField label="Native Language" value={appForm.native_language} onChange={(v) => setApp("native_language", v)} />
+                      <AppField label="Education" options={EDUCATION_LEVELS} value={appForm.education_level} onChange={(v) => setApp("education_level", v)} />
+                      <AppField label="Field of Study" value={appForm.field_of_study} onChange={(v) => setApp("field_of_study", v)} />
+                      <AppField label="Institution" value={appForm.institution_name} onChange={(v) => setApp("institution_name", v)} />
+                      <AppField label="Experience (years)" type="number" value={appForm.total_experience_years} onChange={(v) => setApp("total_experience_years", v)} />
+                      <AppField label="Place of Origin" value={appForm.place_of_origin} onChange={(v) => setApp("place_of_origin", v)} />
+                      <AppField label="Address" value={appForm.current_address} onChange={(v) => setApp("current_address", v)} />
+                    </div>
+
+                    {/* Read-only: set by the recruitment offer, not here. */}
+                    <div className="mt-3 bg-white/70 rounded-lg p-2.5 border border-teal-100 inline-block">
+                      <p className="text-[9px] font-semibold text-teal-500 uppercase tracking-wider">Contract Type</p>
+                      <p className="text-xs font-medium text-gray-800 mt-0.5">
+                        {CONTRACT_LABELS[selectedApplicant.employment_type] || selectedApplicant.employment_type || "—"}
+                      </p>
+                    </div>
                   </div>
 
                   {selectedApplicant.documents?.length > 0 && (
@@ -470,17 +749,39 @@ export default function StaffForm() {
             <StepCard step={cur}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label required>Branch</Label>
-                  <SearchSelect
+                  <Label required>Branches</Label>
+                  <MultiSearchSelect
                     options={branches.map(b => ({ value: b.id, label: b.name }))}
-                    value={form.branch_id}
-                    onChange={v => set('branch_id', v)}
-                    placeholder="Select branch..."
+                    value={form.branch_ids}
+                    onChange={(ids) => setForm((current) => ({
+                      ...current,
+                      branch_ids: ids,
+                      branch_id: ids[0] || "",
+                    }))}
+                    placeholder="Search and select branches..."
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">Select every branch where this staff member works. The first selected branch is the primary branch.</p>
                 </div>
                 <div>
                   <Label>Department</Label>
-                  <input type="text" value={selectedApplicant?.department || "—"} readOnly className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`} />
+                  <SearchSelect
+                    options={departments.map(d => ({ value: d.id, label: d.name }))}
+                    value={form.department_id}
+                    onChange={v => set('department_id', v)}
+                    placeholder={selectedApplicant?.department ? `From requisition: ${selectedApplicant.department}` : "Select department..."}
+                  />
+                </div>
+                <div>
+                  <Label>Supervisors</Label>
+                  <MultiSearchSelect
+                    options={supervisors
+                      .filter(sv => !isEdit || String(sv.id) !== String(id))
+                      .map(sv => ({ value: sv.id, label: sv.role_title_en ? `${sv.full_name_en} — ${sv.role_title_en}` : sv.full_name_en }))}
+                    value={form.supervisor_ids}
+                    onChange={v => set('supervisor_ids', v)}
+                    placeholder="Search and select supervisors..."
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Selected supervisors can review this staff member's lesson plans and receive their requests. Leave empty to send requests straight to HR.</p>
                 </div>
                 <div>
                   <Label>Position Title</Label>
@@ -505,7 +806,7 @@ export default function StaffForm() {
                   { label: "Email", value: selectedApplicant?.email },
                   { label: "Phone", value: selectedApplicant?.contact_number },
                   { label: "Position", value: form.role_title_en },
-                  { label: "Department", value: selectedApplicant?.department },,
+                  { label: "Department", value: departments.find(d => String(d.id) === String(form.department_id))?.name || selectedApplicant?.department },
                   { label: "Branch", value: branches.find(b => String(b.id) === String(form.branch_id))?.name },
                   { label: "Contract Type", value: CONTRACT_LABELS[selectedApplicant?.employment_type] || selectedApplicant?.employment_type },
                   { label: "Father's Name", value: form.father_name },
@@ -551,7 +852,7 @@ export default function StaffForm() {
 
       {/* ── Photo Modal ────────────────────────────────────────────── */}
       {showPhotoModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { if (!showCamera) setShowPhotoModal(false); }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>

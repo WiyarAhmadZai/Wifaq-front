@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, put } from "../../api/axios";
+import { get, post, put, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 
 const Icons = {
@@ -64,6 +64,19 @@ export default function BranchForm() {
 
   const fetchBranch = async () => {
     setLoading(true);
+    const __cached = peekCache(`/branches/show/${id}`);
+    if (__cached) {
+      const cd = __cached?.data || __cached;
+      setFormData({
+        name: cd.name || "",
+        phone: cd.phone || "",
+        manager: cd.manager || "",
+        status: cd.status === true || cd.status === 1 || cd.status === "1" || cd.status === "true",
+        established_year: cd.established_year || "",
+        address: cd.address || "",
+      });
+      setLoading(false);
+    }
     try {
       const response = await get(`/branches/show/${id}`);
       if (response.data?.success || response.data) {

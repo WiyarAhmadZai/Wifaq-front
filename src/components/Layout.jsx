@@ -1,8 +1,22 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { lazy, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Suspense } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/context/AuthContext";
 import PathPermissionGate from "../admin/guards/PathPermissionGate";
+import { permissionForPath } from "../admin/utils/pathPermissions";
+import ErrorBoundary from "./ErrorBoundary";
+import ScrollMemory from "./ScrollMemory";
+import MessagesButton from "../chat/components/MessagesButton";
+import { useChat } from "../chat/ChatContext";
+import { PostsButton, CreatePostButton } from "./posts/HeaderButtons";
+import PostComposer from "./posts/PostComposer";
+// The chat window's screens load the first time chat is opened; the chat
+// itself (badge, new messages, calls) runs from ChatProvider regardless.
+const ChatDrawer = lazy(() => import("../chat/components/ChatDrawer"));
+import WelcomeLetterModal from "./WelcomeLetterModal";
+import ExperienceLetterModal from "./ExperienceLetterModal";
+import { isRealtimeLive } from "../chat/echo";
+import LanguageSwitcher from "../i18n/LanguageSwitcher";
 
 const PageFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -12,8 +26,11 @@ const PageFallback = () => (
     </div>
   </div>
 );
-import { get, put } from "../api/axios";
+import { get, put, post } from "../api/axios";
 import Swal from "sweetalert2";
+
+import { fmtDate } from "../utils/formErrors";
+import wifaqLogo from "../assets/wifaq-logo.png";
 
 const Icons = {
   Dashboard: () => (
@@ -304,13 +321,13 @@ const SubMenuItem = ({ label, to, active, onClick }) => (
   <Link
     to={to}
     onClick={onClick}
-    className={`flex items-center px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
+    className={`flex items-center px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs text-left ${
       active
         ? "bg-teal-700 text-white"
         : "text-teal-200 hover:bg-teal-800 hover:text-white"
     }`}
   >
-    <span>{label}</span>
+    <span className="leading-snug break-words">{label}</span>
   </Link>
 );
 
@@ -318,17 +335,17 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
   <div>
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-sm ${
+      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg transition-colors text-sm text-left ${
         isOpen
           ? "bg-teal-700 text-white"
           : "text-teal-100 hover:bg-teal-800 hover:text-white"
       }`}
     >
-      <div className="flex items-center gap-2">
-        <Icon />
-        <span className="font-medium">{label}</span>
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="shrink-0 flex"><Icon /></span>
+        <span className="font-medium leading-snug break-words">{label}</span>
       </div>
-      <div className={`transition-transform ${isOpen ? "rotate-180" : ""}`}>
+      <div className={`shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}>
         <Icons.ChevronDown />
       </div>
     </button>
@@ -336,30 +353,424 @@ const ParentMenu = ({ icon: Icon, label, isOpen, onClick, children }) => (
   </div>
 );
 
-// ── Notification Bell ─────────────────────────────────────────────────────────
-function NotificationBell() {
+// ── Back button ───────────────────────────────────────────────────────────────
+/**
+ * Back to the previous screen inside the system, so nobody has to reach for
+ * the browser's own button. On every page except the Dashboard itself.
+ *
+ * React Router numbers each history entry (`idx`). When there is an earlier
+ * in-app page (idx > 0) it goes back to it; when the page was opened straight
+ * from a link, typed in, or reloaded in a new tab (idx 0) there is nothing to
+ * go back to, so it goes to the Dashboard instead of leaving the system. The
+ * arrow mirrors in Dari / Pashto.
+ */
+function BackButton() {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const ref = useRef(null);
+  const { pathname } = useLocation(); // re-render on every navigation so idx is current
+  if (pathname === "/") return null;
+  const hasHistory = (window.history.state?.idx ?? 0) > 0;
+  return (
+    <button
+      type="button"
+      onClick={() => (hasHistory ? navigate(-1) : navigate("/"))}
+      title="Back"
+      aria-label="Back"
+      className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-800 flex-shrink-0"
+    >
+      <svg className="w-5 h-5 rtl:-scale-x-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      </svg>
+    </button>
+  );
+}
 
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const res = await get("/notifications");
-      const data = res.data;
-      setNotifications(data?.data || []);
-      setUnreadCount(data?.unread_count || 0);
-    } catch {
-      // silently fail
-    }
+// ── Notification Bell ─────────────────────────────────────────────────────────
+/**
+ * Header search — jumps to any page the user is allowed to open.
+ *
+ * The index comes from the sidebar's own menu arrays, already filtered by the
+ * same permission check, so a result can never lead somewhere that 403s.
+ *
+ * Matching is a simple substring over the page name, its menu trail and its
+ * URL, with whole-word-prefix matches ranked first — "pay" should offer
+ * "Payroll" before "Fee Payments". Good enough for ~100 pages and instant,
+ * with no backend call on every keystroke.
+ */
+function GlobalSearch({ index }) {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const boxRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Ctrl/Cmd+K focuses the box — the shortcut people try first.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        setOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   useEffect(() => {
+    const onClick = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+
+    return index
+      .map((item) => {
+        const label = item.label.toLowerCase();
+        const trail = item.trail.join(" ").toLowerCase();
+        const hay = `${label} ${item.section.toLowerCase()} ${trail} ${item.path.toLowerCase()}`;
+        if (!hay.includes(q)) return null;
+
+        // Rank: exact name, then name starts with, then a word in the name
+        // starts with, then anything else.
+        let score = 4;
+        if (label === q) score = 0;
+        else if (label.startsWith(q)) score = 1;
+        else if (label.split(/\s+/).some((w) => w.startsWith(q))) score = 2;
+        else if (label.includes(q)) score = 3;
+        return { ...item, score };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.score - b.score || a.label.localeCompare(b.label))
+      .slice(0, 8);
+  }, [query, index]);
+
+  const go = (item) => {
+    if (!item) return;
+    navigate(item.path);
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.blur();
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); return; }
+    if (!results.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => (i + 1) % results.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i - 1 + results.length) % results.length); }
+    else if (e.key === "Enter") { e.preventDefault(); go(results[active]); }
+  };
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <Icons.Search />
+      </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        // Reset the highlight here rather than in an effect on `query`: the
+        // list is rebuilt by this keystroke, so row 0 is the right selection
+        // and doing it in an effect would render one frame pointing at a stale
+        // row.
+        onChange={(e) => { setQuery(e.target.value); setActive(0); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={onKeyDown}
+        placeholder="Search pages…  (Ctrl+K)"
+        className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
+      />
+
+      {open && query.trim() && (
+        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
+          {results.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-gray-400">
+              No page matches “{query.trim()}”.
+            </p>
+          ) : (
+            <ul className="max-h-80 overflow-y-auto py-1">
+              {results.map((r, i) => (
+                <li key={r.path}>
+                  <button
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => go(r)}
+                    className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 ${
+                      i === active ? "bg-teal-50" : "hover:bg-gray-50"}`}
+                  >
+                    <span className="min-w-0">
+                      <span className={`block text-xs font-semibold truncate ${
+                        i === active ? "text-teal-800" : "text-gray-800"}`}>
+                        {r.label}
+                      </span>
+                      <span className="block text-[10px] text-gray-400 truncate">
+                        {[r.section, ...r.trail].join(" › ")}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-gray-300 flex-shrink-0">↵</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificationBell() {
+  const navigate = useNavigate();
+  const { hasRole } = useAuth();
+  // Delivery preferences are an admin/super-admin tool, and they only ever
+  // affect the signed-in user's own bell.
+  const canManagePrefs = hasRole("super-admin") || hasRole("admin");
+  const [showPrefs, setShowPrefs] = useState(false);
+  const [prefs, setPrefs] = useState([]);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  // Floating welcome cards — populated once per browser session with the
+  // unread notifications so the user sees what they missed at a glance.
+  const [popups, setPopups] = useState([]);
+  const popupsSeededRef = useRef(false);
+  // Tracks every notification id we've already processed in this session.
+  // Polls compare against this set to spot brand-new arrivals so we can
+  // chime + slide-in toast + OS-notify just for them (no dupes).
+  const seenIdsRef = useRef(null);
+  // Shared AudioContext, lazy-created on first user gesture (browser
+  // autoplay policy blocks creation before any interaction).
+  const audioCtxRef = useRef(null);
+  // Surface the current Notification permission state so we can render an
+  // "Enable notifications" prompt while it's still 'default'.
+  const [notifPerm, setNotifPerm] = useState(
+    typeof window !== 'undefined' && 'Notification' in window
+      ? Notification.permission
+      : 'denied'
+  );
+  const ref = useRef(null);
+  // Tracks invites the user has RSVP'd to in this session (notif id -> status)
+  // so the Attend / Can't attend buttons flip to a confirmation immediately.
+  const [responded, setResponded] = useState({});
+  const [respondingId, setRespondingId] = useState(null);
+
+  // Lazy-init a shared AudioContext. Browsers reject contexts created
+  // before a user gesture, so callers should invoke this from a real
+  // interaction (click, focus). Subsequent calls reuse the same context.
+  const ensureAudioCtx = useCallback(() => {
+    if (audioCtxRef.current) return audioCtxRef.current;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtxRef.current = new Ctx();
+    } catch { audioCtxRef.current = null; }
+    return audioCtxRef.current;
+  }, []);
+
+  // Short two-note "WhatsApp-style" chime, synthesised on the fly so we
+  // don't ship an audio asset. Fails silently if AudioContext is blocked.
+  const playChime = useCallback(() => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    try {
+      if (ctx.state === 'suspended') ctx.resume();
+      const tone = (freq, start, dur) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur + 0.05);
+      };
+      tone(880, 0, 0.16);
+      tone(1175, 0.18, 0.22);
+    } catch { /* ignore */ }
+  }, []);
+
+  // OS notification — fires even when the tab is hidden (WhatsApp-Web style).
+  // Mobile browsers forbid `new Notification()` (Illegal constructor) — they
+  // REQUIRE the service worker's registration.showNotification(). So we prefer
+  // the service worker everywhere and only fall back to the constructor on
+  // desktop when no service worker is available.
+  const showOsNotification = useCallback((n) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission === 'denied') return;
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission(); // picked up on the next poll
+      return;
+    }
+    const d = n.data || {};
+    const title = d.title || 'New notification';
+    const opts = { body: d.message || '', icon: '/favicon.ico', tag: `wen-${n.id}`, renotify: true, data: { link: d.link || '/' } };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.showNotification(title, opts))
+        .catch(() => {
+          // Desktop fallback if the SW isn't controlling yet.
+          try {
+            const notif = new Notification(title, opts);
+            notif.onclick = () => { window.focus(); if (d.link) navigate(d.link); notif.close(); };
+          } catch { /* ignore */ }
+        });
+      return;
+    }
+    try {
+      const notif = new Notification(title, opts);
+      notif.onclick = () => { window.focus(); if (d.link) navigate(d.link); notif.close(); };
+    } catch { /* ignore */ }
+  }, [navigate]);
+
+  // Register the service worker and navigate when a notification is clicked.
+  // The SW is registered ONLY in production — running a service worker under the
+  // Vite dev server breaks HMR and can leave the page stuck loading. In dev we
+  // proactively unregister any stale SW so a previously-registered one can't
+  // interfere.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    if (import.meta.env.PROD) {
+      navigator.serviceWorker.register('/sw.js').catch(() => { /* ignore */ });
+    } else if (navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => { /* ignore */ });
+    }
+    const onMsg = (e) => {
+      if (e.data?.type === 'notif-navigate' && e.data.link) navigate(e.data.link);
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+  }, [navigate]);
+
+  const fetchNotifications = useCallback(async () => {
+    // Poll runs even when the tab is hidden so OS notifications can fire
+    // for offline-tab users — the response is small and once-a-minute.
+    try {
+      const res = await get("/notifications");
+      const data = res.data;
+      const items = data?.data || [];
+      setNotifications(items);
+      setUnreadCount(data?.unread_count || 0);
+
+      // FIRST poll of this session: just record what already existed
+      // without chiming for it (those are "old" notifications). The
+      // session-seed popups still run for unread-on-arrival items so the
+      // user gets caught up.
+      if (seenIdsRef.current === null) {
+        seenIdsRef.current = new Set(items.map((n) => n.id));
+        if (!popupsSeededRef.current && !sessionStorage.getItem("wen:notif-popups-seen")) {
+          const unread = items.filter((n) => !n.read_at).slice(0, 5);
+          if (unread.length > 0) setPopups(unread);
+          popupsSeededRef.current = true;
+          sessionStorage.setItem("wen:notif-popups-seen", "1");
+        }
+        return;
+      }
+
+      // SUBSEQUENT polls: detect arrivals since last tick.
+      const fresh = items.filter((n) => !seenIdsRef.current.has(n.id));
+      if (fresh.length === 0) return;
+      fresh.forEach((n) => seenIdsRef.current.add(n.id));
+
+      // Keep our cached permission state honest before deciding whether to
+      // bother calling the OS notifier — the user may have flipped it from
+      // browser settings.
+      if ('Notification' in window) setNotifPerm(Notification.permission);
+
+      // Float each fresh item as a card (cap stack at 5 so it never feels
+      // like a wall of toasts). The auto-dismiss effect below clears them
+      // after a few seconds — long enough to read, short enough to not
+      // clutter.
+      setPopups((prev) => [...fresh.slice(0, 5), ...prev].slice(0, 5));
+
+      // Audible chime + OS-level notification on every new arrival, just
+      // like WhatsApp Web. Firing the OS notification even when the tab is
+      // visible means it ALSO lands in the OS notification center
+      // (Windows Action Center, macOS Notification Center, Android tray,
+      // etc.), so the user has a record of it outside the browser. The
+      // OS itself decides whether to flash a banner based on its own
+      // focus/DND rules.
+      playChime();
+      fresh.forEach((n) => showOsNotification(n));
+    } catch {
+      // silently fail
+    }
+  }, [playChime, showOsNotification]);
+
+  useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // poll every 30s
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
+    /* Poll rate depends on whether the live socket is carrying events.
+     *
+     * With Reverb connected, a minute is plenty — the socket delivers
+     * instantly and the poll is only a safety net. With it down (an
+     * unreachable host baked into the build, a stopped daemon, a proxy that
+     * blocks the upgrade) the poll IS the delivery mechanism, and a minute
+     * means a notification can sit unseen for a minute. Re-evaluated on each
+     * tick, so the rate follows the connection without a reload. */
+    let interval;
+    let currentRate = null;
+    const schedule = () => {
+      const rate = isRealtimeLive() ? 60000 : 10000;
+      if (rate === currentRate) return;
+      currentRate = rate;
+      clearInterval(interval);
+      interval = setInterval(() => { fetchNotifications(); schedule(); }, rate);
+    };
+    schedule();
+
+    // Listen for in-app events (e.g. after approve/reject in this same tab)
+    // and refresh immediately — no waiting for the next poll cycle.
+    const onRefresh = () => fetchNotifications();
+    window.addEventListener("wen:notifications-refresh", onRefresh);
+
+    // Re-fetch when the tab regains focus (covers cross-tab approvals too).
+    const onVisible = () => { if (!document.hidden) fetchNotifications(); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    // Bootstrap audio + OS-notification permission on the first user
+    // interaction anywhere on the page. Browsers reject silent setup.
+    const bootstrap = () => {
+      ensureAudioCtx();
+      if ('Notification' in window && Notification.permission === 'default') {
+        try {
+          Notification.requestPermission().then((result) => setNotifPerm(result));
+        } catch {}
+      }
+      document.removeEventListener('pointerdown', bootstrap);
+      document.removeEventListener('keydown', bootstrap);
+    };
+    document.addEventListener('pointerdown', bootstrap, { once: true });
+    document.addEventListener('keydown', bootstrap, { once: true });
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("wen:notifications-refresh", onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener('pointerdown', bootstrap);
+      document.removeEventListener('keydown', bootstrap);
+    };
+  }, [fetchNotifications, ensureAudioCtx]);
+
+  // Auto-dismiss floating cards after ~7 seconds — long enough to read,
+  // short enough that the screen stays clean. Each card runs its own
+  // timer so the user can still hover/click before it fades.
+  useEffect(() => {
+    if (popups.length === 0) return;
+    const timers = popups.map((n) =>
+      setTimeout(() => setPopups((prev) => prev.filter((p) => p.id !== n.id)), 7000)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [popups]);
 
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -367,35 +778,133 @@ function NotificationBell() {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  // Mark read in the API + REMOVE from the local list so the bell shows only
-  // fresh notifications. The full history is still visible at /finance/inbox.
+  // Mark read in the API but KEEP the row in the local list — the user
+  // asked for the notification to stay visible (just styled as read) instead
+  // of vanishing the moment they click. The badge still decrements.
   const markAsRead = async (id) => {
     try { await put(`/notifications/${id}/read`); } catch {}
-    setNotifications((p) => p.filter((n) => n.id !== id));
+    const nowIso = new Date().toISOString();
+    setNotifications((p) => p.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: nowIso } : n)));
     setUnreadCount((p) => Math.max(0, p - 1));
+  };
+
+  /* Load the mutable catalogue on demand — only when the panel is opened, so
+   * the ~48-row payload never costs anything for users who never look. */
+  const loadPrefs = async () => {
+    setPrefsLoading(true);
+    try {
+      const res = await get("/notifications/preferences");
+      setPrefs(res.data?.data || []);
+    } catch {
+      setPrefs([]);
+    } finally {
+      setPrefsLoading(false);
+    }
+  };
+
+  const togglePref = (type) => {
+    setPrefs((prev) => prev.map((p) => (p.type === type ? { ...p, muted: !p.muted } : p)));
+  };
+
+  const savePrefs = async () => {
+    setPrefsSaving(true);
+    try {
+      const muted = prefs.filter((p) => p.muted).map((p) => p.type);
+      await put("/notifications/preferences", { muted });
+      Swal.fire({
+        icon: "success",
+        title: muted.length ? `${muted.length} type${muted.length === 1 ? "" : "s"} muted` : "All notifications enabled",
+        timer: 1600, showConfirmButton: false, toast: true, position: "top-end",
+      });
+      setShowPrefs(false);
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not save your preferences", "error");
+    } finally {
+      setPrefsSaving(false);
+    }
   };
 
   const markAllRead = async () => {
     try { await put("/notifications/read-all"); } catch {}
-    setNotifications([]);
+    const nowIso = new Date().toISOString();
+    setNotifications((p) => p.map((n) => (n.read_at ? n : { ...n, read_at: nowIso })));
     setUnreadCount(0);
   };
 
   const handleClick = (n) => {
     const d = n.data || {};
-    // Resolve the target page: explicit `link` field first (works for any
-    // notification type that wants to define its own deep link — e.g. the
-    // new fee_invoice_overdue), then fall back to type-specific routing.
+
+    // Routing priority: the notification's explicit `link` field always
+    // wins (so a VATS yellow-card notification with `link: '/hr/vats/cards'`
+    // doesn't get hijacked by its own `leave_request_id`). Fall back to
+    // type-specific routing only when no link was supplied.
     let target = null;
-    if (d.link) target = d.link;
-    else if (d.invoice_id) target = `/finance/fee-invoices/show/${d.invoice_id}`;
-    else if (d.meeting_id) target = `/hr/meetings/show/${d.meeting_id}`;
-    else if (d.staff_task_id) target = `/hr/staff-task/show/${d.staff_task_id}`;
-    else if (d.vendor_contract_id) target = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
-    else if (d.agreement_id) target = `/hr/agreements/show/${d.agreement_id}`;
+    if (d.link) {
+      target = d.link;
+    } else if (d.leave_request_id) {
+      target = `/hr/leave-request?highlight=${d.leave_request_id}`;
+    } else if (d.invoice_id) {
+      target = `/finance/fee-invoices/show/${d.invoice_id}`;
+    } else if (d.meeting_id) {
+      target = `/hr/meetings/show/${d.meeting_id}`;
+    } else if (d.event_id) {
+      target = `/hr/events/show/${d.event_id}`;
+    } else if (d.staff_task_id) {
+      target = `/hr/staff-task?highlight=${d.staff_task_id}`;
+    } else if (d.vendor_contract_id) {
+      target = `/hr/vendor-contracts/show/${d.vendor_contract_id}`;
+    } else if (d.staff_contract_id) {
+      target = `/hr/contracts/show/${d.staff_contract_id}`;
+    } else if (d.agreement_id) {
+      target = `/hr/agreements/show/${d.agreement_id}`;
+    }
+
     if (!n.read_at) markAsRead(n.id);
-    if (target) navigate(target);
+    if (target) {
+      const sep = target.includes("?") ? "&" : "?";
+      navigate(`${target}${sep}from=notif`);
+    }
     setOpen(false);
+  };
+
+  // RSVP straight from the invite notification. "accepted" is one tap;
+  // "declined" prompts for a required reason before sending.
+  const respondInvite = async (n, status) => {
+    const meetingId = n.data?.meeting_id;
+    if (!meetingId) return;
+
+    let reason = null;
+    if (status === "declined") {
+      const { value, isConfirmed } = await Swal.fire({
+        title: "Can't attend?",
+        input: "textarea",
+        inputLabel: "Please give a brief reason",
+        inputPlaceholder: "e.g. On leave that day / clashes with another meeting…",
+        inputValidator: (v) => (!v || !v.trim() ? "A reason is required to decline" : undefined),
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        confirmButtonText: "Send response",
+      });
+      if (!isConfirmed) return;
+      reason = (value || "").trim();
+    }
+
+    setRespondingId(n.id);
+    try {
+      await post(`/meetings/${meetingId}/respond`, { status, reason });
+      setResponded((p) => ({ ...p, [n.id]: status }));
+      if (!n.read_at) markAsRead(n.id);
+      Swal.fire({
+        icon: "success",
+        title: status === "accepted" ? "Marked as attending" : "Response sent",
+        timer: 1400, showConfirmButton: false, toast: true, position: "top-end",
+      });
+      window.dispatchEvent(new Event("wen:notifications-refresh"));
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not record your response", "error");
+    } finally {
+      setRespondingId(null);
+    }
   };
 
   const timeAgo = (date) => {
@@ -405,13 +914,20 @@ function NotificationBell() {
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return new Date(date).toLocaleDateString();
+    return fmtDate(date);
   };
 
   const getIcon = (data) => {
     if (data?.type === "meeting_invite") {
       if (data.action === "cancelled") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
       return { bg: "bg-teal-100", color: "text-teal-600", path: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" };
+    }
+    if (data?.type === "daily_works_reminder") {
+      return { bg: "bg-teal-100", color: "text-teal-600", path: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" };
+    }
+    if (data?.type === "meeting_response") {
+      if (data.action === "declined") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
+      return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
     }
     if (data?.type === "staff_task") {
       if (data.action === "completed") return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
@@ -421,6 +937,13 @@ function NotificationBell() {
     }
     if (data?.type === "vendor_contract") {
       return { bg: "bg-orange-100", color: "text-orange-600", path: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" };
+    }
+    if (data?.type === "staff_contract") {
+      if (data.action === "signed")     return { bg: "bg-emerald-100", color: "text-emerald-600", path: "M5 13l4 4L19 7" };
+      if (data.action === "terminated") return { bg: "bg-red-100", color: "text-red-600", path: "M6 18L18 6M6 6l12 12" };
+      if (data.action === "expired")    return { bg: "bg-amber-100", color: "text-amber-600", path: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" };
+      if (data.action === "renewed")    return { bg: "bg-blue-100", color: "text-blue-600", path: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" };
+      return { bg: "bg-teal-100", color: "text-teal-600", path: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" };
     }
     if (data?.type === "agreement") {
       return { bg: "bg-purple-100", color: "text-purple-600", path: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" };
@@ -452,10 +975,27 @@ function NotificationBell() {
     return data.message || data.title || "New notification";
   };
 
+  const dismissPopup = (id) => setPopups((p) => p.filter((n) => n.id !== id));
+  const dismissAllPopups = () => setPopups([]);
+
+  const handlePopupClick = (n) => {
+    // Treat as a regular notification click: marks read + navigates.
+    handleClick(n);
+    dismissPopup(n.id);
+  };
+
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
-        className="relative p-2 text-gray-600 hover:text-gray-800 transition-colors">
+      {/* The bell itself never changes — same colour, no tilt, no glow,
+          whether there is one unread notification or none. Only the count
+          badge appears or disappears. An icon that animates and switches
+          colour is movement in the corner of the eye on every page, and the
+          number is the whole message. */}
+      <button
+        onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
+        className="relative p-2 text-gray-600 hover:text-gray-800 transition-colors"
+        aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+      >
         <Icons.Bell />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white">
@@ -463,6 +1003,101 @@ function NotificationBell() {
           </span>
         )}
       </button>
+
+      {/* "Enable desktop notifications" banner — shows once while the user
+          hasn't decided yet. Clicking the button triggers the real
+          permission prompt from a user gesture so the browser accepts it. */}
+      {notifPerm === 'default' && 'Notification' in window && (
+        <div className="fixed top-16 right-4 z-[100] w-80 pointer-events-auto">
+          <div className="bg-white rounded-xl shadow-lg border border-amber-200 p-3 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-gray-800">Turn on desktop notifications</p>
+              <p className="text-[10px] text-gray-500 leading-snug">Get pinged in the OS tray even when this tab is in the background.</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    ensureAudioCtx();
+                    try {
+                      Notification.requestPermission().then((result) => setNotifPerm(result));
+                    } catch {}
+                  }}
+                  className="px-3 py-1 bg-amber-500 text-white text-[10px] font-semibold rounded-lg hover:bg-amber-600"
+                >
+                  Enable
+                </button>
+                <button
+                  onClick={() => setNotifPerm('dismissed')}
+                  className="px-3 py-1 bg-white border border-gray-200 text-gray-600 text-[10px] font-medium rounded-lg hover:bg-gray-50"
+                >
+                  Not now
+                </button>
+              </div>
+            </div>
+            <button onClick={() => setNotifPerm('dismissed')}
+              className="text-gray-300 hover:text-gray-500 p-1 -mt-1 -mr-1 flex-shrink-0" aria-label="Dismiss">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Login-time popup stack — floats top-right, each card closable. */}
+      {popups.length > 0 && (
+        <div className={`fixed ${notifPerm === 'default' ? 'top-36' : 'top-16'} right-4 z-[100] w-80 space-y-2 pointer-events-none`}>
+          {popups.length > 1 && (
+            <div className="flex justify-end pointer-events-auto">
+              <button
+                onClick={dismissAllPopups}
+                className="text-[10px] font-semibold text-gray-500 bg-white/90 backdrop-blur px-2 py-1 rounded-full border border-gray-200 shadow-sm hover:text-gray-800"
+              >
+                Dismiss all ({popups.length})
+              </button>
+            </div>
+          )}
+          {popups.map((n) => {
+            const icon = getIcon(n.data);
+            return (
+              <div
+                key={n.id}
+                className="pointer-events-auto bg-white rounded-xl shadow-lg border border-gray-100 p-3 flex items-start gap-3 animate-[fadeIn_.3s_ease-out] hover:shadow-xl transition-shadow"
+                style={{ animation: "wen-slide-in 0.35s ease-out" }}
+              >
+                <div className={`w-8 h-8 rounded-lg ${icon.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                  <svg className={`w-4 h-4 ${icon.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon.path} />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handlePopupClick(n)}>
+                  <p className="text-[11px] leading-relaxed text-gray-800 font-semibold">
+                    {renderMessage(n.data)}
+                  </p>
+                  <p className="text-[9px] text-gray-400 mt-1">{timeAgo(n.created_at)} · click to open</p>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); dismissPopup(n.id); }}
+                  className="text-gray-300 hover:text-red-500 p-1 -mt-1 -mr-1 flex-shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+          <style>{`
+            @keyframes wen-slide-in {
+              from { opacity: 0; transform: translateY(-8px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
+        </div>
+      )}
 
       {open && (
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
@@ -472,19 +1107,94 @@ function NotificationBell() {
               <h3 className="text-sm font-bold text-gray-800">Notifications</h3>
               {unreadCount > 0 && <p className="text-[10px] text-gray-500">{unreadCount} unread</p>}
             </div>
-            {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-[10px] text-teal-600 hover:text-teal-700 font-semibold">
-                Mark all read
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="text-[10px] text-teal-600 hover:text-teal-700 font-semibold">
+                  Mark all read
+                </button>
+              )}
+              {canManagePrefs && (
+                <button
+                  onClick={() => { const next = !showPrefs; setShowPrefs(next); if (next && prefs.length === 0) loadPrefs(); }}
+                  title={showPrefs ? "Back to notifications" : "Choose which notifications you receive"}
+                  className={`p-1 rounded-lg transition-colors ${showPrefs ? "bg-teal-100 text-teal-700" : "text-gray-400 hover:text-teal-600 hover:bg-teal-50"}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* List — only unread items are shown in the bell so it always
-              reflects what needs attention. Read history lives at /finance/inbox. */}
-          <div className="max-h-80 overflow-y-auto">
+          {/* List — show every notification (read + unread). Clicking marks
+              the row as read but keeps it visible; the dot + bold styling
+              flip off so the user still sees their history at a glance. */}
+          {/* Delivery preferences — admin/super-admin only, and scoped entirely to
+              the signed-in user. Muting here never affects anybody else's bell. */}
+          {showPrefs && (
+            <div className="max-h-80 overflow-y-auto">
+              <div className="px-4 py-2.5 bg-teal-50/60 border-b border-teal-100">
+                <p className="text-[11px] text-teal-800 font-semibold">Choose what reaches your bell</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Applies to your account only. Muted types stop arriving from now on; existing notifications stay.</p>
+              </div>
+
+              {prefsLoading ? (
+                <div className="px-4 py-8 text-center text-xs text-gray-400">Loading types…</div>
+              ) : prefs.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-gray-400">No notification types found</div>
+              ) : (
+                <>
+                  <div className="px-4 py-2 flex items-center gap-3 border-b border-gray-100">
+                    <button onClick={() => setPrefs((p) => p.map((x) => ({ ...x, muted: false })))}
+                      className="text-[10px] font-semibold text-teal-600 hover:text-teal-700">Enable all</button>
+                    <span className="text-gray-200">|</span>
+                    <button onClick={() => setPrefs((p) => p.map((x) => ({ ...x, muted: true })))}
+                      className="text-[10px] font-semibold text-gray-500 hover:text-gray-700">Mute all</button>
+                    <span className="ml-auto text-[10px] text-gray-400">{prefs.filter((x) => x.muted).length} muted</span>
+                  </div>
+
+                  {/* Noisiest first — the ones worth muting are the ones flooding you. */}
+                  {[...prefs].sort((a, b) => (b.received - a.received) || a.label.localeCompare(b.label)).map((pref) => (
+                    <button key={pref.type} type="button" onClick={() => togglePref(pref.type)}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 border-b border-gray-50 text-left">
+                      <span className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors ${pref.muted ? "bg-gray-200" : "bg-teal-500"}`}>
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${pref.muted ? "left-0.5" : "left-4.5"}`}
+                          style={{ left: pref.muted ? "0.125rem" : "1.125rem" }} />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className={`block text-xs truncate ${pref.muted ? "text-gray-400 line-through" : "text-gray-800 font-medium"}`}>{pref.label}</span>
+                        {pref.received > 0 && (
+                          <span className="block text-[10px] text-gray-400">{pref.received} received</span>
+                        )}
+                      </span>
+                      <span className={`text-[9px] font-bold uppercase flex-shrink-0 ${pref.muted ? "text-gray-400" : "text-teal-600"}`}>
+                        {pref.muted ? "Muted" : "On"}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {showPrefs && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-2">
+              <button onClick={savePrefs} disabled={prefsSaving}
+                className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50">
+                {prefsSaving ? "Saving…" : "Save preferences"}
+              </button>
+              <button onClick={() => setShowPrefs(false)}
+                className="px-3 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+            </div>
+          )}
+
+          <div className={showPrefs ? "hidden" : "max-h-80 overflow-y-auto"}>
             {(() => {
-              const unreadOnly = notifications.filter((n) => !n.read_at);
-              if (unreadOnly.length === 0) {
+              if (notifications.length === 0) {
                 return (
                   <div className="px-4 py-8 text-center">
                     <svg className="w-10 h-10 mx-auto text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -494,7 +1204,7 @@ function NotificationBell() {
                   </div>
                 );
               }
-              return unreadOnly.map((n) => {
+              return notifications.map((n) => {
                 const icon = getIcon(n.data);
                 const isUnread = !n.read_at;
                 return (
@@ -518,6 +1228,31 @@ function NotificationBell() {
                           </span>
                         )}
                       </div>
+                      {/* RSVP buttons — only on actionable, not-yet-passed invites.
+                          An admin's "fyi" copy is information: they were not invited. */}
+                      {n.data?.type === "meeting_invite" && !["cancelled", "fyi"].includes(n.data?.action)
+                        && (!n.data?.start_time || new Date(n.data.start_time) >= new Date()) && (
+                        responded[n.id] ? (
+                          <p className={`mt-2 text-[10px] font-bold ${responded[n.id] === "accepted" ? "text-emerald-600" : "text-red-600"}`}>
+                            {responded[n.id] === "accepted" ? "✓ You're attending" : "✗ You marked: can't attend"}
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              disabled={respondingId === n.id}
+                              onClick={() => respondInvite(n, "accepted")}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                              Attend
+                            </button>
+                            <button
+                              disabled={respondingId === n.id}
+                              onClick={() => respondInvite(n, "declined")}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50">
+                              Can't attend
+                            </button>
+                          </div>
+                        )
+                      )}
                     </div>
                     {isUnread && <div className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 mt-2"></div>}
                   </div>
@@ -574,14 +1309,99 @@ function ProfileButton() {
   );
 }
 
+// ── Portal label ────────────────────────────────────────────────────────────
+// The sidebar subtitle names the portal the signed-in user is actually in
+// rather than always saying "Admin Portal". Exactly one role → that role's
+// portal; more than one → "Staff User Portal", because no single label
+// describes someone who wears several hats.
+const ROLE_PORTAL_LABELS = {
+  "super-admin": "Admin Portal",
+  admin: "Admin Portal",
+  teacher: "Teacher Portal",
+  "hr-manager": "HR Portal",
+  "registration-manager": "Registration Portal",
+  "class-manager": "Class Portal",
+  "finance-manager": "Finance Portal",
+  "welfare-officer": "Welfare Portal",
+  department_head: "Department Portal",
+  "staff-member": "Staff Portal",
+  parent: "Parent Portal",
+  student: "Student Portal",
+};
+
+// Fallback for a role created after this map was written:
+// "library-manager" → "Library Manager Portal".
+const prettyRolePortal = (role) =>
+  role
+    .split(/[-_]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ") + " Portal";
+
+function usePortalLabel() {
+  const { roles } = useAuth();
+  // Teachers hold the plain `staff-member` role — there is no `teacher` role
+  // to read. The only signal that separates them is /profile's `type`, which
+  // is "teacher" when the staff row has a Teacher record attached.
+  const [isTeacher, setIsTeacher] = useState(false);
+  const singleRole = roles.length === 1 ? roles[0] : null;
+
+  useEffect(() => {
+    // Only staff-members need the lookup. The flag is read behind the same
+    // `singleRole === "staff-member"` check below, so leaving it stale for
+    // any other role is harmless.
+    if (singleRole !== "staff-member") return;
+    let alive = true;
+    get("/profile")
+      .then((res) => {
+        if (alive) setIsTeacher(res.data?.data?.type === "teacher");
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [singleRole]);
+
+  if (roles.length === 0) return "User Portal";
+  if (roles.length > 1) return "Staff User Portal";
+  if (singleRole === "staff-member" && isTeacher) return "Teacher Portal";
+  return ROLE_PORTAL_LABELS[singleRole] || prettyRolePortal(singleRole);
+}
+
+/* Mounts the chat drawer once it is first opened, then keeps it (for its
+ * slide animation). Before that, not a byte of the chat screens is downloaded. */
+function LazyChatDrawer() {
+  const { open } = useChat();
+  const [wanted, setWanted] = useState(false);
+  if (open && !wanted) setWanted(true);
+  return wanted ? <Suspense fallback={null}><ChatDrawer /></Suspense> : null;
+}
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasPermission, isSuperAdmin } = useAuth();
+  const { hasPermission, isSuperAdmin, hasRole, user: authUser } = useAuth();
+  const portalLabel = usePortalLabel();
+
+  /* A fresh visit — a new tab, or the browser opened again while still signed
+   * in — starts on the Posts feed. Only once per tab: after that "/" is the
+   * dashboard as usual, and a link to any other page opens that page. */
+  const landedRef = useRef(false);
+  useEffect(() => {
+    if (!authUser || landedRef.current) return;
+    landedRef.current = true;
+    let landed = true;
+    try {
+      landed = sessionStorage.getItem("wen:landed") === "1";
+      sessionStorage.setItem("wen:landed", "1");
+    } catch { /* storage blocked: leave the page as it is */ }
+    if (!landed && location.pathname === "/" && hasPermission("posts.view")) navigate("/posts", { replace: true });
+  }, [authUser, location.pathname, hasPermission, navigate]);
   const [openMenu, setOpenMenu] = useState([]);
   const [openSubMenu, setOpenSubMenu] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userToggled, setUserToggled] = useState(false);
+  // (`userToggled` used to suppress the old auto-open. The replacement only
+  // ever adds to `openMenu`, so it never fights a manual toggle and the flag
+  // is no longer needed.)
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
   /**
@@ -595,21 +1415,28 @@ export default function Layout() {
       if (visibleChildren.length === 0) return false;
       return true;
     }
-    if (item.permission) return hasPermission(item.permission);
+    if (item.permission) {
+      const anyHeld = hasPermission(item.permission) || (item.alt || []).some(hasPermission);
+      if (!anyHeld) return false;
+      const accessRule = permissionForPath(item.path);
+      if (accessRule.type === "public") {
+        return (accessRule.requiredPermissions || []).every(hasPermission);
+      }
+      if (accessRule.type === "protected" && accessRule.permissionGroups?.length) {
+        return accessRule.permissionGroups.some((group) =>
+          group.permissions.some(hasPermission)
+          && group.requiredPermissions.every(hasPermission)
+        );
+      }
+      return true;
+    }
     return isSuperAdmin; // untagged → super-admin only
   };
   const visible = (items) => items.filter(itemAllowed);
   // True if the current user can see at least one child of a top-level group.
   const canSeeGroup = (items) => visible(items).length > 0;
 
-  useState(() => {
-    if (!userToggled && location.pathname.startsWith("/hr")) {
-      setOpenMenu(["hr"]);
-    }
-  }, [location.pathname]);
-
   const toggleMenu = (menu) => {
-    setUserToggled(true);
     if (openMenu.includes(menu)) {
       // If clicking on already open menu, close it
       setOpenMenu(openMenu.filter((item) => item !== menu));
@@ -617,6 +1444,17 @@ export default function Layout() {
       // If opening a new menu, close all others and open only this one
       setOpenMenu([menu]);
     }
+    /* Sub-menus belong to the group that was showing, so they are dropped
+     * alongside it — otherwise a group reopened later would still carry the
+     * expansions from last time. The group holding the current page keeps its
+     * sub-menu open so the sidebar still shows where you are. */
+    setOpenSubMenu(currentMenu?.group === menu && currentMenu?.sub ? [currentMenu.sub] : []);
+  };
+
+  /* One sub-menu at a time, mirroring the single-open behaviour of the top
+   * level groups. Clicking the open one closes it. */
+  const toggleSubMenu = (key) => {
+    setOpenSubMenu((prev) => (prev.includes(key) ? [] : [key]));
   };
 
   const isActive = (path) => location.pathname === path;
@@ -624,19 +1462,53 @@ export default function Layout() {
   const hrSubMenus = [
     { label: "Staff", path: "/hr/staff", permission: "staff.view" },
     { label: "Staff Logs", path: "/hr/staff-logs", permission: "staff-logs.view" },
-    { label: "Salary Snapshot", path: "/hr/salary-snapshot", permission: "salary-snapshot.view" },
+    { label: "Salary Overview", path: "/hr/salary-snapshot", permission: "salary-snapshot.view" },
     { label: "Contracts", key: "contracts", children: [
       { label: "Staff Contract", path: "/hr/contracts", permission: "contracts.view" },
       { label: "Vendor Contract", path: "/hr/vendor-contracts", permission: "vendor-contracts.view" },
       { label: "Agreements", path: "/hr/agreements", permission: "agreements.view" },
     ]},
+    // Top level, not inside Planner: it is the page every staff member opens
+    // daily, so it must be visible without expanding anything.
+    { label: "My Tasks", path: "/hr/my-tasks", permission: "my-tasks.view" },
     { label: "Attendance", path: "/hr/attendance", permission: "attendance.view" },
     { label: "Leave Request", path: "/hr/leave-request", permission: "leave-request.view" },
+    { label: "Holidays", path: "/hr/holidays", permission: "holidays.view" },
+    { label: "Staff Performance", key: "vats", children: [
+      { label: "Overview",           path: "/hr/vats",              permission: "vats-dashboard.view" },
+      { label: "Daily Observations", path: "/hr/vats/observations", permission: "vats-observations.view" },
+      { label: "Recognition Slips",  path: "/hr/vats/slips",        permission: "vats-slips.view" },
+      { label: "Reward Cards",       path: "/hr/vats/cards",        permission: "vats-cards.view" },
+      { label: "Improvement Plans",  path: "/hr/vats/interventions", permission: "vats-interventions.view" },
+      // Everyone: HR sees all records, a staff member sees and acknowledges their own.
+      { label: "Discipline & Correction", path: "/hr/disciplinary" },
+    ]},
+    { label: "Staff Welfare", key: "welfare", children: [
+      { label: "My Check-in",        path: "/hr/welfare/checkin",   permission: "welfare-checkin.view" },
+      { label: "Welfare Dashboard",  path: "/hr/welfare",           permission: "welfare-dashboard.view" },
+      { label: "Open Alerts",        path: "/hr/welfare/alerts",    permission: "welfare-alerts.view" },
+      { label: "Benefits Log",       path: "/hr/welfare/benefits",  permission: "welfare-benefits.view" },
+    ]},
     { label: "Add Vendor", path: "/hr/add-vendor", permission: "vendors.view" },
     { label: "Planner", key: "planner", children: [
-      { label: "Meetings", path: "/hr/meetings", permission: "meetings.view" },
-      { label: "Events", path: "/hr/events", permission: "events.view" },
-      { label: "Staff Task", path: "/hr/staff-task", permission: "staff-task.view" },
+      // One entry for both. The combined screen interleaves them on a single
+      // timeline; each row still opens its own module's detail page, so
+      // nothing about meetings or events is duplicated.
+      { label: "Meetings & Events", path: "/hr/meetings-events", permission: "meetings.view" },
+      // Sits beside Meetings on purpose: a committee's minutes ARE its
+      // meetings, tagged with the committee.
+      { label: "Committees", path: "/hr/planner/committees", permission: "committees.view" },
+      { label: "Staff Tasks", path: "/hr/staff-task", permission: "staff-task.view" },
+      // The day screen: one person's whole day, from any calendar
+      // too (click a day). Same permission as the task calendars.
+      { label: "Day View", path: "/hr/day-view", permission: "staff-task.view" },
+      // Operations Hub — Live Status: my week + clock, and the manager board.
+      { label: "My Check-in", path: "/hr/my-check-in", permission: "staff-task.view" },
+      { label: "Team Overview", path: "/hr/team-overview", permission: "staff-task.create" },
+      { label: "Task Leaderboard", path: "/hr/task-leaderboard", permission: "staff.view" },
+      // talking-points.view — the super-admin gives it to a role in Users & Access.
+      { label: "Talking Points", path: "/hr/talking-points", permission: "talking-points.view" },
+      { label: "Daily Tasks", path: "/hr/daily-works", permission: "daily-works.view" },
     ]},
     { label: "Visitor Log", path: "/hr/visitor-log", permission: "visitor-log.view" },
     { label: "HR Reports", path: "/hr/reports", permission: "hr-reports.view" },
@@ -644,22 +1516,68 @@ export default function Layout() {
 
   const studentsMenus = [
     { label: "Parents", path: "/student-management/parents", permission: "parents.view" },
-    { label: "Phase 1 - Students Information", path: "/student-management/students", permission: "students.view" },
-    { label: "Phase 2 - Students Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
-    { label: "Students List", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
+    { label: "Student Information", path: "/student-management/students", permission: "students.view", alt: ["student-profiles.view"] },
+    { label: "Student Registration", path: "/student-management/student-enrollments", permission: "student-enrollments.view" },
+    { label: "Enrolled Students", path: "/student-management/enrolled-students", permission: "enrolled-students.view" },
+    // A child's photo album, reached by searching for the child. Its own
+    // grant (`student-gallery.view`) because a pupil's photographs are a
+    // safeguarding record, not part of the register.
+    { label: "Student Gallery", path: "/student-management/student-gallery", permission: "student-gallery.view" },
     { label: "Foundation Requests", path: "/student-management/foundation-requests", permission: "foundation-requests.view" },
+    // Student register — the student-side mirror of staff attendance. The
+    // report sits behind the stricter grant, so a class teacher sees only
+    // "Attendance" while the office sees both entries.
+    { label: "Attendance", path: "/student-management/attendance", permission: "student-attendance.view" },
+    { label: "Attendance Report", path: "/student-management/attendance/report", permission: "student-attendance.report" },
+  ];
+
+  // Parent — the family-facing group. "Parents" is the SAME page the Students
+  // menu already links to (families are the parent record; there is no second
+  // one), listed here too so everything about a family sits in one place.
+  // Each entry names the permission its screens actually need, so a user with
+  // only `parent-communications.view` sees the log and nothing else.
+  const parentMenus = [
+    { label: "Parents", path: "/student-management/parents", permission: "parents.view" },
+    { label: "Communication Logs", path: "/parent-communications", permission: "parent-communications.view" },
+    { label: "New Communication", path: "/parent-communications/create", permission: "parent-communications.create" },
+    { label: "Follow-ups", path: "/parent-communications/follow-ups", permission: "parent-communications.follow-up" },
+    { label: "Call Guide", path: "/parent-communications/call-guide", permission: "parent-communications.view" },
+    { label: "Parent Ratings", path: "/parent-ratings", permission: "parent-ratings.view" },
+    { label: "Golden Record", path: "/parent-ratings/golden-record", permission: "parent-ratings.view" },
+    { label: "Reports", path: "/parent-communications/reports", permission: "parent-communications.report" },
+    { label: "Fee Payment Extension", path: "/fee-extensions", permission: "fee-extensions.submit" },
   ];
 
   const academic = [
     { label: "Academic Terms", path: "/student-management/academic-terms", permission: "academic-terms.view" },
     { label: "Grades", path: "/student-management/grades", permission: "grades.view" },
   ];
+  // DOB — birthdays for students, teachers and staff
+  const dobMenus = [
+    { label: "Student DOB", path: "/dob/students", permission: "birthdays.student.view" },
+    { label: "Teacher DOB", path: "/dob/teachers", permission: "birthdays.teacher.view" },
+    { label: "Staff / Employee DOB", path: "/dob/staff", permission: "birthdays.staff.view" },
+  ];
+
   const transportationMenus = [
     { label: "Routes", path: "/transportation/routes", permission: "routes.view" },
     { label: "Vehicles", path: "/transportation/vehicles", permission: "vehicles.view" },
   ];
 
+  const driveMenus = [
+    { label: "My Files", path: "/drive", permission: "drive.view" },
+  ];
+
+  const questionnaireMenus = [
+    { label: "All Questionnaires", path: "/questionnaires", permission: "questionnaires.view" },
+    { label: "New Questionnaire", path: "/questionnaires/create", permission: "questionnaires.create" },
+    { label: "Answer Questionnaire", path: "/my-questionnaire", permission: "questionnaires.answer" },
+    // Guides (رهنمود) for every module — written here, shown by each module's Guide button.
+    { label: "Guides", path: "/guides", permission: "guides.manage" },
+  ];
+
   const recruitmentMenus = [
+    { label: "Position Titles", path: "/recruitment/position-titles", permission: "position-titles.view" },
     { label: "Job Applications", path: "/recruitment/job-requisitions", permission: "job-requisitions.view" },
     { label: "Job Postings", path: "/recruitment/job-postings", permission: "job-postings.view" },
     { label: "Applications", path: "/recruitment/applications", permission: "applications.view" },
@@ -669,23 +1587,121 @@ export default function Layout() {
   const purchaseMenus = [
     { label: "Purchase Requests", path: "/purchase/purchase-requests", permission: "purchase-requests.view" },
     { label: "Suppliers", path: "/purchase/suppliers", permission: "suppliers.view" },
-    { label: "Stock / Inventory", path: "/purchase/stock", permission: "stock.view" },
+    { label: "Inventory", path: "/purchase/stock", permission: "stock.view" },
     { label: "Routine Items", path: "/purchase/routine-items", permission: "routine-items.view" },
     { label: "Repair Requests", path: "/purchase/repair-requests", permission: "repair-requests.view" },
-    { label: "Projects", path: "/purchase/projects", permission: "projects.view" },
+    // { label: "Pr ojects", path: "/purchase/projects", permission: "projects.view" },
   ];
 
   const adminMenus = [
     { label: "Roles", path: "/admin/roles", permission: "roles.view" },
     { label: "Permissions", path: "/admin/permissions", permission: "permissions.view" },
     { label: "Users & Access", path: "/admin/users", permission: "users.view" },
+    { label: "Activity Log", path: "/admin/activity-logs", permission: "activity-logs.view" },
+    { label: "Trash", path: "/admin/trash", permission: "trash.view" },
+    // No `permission` → visible to super-admins only (matches the route guard).
+    { label: "Chat Settings", path: "/admin/chat-settings" },
+    { label: "Backups", path: "/admin/backups" },
   ];
 
   const branchesMenus = [
     { label: "Branches", path: "/branches", permission: "branches.view" },
   ];
+  const departmentsMenus = [
+    { label: "Departments", path: "/hr/departments", permission: "departments.view" },
+  ];
+  // Planning — Annual / Monthly / Weekly plans. Top-level parent menu with one
+  // sub-menu per page (mirrors the mockup's Planning section).
+  const planningMenus = [
+    { label: "Dashboard", path: "/planning/dashboard", permission: "planning.view" },
+    { label: "My Plans", path: "/planning/plans", permission: "planning.view" },
+    { label: "New Plan", path: "/planning/plans/create", permission: "planning.create" },
+    { label: "Approval Review", path: "/planning/approvals", permission: "planning.approve" },
+    { label: "Departments", path: "/planning/department", permission: "planning.manage" },
+    { label: "Calendar", path: "/planning/calendar", permission: "planning.view" },
+    { label: "Templates & Audit", path: "/planning/templates", permission: "planning.manage" },
+  ];
   const teacherMenus = [
     { label: "Teachers", path: "/teacher-management/teachers", permission: "teachers.view" },
+  ];
+  const educationMenus = [
+    { label: "Dashboard", path: "/education/dashboard", permission: "student-observations.view" },
+    // Straight to a child's شناسنامه. Its own permission, so the super-admin
+    // chooses who has the menu (Users & Access → student-profiles.browse).
+    { label: "Student Profiles · شناسنامه", path: "/education/student-profiles", permission: "student-profiles.browse" },
+    { label: "Daily Observation", path: "/education/observations", permission: "student-observations.view" },
+    { label: "Case Library", path: "/education/case-library", permission: "student-observations.view" },
+    // Per-student PDF of observations + cards; one, or all as a ZIP.
+    { label: "Observation Reports", path: "/education/observation-reports", permission: "student-observations.view" },
+    { label: "Students Under Watch", path: "/education/monitoring", permission: "student-monitoring.view" },
+    { label: "Counseling Sessions", path: "/education/elicitation", permission: "student-elicitation.view" },
+    { label: "Mentor Reports", path: "/education/synthesis", permission: "student-synthesis.view" },
+    { label: "Annual Review", path: "/education/annual-review", permission: "annual-review.view" },
+    { label: "Record 4D Rating", path: "/education/4d-self-rating", permission: "student-profiles.update" },
+    { label: "Student Cards", path: "/education/cards", permission: "student-cards.view" },
+    { label: "Card Rankings", path: "/education/card-rankings", permission: "student-card-rankings.view" },
+    { label: "Science Projects", path: "/education/science-projects", permission: "science-projects.view" },
+    // Weekly Recognition — the weekly, topic-scoped version of the recognition
+    // already done monthly. Same four areas, same student history.
+    { label: "Weekly Topic", path: "/education/weekly-recognition", permission: "weekly-recognition.view" },
+    { label: "Nominate", path: "/education/weekly-recognition/nominate", permission: "weekly-recognition.create" },
+    { label: "Review & Select", path: "/education/weekly-recognition/review", permission: "weekly-recognition.select" },
+    { label: "Weekly Winners", path: "/education/weekly-recognition/history", permission: "weekly-recognition.view" },
+    // Derived from the weekly winners above — computed, never selected.
+    { label: "Annual Winner", path: "/education/weekly-recognition/annual-winner", permission: "weekly-recognition.view" },
+  ];
+
+  // Morning Assembly Program — its own light module. It references the Drive
+  // Assembly Program Kit, the Task Board and Weekly Recognition rather than
+  // re-creating any of them.
+  const assemblyMenus = [
+    { label: "Assembly Calendar", path: "/assembly/calendar", permission: "assemblies.view" },
+    { label: "Plan Assembly", path: "/assembly/plan", permission: "assemblies.create" },
+    { label: "Archive / Reuse", path: "/assembly/templates", permission: "assemblies.view" },
+  ];
+
+  // Broadcasts — the system-wide notice everyone sees once a day.
+  const broadcastMenus = [
+    { label: "All Broadcasts", path: "/broadcasts", permission: "broadcasts.view" },
+    { label: "New Broadcast", path: "/broadcasts/create", permission: "broadcasts.create" },
+  ];
+
+  // The 100 Essential Books — the reading initiative. Its own group: it is a
+  // library of recommendations, not part of the assembly or lesson modules.
+  const essentialBookMenus = [
+    { label: "All Books", path: "/library/essential-books", permission: "essential-books.view" },
+    { label: "Recommend a Book", path: "/library/essential-books/create", permission: "essential-books.create" },
+  ];
+
+  // Lesson Planning — its own module (the 4D Lesson Plan), separate from the
+  // Student Development / observation engine.
+  const lessonPlanMenus = [
+    { label: "Lesson Planning", path: "/education/lesson-plans", permission: "lesson-plans.view" },
+    { label: "My Lesson Plans", path: "/education/lesson-plans/my", permission: "lesson-plans.view" },
+    { label: "Plan Review Queue", path: "/education/lesson-plans/review", permission: "lesson-plans.review" },
+    { label: "Plan → Register Bridge", path: "/education/lesson-plans/bridge", permission: "lesson-plans.analyze" },
+    { label: "4D Balance Analyzer", path: "/education/lesson-plans/balance", permission: "lesson-plans.analyze" },
+    { label: "Coverage Map", path: "/education/lesson-plans/coverage", permission: "lesson-plans.analyze" },
+    { label: "Curriculum Sync", path: "/education/lesson-plans/curriculum", permission: "lesson-plans.analyze" },
+    { label: "Plan Templates", path: "/education/lesson-plans/templates", permission: "lesson-plans.view" },
+  ];
+  const gradebookMenus = [
+    { label: "Gradebook", path: "/education/gradebook", permission: "gradebook.view" },
+    { label: "Homework Queue", path: "/education/gradebook/homework", permission: "gradebook.view" },
+    { label: "Assign Homework", path: "/education/gradebook/homework/new", permission: "gradebook.create" },
+    { label: "Assessments", path: "/education/gradebook/assessments", permission: "gradebook.view" },
+    { label: "Weekly Assessments", path: "/education/gradebook/weekly", permission: "gradebook.create" },
+    { label: "Term Exams", path: "/education/gradebook/term-exams", permission: "gradebook.create" },
+    { label: "Promotion Board", path: "/education/gradebook/promotion", permission: "gradebook.view" },
+    { label: "Analytics", path: "/education/gradebook/analytics", permission: "gradebook.analyze" },
+  ];
+  const reportCardMenus = [
+    { label: "Chaharnima Report Card", path: "/education/report-cards/chaharnima", permission: "chaharnima-report-cards.view" },
+    { label: "Salana (Annual) Report Card", path: "/education/report-cards/salana", permission: "salana-report-cards.view" },
+  ];
+  const subjectMarksMenus = [
+    { label: "Chaharnima Marks", path: "/education/subject-marks/chaharnima", permission: "chaharnima-marks.view" },
+    { label: "Salana Marks", path: "/education/subject-marks/salana", permission: "salana-marks.view" },
   ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },
@@ -697,28 +1713,169 @@ export default function Layout() {
   // Finance menu — same nested-children shape as hrSubMenus so itemAllowed/visible work.
   const financeMenus = [
     { label: "Overview", path: "/finance/dashboard", permission: "finance.view" },
-    { label: "Inbox", path: "/finance/inbox", permission: "notifications.view" },
+    { label: "Inbox", path: "/finance/inbox", permission: "finance-inbox.view" },
     { label: "Daily", key: "finance-daily", children: [
       { label: "Cashier", path: "/finance/cashier", permission: "fee-payments.create" },
       { label: "Billing Run", path: "/finance/billing-runs", permission: "fee-invoices.view" },
+      { label: "Payroll", path: "/finance/payroll", permission: "payroll.view" },
       { label: "Fee Invoices", path: "/finance/fee-invoices", permission: "fee-invoices.view" },
       { label: "Fee Payments", path: "/finance/fee-payments", permission: "fee-payments.view" },
+      { label: "Fee Extensions", path: "/finance/fee-extensions", permission: "fee-extensions.view" },
     ]},
     { label: "Reports", key: "finance-reports", children: [
+      // Board-pack — Assets / Liabilities / Equity snapshot + the monthly PDF
+      // the finance manager owes the owner each month.
+      { label: "Balance Sheet", path: "/finance/balance-sheet", permission: "finance-reports.view" },
+      { label: "Monthly Report", path: "/finance/monthly-report", permission: "finance-reports.view" },
       { label: "Class Collection", path: "/finance/reports/class-collection", permission: "fee-invoices.view" },
+      { label: "Leadership Report", path: "/finance/reports/leadership", permission: "finance.view" },
     ]},
     { label: "Bookkeeping", key: "finance-bookkeeping", children: [
+      // Plain-English wizard for non-accountants to record assets / loans /
+      // owner contributions without thinking about debit vs credit.
+      // Named "Asset & Loan Book" so the menu label tells the user exactly
+      // what scope it covers (vs the routine income/expense flows under Daily).
+      { label: "Asset & Loan Book", path: "/finance/quick-entry", permission: "journal-entries.create" },
       { label: "Journal Entries", path: "/finance/journal-entries", permission: "journal-entries.view" },
-      { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
-      { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
+      // { label: "Vendor Invoices", path: "/finance/invoices", permission: "invoices.view" },
+      // { label: "Vendor Payments", path: "/finance/payments", permission: "payments.view" },
       { label: "Budgets", path: "/finance/budgets", permission: "budgets.view" },
     ]},
     { label: "Setup", key: "finance-setup", children: [
       { label: "Chart of Accounts", path: "/finance/chart-of-accounts", permission: "chart-of-accounts.view" },
       { label: "Accounts", path: "/finance/accounts", permission: "accounts.view" },
-      { label: "Parties", path: "/finance/parties", permission: "parties.view" },
+      { label: "Customers & Vendors", path: "/finance/parties", permission: "parties.view" },
     ]},
   ];
+
+  /**
+   * Every sidebar group, tying its toggle key to its items.
+   *
+   * One table serves three things that used to be written out separately: the
+   * header search index, the "which menu am I in" auto-open below, and the
+   * group labels shown in search results. Keeping them apart is how the search
+   * ends up offering a page the sidebar no longer has.
+   *
+   * `key` must match the string passed to toggleMenu() where the group renders.
+   */
+  const MENU_GROUPS = [
+    { key: "hr", label: "HR", items: hrSubMenus },
+    { key: "students", label: "Students", items: studentsMenus },
+    { key: "parent", label: "Parent", items: parentMenus },
+    { key: "academic", label: "Academic", items: academic },
+    { key: "dob", label: "Birthdays", items: dobMenus },
+    { key: "transportation", label: "Transportation", items: transportationMenus },
+    { key: "drive", label: "Drive", items: driveMenus },
+    { key: "questionnaires", label: "Questionnaires", items: questionnaireMenus },
+    { key: "recruitment", label: "Recruitment", items: recruitmentMenus },
+    { key: "purchase", label: "Purchase", items: purchaseMenus },
+    { key: "admin", label: "Administration", items: adminMenus },
+    { key: "branches", label: "Branches", items: branchesMenus },
+    { key: "departments", label: "Departments", items: departmentsMenus },
+    { key: "planning", label: "Planning", items: planningMenus },
+    { key: "teacher-management", label: "Teachers", items: teacherMenus },
+    { key: "education", label: "Education", items: educationMenus },
+    { key: "morning-assembly", label: "Morning Assembly", items: assemblyMenus },
+    { key: "lesson-planning", label: "Lesson Plans", items: lessonPlanMenus },
+    { key: "gradebook", label: "Gradebook", items: gradebookMenus },
+    { key: "report-cards", label: "Report Cards", items: reportCardMenus },
+    { key: "subject-marks", label: "Subject Marks", items: subjectMarksMenus },
+    { key: "class-management", label: "Class Management", items: classMgmtMenus },
+    { key: "finance", label: "Finance", items: financeMenus },
+    // Parent portal. Its item is written inline where the menu renders (gated
+    // on the parent role rather than a permission), so it is listed here purely
+    // so a parent landing on the page finds the menu already open.
+    { key: "my-children", label: "My Children", items: [
+      { label: "Homework & Grades", path: "/my-children" },
+      { label: "Attendance", path: "/student-management/attendance/my-children" },
+      { label: "Observations & Cards", path: "/my-children/observations" },
+    ]},
+  ];
+
+  /**
+   * Which group (and sub-group) holds the page currently open.
+   *
+   * Longest matching path wins: `/student-management/attendance/report` and
+   * `/student-management/attendance` are both prefixes of the former, and
+   * taking the first hit would highlight the wrong entry.
+   */
+  const currentMenu = useMemo(() => {
+    const here = location.pathname;
+    const hit = (path) => path && (here === path || here.startsWith(path + "/"));
+
+    let best = null;
+    MENU_GROUPS.forEach((group) => {
+      (group.items || []).forEach((item) => {
+        if (item.children?.length) {
+          item.children.forEach((child) => {
+            if (hit(child.path) && (!best || child.path.length > best.length)) {
+              best = { group: group.key, sub: item.key, length: child.path.length };
+            }
+          });
+        } else if (hit(item.path) && (!best || item.path.length > best.length)) {
+          best = { group: group.key, sub: null, length: item.path.length };
+        }
+      });
+    });
+    return best;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, user?.id, isSuperAdmin]);
+
+  /**
+   * Open the menu the current page lives in.
+   *
+   * Was a `useState(fn, [deps])` — useState with an initialiser, not useEffect,
+   * so the dependency array was ignored entirely: it ran once at mount and only
+   * ever handled `/hr`. Landing anywhere else left the sidebar collapsed with
+   * no indication of where you were.
+   *
+   * Opens that group and CLOSES the rest, matching what clicking a group header
+   * does. Appending instead left the previous group hanging open whenever you
+   * arrived somewhere by link or global search rather than by clicking through
+   * the sidebar, so two groups could be expanded at once.
+   *
+   * It runs only when the current page changes, so a group the user
+   * deliberately collapsed stays collapsed until they navigate back into it.
+   */
+  useEffect(() => {
+    if (!currentMenu) return;
+    setOpenMenu((prev) => (prev.length === 1 && prev[0] === currentMenu.group ? prev : [currentMenu.group]));
+    setOpenSubMenu((prev) => {
+      const next = currentMenu.sub ? [currentMenu.sub] : [];
+      return prev.length === next.length && prev.every((k, i) => k === next[i]) ? prev : next;
+    });
+  }, [currentMenu]);
+
+  /**
+   * Flat, permission-filtered index of every page the sidebar can reach —
+   * what the header search actually searches.
+   *
+   * Built from the same menu arrays the sidebar renders, and filtered through
+   * the same `itemAllowed`, so a page nobody may open can never surface as a
+   * result. Keeping a second hand-written list of routes here would drift the
+   * first time a menu changed and start offering pages that 403.
+   */
+  const searchIndex = useMemo(() => {
+    const out = [];
+    const walk = (section, items, trail) => {
+      visible(items).forEach((item) => {
+        if (item.children?.length) {
+          walk(section, item.children, [...trail, item.label]);
+        } else if (item.path) {
+          out.push({ section, label: item.label, path: item.path, trail });
+        }
+      });
+    };
+    MENU_GROUPS.forEach((g) => walk(g.label, g.items || [], []));
+
+    // De-duplicate: a few pages appear under more than one menu.
+    const seen = new Set();
+    return out.filter((r) => (seen.has(r.path) ? false : seen.add(r.path)));
+    // Rebuilt whenever the signed-in user's permissions reload (authUser is a
+    // fresh object each time), so a page just granted shows up in search too —
+    // keyed on the id alone it kept the list from before the grant.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser, isSuperAdmin]);
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -742,6 +1899,9 @@ export default function Layout() {
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
+      {/* Puts the scroll position back when the user presses Back. */}
+      <ScrollMemory />
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -752,38 +1912,25 @@ export default function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky lg:top-0 left-0 z-50 w-64 bg-teal-800 flex flex-col h-screen lg:h-screen overflow-y-auto transition-transform duration-300 ${
+        /* overflow-hidden, not auto: the menu inside scrolls, so the logo at
+           the top and the profile at the bottom stay where they are. */
+        className={`fixed lg:sticky lg:top-0 left-0 z-50 w-64 bg-teal-800 flex flex-col h-screen lg:h-screen overflow-hidden transition-transform duration-300 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         {/* Logo */}
         <div className="p-3 flex items-center justify-between lg:justify-start gap-2">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-teal-600 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-4 h-4 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 14l9-5-9-5-9 5 9 5z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-                />
-              </svg>
+            {/* White, not teal: the mark is itself teal, and teal on teal is
+                an empty square. object-contain so the cube is never cropped. */}
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden">
+              <img src={wifaqLogo} alt="Raqim"
+                className="w-full h-full object-contain p-[2px]" />
             </div>
             <div>
-              <h1 className="text-white font-bold text-sm">Wifaq School</h1>
+              <h1 className="text-white font-bold text-sm">Raqim</h1>
               <p className="text-teal-300 text-[10px] uppercase tracking-wider">
-                Admin Portal
+                {portalLabel}
               </p>
             </div>
           </div>
@@ -796,7 +1943,12 @@ export default function Layout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 space-y-1">
+        {/* min-h-0 is what makes this scrollable at all: a flex child defaults
+            to min-height:auto and refuses to shrink below its content, so
+            overflow-y never engages and the wheel falls through to the page.
+            overscroll-contain then keeps a scroll that started here from
+            continuing into the page once the menu reaches its end. */}
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-1">
           <MenuSection title="Main Menu" />
           <SidebarItem
             icon={Icons.Dashboard}
@@ -805,7 +1957,41 @@ export default function Layout() {
             active={isActive("/")}
             onClick={closeSidebar}
           />
-          {(canSeeGroup(branchesMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
+          {/* Anyone may ask for time with any staff member — for themselves or
+              for a guest — so it sits at the top for every role, ungated. */}
+          {hasPermission("book-appointment.view") && (
+            <SidebarItem
+              icon={Icons.Leave}
+              label="Book an Appointment"
+              to="/hr/book-appointment"
+              active={isActive("/hr/book-appointment")}
+              onClick={closeSidebar}
+            />
+          )}
+          {/* The staff handbook. Like Bugs, every role holds the view
+              permission — the colleague who does not yet know how the school
+              works is exactly who has to be able to open it. */}
+          {hasPermission("staff-faqs.view") && (
+            <SidebarItem
+              icon={Icons.Support}
+              label="Staff Handbook"
+              to="/handbook"
+              active={isActive("/handbook")}
+              onClick={closeSidebar}
+            />
+          )}
+          {/* Bugs & Errors — everyone can report + track their own (bugs.view
+              is granted to all roles). */}
+          {hasPermission("bugs.view") && (
+            <SidebarItem
+              icon={Icons.Support}
+              label="Bugs & Errors"
+              to="/bugs"
+              active={isActive("/bugs")}
+              onClick={closeSidebar}
+            />
+          )}
+          {(canSeeGroup(branchesMenus) || canSeeGroup(departmentsMenus) || canSeeGroup(hrSubMenus)) && <MenuSection title="HR Management" />}
           {canSeeGroup(branchesMenus) && (
             <ParentMenu
               icon={Icons.Departments}
@@ -814,6 +2000,25 @@ export default function Layout() {
               onClick={() => toggleMenu("branches")}
             >
               {visible(branchesMenus).map((item) => (
+                <SubMenuItem
+                  key={item.path}
+                  label={item.label}
+                  to={item.path}
+                  active={isActive(item.path)}
+                  onClick={closeSidebar}
+                />
+              ))}
+            </ParentMenu>
+          )}
+
+          {canSeeGroup(departmentsMenus) && (
+            <ParentMenu
+              icon={Icons.Departments}
+              label="Departments"
+              isOpen={openMenu.includes("departments")}
+              onClick={() => toggleMenu("departments")}
+            >
+              {visible(departmentsMenus).map((item) => (
                 <SubMenuItem
                   key={item.path}
                   label={item.label}
@@ -836,7 +2041,7 @@ export default function Layout() {
               item.children ? (
                 <div key={item.key}>
                   <button
-                    onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
+                    onClick={() => toggleSubMenu(item.key)}
                     className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
                       openSubMenu.includes(item.key)
                         ? "bg-teal-700 text-white"
@@ -874,10 +2079,93 @@ export default function Layout() {
           </ParentMenu>
           )}
 
+          {canSeeGroup(planningMenus) && (
+          <ParentMenu
+            icon={Icons.Dashboard}
+            label="Planning"
+            isOpen={openMenu.includes("planning")}
+            onClick={() => toggleMenu("planning")}
+          >
+            {visible(planningMenus).map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+          )}
+
+          {canSeeGroup(driveMenus) && (
+          <ParentMenu
+            icon={Icons.Departments}
+            label="Drive"
+            isOpen={openMenu.includes("drive")}
+            onClick={() => toggleMenu("drive")}
+          >
+            {visible(driveMenus).map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+          )}
+
+          {canSeeGroup(questionnaireMenus) && (
+          <ParentMenu
+            icon={Icons.Dashboard}
+            label="Questionnaires"
+            isOpen={openMenu.includes("questionnaires")}
+            onClick={() => toggleMenu("questionnaires")}
+          >
+            {visible(questionnaireMenus).map((item) => (
+              <SubMenuItem
+                key={item.path}
+                label={item.label}
+                to={item.path}
+                active={isActive(item.path)}
+                onClick={closeSidebar}
+              />
+            ))}
+          </ParentMenu>
+          )}
+
+          {/* Family portal — ONE block for both parents and students.
+              It used to be two: "My Homework & Grades" for students and
+              "My Children" for parents. They point at the same page (the
+              gradebook scopes itself: a parent sees their children, a student
+              sees only themself), and any account passing both role checks —
+              super-admin does — got the pair stacked as a duplicate. The label
+              follows the role; the parent-only rows appear only for parents. */}
+          {(hasRole("parent") || hasRole("student")) && hasPermission("gradebook.view-own") && (
+          <ParentMenu
+            icon={Icons.Teacher}
+            label={hasRole("parent") ? "My Children" : "My Homework & Grades"}
+            isOpen={openMenu.includes("my-children")}
+            onClick={() => toggleMenu("my-children")}
+          >
+            <SubMenuItem label="Homework & Grades" to="/my-children" active={isActive("/my-children")} onClick={closeSidebar} />
+            {hasRole("parent") && (<>
+            <SubMenuItem label="Attendance" to="/student-management/attendance/my-children"
+              active={isActive("/student-management/attendance/my-children")} onClick={closeSidebar} />
+            {/* Observations the school recorded, and the cards they earned —
+                the page the card notification links to. */}
+            <SubMenuItem label="Observations & Cards" to="/my-children/observations"
+              active={isActive("/my-children/observations")} onClick={closeSidebar} />
+            </>)}
+          </ParentMenu>
+          )}
+
           {canSeeGroup(recruitmentMenus) && (
           <ParentMenu
             icon={Icons.Departments}
-            label="Job Applications"
+            label="Recruitment"
             isOpen={openMenu.includes("recruitment")}
             onClick={() => toggleMenu("recruitment")}
           >
@@ -893,13 +2181,125 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus) || canSeeGroup(reportCardMenus) || canSeeGroup(subjectMarksMenus)) && (
             <MenuSection title="Academic" />
+          )}
+
+          {canSeeGroup(educationMenus) && (
+            <ParentMenu
+              icon={Icons.Teacher}
+              label="Student Development"
+              isOpen={openMenu.includes("education")}
+              onClick={() => toggleMenu("education")}
+            >
+              {visible(educationMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {(canSeeGroup(assemblyMenus) || hasRole("student") || hasRole("parent")) && (
+            <ParentMenu
+              icon={Icons.Dashboard}
+              label="Morning Assembly"
+              isOpen={openMenu.includes("morning-assembly")}
+              onClick={() => toggleMenu("morning-assembly")}
+            >
+              {visible(assemblyMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+              {/* Read-only. A student never plans an assembly, they only need to
+                  know their own part of it — so this is role-gated rather than
+                  tagged with assemblies.view, which no student holds. */}
+              {(hasRole("student") || hasRole("parent")) && (
+                <SubMenuItem label="My Assembly Role" to="/assembly/my-responsibilities"
+                             active={isActive("/assembly/my-responsibilities")} onClick={closeSidebar} />
+              )}
+            </ParentMenu>
+          )}
+          {canSeeGroup(broadcastMenus) && (
+            <ParentMenu
+              icon={Icons.Dashboard}
+              label="Broadcasts"
+              isOpen={openMenu.includes("broadcasts")}
+              onClick={() => toggleMenu("broadcasts")}
+            >
+              {visible(broadcastMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(essentialBookMenus) && (
+            <ParentMenu
+              icon={Icons.Dashboard}
+              label="Essential Books"
+              isOpen={openMenu.includes("essential-books")}
+              onClick={() => toggleMenu("essential-books")}
+            >
+              {visible(essentialBookMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(lessonPlanMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Lesson Planning"
+              isOpen={openMenu.includes("lesson-planning")}
+              onClick={() => toggleMenu("lesson-planning")}
+            >
+              {visible(lessonPlanMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(gradebookMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Gradebook & Homework"
+              isOpen={openMenu.includes("gradebook")}
+              onClick={() => toggleMenu("gradebook")}
+            >
+              {visible(gradebookMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(reportCardMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Report Cards"
+              isOpen={openMenu.includes("report-cards")}
+              onClick={() => toggleMenu("report-cards")}
+            >
+              {visible(reportCardMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(subjectMarksMenus) && (
+            <ParentMenu
+              icon={Icons.ClassManagement}
+              label="Subject Marks"
+              isOpen={openMenu.includes("subject-marks")}
+              onClick={() => toggleMenu("subject-marks")}
+            >
+              {visible(subjectMarksMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
           )}
           {canSeeGroup(teacherMenus) && (
             <ParentMenu
               icon={Icons.Teacher}
-              label="Teacher"
+              label="Teachers"
               isOpen={openMenu.includes("teacher-management")}
               onClick={() => toggleMenu("teacher-management")}
             >
@@ -952,12 +2352,40 @@ export default function Layout() {
             </ParentMenu>
           )}
 
+          {canSeeGroup(parentMenus) && (
+            <ParentMenu
+              icon={Icons.HR}
+              label="Parent"
+              isOpen={openMenu.includes("parent")}
+              onClick={() => toggleMenu("parent")}
+            >
+              {visible(parentMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+
+          {canSeeGroup(dobMenus) && (
+            <ParentMenu
+              icon={Icons.Leave}
+              label="DOB"
+              isOpen={openMenu.includes("dob")}
+              onClick={() => toggleMenu("dob")}
+            >
+              {visible(dobMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+
           {canSeeGroup(transportationMenus) && (
             <>
               <MenuSection title="Transportation" />
               <ParentMenu
                 icon={Icons.Departments}
-                label="Transportations"
+                label="Transportation"
                 isOpen={openMenu.includes("transportation")}
                 onClick={() => toggleMenu("transportation")}
               >
@@ -974,7 +2402,7 @@ export default function Layout() {
               <MenuSection title="Procurement" />
               <ParentMenu
                 icon={Icons.Payroll}
-                label="Purchase"
+                label="Purchasing"
                 isOpen={openMenu.includes("purchase")}
                 onClick={() => toggleMenu("purchase")}
               >
@@ -999,7 +2427,7 @@ export default function Layout() {
                   item.children ? (
                     <div key={item.key}>
                       <button
-                        onClick={() => setOpenSubMenu((p) => p.includes(item.key) ? p.filter((k) => k !== item.key) : [...p, item.key])}
+                        onClick={() => toggleSubMenu(item.key)}
                         className={`w-full flex items-center justify-between px-3 py-1.5 pl-10 rounded-lg transition-colors text-xs ${
                           openSubMenu.includes(item.key)
                             ? "bg-teal-700 text-white"
@@ -1083,35 +2511,62 @@ export default function Layout() {
             </>
           )}
 
-          {/* <MenuSection title="System" />
+          {/* Onboarding — everyone has their own, so no permission gate. The
+              orientation link and the quiz live here as well as in the emailed
+              welcome message, so neither is one lost email away. */}
+          <MenuSection title="Me" />
           <SidebarItem
-            icon={Icons.Settings}
-            label="Settings"
-            to="/settings"
-            active={isActive("/settings")}
+            icon={Icons.Support}
+            label="My Onboarding"
+            to="/onboarding"
+            active={isActive("/onboarding")}
             onClick={closeSidebar}
           />
           <SidebarItem
             icon={Icons.Support}
-            label="Support"
-            to="/support"
-            active={isActive("/support")}
+            label="Orientation Resources"
+            to="/onboarding/orientation"
+            active={isActive("/onboarding/orientation")}
             onClick={closeSidebar}
-          /> */}
+          />
+
+          {hasPermission("settings.view") && (
+            <>
+              <MenuSection title="System" />
+              <SidebarItem
+                icon={Icons.Settings}
+                label="Settings"
+                to="/settings"
+                active={isActive("/settings")}
+                onClick={closeSidebar}
+              />
+            </>
+          )}
         </nav>
 
         {/* User Profile */}
         <div className="p-3 border-t border-teal-700">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-teal-600 flex items-center justify-center text-white font-medium text-xs">
-              {user.name?.charAt(0) || "U"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-xs truncate">
-                {user.name || "User"}
-              </p>
-              <p className="text-teal-300 text-[10px]">{user.email || ""}</p>
-            </div>
+            {/* Avatar + name open the profile. Same destination as the
+                header menu, so the two never disagree about where "me" is. */}
+            <Link
+              to="/profile"
+              onClick={closeSidebar}
+              title="View my profile"
+              className="flex items-center gap-2 flex-1 min-w-0 group"
+            >
+              <div className="w-7 h-7 rounded-full bg-teal-600 group-hover:bg-teal-500 flex items-center justify-center text-white font-medium text-xs overflow-hidden flex-shrink-0 transition-colors">
+                {user.profile_photo
+                  ? <img src={user.profile_photo} alt={user.name || "User"} className="w-full h-full object-cover" />
+                  : (user.name?.charAt(0) || "U")}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-medium text-xs truncate group-hover:underline">
+                  {user.name || "User"}
+                </p>
+                <p className="text-teal-300 text-[10px] truncate">{user.email || ""}</p>
+              </div>
+            </Link>
             <button
               onClick={handleLogout}
               className="text-teal-300 hover:text-white flex-shrink-0"
@@ -1128,34 +2583,24 @@ export default function Layout() {
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-3 py-2 sticky top-0 z-30">
           <div className="flex items-center justify-between gap-3">
-            <button
-              className="lg:hidden p-1.5 text-gray-600 hover:text-gray-800"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Icons.Menu />
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                className="lg:hidden p-1.5 text-gray-600 hover:text-gray-800"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <Icons.Menu />
+              </button>
+              <BackButton />
+            </div>
             <div className="flex-1 max-w-lg hidden sm:block">
-              <div className="relative">
-                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
-                  <Icons.Search />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-xs"
-                />
-              </div>
+              <GlobalSearch index={searchIndex} />
             </div>
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-1">
-                <button className="px-2 py-0.5 text-xs font-medium text-gray-600 hover:text-gray-800">
-                  EN
-                </button>
-                <button className="px-2 py-0.5 text-xs font-medium text-gray-400 hover:text-gray-600">
-                  AR
-                </button>
-              </div>
+              <LanguageSwitcher />
+              <PostsButton />
+              <MessagesButton />
               <NotificationBell />
+              <CreatePostButton />
               <ProfileButton />
             </div>
           </div>
@@ -1163,13 +2608,117 @@ export default function Layout() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
-          <Suspense key={location.pathname} fallback={<PageFallback />}>
+          <Suspense fallback={<PageFallback />}>
             <PathPermissionGate>
-              <Outlet />
+              <ErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </ErrorBoundary>
             </PathPermissionGate>
           </Suspense>
         </div>
       </main>
+
+      {/* Real-time chat drawer (WhatsApp-style). Global overlay — the user never
+          leaves the current page. */}
+      <LazyChatDrawer />
+
+      {/* Posts composer — photo/video, text, story; opened by the header ＋. */}
+      <PostComposer />
+
+      {/* First sign-in: the leadership team's welcome letter, once. Dismissing
+          it stamps welcome_letter_seen_at server-side so it never returns. */}
+      <FirstLoginWelcome />
+
+      {/* The other end of the lifecycle: on/after their last day, a departing
+          staff member sees their finalized experience letter once. */}
+      <ExitLetterOnLogin />
     </div>
+  );
+}
+
+/**
+ * Shows the experience letter on the first sign-in on or after the contract end
+ * date. The endpoint only ever returns a FINALIZED letter, so a draft HR is
+ * still writing can never surface here.
+ */
+function ExitLetterOnLogin() {
+  const { user } = useAuth();
+  const [state, setState] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    get("/profile/experience-letter", { cache: false })
+      .then((res) => {
+        const d = res.data?.data;
+        if (!alive || !d?.show) return;
+        const letters = {};
+        Object.entries(d.letters || {}).forEach(([code, v]) => {
+          letters[code] = v.html;
+        });
+        setState({ name: d.staff_name, lang: d.default_lang || "fa", letters });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!state) return null;
+
+  return (
+    <ExperienceLetterModal
+      selfMode
+      staffName={state.name}
+      defaultLang={state.lang}
+      initialLetters={state.letters}
+      onClose={() => setState(null)}
+    />
+  );
+}
+
+/**
+ * Opens the welcome letter the first time a staff member signs in.
+ *
+ * The check is a single call to /profile/welcome-letter, which answers
+ * `show: false` for everyone who has already dismissed it (and for every
+ * account that existed before the feature shipped), so the common case costs
+ * one cheap request per page load of the layout.
+ */
+function FirstLoginWelcome() {
+  const { user } = useAuth();
+  const [state, setState] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    get("/profile/welcome-letter", { cache: false })
+      .then((res) => {
+        const d = res.data?.data;
+        if (!alive || !d?.show) return;
+        // The check already carries all three letters — hand them straight to
+        // the modal instead of making it re-request the same thing.
+        const letters = {};
+        Object.entries(d.letters || {}).forEach(([code, v]) => {
+          letters[code] = v.html;
+        });
+        setState({ name: d.staff_name, lang: d.default_lang || "fa", letters });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!state) return null;
+
+  return (
+    <WelcomeLetterModal
+      selfMode
+      staffName={state.name}
+      defaultLang={state.lang}
+      initialLetters={state.letters}
+      onClose={() => setState(null)}
+    />
   );
 }

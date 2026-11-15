@@ -1,7 +1,26 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { get, del } from "../../api/axios";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { get, del, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
+import ListExportActions from "../../components/ListExportActions";
+import { useAuth } from "../../admin/context/AuthContext";
+
+import { fmtDate } from "../../utils/formErrors";
+
+const APP_EXPORT_COLS = [
+  { key: "full_name", label: "Applicant" },
+  { key: "job_posting.title", label: "Job Posting" },
+  { key: "contact_number", label: "Contact" },
+  { key: "source", label: "Source" },
+  { key: "status", label: "Status" },
+  { key: "created_at", label: "Applied", exportValue: (it) => (it.created_at ? String(it.created_at).slice(0, 10) : "") },
+  // Screening aggregates — additive, existing columns untouched.
+  { key: "reviews_count", label: "Reviewers", exportValue: (it) => it.reviews_count ?? 0 },
+  { key: "average_rating", label: "Avg Rating", exportValue: (it) => (it.average_rating != null ? Number(it.average_rating).toFixed(1) : "") },
+  { key: "recommended_count", label: "Recommend", exportValue: (it) => it.recommended_count ?? 0 },
+  { key: "not_recommended_count", label: "Not Recommend", exportValue: (it) => it.not_recommended_count ?? 0 },
+  { key: "hr_flagged_count", label: "HR Flag", exportValue: (it) => (it.hr_flagged_count > 0 ? "Needs HR Review" : "") },
+];
 
 const pipelineStages = [
   { key: "received", label: "Received", color: "bg-blue-500", light: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -15,6 +34,148 @@ const pipelineStages = [
   { key: "withdrawn", label: "Withdrawn", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
 ];
 
+const inputCls =
+  "w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500";
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * "" is the unset value throughout — it maps to no query parameter at all,
+ * which is what keeps a cleared filter out of the URL.
+ */
+function Select({ value, onChange, options, allLabel, emptyHint }) {
+  if (options.length === 0 && emptyHint) {
+    return <p className="text-[11px] text-gray-400 italic py-1.5">{emptyHint}</p>;
+  }
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+      <option value="">{allLabel}</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+/* Compact screening summary for a list row. Every value comes from aggregates
+ * the list endpoint already computes (reviews_count, recommended_count,
+ * not_recommended_count, hr_flagged_count, average_rating) — the row never
+ * fetches anything of its own, so adding this column costs no extra request. */
+const screeningSummary = (item) => {
+  const total = item.reviews_count || 0;
+  if (!total) return <span className="text-[10px] text-gray-400">Not screened</span>;
+
+  const avg = item.average_rating != null ? Number(item.average_rating).toFixed(1) : null;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 whitespace-nowrap">
+        <span className="text-[11px] font-bold text-amber-500">⭐ {avg ?? "—"}</span>
+        <span className="text-[10px] font-semibold text-emerald-600">👍 {item.recommended_count || 0}</span>
+        <span className="text-[10px] font-semibold text-red-500">👎 {item.not_recommended_count || 0}</span>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] text-gray-400">{total} reviewer{total === 1 ? "" : "s"}</span>
+        {item.hr_flagged_count > 0 && (
+          <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[9px] font-bold whitespace-nowrap">
+            ⚠ Needs HR Review
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* Which applications this reviewer has already opened.
+ *
+ * Held per user id so a shared workstation never shows one recruiter the
+ * other's read state, and kept client-side because "have I looked at this"
+ * is a personal reading aid, not shared workflow state — writing it onto the
+ * record would make an application look handled to the whole team the moment
+ * one person opened it. Status is what the team shares; this is not. */
+/* How far a candidate has been taken, as a colour.
+ *
+ * Recruiters asked to be able to tell at a glance who still needs looking at.
+ * The row tint answers exactly that, and it is derived from shared record
+ * state — the screening reviews on file plus the pipeline status — so every
+ * recruiter sees the same colours. (The amber dot beside the name is the
+ * separate, per-person "I have not opened this one yet" marker.)
+ *
+ *   green  — brand new: nobody has screened or moved this application yet
+ *   blue   — screened / reviewed: at least one review is in, or the candidate
+ *            has been moved on down the pipeline
+ *   plain  — settled: hired, rejected, withdrawn or parked on the waiting list;
+ *            nothing is waiting on anybody, so the highlight comes off
+ */
+const SETTLED_STATUSES = ["hired", "rejected", "withdrawn", "waiting_list"];
+// Past the screening stage: whatever the review count says, somebody has
+// clearly looked at this person and decided to take them further.
+const ADVANCED_STATUSES = ["shortlisted", "interview", "offer"];
+
+const reviewStateOf = (item) => {
+  if (SETTLED_STATUSES.includes(item.status)) return "settled";
+  // A recorded review is the real signal. Note that status `screening` on its
+  // own does NOT count — it means "being screened", and the whole point of the
+  // green row is to show who is still waiting for that to actually happen.
+  if ((item.reviews_count || 0) > 0 || ADVANCED_STATUSES.includes(item.status)) return "reviewed";
+  return "new";
+};
+
+const REVIEW_STATE = {
+  new: {
+    label: "New — not screened",
+    hint: "No screening or candidate review recorded yet",
+    row: "bg-emerald-50 hover:bg-emerald-100/70",
+    dot: "bg-emerald-500",
+    avatar: "bg-emerald-100 text-emerald-800",
+    name: "font-bold text-gray-900",
+    chip: "bg-emerald-100 text-emerald-800",
+  },
+  reviewed: {
+    label: "Screened / reviewed",
+    hint: "A screening or candidate review is on file, or the candidate has been shortlisted",
+    row: "bg-sky-50 hover:bg-sky-100/70",
+    dot: "bg-sky-500",
+    avatar: "bg-sky-100 text-sky-800",
+    name: "font-semibold text-gray-800",
+    chip: "bg-sky-100 text-sky-800",
+  },
+  settled: {
+    label: "Closed",
+    hint: "Hired, rejected, withdrawn or on the waiting list",
+    row: "bg-white hover:bg-gray-50",
+    dot: "bg-gray-300",
+    avatar: "bg-gray-100 text-gray-500",
+    name: "font-medium text-gray-500",
+    chip: "bg-gray-100 text-gray-600",
+  },
+};
+
+const viewedKey = (userId) => `recruitment.viewedApplications.${userId ?? "anon"}`;
+
+const loadViewed = (userId) => {
+  try {
+    const raw = localStorage.getItem(viewedKey(userId));
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map(Number) : []);
+  } catch {
+    return new Set(); // storage disabled or corrupt — treat everything as new
+  }
+};
+
+const saveViewed = (userId, ids) => {
+  try {
+    // Bounded so the entry cannot grow forever; oldest ids drop off first.
+    localStorage.setItem(viewedKey(userId), JSON.stringify([...ids].slice(-3000)));
+  } catch { /* quota or private mode — the highlight is cosmetic, so ignore */ }
+};
+
 const statusBadge = (val) => {
   const stage = pipelineStages.find((s) => s.key === val);
   return (
@@ -26,22 +187,85 @@ const statusBadge = (val) => {
 
 export default function Applications() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [viewed, setViewed] = useState(() => loadViewed(userId));
+
+  // Re-read on user change so a logout/login in the same tab does not carry
+  // the previous person's highlights over.
+  useEffect(() => { setViewed(loadViewed(userId)); }, [userId]);
+
+  const openApplication = useCallback((id) => {
+    setViewed((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev).add(id);
+      saveViewed(userId, next);
+      return next;
+    });
+    navigate(`/recruitment/applications/show/${id}`);
+  }, [navigate, userId]);
+  // URL query is the source of truth for page/filter/search, so the current
+  // pagination page (and filter/search) survives a refresh or browser back.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const activeFilter = searchParams.get("status") || "all";
+  const urlSearch = searchParams.get("search") || "";
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
   const [stageCounts, setStageCounts] = useState({});
+  const [options, setOptions] = useState(null);   // filter dropdown choices
+  const [showFilters, setShowFilters] = useState(false);
 
-  const fetchItems = useCallback(async (page = 1, status = activeFilter, search = searchQuery) => {
+  /**
+   * Every filter lives in the URL, like page/status/search already did — so a
+   * filtered shortlist can be bookmarked, refreshed, or pasted to a colleague
+   * and still be the same list.
+   */
+  const FILTER_KEYS = [
+    "job_posting_id", "gender", "native_language", "education_level",
+    "field_of_study", "source", "min_experience", "max_experience",
+    "min_age", "max_age", "met_requirements", "applied_within_days", "sort",
+  ];
+  const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""]));
+  const activeFilterCount = FILTER_KEYS.filter((k) => k !== "sort" && filters[k]).length;
+
+  // Merge changes into the URL; drop default values to keep the URL clean.
+  const setParams = (patch) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(patch).forEach(([k, v]) => {
+        const isDefault = v == null || v === "" || (k === "status" && v === "all") || (k === "page" && Number(v) <= 1);
+        if (isDefault) next.delete(k);
+        else next.set(k, String(v));
+      });
+      return next;
+    });
+  };
+
+  const fetchItems = useCallback(async (p = 1, status = "all", search = "", extra = {}) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.append("page", page);
+      params.append("page", p);
       if (status !== "all") params.append("status", status);
       if (search) params.append("search", search);
+      // Every category filter goes to the server — filtering the current page
+      // client-side would hide matches sitting on page 2.
+      Object.entries(extra).forEach(([k, v]) => { if (v) params.append(k, v); });
 
-      const response = await get(`/recruitment/applications?${params.toString()}`);
+      const __url = `/recruitment/applications?${params.toString()}`;
+      const __cached = peekCache(__url);
+      if (__cached) {
+        const __d = __cached?.data || [];
+        setItems(Array.isArray(__d) ? __d : []);
+        if (__cached?.meta) setMeta(__cached.meta);
+        setLoading(false);
+      }
+
+      const response = await get(__url);
       const data = response.data?.data || [];
       setItems(Array.isArray(data) ? data : []);
       if (response.data?.meta) setMeta(response.data.meta);
@@ -50,46 +274,88 @@ export default function Applications() {
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, searchQuery]);
-
-  const fetchCounts = async () => {
-    try {
-      const response = await get("/recruitment/applications?per_page=9999");
-      const all = response.data?.data || [];
-      const counts = {};
-      pipelineStages.forEach((s) => { counts[s.key] = 0; });
-      all.forEach((item) => { if (counts[item.status] !== undefined) counts[item.status]++; });
-      setStageCounts(counts);
-    } catch {
-      setStageCounts({});
-    }
-  };
-
-  useEffect(() => {
-    fetchItems(1, "all", "");
-    fetchCounts();
   }, []);
 
-  const handleSearch = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
+  /* Dropdown choices AND the pipeline tile counts, both computed server-side.
+   *
+   * The tiles used to be tallied in the browser from a `per_page=9999` fetch.
+   * Once the API started clamping per_page to 100 that silently stopped
+   * counting past the hundredth application — the tiles would have under-
+   * reported with no visible error. status_counts is a GROUP BY over the whole
+   * table, so it stays correct at any volume and costs one request instead of
+   * a full-table download. */
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      const r = await get("/recruitment/applications/filter-options");
+      const data = r.data?.data || null;
+      setOptions(data);
+
+      const counts = {};
+      pipelineStages.forEach((s) => { counts[s.key] = Number(data?.status_counts?.[s.key] ?? 0); });
+      setStageCounts(counts);
+    } catch {
+      setOptions(null);
+      setStageCounts({});
+    }
+  }, []);
+
+  // Fetch whenever the URL (page/filter/search/categories) changes — also
+  // covers the initial load and a refresh on any pagination page.
+  // `searchParams.toString()` is the dependency so ANY filter change refires
+  // it without listing thirteen keys here and forgetting one later.
+  const paramString = searchParams.toString();
+  useEffect(() => {
+    const extra = Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""]));
+    fetchItems(page, activeFilter, urlSearch, extra);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramString, fetchItems]);
+
+  useEffect(() => { fetchFilterOptions(); }, [fetchFilterOptions]);
+
+  // Export/print: fetch ALL matching applications (endpoint supports per_page).
+  const fetchAllApplications = async () => {
+    const params = new URLSearchParams();
+    params.append("per_page", 9999);
+    if (activeFilter !== "all") params.append("status", activeFilter);
+    if (urlSearch) params.append("search", urlSearch);
+    const r = await get(`/recruitment/applications?${params.toString()}`);
+    return r.data?.data || [];
   };
 
+  const handleSearch = (e) => setSearchQuery(e.target.value);
+
+  // Debounce typing into the URL (resets to page 1 on a new search).
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchItems(1, activeFilter, searchQuery);
-    }, 400);
+    if (searchQuery === urlSearch) return;
+    const timer = setTimeout(() => setParams({ search: searchQuery, page: 1 }), 400);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Only the rows on screen — the list is paginated, so a global figure
+  // would not match what the reviewer can actually see and act on.
+  const unviewedCount = useMemo(() => items.filter((it) => !viewed.has(it.id)).length, [items, viewed]);
+
+  const reviewCounts = useMemo(() => {
+    const acc = { new: 0, reviewed: 0, settled: 0 };
+    items.forEach((it) => { acc[reviewStateOf(it)] += 1; });
+    return acc;
+  }, [items]);
+
+  const markAllViewed = useCallback(() => {
+    setViewed((prev) => {
+      const next = new Set(prev);
+      items.forEach((it) => next.add(it.id));
+      saveViewed(userId, next);
+      return next;
+    });
+  }, [items, userId]);
 
   const handleFilter = (status) => {
-    const newFilter = activeFilter === status ? "all" : status;
-    setActiveFilter(newFilter);
-    fetchItems(1, newFilter, searchQuery);
+    setParams({ status: activeFilter === status ? "all" : status, page: 1 });
   };
 
-  const handlePageChange = (page) => {
-    fetchItems(page, activeFilter, searchQuery);
+  const handlePageChange = (p) => {
+    setParams({ page: p });
   };
 
   const handleDelete = async (id) => {
@@ -99,8 +365,8 @@ export default function Applications() {
     });
     if (result.isConfirmed) {
       try { await del(`/recruitment/applications/${id}`); } catch { /* */ }
-      fetchItems(meta.current_page, activeFilter, searchQuery);
-      fetchCounts();
+      fetchItems(page, activeFilter, urlSearch);
+      fetchFilterOptions();
       Swal.fire("Deleted!", "Application has been deleted.", "success");
     }
   };
@@ -123,6 +389,17 @@ export default function Applications() {
             <input type="text" value={searchQuery} onChange={handleSearch} placeholder="Search candidates..."
               className="w-full sm:w-64 pl-10 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
+          <button onClick={() => setShowFilters((v) => !v)}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              activeFilterCount > 0
+                ? "bg-teal-50 border-teal-300 text-teal-700"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+          </button>
+          <ListExportActions getRows={fetchAllApplications} columns={APP_EXPORT_COLS} title="Applications" />
           <button onClick={() => navigate("/recruitment/applications/create")}
             className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -151,6 +428,118 @@ export default function Applications() {
         })}
       </div>
 
+      {/* Category filters. Server-side, and mirrored into the URL so a
+          shortlist can be bookmarked or sent to a colleague as a link. */}
+      {showFilters && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Field label="Job posting">
+              <Select value={filters.job_posting_id} onChange={(v) => setParams({ job_posting_id: v, page: 1 })}
+                options={(options?.job_postings || []).map((j) => ({ value: j.id, label: j.title }))} allLabel="Any posting" />
+            </Field>
+
+            <Field label="Gender">
+              <Select value={filters.gender} onChange={(v) => setParams({ gender: v, page: 1 })}
+                options={(options?.genders?.length ? options.genders : ["male", "female"])
+                  .map((g) => ({ value: g, label: g.charAt(0).toUpperCase() + g.slice(1) }))}
+                allLabel="Any gender" />
+            </Field>
+
+            <Field label="Native language">
+              <Select value={filters.native_language} onChange={(v) => setParams({ native_language: v, page: 1 })}
+                options={(options?.native_languages || []).map((l) => ({ value: l, label: l }))}
+                allLabel="Any language"
+                emptyHint="No languages recorded yet" />
+            </Field>
+
+            <Field label="Education degree">
+              <Select value={filters.education_level} onChange={(v) => setParams({ education_level: v, page: 1 })}
+                options={(options?.education_levels || []).map((e) => ({ value: e.value, label: e.label }))}
+                allLabel="Any degree" />
+            </Field>
+
+            <Field label="Experience (years)">
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="0" step="0.5" value={filters.min_experience} placeholder="min"
+                  onChange={(e) => setParams({ min_experience: e.target.value, page: 1 })}
+                  className={inputCls} />
+                <span className="text-gray-400 text-xs">–</span>
+                <input type="number" min="0" step="0.5" value={filters.max_experience} placeholder="max"
+                  onChange={(e) => setParams({ max_experience: e.target.value, page: 1 })}
+                  className={inputCls} />
+              </div>
+              {options?.experience_range && (
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  applicants range {options.experience_range.min}–{options.experience_range.max} yrs
+                </p>
+              )}
+            </Field>
+
+            <Field label="Age">
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="16" max="80" value={filters.min_age} placeholder="min"
+                  onChange={(e) => setParams({ min_age: e.target.value, page: 1 })} className={inputCls} />
+                <span className="text-gray-400 text-xs">–</span>
+                <input type="number" min="16" max="80" value={filters.max_age} placeholder="max"
+                  onChange={(e) => setParams({ max_age: e.target.value, page: 1 })} className={inputCls} />
+              </div>
+            </Field>
+
+            <Field label="Field of study">
+              <input type="text" value={filters.field_of_study} placeholder="e.g. mathematics"
+                onChange={(e) => setParams({ field_of_study: e.target.value, page: 1 })}
+                className={inputCls} />
+            </Field>
+
+            <Field label="Source">
+              <Select value={filters.source} onChange={(v) => setParams({ source: v, page: 1 })}
+                options={(options?.sources || []).map((s) => ({ value: s, label: s.replace(/_/g, " ") }))}
+                allLabel="Any source" />
+            </Field>
+
+            <Field label="Met requirements">
+              <Select value={filters.met_requirements} onChange={(v) => setParams({ met_requirements: v, page: 1 })}
+                options={[{ value: "true", label: "Met" }, { value: "false", label: "Not met" }]} allLabel="Either" />
+            </Field>
+
+            <Field label="Applied within">
+              <Select value={filters.applied_within_days} onChange={(v) => setParams({ applied_within_days: v, page: 1 })}
+                options={[
+                  { value: "7", label: "Last 7 days" },
+                  { value: "30", label: "Last 30 days" },
+                  { value: "90", label: "Last 3 months" },
+                ]} allLabel="Any time" />
+            </Field>
+
+            <Field label="Sort by">
+              <Select value={filters.sort} onChange={(v) => setParams({ sort: v, page: 1 })}
+                options={[
+                  { value: "newest", label: "Newest first" },
+                  { value: "oldest", label: "Oldest first" },
+                  { value: "experience", label: "Most experienced" },
+                  { value: "experience_asc", label: "Least experienced" },
+                  { value: "name", label: "Name (A–Z)" },
+                  { value: "youngest", label: "Youngest" },
+                  { value: "oldest_age", label: "Oldest" },
+                ]} allLabel="Newest first" />
+            </Field>
+          </div>
+
+          {activeFilterCount > 0 && (
+            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+              <p className="text-[11px] text-gray-500">
+                <strong>{meta.total}</strong> applicant(s) match {activeFilterCount} filter(s)
+              </p>
+              <button
+                onClick={() => setParams(Object.fromEntries(FILTER_KEYS.map((k) => [k, ""])))}
+                className="text-[11px] font-semibold text-teal-600 hover:text-teal-700">
+                Clear all filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Active Filter */}
       {activeFilter !== "all" && (
         <div className="flex items-center gap-2 mb-3">
@@ -158,6 +547,32 @@ export default function Applications() {
           <button onClick={() => handleFilter(activeFilter)} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Clear filter</button>
         </div>
       )}
+
+      {/* Legend for the row colours. Without it the tints are just decoration —
+        * with it a recruiter can read the whole page in one glance. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        {["new", "reviewed", "settled"].map((key) => {
+          const conf = REVIEW_STATE[key];
+          return (
+            <span key={key} className="inline-flex items-center gap-1.5 text-[11px] text-gray-600" title={conf.hint}>
+              <span className={`w-2.5 h-2.5 rounded-sm ${conf.dot}`} />
+              <span className="font-semibold">{conf.label}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${conf.chip}`}>{reviewCounts[key]}</span>
+            </span>
+          );
+        })}
+
+        {/* Separate, personal marker: rows this recruiter has never opened. */}
+        {unviewedCount > 0 && (
+          <span className="inline-flex items-center gap-2 ml-auto">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              {unviewedCount} you have not opened
+            </span>
+            <button onClick={markAllViewed} className="text-xs text-teal-600 hover:text-teal-700 font-medium">Mark all as viewed</button>
+          </span>
+        )}
+      </div>
 
       {/* Table */}
       {loading ? (
@@ -168,37 +583,74 @@ export default function Applications() {
       ) : (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+            <table className="w-full min-w-[860px]">
               <thead className="bg-teal-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Applicant</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Job Posting</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Contact</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Source</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Screening</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Status</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Applied</th>
                   <th className="px-3 py-2 text-right text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recruitment/applications/show/${item.id}`)}>
+                {items.map((item) => {
+                  const state = reviewStateOf(item);
+                  const conf = REVIEW_STATE[state];
+                  const unopened = !viewed.has(item.id);
+                  return (
+                  <tr key={item.id}
+                      className={`cursor-pointer transition-colors ${conf.row}`}
+                      title={conf.hint}
+                      onClick={() => openApplication(item.id)}>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-[10px] flex-shrink-0">
+                        {/* Colour alone would not survive a colour-vision
+                          * difference, so the bar, the label and the weight
+                          * carry the same information. */}
+                        <span className={`w-1 h-8 rounded-full flex-shrink-0 ${conf.dot}`} aria-hidden="true" />
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 ${conf.avatar}`}>
                           {item.full_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-xs font-medium text-gray-800">{item.full_name}</span>
+                        <div className="min-w-0">
+                          <span className={`text-xs ${conf.name}`}>{item.full_name}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${conf.chip}`}>{conf.label}</span>
+                            {unopened && (
+                              <span className="text-[9px] font-semibold text-amber-600" title="You have not opened this one">
+                                &bull; unopened
+                              </span>
+                            )}
+                            {/* WEN has met this person before. Worth knowing at
+                                the list, not after someone has read the whole
+                                application as if it were a first contact. */}
+                            {item.is_former_staff ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700"
+                                title="This applicant has worked at WEN before — open to see the exit reason">
+                                former staff
+                              </span>
+                            ) : item.has_history ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700"
+                                title="This person has applied to WEN before">
+                                applied before
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.job_posting?.title || "-"}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600">{item.contact_number}</td>
                     <td className="px-3 py-2.5 text-xs text-gray-600 capitalize">{item.source?.replace(/_/g, " ")}</td>
+                    <td className="px-3 py-2.5">{screeningSummary(item)}</td>
                     <td className="px-3 py-2.5 text-xs">{statusBadge(item.status)}</td>
-                    <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "-"}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-500">{item.created_at ? fmtDate(item.created_at) : "-"}</td>
                     <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/recruitment/applications/show/${item.id}`)} className="p-1 text-teal-600 hover:bg-teal-50 rounded" title="View & Manage">
+                        <button onClick={() => openApplication(item.id)} className="p-1 text-teal-600 hover:bg-teal-50 rounded" title="View & Manage">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -217,7 +669,8 @@ export default function Applications() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

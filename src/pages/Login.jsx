@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { post } from '../api/axios';
+import { post, clearApiCache } from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../admin/context/AuthContext';
+import { hasPermission } from '../admin/utils/permissions';
+import LanguageSwitcher from "../i18n/LanguageSwitcher";
+import wifaqLogo from "../assets/wifaq-logo.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -30,13 +33,21 @@ export default function Login() {
       const response = await post('/login', formData);
       const { token, user } = response.data;
 
+      // A fresh login may be a different user on this browser — drop any API
+      // cache belonging to the previous session so no stale rows leak across.
+      clearApiCache();
+
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+
+      // Reset the once-per-session popup flag so the just-logged-in user
+      // sees their unread notifications as floating cards on the dashboard.
+      sessionStorage.removeItem("wen:notif-popups-seen");
 
       // Pull the full user profile (with roles + permissions) into AuthContext
       // BEFORE navigating, otherwise the path gate sees user=null and redirects
       // back to /login → infinite loop.
-      await auth.reload();
+      const me = await auth.reload();
 
       Swal.fire({
         title: 'Welcome!',
@@ -46,7 +57,14 @@ export default function Login() {
         showConfirmButton: false
       });
 
-      navigate('/');
+      /* Back to whatever sent us here — a scanned student card, say. Only
+       * in-app paths: a "//evil.example" would otherwise leave the site. */
+      const wanted = new URLSearchParams(window.location.search).get('redirect');
+      // Otherwise everyone starts on the Posts feed; someone without access
+      // to posts (a family, a student) starts on the dashboard as before.
+      const home = hasPermission(me, 'posts.view') ? '/posts' : '/';
+      const safe = wanted && wanted.startsWith('/') && !wanted.startsWith('//') ? wanted : home;
+      navigate(safe, { replace: true });
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed. Please check your credentials.';
       Swal.fire({
@@ -62,16 +80,17 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-teal-100 flex items-center justify-center p-4">
+      {/* Sign in in your own language: the picker works before login too. */}
+      <div className="absolute top-4 end-4">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-sm">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-teal-600 px-6 py-4 text-center">
-            <div className="w-12 h-12 bg-white rounded-lg mx-auto mb-3 flex items-center justify-center">
-              <svg className="w-7 h-7 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-              </svg>
+            <div className="w-16 h-16 bg-white rounded-xl mx-auto mb-3 flex items-center justify-center p-1.5">
+              <img src={wifaqLogo} alt="Raqim" className="w-full h-full object-contain" />
             </div>
-            <h1 className="text-lg font-bold text-white">Wifaq School</h1>
+            <h1 className="text-lg font-bold text-white">Raqim</h1>
             <p className="text-teal-100 text-xs mt-0.5">Admin Portal</p>
           </div>
 
@@ -168,15 +187,17 @@ export default function Login() {
               </button>
             </form>
 
-            <div className="mt-4 text-center text-xs text-gray-500">
-              <p>Default credentials:</p>
-              <p className="font-mono text-[10px] mt-0.5">admin@wifaq.edu / password</p>
+            {/* Visitors have no account — this is their way to ask for time with a staff member. */}
+            <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+              <a href="/book-appointment" className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-800">
+                <span>Want to meet someone at the school?</span> <span className="underline">Book an appointment</span>
+              </a>
             </div>
           </div>
         </div>
 
         <p className="text-center text-gray-500 text-xs mt-4">
-          © 2026 Wifaq School. All rights reserved.
+          © 2026 Raqim. All rights reserved.
         </p>
       </div>
     </div>

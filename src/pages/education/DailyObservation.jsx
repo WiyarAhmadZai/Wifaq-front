@@ -33,6 +33,33 @@ const needsChange = (c) => ["positive", "concern", "urgent"].includes(c);
 const isNegative = (c) => ["concern", "urgent"].includes(c);
 const initials = (n) => (n || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
+/* A phone photo (often 3-8 MB) shrunk to a ≤1600px JPEG data URL — small
+ * enough to ride inside the JSON save request. Falls back to the original
+ * bytes when the browser cannot draw the image (e.g. HEIC on desktop). */
+const photoToDataUrl = (file) => new Promise((resolve) => {
+  const raw = () => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  };
+  const src = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const scale = Math.min(1, 1600 / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/jpeg", 0.82));
+    } catch { raw(); } finally { URL.revokeObjectURL(src); }
+  };
+  img.onerror = () => { URL.revokeObjectURL(src); raw(); };
+  img.src = src;
+});
+
 /**
  * How many observations this student already has.
  *
@@ -194,15 +221,31 @@ export default function DailyObservation() {
     return stop;
   }, [drainOutbox]);
 
+  /* Only the answer for the class on screen may land. Switching classes while
+   * a slow request was still out let the old class's list (or its "done")
+   * arrive later and overwrite the new one, and the previous class's students
+   * stayed on screen under the new class's name. */
+  const rosterReq = useRef(0);
+  const [rosterError, setRosterError] = useState(null);
   const loadRoster = useCallback(() => {
     if (!activeClass) return;
-    setLoadingRoster(true);
-    const __cached = peekCache(`/student-observations/roster?class_id=${activeClass}`);
+    const id = ++rosterReq.current;
+    const url = `/student-observations/roster?class_id=${activeClass}`;
+    setRosterError(null);
+    const __cached = peekCache(url);
     if (__cached) { setRoster(__cached?.data || []); setLoadingRoster(false); }
-    get(`/student-observations/roster?class_id=${activeClass}`)
-      .then((r) => setRoster(r.data?.data || []))
-      .catch(() => setRoster([]))
-      .finally(() => setLoadingRoster(false));
+    else { setRoster([]); setLoadingRoster(true); }
+    get(url, { timeout: 45000 })
+      .then((r) => { if (id === rosterReq.current) setRoster(r.data?.data || []); })
+      .catch((err) => {
+        if (id !== rosterReq.current) return;
+        // Say what went wrong instead of an empty "No students." that looks
+        // like the class has nobody in it.
+        if (!__cached) setRoster([]);
+        setRosterError(err?.response?.data?.message
+          || (err?.code === "ECONNABORTED" ? "The server took too long to answer." : "Could not load the students."));
+      })
+      .finally(() => { if (id === rosterReq.current) setLoadingRoster(false); });
   }, [activeClass]);
   useEffect(() => { loadRoster(); }, [loadRoster]);
 
@@ -282,7 +325,7 @@ export default function DailyObservation() {
   /* Photos queued for the next submit. Capped and validated here as well as on
    * the server, so an oversized file is refused before the upload starts. */
   const MAX_PHOTOS = 4;
-  const MAX_PHOTO_MB = 8;
+  const MAX_PHOTO_MB = 25; // shrunk before sending, so a full-size phone photo is fine
   const queuePhotos = (fileList) => {
     const picked = Array.from(fileList || []);
     const tooBig = picked.filter((f) => f.size > MAX_PHOTO_MB * 1024 * 1024);
@@ -341,6 +384,8 @@ export default function DailyObservation() {
     const entries = DIMENSIONS.map((d) => ({ dimension: d.key, ...forms[d.key] })).filter((e) => e.description.trim());
     if (!entries.length) { Swal.fire("Nothing to save", "Write at least one observation.", "warning"); return; }
     for (const e of entries) {
+      // The server refuses anything shorter; say so here, on the right tab.
+      if (e.description.trim().length < 5) { setActiveDim(e.dimension); Swal.fire("Too short", `The ${e.dimension} note needs at least 5 characters.`, "warning"); return; }
       if (needsChange(e.category) && !e.change_vs_before) { setActiveDim(e.dimension); Swal.fire("Missing", `Pick the change for the ${e.dimension} note.`, "warning"); return; }
       if (isNegative(e.category) && !e.alternative_interpretation.trim()) { setActiveDim(e.dimension); Swal.fire("Bias check", `Add another interpretation for the ${e.dimension} concern.`, "warning"); return; }
       if (e.category === "urgent" && !e.urgency_reason.trim()) { setActiveDim(e.dimension); Swal.fire("Missing", `Give the urgency reason for the ${e.dimension} note.`, "warning"); return; }
@@ -387,23 +432,16 @@ export default function DailyObservation() {
     }
 
     try {
-      /* With photos the same endpoint takes multipart. Nested arrays have to be
-       * flattened into observations[0][field] keys — multipart has no notion of
-       * a nested object, and Laravel reassembles exactly this shape. */
+      /* Photos travel as shrunk JPEG data inside the normal JSON request, not
+       * as a multipart file upload: the host's PHP dropped uploaded files, so
+       * every evaluation with a photo was refused ("must be an image") and the
+       * teacher could not save at all. */
       let body = payload;
       let config;
       if (photos.length) {
-        const fd = new FormData();
-        fd.append("student_id", String(selected.id));
-        observations.forEach((o, i) => {
-          Object.entries(o).forEach(([k, v]) => {
-            if (v === null || v === undefined || v === "") return;
-            fd.append(`observations[${i}][${k}]`, typeof v === "boolean" ? (v ? "1" : "0") : v);
-          });
-        });
-        photos.forEach((f) => fd.append("photos[]", f));
-        body = fd;
-        config = { headers: { "Content-Type": "multipart/form-data" }, timeout: 0 };
+        const photos_data = (await Promise.all(photos.map(photoToDataUrl))).filter(Boolean);
+        body = { ...payload, photos_data };
+        config = { timeout: 0 };
       }
       const r = await post("/student-observations/batch", body, config);
       Swal.fire({ icon: "success", title: r.data?.message || "Recorded", timer: 1300, showConfirmButton: false, toast: true, position: "top-end" });
@@ -570,7 +608,13 @@ export default function DailyObservation() {
           </div>
 
           <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
-            {loadingRoster ? <Spinner /> : filtered.length === 0 ? <p className="p-6 text-center text-xs text-gray-400">No students.</p> : filtered.map((s) => {
+            {rosterError && !loadingRoster && (
+              <div className="m-3 rounded-xl border border-red-200 bg-red-50 p-3 text-center text-xs text-red-700">
+                <p>{rosterError}</p>
+                <button type="button" onClick={loadRoster} className="mt-2 rounded-lg bg-white px-3 py-1.5 font-semibold text-red-700 border border-red-200 hover:bg-red-100">Try again</button>
+              </div>
+            )}
+            {loadingRoster ? <Spinner /> : filtered.length === 0 ? (rosterError ? null : <p className="p-6 text-center text-xs text-gray-400">No students.</p>) : filtered.map((s) => {
               const b = badge(s); const on = selected?.id === s.id;
               return (
                 <button key={s.id} onClick={() => pick(s)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-l-2"

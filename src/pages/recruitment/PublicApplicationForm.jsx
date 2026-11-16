@@ -117,7 +117,7 @@ const L = {
     e_email: "Email is required", e_dob: "Date of birth is required", e_address: "Current address is required",
     e_origin: "Place of origin is required", e_intro: "Please introduce yourself", e_motivation: "Motivation is required",
     e_edu: "Education level is required", e_field: "Field of study is required", e_institution: "Institution name is required",
-    e_required: "{x} is required", file_too_large: "File too large", max_size: "Maximum file size is 10MB.",
+    e_required: "{x} is required", e_email_invalid: "Please enter a valid email address (e.g. name@example.com)", e_dob_future: "Date of birth must be before today", e_too_long: "{x} is too long (maximum {n} characters)", e_exp_incomplete: "Experience {n}: fill in company, job title and duration, or remove this entry", e_exp_years: "Years of experience must be 0 or more", draft_restored: "Your unfinished application was restored. Files and the voice recording need to be added again.", file_too_large: "File too large", max_size: "Maximum file size is 10MB.",
     submit_failed: "Submission failed", went_wrong: "Something went wrong. Please try again.",
     motivation_title: "Motivation & Self-Introduction",
     additional_comments: "Additional Comments", ph_comments: "Anything else you'd like us to know…",
@@ -228,7 +228,7 @@ const L = {
     e_email: "ایمیل اړین دی", e_dob: "د زیږېدنې نېټه اړینه ده", e_address: "اوسنۍ پته اړینه ده",
     e_origin: "اصلي ځای اړین دی", e_intro: "مهرباني وکړئ ځان وپیژنئ", e_motivation: "انګیزه اړینه ده",
     e_edu: "د زده‌کړې کچه اړینه ده", e_field: "د زده‌کړې څانګه اړینه ده", e_institution: "د مؤسسې نوم اړین دی",
-    e_required: "{x} اړین دی", file_too_large: "فایل ډېر لوی دی", max_size: "تر ۱۰ MB پورې فایل.",
+    e_required: "{x} اړین دی", e_email_invalid: "سم ایمیل ولیکئ (لکه name@example.com)", e_dob_future: "د زیږېدنې نېټه باید له نن ورځې مخکې وي", e_too_long: "{x} ډېر اوږد دی (تر {n} تورو پورې)", e_exp_incomplete: "تجربه {n}: د ادارې نوم، دنده او موده ولیکئ، یا دا برخه لرې کړئ", e_exp_years: "د تجربې کلونه باید ۰ یا زیات وي", draft_restored: "ستاسو نیمګړی فورم بېرته راغی. فایلونه او غږیز ځواب بیا اضافه کړئ.", file_too_large: "فایل ډېر لوی دی", max_size: "تر ۱۰ MB پورې فایل.",
     submit_failed: "لېږل ناکام شول", went_wrong: "یوه ستونزه رامنځته شوه. بیا هڅه وکړئ.",
     motivation_title: "انګیزه او پیژندنه",
     additional_comments: "اضافي نظرونه", ph_comments: "بل څه چې غواړئ موږ پرې وپوهېږو…",
@@ -339,7 +339,7 @@ const L = {
     e_email: "ایمیل الزامی است", e_dob: "تاریخ تولد الزامی است", e_address: "آدرس فعلی الزامی است",
     e_origin: "محل اصلی الزامی است", e_intro: "لطفاً خود را معرفی کنید", e_motivation: "انگیزه الزامی است",
     e_edu: "سطح تحصیلات الزامی است", e_field: "رشته تحصیلی الزامی است", e_institution: "نام موسسه الزامی است",
-    e_required: "{x} الزامی است", file_too_large: "فایل بیش از حد بزرگ است", max_size: "حداکثر اندازه فایل ۱۰ مگابایت.",
+    e_required: "{x} الزامی است", e_email_invalid: "ایمیل معتبر وارد کنید (مثلاً name@example.com)", e_dob_future: "تاریخ تولد باید قبل از امروز باشد", e_too_long: "{x} بیش از حد طولانی است (حداکثر {n} حرف)", e_exp_incomplete: "تجربه {n}: نام اداره، وظیفه و مدت را بنویسید، یا این بخش را حذف کنید", e_exp_years: "سال‌های تجربه باید ۰ یا بیشتر باشد", draft_restored: "فورم نیمه‌کاره شما بازگردانده شد. فایل‌ها و پاسخ صوتی را دوباره اضافه کنید.", file_too_large: "فایل بیش از حد بزرگ است", max_size: "حداکثر اندازه فایل ۱۰ مگابایت.",
     submit_failed: "ارسال ناموفق بود", went_wrong: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید.",
     motivation_title: "انگیزه و معرفی",
     additional_comments: "نظرات اضافی", ph_comments: "هر چیز دیگری که می‌خواهید بدانیم…",
@@ -415,6 +415,31 @@ const HOW_HEARD_OPTS = [
   { value: "job_ad", key: "hh_ad" }, { value: "website", key: "hh_site" },
   { value: "other", key: "hh_other" },
 ];
+
+/* Server max lengths (StoreApplicationRequest), checked before leaving a step. */
+const MAX_LEN = {
+  full_name: 255, contact_number: 50, email: 255, national_id: 50, place_of_origin: 255, native_language: 60,
+  field_of_study: 255, institution_name: 255, key_skills: 5000, about_wifaq: 5000, known_person: 2000,
+  responsibility_definition: 5000, beyond_duty_example: 5000, inspiration: 5000, life_principles: 5000,
+  time_management: 5000, world_problems: 5000, afghanistan_problem: 5000, positive_change: 5000,
+  facebook: 255, instagram: 255, twitter_x: 255, youtube: 255,
+};
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/* Unfinished application, kept in this browser only (30 days). */
+const DRAFT_KEY = "careersApplicationDraft:v1";
+const DRAFT_TTL = 30 * 24 * 60 * 60 * 1000;
+const readDraft = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+    if (!d || Date.now() - (d.at || 0) > DRAFT_TTL) return null;
+    // Only worth restoring once something was actually typed.
+    const typed = d.formData && Object.entries(d.formData).some(([k, v]) => k !== "job_posting_id" && k !== "total_experience_years" && (Array.isArray(v) ? v.some((x) => String(x).trim()) : String(v ?? "").trim()));
+    return typed ? d : null;
+  } catch { return null; }
+};
+const writeDraft = (d) => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...d, at: Date.now() })); } catch { /* storage full or blocked */ } };
+const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* blocked */ } };
 
 /* 1-based step number for a section key. */
 const stepOf = (key) => SECTIONS.findIndex((s) => s.key === key) + 1;
@@ -518,13 +543,31 @@ export default function PublicApplicationForm() {
   const cur = STEPS.find((s) => s.num === step) || STEPS[0];
   const selectedJob = jobPostings.find((jp) => jp.id === parseInt(formData.job_posting_id)) || null;
 
+  /* The answers are kept in this browser as the applicant types, so a reload,
+   * a dropped connection or a failed submit never costs them the whole form.
+   * Files and the voice recording cannot be stored this way and are re-added. */
+  const draftReady = useRef(false);
   useEffect(() => {
     fetchJobPostings();
     const params = new URLSearchParams(window.location.search);
     const preselected = params.get("job");
+    const draft = readDraft();
+    if (draft) {
+      if (draft.formData) setFormData((prev) => ({ ...prev, ...draft.formData }));
+      if (Array.isArray(draft.workExperiences) && draft.workExperiences.length) setWorkExperiences(draft.workExperiences);
+      if (Array.isArray(draft.metRequirements)) setMetRequirements(draft.metRequirements);
+      if (draft.step > 1 && !preselected) setStep(Math.min(draft.step, SECTIONS.length));
+      Swal.fire({ toast: true, position: "top", icon: "info", title: t("draft_restored"), showConfirmButton: false, timer: 6000 });
+    }
     // A shared ?job= link lands straight on that posting's detail view.
-    if (preselected) { setFormData((prev) => ({ ...prev, job_posting_id: preselected })); setStep(stepOf("job")); }
+    if (preselected) { setFormData((prev) => ({ ...prev, job_posting_id: preselected })); if (!draft) setStep(stepOf("job")); }
+    draftReady.current = true;
   }, []);
+
+  useEffect(() => {
+    if (!draftReady.current || submitted) return;
+    writeDraft({ formData, workExperiences, metRequirements, step });
+  }, [formData, workExperiences, metRequirements, step, submitted]);
 
   const fetchJobPostings = async () => {
     setLoading(true);
@@ -608,6 +651,8 @@ export default function PublicApplicationForm() {
   /* Entry 1 counts as filled when it carries the same three fields the API
    * marks required_with on work_experiences. Responsibilities stays optional,
    * matching StoreApplicationRequest. */
+  const experienceStarted = (x) => ["company_name", "job_title", "duration", "responsibilities"].some((f) => x?.[f]?.trim());
+  const experienceComplete = (x) => !!(x?.company_name?.trim() && x?.job_title?.trim() && x?.duration?.trim());
   const firstExperienceComplete = () => {
     const first = workExperiences[0];
     return !!(first?.company_name?.trim() && first?.job_title?.trim() && first?.duration?.trim());
@@ -615,74 +660,113 @@ export default function PublicApplicationForm() {
 
   /* Same rules as before — only the section they are keyed to changed, so each
    * rule still fires on the screen that actually holds its field. */
-  const validateStep = () => {
+  /* Every rule the server (StoreApplicationRequest) enforces, checked on the
+   * step that holds the field. Before, the steps only checked "not empty", so
+   * a bad email, a future birth date, an over-long answer or a half-filled job
+   * entry passed every step and was only rejected at the final submit, which
+   * threw the applicant back to step 1 after 13 steps of work. */
+  const sectionErrors = (k) => {
     const e = {};
-    const k = cur.key;
+    const blank = (v) => !String(v ?? "").trim();
+    const need = (field, msg) => { if (blank(formData[field])) e[field] = msg; };
+    const tooLong = (field, label) => {
+      const n = MAX_LEN[field];
+      if (n && !e[field] && String(formData[field] ?? "").trim().length > n) e[field] = t("e_too_long", { x: label, n });
+    };
     if ((k === "role" || k === "job") && !formData.job_posting_id) e.job_posting_id = t("e_job");
     if (k === "personal") {
-      if (!formData.full_name) e.full_name = t("e_name");
-      if (!formData.contact_number) e.contact_number = t("e_phone");
-      if (!formData.email) e.email = t("e_email");
-      if (!formData.date_of_birth) e.date_of_birth = t("e_dob");
-      if (!formData.current_address) e.current_address = t("e_address");
-      if (!formData.place_of_origin) e.place_of_origin = t("e_origin");
-      if (!formData.native_language?.trim()) e.native_language = t("e_required", { x: t("native_language") });
+      need("full_name", t("e_name"));
+      need("contact_number", t("e_phone"));
+      need("email", t("e_email"));
+      if (!e.email && !EMAIL_RE.test(String(formData.email).trim())) e.email = t("e_email_invalid");
+      need("date_of_birth", t("e_dob"));
+      if (!e.date_of_birth && String(formData.date_of_birth) >= new Date().toISOString().slice(0, 10)) e.date_of_birth = t("e_dob_future");
+      need("current_address", t("e_address"));
+      need("place_of_origin", t("e_origin"));
+      need("native_language", t("e_required", { x: t("native_language") }));
+      tooLong("full_name", t("full_name")); tooLong("contact_number", t("contact_number"));
+      tooLong("email", t("email")); tooLong("national_id", t("national_id"));
+      tooLong("place_of_origin", t("place_of_origin")); tooLong("native_language", t("native_language"));
     }
     if (k === "motivation") {
-      if (!formData.introduction) e.introduction = t("e_intro");
-      if (!formData.motivation) e.motivation = t("e_motivation");
+      need("introduction", t("e_intro"));
+      need("motivation", t("e_motivation"));
+      const longSkill = formData.unique_skill.find((x) => x.trim().length > 255);
+      if (longSkill) e.unique_skill = t("e_too_long", { x: `${longSkill.slice(0, 30)}…`, n: 255 });
     }
     if (k === "education") {
-      if (!formData.education_level) e.education_level = t("e_edu");
-      if (!formData.field_of_study) e.field_of_study = t("e_field");
-      if (!formData.institution_name) e.institution_name = t("e_institution");
+      need("education_level", t("e_edu"));
+      need("field_of_study", t("e_field"));
+      need("institution_name", t("e_institution"));
+      tooLong("field_of_study", t("field_of_study")); tooLong("institution_name", t("institution"));
     }
-    // A first job entry is expected only from applicants who state some
-    // experience — 0 years means there is nothing to describe.
-    if (k === "work" && Number(formData.total_experience_years) > 0 && !firstExperienceComplete()) {
-      e.work_experiences = t("e_required", { x: t("experience_n", { n: 1 }) });
+    if (k === "work") {
+      const years = Number(formData.total_experience_years);
+      if (!Number.isInteger(years) || years < 0) e.total_experience_years = t("e_exp_years");
+      // A first job entry is expected only from applicants who state some
+      // experience — 0 years means there is nothing to describe.
+      if (years > 0 && !firstExperienceComplete()) e.work_experiences = t("e_required", { x: t("experience_n", { n: 1 }) });
+      // Any entry that was started must be finished — the server rejects a
+      // half-filled one (company / title / duration are required together).
+      if (!e.work_experiences) {
+        const bad = workExperiences.findIndex((x) => experienceStarted(x) && !experienceComplete(x));
+        if (bad >= 0) e.work_experiences = t("e_exp_incomplete", { n: bad + 1 });
+      }
+      if (!e.work_experiences) {
+        const long = workExperiences.findIndex((x) => ["company_name", "job_title", "duration"].some((f) => x[f].trim().length > 255));
+        if (long >= 0) e.work_experiences = t("e_too_long", { x: t("experience_n", { n: long + 1 }), n: 255 });
+      }
     }
-    if (k === "talents") {
-      if (!formData.key_skills?.trim()) e.key_skills = t("e_required", { x: t("key_skills") });
-    }
+    if (k === "talents") { need("key_skills", t("e_required", { x: t("key_skills") })); tooLong("key_skills", t("key_skills")); }
     if (k === "wifaq") {
-      if (!formData.how_heard) e.how_heard = t("e_required", { x: t("how_heard") });
-      if (!formData.about_wifaq?.trim()) e.about_wifaq = t("e_required", { x: t("about_wifaq") });
-      if (!formData.known_person?.trim()) e.known_person = t("e_required", { x: t("known_person") });
+      need("how_heard", t("e_required", { x: t("how_heard") }));
+      need("about_wifaq", t("e_required", { x: t("about_wifaq") }));
+      need("known_person", t("e_required", { x: t("known_person") }));
+      tooLong("about_wifaq", t("about_wifaq")); tooLong("known_person", t("known_person"));
     }
     if (k === "values") {
-      if (!formData.scenario_answer) e.scenario_answer = t("e_required", { x: t("scenario_q") });
-      if (!formData.responsibility_definition?.trim()) e.responsibility_definition = t("e_required", { x: t("responsibility_def") });
-      if (!formData.beyond_duty_example?.trim()) e.beyond_duty_example = t("e_required", { x: t("beyond_duty") });
+      need("scenario_answer", t("e_required", { x: t("scenario_q") }));
+      need("responsibility_definition", t("e_required", { x: t("responsibility_def") }));
+      need("beyond_duty_example", t("e_required", { x: t("beyond_duty") }));
+      tooLong("responsibility_definition", t("responsibility_def")); tooLong("beyond_duty_example", t("beyond_duty"));
+      tooLong("inspiration", t("inspiration")); tooLong("life_principles", t("life_principles")); tooLong("time_management", t("time_management"));
     }
     if (k === "vision") {
-      if (!formData.world_problems?.trim()) e.world_problems = t("e_required", { x: t("world_problems") });
-      if (!formData.afghanistan_problem?.trim()) e.afghanistan_problem = t("e_required", { x: t("afghanistan_problem") });
-      if (!formData.positive_change?.trim()) e.positive_change = t("e_required", { x: t("positive_change") });
+      need("world_problems", t("e_required", { x: t("world_problems") }));
+      need("afghanistan_problem", t("e_required", { x: t("afghanistan_problem") }));
+      need("positive_change", t("e_required", { x: t("positive_change") }));
+      tooLong("world_problems", t("world_problems")); tooLong("afghanistan_problem", t("afghanistan_problem")); tooLong("positive_change", t("positive_change"));
     }
     // The voice answer is the point of this step — no recording, no advance.
     if (k === "voice" && !voiceRecording) e.voice_recording = t("voice_required");
     if (k === "documents") DOC_TYPES.forEach((d) => { if (d.required && !documents[d.key]) e[d.key] = t("e_required", { x: t(d.labelKey) }); });
+    if (k === "social") ["facebook", "instagram", "twitter_x", "youtube"].forEach((f) => tooLong(f, f));
+    return e;
+  };
+
+  const validateStep = () => {
+    const e = sectionErrors(cur.key);
     setErrors(e);
     // Failing in place is no better than failing silently — show them which one.
     if (Object.keys(e).length) revealError(e);
     return Object.keys(e).length === 0;
   };
 
-  const canNext = () => {
-    const k = cur.key;
-    if (k === "role" || k === "job") return !!formData.job_posting_id;
-    if (k === "personal") return formData.full_name && formData.contact_number && formData.email && formData.date_of_birth && formData.current_address && formData.place_of_origin && formData.native_language?.trim();
-    if (k === "motivation") return !!formData.introduction && !!formData.motivation;
-    if (k === "education") return formData.education_level && formData.field_of_study && formData.institution_name;
-    if (k === "work") return Number(formData.total_experience_years) > 0 ? firstExperienceComplete() : true;
-    if (k === "talents") return !!formData.key_skills?.trim();
-    if (k === "wifaq") return !!formData.how_heard && !!formData.about_wifaq?.trim() && !!formData.known_person?.trim();
-    if (k === "values") return !!formData.scenario_answer && !!formData.responsibility_definition?.trim() && !!formData.beyond_duty_example?.trim();
-    if (k === "vision") return !!formData.world_problems?.trim() && !!formData.afghanistan_problem?.trim() && !!formData.positive_change?.trim();
-    if (k === "voice") return !!voiceRecording;
+  /* Before submitting, re-check every step. If an earlier one is wrong, land
+   * on THAT step with the field marked red — nothing typed is lost. */
+  const validateAll = () => {
+    for (const s of SECTIONS) {
+      const e = sectionErrors(s.key);
+      if (Object.keys(e).length) {
+        setStep(stepOf(s.key)); setErrors(e); revealError(e);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return false;
+      }
+    }
     return true;
   };
+
+  const canNext = () => Object.keys(sectionErrors(cur.key)).length === 0;
   /* Runs after the erroring section is on screen. Scrolls the field to the
    * middle of the viewport and focuses it; `preventScroll` stops the browser
    * from fighting the smooth scroll we just started. */
@@ -709,14 +793,14 @@ export default function PublicApplicationForm() {
   const goToStep = (n) => { if (n < step) { setStep(n); window.scrollTo({ top: 0, behavior: "smooth" }); } };
 
   const handleSubmit = async () => {
-    if (!validateStep()) return;
+    if (!validateAll()) return;
     setSaving(true); setErrors({});
     try {
       const dataToSend = {
         ...formData,
         unique_skill: formData.unique_skill.filter((s) => s.trim() !== ""),
         met_requirements: metRequirements,
-        work_experiences: workExperiences.filter((exp) => exp.company_name.trim() !== "" || exp.job_title.trim() !== ""),
+        work_experiences: workExperiences.filter(experienceStarted),
         status: "received", source: "public_link",
       };
       const response = await post("/public/recruitment/applications", dataToSend);
@@ -745,6 +829,7 @@ export default function PublicApplicationForm() {
         try { await post("/public/recruitment/application-documents", vfd, { headers: { "Content-Type": "multipart/form-data" } }); }
         catch (e) { console.error("Failed to upload voice recording", e); }
       }
+      clearDraft();
       setReferenceId(applicationId); setSubmitted(true); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       const status = error.response?.status;
@@ -770,6 +855,7 @@ export default function PublicApplicationForm() {
           world_problems: "vision", afghanistan_problem: "vision", positive_change: "vision",
           cv_resume: "documents", educational_document: "documents",
           identity_document: "documents", work_samples: "documents",
+          national_id: "personal", gender: "personal",
         };
         const firstField = Object.keys(errs)[0] || "";
         const section = fieldSection[firstField.split(".")[0]];
@@ -949,7 +1035,7 @@ export default function PublicApplicationForm() {
                 {/* Optional, so nobody who does not have it to hand is blocked
                     from applying — but it is the one key that reliably matches
                     someone to an earlier application or to a WEN staff record. */}
-                <div><Label>{t("national_id")}</Label><input type="text" name="national_id" value={formData.national_id} onChange={handleChange} placeholder={t("ph_national_id")} dir="ltr" className={inp} /></div>
+                <div><Label>{t("national_id")}</Label><input type="text" name="national_id" value={formData.national_id} onChange={handleChange} placeholder={t("ph_national_id")} dir="ltr" className={errors.national_id ? inpError : inp} />{errors.national_id && <p className="text-red-500 text-xs mt-1">{errors.national_id}</p>}</div>
                 {/* Optional, so no existing applicant is blocked and nobody is
                     forced to disclose. Recruitment filters on both. */}
                 <div><Label>{t("gender")}</Label>
@@ -983,10 +1069,10 @@ export default function PublicApplicationForm() {
                   <p className="text-xs font-bold text-gray-800">{t("step4")}</p>
                 </div>
                 <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><Label>Facebook</Label><input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder={t("ph_profile")} dir="ltr" className={inp} /></div>
-                  <div><Label>Instagram</Label><input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
-                  <div><Label>Twitter / X</Label><input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={inp} /></div>
-                  <div><Label>YouTube</Label><input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder={t("ph_channel")} dir="ltr" className={inp} /></div>
+                  <div><Label>Facebook</Label><input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder={t("ph_profile")} dir="ltr" className={errors.facebook ? inpError : inp} />{errors.facebook && <p className="text-red-500 text-xs mt-1">{errors.facebook}</p>}</div>
+                  <div><Label>Instagram</Label><input type="text" name="instagram" value={formData.instagram} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={errors.instagram ? inpError : inp} />{errors.instagram && <p className="text-red-500 text-xs mt-1">{errors.instagram}</p>}</div>
+                  <div><Label>Twitter / X</Label><input type="text" name="twitter_x" value={formData.twitter_x} onChange={handleChange} placeholder={t("ph_username")} dir="ltr" className={errors.twitter_x ? inpError : inp} />{errors.twitter_x && <p className="text-red-500 text-xs mt-1">{errors.twitter_x}</p>}</div>
+                  <div><Label>YouTube</Label><input type="text" name="youtube" value={formData.youtube} onChange={handleChange} placeholder={t("ph_channel")} dir="ltr" className={errors.youtube ? inpError : inp} />{errors.youtube && <p className="text-red-500 text-xs mt-1">{errors.youtube}</p>}</div>
                 </div>
               </div>
 
@@ -1026,6 +1112,7 @@ export default function PublicApplicationForm() {
                       <button type="button" onClick={() => removeSkill(index)} className="px-3 py-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                     </div>
                   ))}
+                  {errors.unique_skill && <p className="text-red-500 text-xs" data-field="unique_skill">{errors.unique_skill}</p>}
                   <button type="button" onClick={addSkill} className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-teal-600 bg-teal-50 hover:bg-teal-100 rounded-xl transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>{t("add_skill")}</button>
                 </div>
               </div>
@@ -1046,7 +1133,7 @@ export default function PublicApplicationForm() {
             <StepCard icon={cur.icon} label={cur.label} desc={cur.desc}>
               {/* Total years leads the section: it decides whether a first job
                 * entry is expected at all (0 years = no entry required). */}
-              <div><Label required>{t("total_exp")}</Label><input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} dir="ltr" className={`${inp} sm:max-w-xs`} /></div>
+              <div><Label required>{t("total_exp")}</Label><input type="number" name="total_experience_years" value={formData.total_experience_years} onChange={handleChange} min={0} dir="ltr" className={`${errors.total_experience_years ? inpError : inp} sm:max-w-xs`} />{errors.total_experience_years && <p className="text-red-500 text-xs mt-1">{errors.total_experience_years}</p>}</div>
               <div className="space-y-4">
                 {workExperiences.map((exp, index) => (
                   <div key={index} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
@@ -1182,17 +1269,17 @@ export default function PublicApplicationForm() {
                   <div>
                     <Label>{t("inspiration")}</Label>
                     <textarea name="inspiration" value={formData.inspiration} onChange={handleChange}
-                      rows={2} placeholder={t("ph_inspiration")} className={inp} />
+                      rows={2} placeholder={t("ph_inspiration")} className={errors.inspiration ? inpError : inp} />{errors.inspiration && <p className="text-red-500 text-xs mt-1">{errors.inspiration}</p>}
                   </div>
                   <div>
                     <Label>{t("life_principles")}</Label>
                     <textarea name="life_principles" value={formData.life_principles} onChange={handleChange}
-                      rows={3} placeholder={t("ph_life_principles")} className={inp} />
+                      rows={3} placeholder={t("ph_life_principles")} className={errors.life_principles ? inpError : inp} />{errors.life_principles && <p className="text-red-500 text-xs mt-1">{errors.life_principles}</p>}
                   </div>
                   <div>
                     <Label>{t("time_management")}</Label>
                     <textarea name="time_management" value={formData.time_management} onChange={handleChange}
-                      rows={3} placeholder={t("ph_time_management")} className={inp} />
+                      rows={3} placeholder={t("ph_time_management")} className={errors.time_management ? inpError : inp} />{errors.time_management && <p className="text-red-500 text-xs mt-1">{errors.time_management}</p>}
                   </div>
                 </div>
               </div>

@@ -225,7 +225,7 @@ export default function Applications() {
    * and still be the same list.
    */
   const FILTER_KEYS = [
-    "job_posting_id", "gender", "native_language", "education_level",
+    "job_posting_id", "review", "gender", "native_language", "education_level",
     "field_of_study", "source", "min_experience", "max_experience",
     "min_age", "max_age", "met_requirements", "applied_within_days", "sort",
   ];
@@ -436,6 +436,18 @@ export default function Applications() {
             <Field label="Job posting">
               <Select value={filters.job_posting_id} onChange={(v) => setParams({ job_posting_id: v, page: 1 })}
                 options={(options?.job_postings || []).map((j) => ({ value: j.id, label: j.title }))} allLabel="Any posting" />
+            </Field>
+
+            <Field label="Review / HR flag">
+              <Select value={filters.review} onChange={(v) => setParams({ review: v, page: 1 })}
+                options={[
+                  { value: "recommended", label: "👍 Recommended" },
+                  { value: "flagged", label: "🚩 Flagged for HR review" },
+                  { value: "recommended_or_flagged", label: "Recommended or flagged" },
+                  { value: "not_recommended", label: "👎 Not recommended" },
+                  { value: "unreviewed", label: "Not reviewed yet" },
+                ]}
+                allLabel="Any review" />
             </Field>
 
             <Field label="Gender">

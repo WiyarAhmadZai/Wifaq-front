@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { get, del, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
@@ -7,6 +7,7 @@ import { useResourcePermissions } from '../../admin/utils/useResourcePermissions
 export default function JobApplicationList() {
   const navigate = useNavigate();
   const { canCreate, canUpdate, canDelete } = useResourcePermissions('applications');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -15,20 +16,41 @@ export default function JobApplicationList() {
     status: '',
     message: ''
   });
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterValues, setFilterValues] = useState({
+    status: searchParams.get('f_status') || '',
+    position: searchParams.get('f_position') || '',
+    reviewed: searchParams.get('f_reviewed') || '',
+  });
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
+  const setParams = (patch) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(patch).forEach(([k, v]) => {
+        const isDefault = v == null || v === '';
+        if (isDefault) next.delete(k);
+        else next.set(k, String(v));
+      });
+      return next;
+    });
+  };
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.append('search', searchQuery);
+    if (filterValues.status) params.append('status', filterValues.status);
+    if (filterValues.position) params.append('position', filterValues.position);
+    if (filterValues.reviewed) params.append('reviewed', filterValues.reviewed);
+    const url = `/hr/job-applications?${params.toString()}`;
     setLoading(true);
     try {
-      const __cached = peekCache('/hr/job-applications');
+      const __cached = peekCache(url);
       if (__cached) {
         setItems(__cached);
         setLoading(false);
       }
-      const response = await get('/hr/job-applications');
+      const response = await get(url);
       setItems(response.data);
     } catch (error) {
       console.error('Fetch error:', error);
@@ -73,7 +95,34 @@ export default function JobApplicationList() {
     } finally {
       setLoading(false);
     }
+  }, [searchQuery, filterValues]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== (searchParams.get('q') || '')) {
+        setParams({ q: searchQuery, page: 1 });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearch = (e) => setSearchQuery(e.target.value);
+
+  const setFilter = (key, value) => {
+    setFilterValues(prev => ({ ...prev, [key]: value }));
+    setParams({ [`f_${key}`]: value, page: 1 });
   };
+
+  const clearFilters = () => {
+    setFilterValues({ status: '', position: '', reviewed: '' });
+    setParams({ q: '', f_status: '', f_position: '', f_reviewed: '', page: 1 });
+  };
+
+  const activeFilterCount = Object.values(filterValues).filter(v => v).length;
 
   const handleCreate = () => {
     navigate('/hr/job-application/create');

@@ -511,7 +511,18 @@ export default function ApplicationShow() {
     try {
       const res = await get("/recruitment/candidate-pool/active");
       setAvailablePools(res.data?.data || []);
-    } catch {}
+    } catch (e) {
+      console.error("fetchAvailablePools failed", e);
+      // Fall back to the full pool list so the modal still works even if
+      // the active-only endpoint is unreachable.
+      try {
+        const res = await get("/recruitment/candidate-pool?per_page=100");
+        setAvailablePools(res.data?.data || []);
+      } catch (e2) {
+        console.error("fetchAvailablePools fallback failed", e2);
+        setAvailablePools([]);
+      }
+    }
   };
 
   const handleAddToPool = async () => {

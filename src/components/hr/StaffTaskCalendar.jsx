@@ -8,6 +8,7 @@ import { DateField } from "./HrUI";
 import RichTextField, { RichTextView } from "../RichTextField";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 import { useAuth } from "../../admin/context/AuthContext";
+import ImmediateAttention from "../ImmediateAttention";
 
 /**
  * One staff member's tasks on a month calendar. Shown on their profile and,
@@ -356,6 +357,7 @@ export function TaskStatusModal({ task, onClose, onSaved, canReport = false, can
         <div className="px-5 py-4 border-b border-gray-100 flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="text-xs text-gray-400">Task</div>
+            <ImmediateAttention item={task} compact />
             <div className="font-semibold text-gray-800 break-words" dir="auto" data-no-i18n>{task.task}</div>
             <div className="text-[11px] text-gray-400 mt-0.5 flex flex-wrap gap-x-3">
               {task.assigned_by && <span><span>Assigned by</span> <span data-no-i18n>{task.assigned_by}</span></span>}
@@ -492,6 +494,7 @@ export function TaskEditModal({ task, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     staff_id: "", title: "", task: "", task_type: "normal",
+    immediate_attention: false,
     start_date: "", deadline: "", no_date: false,
     recurrence: "", recurrence_until: "",
     estimate_value: "", estimate_unit: "hours", notes: "",
@@ -517,6 +520,7 @@ export function TaskEditModal({ task, onClose, onSaved }) {
           title: d.title || "",
           task: d.task || "",
           task_type: d.task_type || "normal",
+          immediate_attention: Boolean(d.immediate_attention),
           start_date: d.start_date?.split("T")[0] || "",
           deadline: d.deadline?.split("T")[0] || "",
           no_date: !d.start_date,
@@ -593,6 +597,7 @@ export function TaskEditModal({ task, onClose, onSaved }) {
         <div className="px-5 py-4 border-b border-gray-100 flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="text-xs text-gray-400">Edit task</div>
+            <ImmediateAttention item={{ ...task, immediate_attention: form.immediate_attention }} compact />
             <div className="font-semibold text-gray-800 break-words" dir="auto" data-no-i18n>
               {plainText(form.task) || task.task}
             </div>
@@ -657,6 +662,16 @@ export function TaskEditModal({ task, onClose, onSaved }) {
                   ))}
                 </div>
               </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.immediate_attention)}
+                  onChange={(e) => set("immediate_attention", e.target.checked)}
+                  className="accent-red-600"
+                />
+                <span className="text-xs font-bold text-red-700">Immediate attention required</span>
+              </label>
 
               {/* Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

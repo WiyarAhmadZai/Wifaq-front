@@ -45,11 +45,43 @@ export default function MyTasks() {
   const [calendarFor, setCalendarFor] = useState(null); // { id, name } — an assignee's calendar
   const [adding, setAdding] = useState(null);           // { date } — adding tasks to my own calendar
   const [day, setDay] = useState(null);                 // the day clicked, for the day view
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyStatus, setHistoryStatus] = useState("all");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyData, setHistoryData] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
 
   const load = useCallback(() => get("/hr/staff-tasks/my-tasks", { cache: false, params: { month } })
     .then((r) => setData(r.data))
     .catch(() => Swal.fire("Error", "Could not load your tasks.", "error")), [month]);
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (tab !== "history") return undefined;
+    let active = true;
+    const timer = setTimeout(() => {
+      setHistoryLoading(true);
+      setHistoryError("");
+      get("/hr/staff-tasks/my-tasks/history", {
+        cache: false,
+        params: { search: historySearch, status: historyStatus, page: historyPage },
+      }).then((r) => {
+        if (active) setHistoryData(r.data);
+      }).catch((e) => {
+        if (active) {
+          setHistoryData(null);
+          setHistoryError(e.response?.data?.message || "Could not load your task history.");
+        }
+      }).finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [tab, historySearch, historyStatus, historyPage]);
 
   const fail = (e, text) => Swal.fire("Error", e.response?.data?.message || text, "error");
 
@@ -76,7 +108,7 @@ export default function MyTasks() {
         icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
 
       <div className="flex rounded-xl overflow-hidden border border-gray-200 text-xs w-fit bg-white">
-        {[["mine", "My calendar", openCount], ["byme", "Assigned by me", data.assigned_by_me.length], ["timeline", "My timeline", null]].map(([k, label, n]) => (
+        {[["mine", "My calendar", openCount], ["byme", "Assigned by me", data.assigned_by_me.length], ["history", "Past tasks", historyData?.total ?? null], ["timeline", "My timeline", null]].map(([k, label, n]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 font-semibold flex items-center gap-2 ${tab === k ? "bg-teal-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
             <span>{label}</span>
@@ -87,6 +119,18 @@ export default function MyTasks() {
 
       {tab === "timeline" ? (
         <MyTimeline />
+      ) : tab === "history" ? (
+        <PastTasks
+          data={historyData}
+          loading={historyLoading}
+          error={historyError}
+          search={historySearch}
+          status={historyStatus}
+          onSearch={(value) => { setHistorySearch(value); setHistoryPage(1); }}
+          onStatus={(value) => { setHistoryStatus(value); setHistoryPage(1); }}
+          onPage={setHistoryPage}
+          onOpen={(t) => navigate(`/hr/staff-task/show/${t.id}`)}
+        />
       ) : tab === "mine" ? (
         <TaskCalendar
           tasks={data.mine}
@@ -515,6 +559,100 @@ function AssignedByMe({ rows, onOpen, onCalendar, onEdit }) {
             </tbody>
           </table>
         </div>
+      )}
+    </section>
+  );
+}
+
+function PastTasks({ data, loading, error, search, status, onSearch, onStatus, onPage, onOpen }) {
+  const rows = data?.data || [];
+  const statusLabel = { completed: "Completed", cancelled: "Cancelled" };
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <header className="p-4 border-b border-gray-100 space-y-3">
+        <div>
+          <h2 className="text-sm font-bold text-gray-800">Task history</h2>
+          <p className="text-xs text-gray-500 mt-1">Search completed and cancelled tasks from your records.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <label className="relative flex-1">
+            <span className="sr-only">Search past tasks</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              placeholder="Search task, notes, report, or date…"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+            />
+          </label>
+          <label className="sr-only" htmlFor="past-task-status">Filter by status</label>
+          <select
+            id="past-task-status"
+            value={status}
+            onChange={(e) => onStatus(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+          >
+            <option value="all">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        {data && <p className="text-[11px] text-gray-400">{data.total} {data.total === 1 ? "record" : "records"}</p>}
+      </header>
+
+      {error ? (
+        <p role="alert" className="p-8 text-center text-sm text-red-600">{error}</p>
+      ) : loading && !data ? (
+        <div className="flex justify-center py-10"><Spinner /></div>
+      ) : rows.length === 0 ? (
+        <p className="p-8 text-center text-sm text-gray-400">{loading ? "Searching…" : "No past tasks match your search."}</p>
+      ) : (
+        <>
+          <div className={`overflow-x-auto ${loading ? "opacity-60" : ""}`}>
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-[10px] uppercase text-gray-500">
+                <tr>
+                  <th className="px-4 py-3 text-start">Task</th>
+                  <th className="px-4 py-3 text-start">Status</th>
+                  <th className="px-4 py-3 text-start">Completed / cancelled</th>
+                  <th className="px-4 py-3 text-start">Planned for</th>
+                  <th className="px-4 py-3 text-start">Deadline</th>
+                  <th className="px-4 py-3 text-start">Assigned by</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((task) => {
+                  const taskStatus = STATUS[task.status] || STATUS.pending;
+                  return (
+                    <tr key={task.id} onClick={() => onOpen(task)} className="hover:bg-teal-50/40 cursor-pointer">
+                      <td className="px-4 py-3 min-w-56">
+                        <div className="font-medium text-gray-800" dir="auto" data-no-i18n>{task.task}</div>
+                        {task.last_update && <div className="mt-1 max-w-md truncate text-[10px] text-gray-400" dir="auto" data-no-i18n>{task.last_update}</div>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${taskStatus.chip}`}>{statusLabel[task.status]}</span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-gray-600" data-no-i18n>{task.history_date || "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-gray-600" data-no-i18n>{task.planned_date || "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-gray-600" data-no-i18n>{task.deadline || "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-gray-600" data-no-i18n>{task.assigned_by || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <footer className="flex items-center justify-between gap-3 border-t border-gray-100 px-4 py-3">
+            <span className="text-[11px] text-gray-500">Page {data.current_page} of {data.last_page}</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={loading || data.current_page <= 1} onClick={() => onPage(data.current_page - 1)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 disabled:opacity-40">Previous</button>
+              <button type="button" disabled={loading || data.current_page >= data.last_page} onClick={() => onPage(data.current_page + 1)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 disabled:opacity-40">Next</button>
+            </div>
+          </footer>
+        </>
       )}
     </section>
   );

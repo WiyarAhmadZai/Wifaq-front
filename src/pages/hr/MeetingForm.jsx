@@ -40,6 +40,7 @@ export default function MeetingForm() {
     location: "",
     status: "scheduled",
     meeting_type: "routine",
+    immediate_attention: false,
     // Which committee this meeting belongs to, if any. Tagging it here is
     // what files the meeting under that committee.
     committee_id: "",
@@ -234,6 +235,7 @@ export default function MeetingForm() {
       location: d.location || "",
       status: d.status || "scheduled",
       meeting_type: d.meeting_type || "routine",
+      immediate_attention: Boolean(d.immediate_attention),
       committee_id: d.committee_id ? String(d.committee_id) : "",
       reminder_minutes_before:
         d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
@@ -281,6 +283,7 @@ export default function MeetingForm() {
         location: d.location || "",
         status: d.status || "scheduled",
         meeting_type: d.meeting_type || "routine",
+        immediate_attention: Boolean(d.immediate_attention),
         committee_id: d.committee_id ? String(d.committee_id) : "",
         reminder_minutes_before:
           d.reminder_minutes_before === null || d.reminder_minutes_before === undefined
@@ -587,6 +590,16 @@ export default function MeetingForm() {
                 </button>
               </div>
             </div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(form.immediate_attention)}
+                onChange={(e) => setForm((p) => ({ ...p, immediate_attention: e.target.checked }))}
+                className="accent-red-600"
+              />
+              <span className="text-xs font-bold text-red-700">Immediate attention required</span>
+            </label>
 
             {/* Reminder lead-time — routine meetings only */}
             {form.meeting_type === "routine" && (

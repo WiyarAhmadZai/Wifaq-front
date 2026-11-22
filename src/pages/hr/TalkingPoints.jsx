@@ -7,6 +7,7 @@ import RichTextField, { RichTextView } from "../../components/RichTextField";
 import Select2 from "../../components/hr/Select2";
 import { useAuth } from "../../admin/context/AuthContext";
 import { fmtDate } from "../../utils/formErrors";
+import ImmediateAttention from "../../components/ImmediateAttention";
 
 /**
  * Talking Points — the super-admin's notebook.
@@ -191,6 +192,7 @@ export default function TalkingPoints() {
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
+                    <ImmediateAttention item={tp} compact />
                     <span className="font-semibold text-gray-900" data-no-i18n>{tp.title}</span>
                     {tp.task && (
                       <a href={`/hr/staff-task/show/${tp.task.id}`}
@@ -315,6 +317,7 @@ function TpModal({ modal, onClose, onSaved }) {
   const [body, setBody] = useState(editing?.body || "");
   const [writtenOn, setWrittenOn] = useState(editing?.written_on || new Date().toISOString().slice(0, 10));
   const [notify, setNotify] = useState(editing?.notify ?? true);
+  const [immediateAttention, setImmediateAttention] = useState(Boolean(editing?.immediate_attention));
   // Guests have no bell, so without this they are never told at all.
   const [emailToo, setEmailToo] = useState(true);
   const [meetingId, setMeetingId] = useState(editing?.meeting?.id || "");
@@ -370,6 +373,7 @@ function TpModal({ modal, onClose, onSaved }) {
     try {
       const payload = {
         title: title.trim(), body, written_on: writtenOn, notify,
+        immediate_attention: immediateAttention,
         notify_by_email: notify && emailToo,
         meeting_id: meetingId || null, participants, guests,
       };
@@ -519,6 +523,11 @@ function TpModal({ modal, onClose, onSaved }) {
               </div>
             )}
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={immediateAttention} onChange={(e) => setImmediateAttention(e.target.checked)} className="accent-red-600" />
+            <span className="text-sm font-semibold text-red-700">Immediate attention required</span>
+          </label>
 
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="accent-teal-600" />

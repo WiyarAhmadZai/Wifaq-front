@@ -7,6 +7,7 @@ import { fmtDate } from "../../utils/formErrors";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 
 import { DateField } from "../../components/hr/HrUI";
+import ImmediateAttention from "../../components/ImmediateAttention";
 const statusConf = {
   // A meeting the organizer saved part-way through. Only they can see it, and
   // nobody is invited until it is published.
@@ -276,6 +277,7 @@ export default function Meetings() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="text-xs font-bold text-gray-800 truncate max-w-[200px]">{m.title}</p>
+                            <ImmediateAttention item={m} compact />
                             {m.recurrence && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold">
                                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -392,7 +392,7 @@ export function ChatProvider({ children }) {
     setActiveId((cur) => (cur === id ? null : cur));
   }, []);
 
-  const sendMessage = useCallback(async ({ body, attachments = [], replyTo, notifyByEmail = false, tag = null }) => {
+  const sendMessage = useCallback(async ({ body, attachments = [], replyTo, notifyByEmail = false, tag = null, immediateAttention = false }) => {
     if (!activeId) return;
     const tempId = `tmp-${Date.now()}`;
     /* The bubble shows the image straight away, from a local object URL, with
@@ -408,7 +408,7 @@ export function ChatProvider({ children }) {
       _local_url: URL.createObjectURL(f),
     }));
     const optimistic = {
-      id: tempId, conversation_id: activeId, sender_id: myId, body, tag,
+      id: tempId, conversation_id: activeId, sender_id: myId, body, tag, immediate_attention: immediateAttention,
       type: attachments.length ? (attachments[0].type?.startsWith('image/') ? 'image' : 'file') : 'text',
       created_at: new Date().toISOString(), _pending: true, _progress: attachments.length ? 0 : null,
       reply_to_id: replyTo?.id || null,
@@ -426,12 +426,14 @@ export function ChatProvider({ children }) {
         if (replyTo?.id) payload.append('reply_to_id', replyTo.id);
         if (notifyByEmail) payload.append('notify_by_email', '1');
         if (tag) payload.append('tag', tag);
+        if (immediateAttention) payload.append('immediate_attention', '1');
         attachments.forEach((f) => payload.append('attachments[]', f));
       } else {
         payload = { body };
         if (replyTo?.id) payload.reply_to_id = replyTo.id;
         if (notifyByEmail) payload.notify_by_email = true;
         if (tag) payload.tag = tag;
+        if (immediateAttention) payload.immediate_attention = true;
       }
       const onProgress = attachments.length
         ? (ev) => {

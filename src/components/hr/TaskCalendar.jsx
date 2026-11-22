@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
+import ImmediateAttention from "../ImmediateAttention";
 
 /**
  * A month of staff tasks, week rows starting Saturday (the school week).
@@ -155,6 +156,7 @@ export default function TaskCalendar({
         className={`group rounded-md border border-gray-200 border-s-4 ${st.bar} bg-white px-1.5 py-1 text-[10px] leading-tight shadow-sm
           ${!routine && onOpen ? "cursor-pointer hover:border-teal-300" : ""} ${movable(t) ? "cursor-grab active:cursor-grabbing" : ""}
           ${dragId === t.id ? "opacity-40" : ""} ${over === `task:${t.id}` ? "ring-2 ring-teal-400" : ""}`}>
+        <ImmediateAttention item={t} compact className="mb-1" />
         <div className={`font-medium text-gray-800 line-clamp-2 ${done ? "line-through text-gray-400" : ""}`} dir="auto" data-no-i18n>{t.task}</div>
         <div className="mt-0.5 flex items-center gap-1 text-gray-400">
           {routine && <span className="text-[9px] font-semibold text-violet-600">Daily routine</span>}

@@ -42,7 +42,14 @@ const POLL_HIDDEN_MS = 15000; // an idle, hidden tab without a websocket
 // STUN finds a direct path for most networks. An optional TURN server (frontend
 // .env) relays media for the few networks STUN cannot cross.
 const ICE_SERVERS = [
-  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  {
+    urls: [
+      'stun:stun.l.google.com:19302',
+      'stun:stun1.l.google.com:19302',
+      'stun:stun.cloudflare.com:3478',
+      'stun:stun.nextcloud.com:3478',
+    ],
+  },
   ...(import.meta.env.VITE_TURN_URL ? [{
     urls: String(import.meta.env.VITE_TURN_URL).split(',').map((u) => u.trim()),
     username: import.meta.env.VITE_TURN_USERNAME,
@@ -77,35 +84,28 @@ const connectionFailure = () => (
 const newCallId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const fmtDuration = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 const peerKey = (userId, tab) => `${userId}:${tab}`;
-
-/* Wait until the browser has gathered its network candidates, so one
- * offer/answer carries everything. A relay (TURN) candidate can take a few
- * seconds from far away — cutting off at 3 s used to send offers without it,
- * which is exactly the path calls between different networks need. Done when
- * gathering completes, shortly after a relay candidate appears, or at 8 s. */
-function gathered(pc) {
+const signalingDescription = (description) => ({ type: description.type, sdp: description.sdp });
+const waitForIceGathering = (pc, timeoutMs = 5000) => {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
   return new Promise((resolve) => {
-    let finished = false;
-    let soon = null;
-    const done = () => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(soon);
+    let timer = null;
+    const finish = () => {
+      if (timer) clearTimeout(timer);
       pc.removeEventListener('icegatheringstatechange', check);
-      pc.removeEventListener('icecandidate', onCand);
       resolve();
     };
-    const check = () => { if (pc.iceGatheringState === 'complete') done(); };
-    const onCand = (e) => {
-      if (!e.candidate) { done(); return; }
-      if (/ typ relay /.test(e.candidate.candidate) && !soon) soon = setTimeout(done, 700);
+    const check = () => {
+      if (pc.iceGatheringState === 'complete') finish();
     };
     pc.addEventListener('icegatheringstatechange', check);
-    pc.addEventListener('icecandidate', onCand);
-    setTimeout(done, 8000);
+    timer = setTimeout(finish, timeoutMs);
   });
-}
+};
+const flushIceCandidates = async (pending, key, pc) => {
+  const candidates = pending.current[key] || [];
+  delete pending.current[key];
+  for (const candidate of candidates) await pc.addIceCandidate(candidate);
+};
 
 /* ── tones: generated, so there is no audio file to download ───────────────── */
 /* Browsers mute sound that starts without a click on the page. A ring arrives
@@ -172,10 +172,27 @@ function createTone() {
 function PeerTile({ peer, isVideo, speakerOn, big }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  const trackCount = peer.stream?.getTracks().length || 0;
+  const tryPlayback = useCallback(() => {
+    const element = videoRef.current || audioRef.current;
+    if (!element) return;
+    try {
+      const playback = element.play();
+      if (playback) playback.then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
+    } catch {
+      setPlaybackBlocked(true);
+    }
+  }, []);
   useEffect(() => {
-    if (videoRef.current && peer.stream) videoRef.current.srcObject = peer.stream;
-    if (audioRef.current && peer.stream) audioRef.current.srcObject = peer.stream;
-  }, [peer.stream, peer.hasVideo]);
+    const element = videoRef.current || audioRef.current;
+    if (!element) return;
+    element.srcObject = peer.stream || null;
+    if (trackCount) {
+      const playback = element.play();
+      if (playback) playback.then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
+    }
+  }, [peer.stream, peer.hasVideo, isVideo, trackCount]);
   useEffect(() => {
     [videoRef.current, audioRef.current].forEach((el) => { if (el) el.volume = speakerOn ? 1 : 0.35; });
   }, [speakerOn, peer.stream]);
@@ -184,7 +201,13 @@ function PeerTile({ peer, isVideo, speakerOn, big }) {
     <div className={`relative overflow-hidden ${big ? 'absolute inset-0' : 'rounded-2xl bg-slate-700/60 aspect-video'}`}>
       {showVideo
         ? <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
-        : <audio ref={audioRef} autoPlay />}
+        : <audio ref={audioRef} autoPlay playsInline />}
+      {playbackBlocked && (
+        <button type="button" onClick={tryPlayback}
+          className="absolute z-10 bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white">
+          Tap to enable audio
+        </button>
+      )}
       {!showVideo && !big && (
         <div className="absolute inset-0 grid place-items-center"><Avatar user={peer} size={64} linkable={false} /></div>
       )}
@@ -213,6 +236,7 @@ export default function CallManager() {
 
   const callRef = useRef(null);
   const pcs = useRef({});                           // key → RTCPeerConnection
+  const pendingIce = useRef({});
   const localStreamRef = useRef(null);
   const localVideoRef = useRef(null);
   const timersRef = useRef({});
@@ -264,6 +288,7 @@ export default function CallManager() {
   const closePeer = useCallback((key) => {
     try { pcs.current[key]?.close(); } catch { /* ignore */ }
     delete pcs.current[key];
+    delete pendingIce.current[key];
     setPeers((prev) => { const next = { ...prev }; delete next[key]; return next; });
   }, []);
 
@@ -280,6 +305,7 @@ export default function CallManager() {
     localStreamRef.current = null;
     Object.keys(pcs.current).forEach((k) => { try { pcs.current[k].close(); } catch { /* ignore */ } });
     pcs.current = {};
+    pendingIce.current = {};
 
     // A short note in the chat, written by the caller only, so it appears once.
     const talked = connectedAtRef.current ? Math.round((Date.now() - connectedAtRef.current) / 1000) : 0;
@@ -304,7 +330,13 @@ export default function CallManager() {
   const openPeer = useCallback((from) => {
     const key = peerKey(from.id, from.tab);
     if (pcs.current[key]) return pcs.current[key];
-    const pc = new RTCPeerConnection({ iceServers: iceCache.servers || ICE_SERVERS });
+    const callId = callRef.current?.id;
+    const pc = new RTCPeerConnection({
+      iceServers: iceCache.servers || ICE_SERVERS,
+      iceCandidatePoolSize: 2,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+    });
     pcs.current[key] = pc;
     const stream = new MediaStream();
     patchPeer(key, { userId: from.id, tab: from.tab, name: from.name, avatar: from.avatar, stream, hasVideo: false, state: 'connecting' });
@@ -313,6 +345,15 @@ export default function CallManager() {
     pc.ontrack = (e) => {
       e.streams[0]?.getTracks().forEach((t) => { if (!stream.getTracks().includes(t)) stream.addTrack(t); });
       patchPeer(key, { stream, hasVideo: stream.getVideoTracks().length > 0 });
+    };
+    pc.onicecandidate = ({ candidate }) => {
+      const current = callRef.current;
+      if (!current || current.id !== callId || current.status === 'ended') return;
+      signal('ice', {
+        toUserId: from.id,
+        toTab: from.tab,
+        payload: { candidate: candidate?.toJSON() ?? null },
+      });
     };
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
@@ -336,7 +377,7 @@ export default function CallManager() {
       }
     };
     return pc;
-  }, [patchPeer, patchCall, closePeer, finish]);
+  }, [patchPeer, patchCall, closePeer, finish, signal]);
 
   const getMedia = useCallback(async (media) => {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -421,11 +462,11 @@ export default function CallManager() {
             if (!Object.values(pcs.current).some((p) => p.connectionState === 'connected')) {
               finish(iceCache.relay ? 'Could not connect' : 'Could not connect — the two networks need a relay (TURN) server', { say: 'leave', hold: 6000 });
             }
-          }, 20000);
+          }, 45000);
           const pc = openPeer(s.from);
           await pc.setLocalDescription(await pc.createOffer());
-          await gathered(pc);
-          if (!await signal('offer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: pc.localDescription.toJSON() } })) {
+          await waitForIceGathering(pc);
+          if (!await signal('offer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: signalingDescription(pc.localDescription) } })) {
             finish(connectionFailure(), { say: 'leave', hold: 6000 });
           }
           break;
@@ -434,16 +475,31 @@ export default function CallManager() {
           if (!joined) return;
           const pc = openPeer(s.from);
           await pc.setRemoteDescription(s.payload.sdp);
+          await flushIceCandidates(pendingIce, key, pc);
           await pc.setLocalDescription(await pc.createAnswer());
-          await gathered(pc);
-          if (!await signal('answer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: pc.localDescription.toJSON() } })) {
+          await waitForIceGathering(pc);
+          if (!await signal('answer', { toUserId: s.from.id, toTab: s.from.tab, payload: { sdp: signalingDescription(pc.localDescription) } })) {
             finish(connectionFailure(), { say: 'leave', hold: 6000 });
           }
           break;
         }
         case 'answer':
-          if (pcs.current[key] && !pcs.current[key].currentRemoteDescription) await pcs.current[key].setRemoteDescription(s.payload.sdp);
+          if (pcs.current[key] && !pcs.current[key].currentRemoteDescription) {
+            await pcs.current[key].setRemoteDescription(s.payload.sdp);
+            await flushIceCandidates(pendingIce, key, pcs.current[key]);
+          }
           break;
+        case 'ice': {
+          if (!joined || !s.payload || !('candidate' in s.payload)) return;
+          const pc = pcs.current[key];
+          const candidate = s.payload.candidate;
+          if (pc?.remoteDescription) {
+            await pc.addIceCandidate(candidate);
+          } else {
+            pendingIce.current[key] = [...(pendingIce.current[key] || []), candidate];
+          }
+          break;
+        }
         case 'decline':
           if (!c.group && c.direction === 'out' && !Object.keys(pcs.current).length) finish('Declined');
           break;
@@ -522,7 +578,7 @@ export default function CallManager() {
       if (!Object.values(pcs.current).some((pc) => pc.connectionState === 'connected')) {
         finish(ice.relay ? 'Could not connect' : 'Could not connect — the two networks need a relay (TURN) server', { say: 'leave', hold: 6000 });
       }
-    }, 20000);
+    }, 45000);
   }, [finish, getMedia, patchCall, signal]);
 
   const decline = useCallback(() => finish('Declined', { say: 'decline', log: false }), [finish]);

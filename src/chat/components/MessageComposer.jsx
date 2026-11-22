@@ -59,6 +59,7 @@ export default function MessageComposer({
   const [sending, setSending] = useState(false);
   // "Notify via email" — per message, off unless the sender switches it on.
   const [emailToo, setEmailToo] = useState(false);
+  const [immediateAttention, setImmediateAttention] = useState(false);
   /* Images waiting in the WhatsApp-style preview. Every image — picked,
    * dropped or pasted — goes through it before it is sent, so the sender sees
    * it large, can crop or mark it up, and writes the caption there. */
@@ -188,7 +189,7 @@ export default function MessageComposer({
 
   /** The editor's Send: images plus the caption written there. */
   const sendFromEditor = async (edited, caption) => {
-    await onSend({ body: caption, attachments: edited, replyTo, notifyByEmail: emailToo, tag });
+    await onSend({ body: caption, attachments: edited, replyTo, notifyByEmail: emailToo, tag, immediateAttention });
     setEditorFiles(null);
     // The caption took the place of whatever was in the box.
     setText('');
@@ -203,6 +204,7 @@ export default function MessageComposer({
     setText(''); setFiles([]); emitTyping(false); clearTimeout(typingTimer.current);
     // The next message is a new message: it gets its own tag, or none.
     setTag(null); setTouchedTag(false);
+    setImmediateAttention(false);
     // The editor is uncontrolled while focused — clear it by hand, or the sent
     // message stays on screen in the box.
     const el = document.getElementById(INPUT_ID);
@@ -322,7 +324,7 @@ export default function MessageComposer({
     if (!body && files.length === 0) return;
     setSending(true);
     try {
-      await onSend({ body, attachments: files, replyTo, notifyByEmail: emailToo, tag });
+      await onSend({ body, attachments: files, replyTo, notifyByEmail: emailToo, tag, immediateAttention });
       reset();
     } finally {
       setSending(false);
@@ -453,6 +455,19 @@ export default function MessageComposer({
               }`}
             >
               <FiMail className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setImmediateAttention((v) => !v)}
+              aria-pressed={immediateAttention}
+              title={immediateAttention ? "Remove Immediate attention" : "Mark for Immediate attention"}
+              className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
+                immediateAttention
+                  ? "bg-red-600 text-white"
+                  : "text-red-600 hover:bg-red-50"
+              }`}
+            >
+              ! Immediate
             </button>
           </>
         )}

@@ -12,6 +12,7 @@ import ImageLightbox from './ImageLightbox';
 import { RichTextView } from '../../components/RichTextField';
 import { isRichText, richTextToPlain, decodeEntities } from '../../utils/richText';
 import { TagChip } from './TagPicker';
+import ImmediateAttention from '../../components/ImmediateAttention';
 
 const QUICK_REACTIONS = [
   { emoji: '👍', label: 'Like' },
@@ -205,6 +206,7 @@ export default function MessageBubble({ message, outgoing, showSender = false, o
 
           {/* What the sender said this message is. Shown on the bubble as well
               as in the list, so the classification survives being opened. */}
+          <ImmediateAttention item={message} compact className="mb-1" />
           {message.tag && !deleted && (
             <div className="mb-1"><TagChip tag={message.tag} size="xs" /></div>
           )}

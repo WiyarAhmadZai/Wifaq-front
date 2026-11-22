@@ -58,6 +58,82 @@ export default function LeaveRequest() {
   // if they're in an HR role.
   const canApprove = hasPermission("leave-request.approve") || hasPermission("leave-request.manage");
   const [rejectTarget, setRejectTarget] = useState(null); // { item, refresh }
+  const [balanceOpen, setBalanceOpen] = useState(false);
+  const [balanceYear, setBalanceYear] = useState(new Date().getFullYear());
+  const [balanceStaffId, setBalanceStaffId] = useState("");
+  const [balanceStaff, setBalanceStaff] = useState([]);
+  const [balanceRows, setBalanceRows] = useState([]);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceSaving, setBalanceSaving] = useState(false);
+
+  const loadBalances = async (staffId = balanceStaffId, year = balanceYear) => {
+    if (!staffId) {
+      setBalanceRows([]);
+      return;
+    }
+    setBalanceLoading(true);
+    try {
+      const r = await get("/leave-balances", { params: { staff_id: staffId, year } });
+      const existing = r.data?.data || [];
+      const types = ["annual", "sick", "casual", "emergency", "maternity", "personal", "other"];
+      const byType = new Map(existing.map((row) => [row.leave_type, row]));
+      setBalanceRows(types.map((type) => byType.get(type) || {
+        id: null,
+        leave_type: type,
+        allocated: 0,
+        used: 0,
+        carried_over: 0,
+        remaining: 0,
+      }));
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not load leave balances.", "error");
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!balanceOpen) return;
+    get("/hr/staff/list?per_page=1000&status=active")
+      .then((r) => setBalanceStaff(r.data?.data?.data ?? r.data?.data ?? r.data ?? []))
+      .catch(() => setBalanceStaff([]));
+  }, [balanceOpen]);
+
+  useEffect(() => {
+    if (balanceOpen) loadBalances(balanceStaffId, balanceYear);
+  }, [balanceOpen, balanceStaffId, balanceYear]);
+
+  const setBalanceField = (row, field, value) =>
+    setBalanceRows((rows) => rows.map((r) => r.id === row.id
+      ? { ...r, [field]: Number(value) || 0 }
+      : r));
+
+  const saveBalanceRow = async (row) => {
+    setBalanceSaving(true);
+    try {
+      if (row.id) {
+        await put(`/leave-balances/${row.id}`, {
+          allocated: row.allocated,
+          used: row.used,
+          carried_over: row.carried_over,
+        });
+      } else {
+        await post("/leave-balances", {
+          staff_id: Number(balanceStaffId),
+          year: Number(balanceYear),
+          leave_type: row.leave_type,
+          allocated: row.allocated,
+          used: row.used,
+          carried_over: row.carried_over,
+        });
+      }
+      await loadBalances(balanceStaffId, balanceYear);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not save leave balance.", "error");
+    } finally {
+      setBalanceSaving(false);
+    }
+  };
 
   // ── Inline approve-and-announce modal state ─────────────────────────────
   // The picker lives in this same file. Tick → opens modal → admin selects
@@ -230,14 +306,26 @@ export default function LeaveRequest() {
     <>
       <CrudPage
         permissionBase="leave-request"
-        extraHeaderButtons={canAssign && (
-          <button
-            onClick={() => navigate("/hr/leave-request/assign")}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
-          >
-            Assign Leave
-          </button>
-        )}
+        extraHeaderButtons={
+          <div className="flex gap-2">
+            {canAssign && (
+              <button
+                onClick={() => navigate("/hr/leave-request/assign")}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
+              >
+                Assign Leave
+              </button>
+            )}
+            {isHr && (
+              <button
+                onClick={() => setBalanceOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-sm"
+              >
+                Leave balances
+              </button>
+            )}
+          </div>
+        }
         title={isHr ? "Leave Requests" : "My Leave Requests"}
         apiEndpoint="/hr/leave-requests"
         createRoute="/hr/leave-request/create"
@@ -287,8 +375,113 @@ export default function LeaveRequest() {
             render: (_v, item) => <span className="font-semibold">{daysBetween(item.from_date, item.to_date)}</span>,
           },
           { key: "status", label: "Status", render: statusBadge },
+          {
+            key: "approved_paid_days",
+            label: "Paid / Unpaid",
+            render: (_v, item) => item.status === "approved"
+              ? (
+                  <div className="text-[10px] whitespace-nowrap">
+                    <span className="font-bold text-emerald-700">{Number(item.approved_paid_days || 0)} paid</span>
+                    {Number(item.approved_unpaid_days || 0) > 0 && (
+                      <span className="ml-1 font-bold text-red-700">· {Number(item.approved_unpaid_days)} unpaid</span>
+                    )}
+                  </div>
+                )
+              : <span className="text-gray-400">—</span>,
+          },
         ]}
       />
+
+      {balanceOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" onClick={() => setBalanceOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800">Employee Leave Balances</h3>
+                <p className="text-[11px] text-gray-500">Approved usage is reconciled automatically.</p>
+              </div>
+              <button onClick={() => setBalanceOpen(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-b border-gray-100">
+              <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                Employee
+                <select
+                  value={balanceStaffId}
+                  onChange={(e) => setBalanceStaffId(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg normal-case"
+                >
+                  <option value="">Select employee…</option>
+                  {balanceStaff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.application?.full_name || s.full_name || s.employee_id || `Staff #${s.id}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                Year
+                <input
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  value={balanceYear}
+                  onChange={(e) => setBalanceYear(Number(e.target.value) || new Date().getFullYear())}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                />
+              </label>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              {!balanceStaffId ? (
+                <p className="text-center py-10 text-xs text-gray-400">Select an employee.</p>
+              ) : balanceLoading ? (
+                <p className="text-center py-10 text-xs text-gray-400">Loading balances…</p>
+              ) : (
+                <div className="space-y-2">
+                  {balanceRows.length === 0 ? (
+                    <p className="text-center py-10 text-xs text-gray-400">No balance rows for this year.</p>
+                  ) : balanceRows.map((row) => (
+                    <div key={row.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end border border-gray-100 rounded-xl p-3">
+                      <div className="sm:col-span-1">
+                        <p className="text-xs font-bold text-gray-800 capitalize">{row.leave_type}</p>
+                        <p className="text-[10px] text-gray-400">Remaining {Number(row.remaining || 0).toFixed(1)}</p>
+                      </div>
+                      {[
+                        ["allocated", "Allocated"],
+                        ["used", "Used"],
+                        ["carried_over", "Carried"],
+                      ].map(([field, label]) => (
+                        <label key={field} className="text-[9px] uppercase font-semibold text-gray-500">
+                          {label}
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={row[field]}
+                            onChange={(e) => setBalanceField(row, field, e.target.value)}
+                            className="mt-1 w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg"
+                          />
+                        </label>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={balanceSaving}
+                        onClick={() => saveBalanceRow(row)}
+                        className="px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-bold disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 text-[10px] text-gray-500">
+              Annual allocation can also come from the employee&apos;s active contract.
+              Excess approved leave is recorded as unpaid and included in payroll deductions.
+            </div>
+          </div>
+        </div>
+      )}
 
       {rejectTarget && (
         <LeaveRejectModal

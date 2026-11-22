@@ -14,6 +14,8 @@ export const getTaxonomy = () => get(`${BASE}/taxonomy`);
 // derived here: a teacher is offered only the classes they actually teach, and
 // the same rule rejects anything else on save.
 export const getAudienceOptions = () => get(`${BASE}/audience-options`, { cache: false });
+export const getDriveSettings = () => get(`${BASE}/settings`, { cache: false });
+export const updateDriveSettings = (data) => put(`${BASE}/settings`, data);
 
 /**
  * Flatten an audience selection into the fields every write endpoint accepts.

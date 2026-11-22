@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
+import { get, put } from "../api/axios";
 import {
   readIdleMinutes,
   writeIdleMinutes,
@@ -18,6 +19,27 @@ export default function Settings() {
   const [stored, setStored] = useState(() => readIdleMinutes());
   const [minutes, setMinutes] = useState(stored);
   const [justSavedValue, setJustSavedValue] = useState(null);
+  const [driveLimits, setDriveLimits] = useState({
+    max_file_size_mb: 0,
+    max_user_storage_mb: 0,
+  });
+  const [driveCanManage, setDriveCanManage] = useState(false);
+  const [driveSaving, setDriveSaving] = useState(false);
+
+  useEffect(() => {
+    get("/drive/settings", { cache: false })
+      .then((r) => {
+        const d = r.data?.data;
+        if (d) {
+          setDriveLimits({
+            max_file_size_mb: Number(d.max_file_size_mb) || 0,
+            max_user_storage_mb: Number(d.max_user_storage_mb) || 0,
+          });
+          setDriveCanManage(Boolean(d.can_manage));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Briefly flash the Save button back to its idle state after a confirmation.
   useEffect(() => {
@@ -45,6 +67,33 @@ export default function Settings() {
 
   const isDisabled = stored === 0;
   const hasUnsaved = minutes !== stored;
+
+  const saveDriveLimits = async () => {
+    setDriveSaving(true);
+    try {
+      const r = await put("/drive/settings", {
+        max_file_size_mb: Number(driveLimits.max_file_size_mb) || 0,
+        max_user_storage_mb: Number(driveLimits.max_user_storage_mb) || 0,
+      });
+      const d = r.data?.data;
+      if (d) setDriveLimits({
+        max_file_size_mb: Number(d.max_file_size_mb) || 0,
+        max_user_storage_mb: Number(d.max_user_storage_mb) || 0,
+      });
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "Drive upload limits saved",
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      Swal.fire("Could not save", e?.response?.data?.message || "Drive settings could not be saved.", "error");
+    } finally {
+      setDriveSaving(false);
+    }
+  };
 
   return (
     <div className="px-4 py-6 mx-auto">
@@ -170,6 +219,62 @@ export default function Settings() {
           </div>
         </div>
       </section>
+      {driveCanManage && (
+        <section className="mt-6 bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <header className="px-5 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-bold text-gray-800">Drive Upload Limits</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Control uploads globally. Enter <strong>0</strong> for unlimited.
+            </p>
+          </header>
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="block text-[10px] uppercase font-semibold tracking-wider text-gray-500 mb-2">
+                Maximum size per file (MB)
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="1048576"
+                value={driveLimits.max_file_size_mb}
+                onChange={(e) => setDriveLimits((p) => ({
+                  ...p,
+                  max_file_size_mb: Number(e.target.value) || 0,
+                }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500"
+              />
+              <span className="text-[10px] text-gray-400 mt-1 block">0 = no per-file limit</span>
+            </label>
+            <label className="block">
+              <span className="block text-[10px] uppercase font-semibold tracking-wider text-gray-500 mb-2">
+                Storage limit per user (MB)
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="1048576"
+                value={driveLimits.max_user_storage_mb}
+                onChange={(e) => setDriveLimits((p) => ({
+                  ...p,
+                  max_user_storage_mb: Number(e.target.value) || 0,
+                }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500"
+              />
+              <span className="text-[10px] text-gray-400 mt-1 block">0 = unlimited storage</span>
+            </label>
+          </div>
+          <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
+            <button
+              type="button"
+              disabled={driveSaving}
+              onClick={saveDriveLimits}
+              className="px-4 py-2 rounded-lg bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 disabled:opacity-50"
+            >
+              {driveSaving ? "Saving…" : "Save Drive limits"}
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

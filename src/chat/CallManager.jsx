@@ -39,27 +39,14 @@ const POLL_SETUP_MS = 1000;   // while ringing / connecting
 const POLL_ACTIVE_MS = 2000;  // during the call (someone may join or leave)
 const POLL_HIDDEN_MS = 15000; // an idle, hidden tab without a websocket
 
-// STUN finds a direct path for most networks. An optional TURN server (frontend
-// .env) relays media for the few networks STUN cannot cross.
+// STUN helps browser peers discover a direct network path.
 const ICE_SERVERS = [
   {
-    urls: [
-      'stun:stun.l.google.com:19302',
-      'stun:stun1.l.google.com:19302',
-      'stun:stun.cloudflare.com:3478',
-      'stun:stun.nextcloud.com:3478',
-    ],
+    urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
   },
-  ...(import.meta.env.VITE_TURN_URL ? [{
-    urls: String(import.meta.env.VITE_TURN_URL).split(',').map((u) => u.trim()),
-    username: import.meta.env.VITE_TURN_USERNAME,
-    credential: import.meta.env.VITE_TURN_CREDENTIAL,
-  }] : []),
 ];
 
-/* The server's list (STUN + the TURN relay set in the backend .env), fetched
- * once per page and refreshed every few hours. The relay is used by the
- * browser ONLY when a direct connection fails, so most calls never touch it. */
+/* The backend supplies the public STUN configuration. */
 let iceCache = { servers: null, relay: false, at: 0 };
 async function loadIceServers() {
   if (iceCache.servers && Date.now() - iceCache.at < 3 * 3600 * 1000) return iceCache;
@@ -67,8 +54,7 @@ async function loadIceServers() {
     const r = await api.get('/chat/calls/ice-servers', { cache: false, timeout: 8000 });
     const list = r.data?.ice_servers;
     if (Array.isArray(list) && list.length) {
-      // A relay from the frontend .env still counts, if one was set there.
-      iceCache = { servers: [...list, ...ICE_SERVERS.slice(1)], relay: Boolean(r.data?.relay) || ICE_SERVERS.length > 1, at: Date.now() };
+      iceCache = { servers: list, relay: Boolean(r.data?.relay), at: Date.now() };
       return iceCache;
     }
   } catch (error) {
@@ -380,13 +366,32 @@ export default function CallManager() {
   }, [patchPeer, patchCall, closePeer, finish, signal]);
 
   const getMedia = useCallback(async (media) => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: media === 'video' ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-    });
+    const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    if (media === 'video') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio,
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+        localStreamRef.current = stream;
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+        return { stream, media: 'video' };
+      } catch (videoError) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
+          localStreamRef.current = stream;
+          if (localVideoRef.current) localVideoRef.current.srcObject = null;
+          return { stream, media: 'audio', reason: videoError };
+        } catch {
+          throw videoError;
+        }
+      }
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
     localStreamRef.current = stream;
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    return stream;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    return { stream, media: 'audio' };
   }, []);
 
   /* ── signals ───────────────────────────────────────────────────────────── */
@@ -534,15 +539,22 @@ export default function CallManager() {
     setCall(c);
     setPeers({});
     setCameraOff(false); setMuted(false); setSpeakerOn(media === 'video');
+    let selectedMedia = media;
     try {
-      await getMedia(media);
+      const mediaResult = await getMedia(media);
+      selectedMedia = mediaResult.media;
+      if (selectedMedia !== media) {
+        c.media = selectedMedia;
+        callRef.current = c;
+        setCall({ ...c });
+      }
     } catch {
       finish(media === 'video' ? 'Camera or microphone blocked' : 'Microphone blocked', { log: false, hold: 4500 });
       return;
     }
     await loadIceServers();   // the relay list must be ready before the answer comes back
     try {
-      await sendSignal({ conversationId, callId: c.id, type: 'invite', payload: { media, group, title: c.title } });
+      await sendSignal({ conversationId, callId: c.id, type: 'invite', payload: { media: selectedMedia, group, title: c.title } });
     } catch (e) {
       finish(e?.response?.data?.message || 'Could not place the call', { log: false, hold: 6000 });
       return;
@@ -562,7 +574,10 @@ export default function CallManager() {
     try { notificationRef.current?.close(); } catch { /* ignore */ }
     patchCall({ status: 'connecting' });
     try {
-      await getMedia(c.media);
+      const mediaResult = await getMedia(c.media);
+      if (mediaResult.media !== c.media) {
+        patchCall({ media: 'audio' });
+      }
     } catch {
       finish(c.media === 'video' ? 'Camera or microphone blocked' : 'Microphone blocked', { say: 'decline', log: false });
       return;

@@ -5,6 +5,7 @@ import {
   listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder, createDocument,
   fileDownloadBlob,
   moveFile, moveFolder, copyFileTo, copyFolderTo,
+  getDriveSettings,
 } from "../../api/drive";
 import { peekCache } from "../../api/axios";
 import { fmtDate } from "../../utils/formErrors";
@@ -70,6 +71,19 @@ export default function Drive() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pending, setPending] = useState([]);     // files queued in the upload modal
   const [dragOver, setDragOver] = useState(false);
+  const [uploadLimits, setUploadLimits] = useState({
+    max_file_size_mb: 0,
+    max_user_storage_mb: 0,
+  });
+
+  useEffect(() => {
+    getDriveSettings()
+      .then((res) => {
+        const d = res.data?.data;
+        if (d) setUploadLimits(d);
+      })
+      .catch(() => {});
+  }, []);
 
   /**
    * Open a folder (or return to the root).
@@ -411,7 +425,9 @@ export default function Drive() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-800 mb-1">Upload files</h3>
-            <p className="text-[11px] text-gray-500 mb-3">{data.current ? `Into "${data.current.name}"` : "Into Home"} · up to 50 MB each · choose who can see them below.</p>
+            <p className="text-[11px] text-gray-500 mb-3">
+              {data.current ? `Into "${data.current.name}"` : "Into Home"} · {uploadLimits.max_file_size_mb > 0 ? `up to ${uploadLimits.max_file_size_mb} MB each` : "no per-file limit"} · choose who can see them below.
+            </p>
 
             {/* Dropzone */}
             <div

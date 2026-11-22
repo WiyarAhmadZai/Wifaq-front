@@ -111,8 +111,8 @@ const RULES = [
   // lesson-plans.review / .analyze on those endpoints.
   { prefix: "/education/lesson-plans", permission: "lesson-plans.view" },
   // One permission per exam: Chaharnima and Salana are granted separately.
-  { prefix: "/education/subject-marks/chaharnima", permission: "chaharnima-marks.view" },
-  { prefix: "/education/subject-marks/salana", permission: "salana-marks.view" },
+  { prefix: "/education/subject-marks/chaharnima", permission: "chaharnima-marks.view", alt: ["subject-marks.manage", "chaharnima-marks.create", "chaharnima-marks.update"] },
+  { prefix: "/education/subject-marks/salana", permission: "salana-marks.view", alt: ["subject-marks.manage", "salana-marks.create", "salana-marks.update"] },
   { prefix: "/education/report-cards/chaharnima", permission: "chaharnima-report-cards.view" },
   { prefix: "/education/report-cards/salana", permission: "salana-report-cards.view" },
   // Gradebook has its own permission family. Without this it fell through to
@@ -428,6 +428,24 @@ export function permissionForPath(pathname) {
       // is a full permission key whose action suffix is swapped the same way.
       for (const altPermission of rule.alt || []) {
         candidates.push(withAction(altPermission, action), withAction(altPermission, "manage"));
+      }
+      if (rule.prefix === "/education/subject-marks/chaharnima") {
+        candidates.push(
+          "chaharnima-marks.view",
+          "chaharnima-marks.create",
+          "chaharnima-marks.update",
+          "subject-marks.manage",
+        );
+        return { type: "protected", permissions: [...new Set(candidates)] };
+      }
+      if (rule.prefix === "/education/subject-marks/salana") {
+        candidates.push(
+          "salana-marks.view",
+          "salana-marks.create",
+          "salana-marks.update",
+          "subject-marks.manage",
+        );
+        return { type: "protected", permissions: [...new Set(candidates)] };
       }
       const permissionGroups = [rule.permission, ...(rule.alt || [])].map((permission) => {
         const section = permission.split(".", 1)[0];

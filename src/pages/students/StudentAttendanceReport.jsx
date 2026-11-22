@@ -153,14 +153,15 @@ export default function StudentAttendanceReport() {
       ) : (
         <>
           {/* Headline */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 mb-4">
             <Stat label="Attendance rate" value={`${t.attendance_rate}%`} tone="text-teal-700" big
-                  hint={`${t.attended ?? t.days_present} attended of ${t.marked}`} />
-            <Stat label="Present"  value={t.attended ?? t.present} tone="text-emerald-700"
-                  hint={t.half_day > 0 ? `incl. ${t.half_day} who left early` : null} />
-            <Stat label="Absent"   value={t.absent}   tone="text-red-700" />
-            <Stat label="Left early" value={t.half_day} tone="text-amber-700" hint="counted present" />
-            <Stat label="Records"  value={t.marked}   tone="text-gray-800" />
+                  hint={`${t.combined_attended ?? t.attended ?? t.days_present} attended of ${(t.combined_attended ?? 0) + (t.combined_absent ?? t.absent) + (t.combined_leave ?? 0)}`} />
+            <Stat label="Present"  value={t.combined_attended ?? t.attended ?? t.present} tone="text-emerald-700"
+                  hint={(t.combined_half_day ?? t.half_day) > 0 ? `incl. ${t.combined_half_day ?? t.half_day} who left early` : null} />
+            <Stat label="Absent"   value={t.combined_absent ?? t.absent} tone="text-red-700" />
+            <Stat label="Left early" value={t.combined_half_day ?? t.half_day} tone="text-amber-700" hint="counted present" />
+            <Stat label="Leave" value={t.combined_leave ?? 0} tone="text-blue-700" />
+            <Stat label="Records"  value={(t.marked ?? 0) + (t.quick_entry?.marked ?? 0)} tone="text-gray-800" />
           </div>
 
           {/* Trend. Plain stacked bars — no chart library, so this stays

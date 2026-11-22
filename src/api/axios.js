@@ -141,8 +141,13 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
-    // 403: don't auto-redirect — let the calling page show its own error.
-    // Components/guards handle UX; this keeps API calls deterministic.
+    if (status === 403 && error.response?.data?.code === 'ACCOUNT_DISABLED') {
+      localStorage.removeItem('token');
+      apiCache.clearAll();
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+    }
     return Promise.reject(error);
   }
 );

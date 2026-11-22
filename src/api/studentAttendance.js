@@ -13,6 +13,9 @@ export const getAttendanceSheet = (params) => get(`${BASE}/sheet`, { params });
 // Save the whole sheet. Absent / half-day marks notify the parents server-side.
 export const saveAttendanceSheet = (data) => post(`${BASE}/sheet`, data);
 
+export const getQuickAttendanceTotals = (params) => get(`${BASE}/quick-totals`, { params });
+export const saveQuickAttendanceTotals = (data) => post(`${BASE}/quick-totals`, data);
+
 // Everyone marked on a date (optionally one class / one status) with the parent
 // contact routes — the working set for the broadcast tools.
 export const getAttendanceRoster = (params) => get(`${BASE}/roster`, { params });

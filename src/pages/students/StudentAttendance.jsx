@@ -7,6 +7,8 @@ import {
   getAttendanceRoster,
   emailParents,
   whatsappParents,
+  getQuickAttendanceTotals,
+  saveQuickAttendanceTotals,
 } from "../../api/studentAttendance";
 import { useAuth } from "../../admin/context/AuthContext";
 import AttendanceStatement from "../../components/students/AttendanceStatement";
@@ -65,6 +67,11 @@ export default function StudentAttendance() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickTerm, setQuickTerm] = useState(null);
+  const [quickRows, setQuickRows] = useState([]);
 
   const [roster, setRoster] = useState(null);
   const [selected, setSelected] = useState({});      // attendanceId → bool
@@ -272,6 +279,60 @@ export default function StudentAttendance() {
     } finally { setSending(false); }
   };
 
+  const openQuickEntry = async () => {
+    if (!classId) return;
+    setQuickOpen(true);
+    setQuickLoading(true);
+    try {
+      const r = await getQuickAttendanceTotals({ class_id: classId });
+      const data = r.data?.data || {};
+      setQuickTerm(data.academic_term || null);
+      setQuickRows((data.rows || []).map((row) => ({
+        ...row,
+        present_count: Number(row.present_count) || 0,
+        absent_count: Number(row.absent_count) || 0,
+        half_day_count: Number(row.half_day_count) || 0,
+        leave_count: Number(row.leave_count) || 0,
+      })));
+    } catch (e) {
+      setQuickOpen(false);
+      Swal.fire("Could not open", e.response?.data?.message || "Quick entry could not be loaded.", "error");
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
+  const setQuickValue = (studentId, field, value) =>
+    setQuickRows((rows) => rows.map((row) => (
+      row.student_id === studentId
+        ? { ...row, [field]: Math.max(0, Math.min(1000, Number(value) || 0)) }
+        : row
+    )));
+
+  const saveQuickEntry = async () => {
+    setQuickSaving(true);
+    try {
+      const r = await saveQuickAttendanceTotals({
+        class_id: Number(classId),
+        academic_term_id: quickTerm?.id || null,
+        rows: quickRows,
+      });
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: r.data?.message || "Quick attendance totals saved",
+        timer: 1800,
+        showConfirmButton: false,
+      });
+      setQuickOpen(false);
+    } catch (e) {
+      Swal.fire("Could not save", e.response?.data?.message || "Quick attendance totals could not be saved.", "error");
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
   const selectedClass = classes.find((c) => String(c.id) === String(classId));
 
   return (
@@ -307,6 +368,15 @@ export default function StudentAttendance() {
               className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-500" />
             <p className="text-[10px] text-gray-400 mt-1">{prettyDate(date)} · past dates allowed</p>
           </div>
+          {classId && canMark && (
+            <button
+              type="button"
+              onClick={openQuickEntry}
+              className="px-3 py-2 rounded-lg border border-teal-300 bg-teal-50 text-teal-700 text-xs font-bold hover:bg-teal-100"
+            >
+              Quick entry for year
+            </button>
+          )}
           <div className="flex gap-1 ml-auto">
             {["sheet", "away"].map((t) => (
               <button key={t} onClick={() => setTab(t)}
@@ -494,6 +564,93 @@ export default function StudentAttendance() {
           date={date} className={selectedClass?.class_name}
           canStatement={canStatement} onStatement={setStatementFor}
         />
+      )}
+
+      {quickOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" onClick={() => !quickSaving && setQuickOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100 flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-gray-800">Quick attendance entry</h3>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  {selectedClass?.class_name || "Selected class"}
+                  {quickTerm?.name ? ` · ${quickTerm.name}` : " · current academic year"}
+                </p>
+              </div>
+              <button onClick={() => setQuickOpen(false)} disabled={quickSaving} className="text-gray-400 hover:text-gray-700">✕</button>
+            </div>
+
+            <div className="p-4 overflow-y-auto">
+              {quickLoading ? (
+                <div className="py-16 text-center text-xs text-gray-400">Loading students…</div>
+              ) : quickRows.length === 0 ? (
+                <div className="py-16 text-center text-xs text-gray-400">No active students in this class.</div>
+              ) : (
+                <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                  <table className="w-full min-w-[760px] text-[11px]">
+                    <thead className="bg-gray-50 text-gray-500 uppercase text-[9px]">
+                      <tr>
+                        <th className="text-left px-3 py-2">Student</th>
+                        <th className="text-center px-3 py-2 text-emerald-700">Present</th>
+                        <th className="text-center px-3 py-2 text-red-700">Absent</th>
+                        <th className="text-center px-3 py-2 text-amber-700">Half day</th>
+                        <th className="text-center px-3 py-2 text-blue-700">Leave</th>
+                        <th className="text-center px-3 py-2">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {quickRows.map((row) => {
+                        const total = row.present_count + row.absent_count + row.half_day_count + row.leave_count;
+                        return (
+                          <tr key={row.student_id}>
+                            <td className="px-3 py-2">
+                              <div className="font-semibold text-gray-800">{row.name}</div>
+                              <div className="text-[10px] text-gray-400 font-mono">{row.admission_no}</div>
+                            </td>
+                            {[
+                              ["present_count", "Present", "border-emerald-200 focus:border-emerald-500"],
+                              ["absent_count", "Absent", "border-red-200 focus:border-red-500"],
+                              ["half_day_count", "Half day", "border-amber-200 focus:border-amber-500"],
+                              ["leave_count", "Leave", "border-blue-200 focus:border-blue-500"],
+                            ].map(([field, label, cls]) => (
+                              <td key={field} className="px-2 py-2 text-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="1000"
+                                  value={row[field]}
+                                  aria-label={`${row.name} ${label}`}
+                                  onChange={(e) => setQuickValue(row.student_id, field, e.target.value)}
+                                  className={`w-20 px-2 py-1.5 text-center text-sm border rounded-lg ${cls}`}
+                                />
+                              </td>
+                            ))}
+                            <td className="px-3 py-2 text-center font-bold text-gray-700">{total}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              <p className="text-[10px] text-gray-400">
+                These totals are aggregate year entry. They do not create fake daily records or send parent notifications.
+              </p>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => setQuickOpen(false)} disabled={quickSaving} className="px-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600">
+                  Cancel
+                </button>
+                <button onClick={saveQuickEntry} disabled={quickSaving || quickLoading || quickRows.length === 0}
+                  className="px-4 py-2 rounded-lg bg-teal-600 text-white text-xs font-bold disabled:opacity-50">
+                  {quickSaving ? "Saving…" : "Save totals"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {composer && (

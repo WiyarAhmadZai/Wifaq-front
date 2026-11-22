@@ -1701,8 +1701,18 @@ export default function Layout() {
     { label: "Salana (Annual) Report Card", path: "/education/report-cards/salana", permission: "salana-report-cards.view" },
   ];
   const subjectMarksMenus = [
-    { label: "Chaharnima Marks", path: "/education/subject-marks/chaharnima", permission: "chaharnima-marks.view" },
-    { label: "Salana Marks", path: "/education/subject-marks/salana", permission: "salana-marks.view" },
+    {
+      label: "Chaharnima Marks",
+      path: "/education/subject-marks/chaharnima",
+      permission: "chaharnima-marks.view",
+      alt: ["chaharnima-marks.create", "chaharnima-marks.update", "subject-marks.manage"],
+    },
+    {
+      label: "Salana Marks",
+      path: "/education/subject-marks/salana",
+      permission: "salana-marks.view",
+      alt: ["salana-marks.create", "salana-marks.update", "subject-marks.manage"],
+    },
   ];
   const classMgmtMenus = [
     { label: "Classes", path: "/class-management/classes", permission: "classes.view" },

@@ -1648,11 +1648,11 @@ export default function Layout() {
     // Weekly Recognition — the weekly, topic-scoped version of the recognition
     // already done monthly. Same four areas, same student history.
     { label: "Weekly Topic", path: "/education/weekly-recognition", permission: "weekly-recognition.view" },
-    { label: "Nominate", path: "/education/weekly-recognition/nominate", permission: "weekly-recognition.create" },
-    { label: "Review & Select", path: "/education/weekly-recognition/review", permission: "weekly-recognition.select" },
-    { label: "Weekly Winners", path: "/education/weekly-recognition/history", permission: "weekly-recognition.view" },
+    { label: "Nominate", path: "/education/weekly-recognition/nominate", permission: "weekly-recognition.nominate-view", alt: ["weekly-recognition.manage"] },
+    { label: "Review & Select", path: "/education/weekly-recognition/review", permission: "weekly-recognition.review", alt: ["weekly-recognition.manage"] },
+    { label: "Weekly Winners", path: "/education/weekly-recognition/history", permission: "weekly-recognition.history", alt: ["weekly-recognition.manage"] },
     // Derived from the weekly winners above — computed, never selected.
-    { label: "Annual Winner", path: "/education/weekly-recognition/annual-winner", permission: "weekly-recognition.view" },
+    { label: "Annual Winner", path: "/education/weekly-recognition/annual-winner", permission: "weekly-recognition.annual-winner", alt: ["weekly-recognition.manage"] },
   ];
 
   // Morning Assembly Program — its own light module. It references the Drive

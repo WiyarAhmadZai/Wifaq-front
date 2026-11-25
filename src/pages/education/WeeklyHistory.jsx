@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { get, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import { DimPill, Spinner, StudentName, cleanClass, cleanName, describeError, TEAL } from "./weeklyUi";
+import { useAuth } from "../../admin/context/AuthContext";
 
 
 /**
@@ -12,6 +13,7 @@ import { DimPill, Spinner, StudentName, cleanClass, cleanName, describeError, TE
  */
 export default function WeeklyHistory() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [search, setSearch] = useState("");
@@ -51,10 +53,12 @@ export default function WeeklyHistory() {
               Shared with the student recognition module — not a separate record.
             </p>
           </div>
-          <button onClick={() => navigate("/education/weekly-recognition")}
-            className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
-            🎯 This week
-          </button>
+          {hasPermission(["weekly-recognition.view", "weekly-recognition.manage"]) && (
+            <button onClick={() => navigate("/education/weekly-recognition")}
+              className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
+              🎯 This week
+            </button>
+          )}
         </div>
       </div>
 

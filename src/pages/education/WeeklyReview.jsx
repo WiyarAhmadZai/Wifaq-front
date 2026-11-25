@@ -7,6 +7,7 @@ import PrintSheet from "../../components/PrintSheet";
 import AwardCertificate from "./AwardCertificate";
 import { CERT_LANGS } from "./certificateI18n";
 import StudentAvatar from "../../components/students/StudentAvatar";
+import { useAuth } from "../../admin/context/AuthContext";
 
 
 
@@ -57,6 +58,9 @@ export default function WeeklyReview() {
   useEffect(() => { load(topicId); }, [load, topicId]);
 
   const topic = data?.topic;
+  // One flag per button, from the backend's permission check.
+  const can = data?.can || {};
+  const { hasPermission } = useAuth();
 
   const selectWinner = async (group) => {
     const { value, isConfirmed } = await Swal.fire({
@@ -135,12 +139,16 @@ export default function WeeklyReview() {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <div className="text-3xl">⚖️</div>
-        <p className="text-sm font-semibold text-[#0A3A3E] mt-2">Review &amp; Select is for the tarbiyati lead</p>
-        <p className="text-xs text-[#5A7A7E] mt-1">You can still nominate students through the week.</p>
-        <button onClick={() => navigate("/education/weekly-recognition/nominate")}
-          className="mt-4 px-5 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
-          Go to Nominate
-        </button>
+        <p className="text-sm font-semibold text-[#0A3A3E] mt-2">You do not have permission to open Review &amp; Select</p>
+        {hasPermission(["weekly-recognition.nominate-view", "weekly-recognition.manage"]) && (
+          <>
+            <p className="text-xs text-[#5A7A7E] mt-1">You can still nominate students through the week.</p>
+            <button onClick={() => navigate("/education/weekly-recognition/nominate")}
+              className="mt-4 px-5 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
+              Go to Nominate
+            </button>
+          </>
+        )}
       </div>
     );
   }
@@ -150,10 +158,12 @@ export default function WeeklyReview() {
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <div className="text-3xl">🎯</div>
         <p className="text-sm font-semibold text-[#0A3A3E] mt-2">No weekly topic to review</p>
-        <button onClick={() => navigate("/education/weekly-recognition")}
-          className="mt-4 px-5 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
-          Set this week's topic
-        </button>
+        {hasPermission(["weekly-recognition.view", "weekly-recognition.manage"]) && (
+          <button onClick={() => navigate("/education/weekly-recognition")}
+            className="mt-4 px-5 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
+            Set this week's topic
+          </button>
+        )}
       </div>
     );
   }
@@ -171,10 +181,12 @@ export default function WeeklyReview() {
               {topic.title} · {topic.week_start} → {topic.week_end} · {topic.nomination_count} nominations, {topic.student_count} students
             </p>
           </div>
-          <button onClick={() => navigate("/education/weekly-recognition/history")}
-            className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
-            📜 History
-          </button>
+          {can.history && (
+            <button onClick={() => navigate("/education/weekly-recognition/history")}
+              className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
+              📜 History
+            </button>
+          )}
         </div>
       </div>
 
@@ -200,15 +212,19 @@ export default function WeeklyReview() {
               <div>✓ Available to the <b>Morning Assembly agenda</b> as a recognition block</div>
             </div>
             <div className="flex items-center justify-center gap-2 mt-4">
-              <button onClick={() => setPrinting(a)}
-                className="px-4 py-1.5 text-xs font-semibold rounded-xl border" style={{ borderColor: "#E8D48B", color: "#8A6F10" }}>
-                🖨 Print for assembly
-              </button>
-              <button onClick={() => navigate("/assembly/calendar")}
-                className="px-4 py-1.5 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
-                Honour at assembly →
-              </button>
-              {data?.can_manage && (
+              {can.certificate && (
+                <button onClick={() => setPrinting(a)}
+                  className="px-4 py-1.5 text-xs font-semibold rounded-xl border" style={{ borderColor: "#E8D48B", color: "#8A6F10" }}>
+                  🖨 Print for assembly
+                </button>
+              )}
+              {hasPermission("assemblies.view") && (
+                <button onClick={() => navigate("/assembly/calendar")}
+                  className="px-4 py-1.5 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
+                  Honour at assembly →
+                </button>
+              )}
+              {can.undo_award && (
                 <button onClick={() => undoAward(a)} className="px-3 py-1.5 text-xs font-semibold text-red-500">
                   Undo
                 </button>
@@ -276,7 +292,7 @@ export default function WeeklyReview() {
                       style={{ background: GOLD, color: "#fff" }}>
                       🏆 Selected
                     </span>
-                  ) : (
+                  ) : can.select && (
                     <button onClick={() => selectWinner(g)}
                       className="px-4 py-1.5 rounded-xl text-xs font-bold text-white"
                       style={{ background: leading ? `linear-gradient(135deg,${GOLD},#B08A1E)` : TEAL }}>
@@ -289,7 +305,7 @@ export default function WeeklyReview() {
           })
         )}
 
-        {topic.status === "open" && (
+        {can.close && topic.status === "open" && (
           <button onClick={closeNoAward}
             className="px-4 py-2 text-xs font-semibold text-[#5A7A7E] border border-[#D0E0E0] rounded-xl hover:bg-[#F4F8F8] bg-white">
             No award this week

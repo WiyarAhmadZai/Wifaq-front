@@ -105,6 +105,12 @@ const RULES = [
   { prefix: "/education/surah-memorization", permission: "surah-memorization.view" },
   { prefix: "/education/science-projects", permission: "science-projects.view" },
   // Weekly Recognition — Best Performer of the Week, under Special Activities.
+  // One permission per menu. `fixed` keeps the action as written: without it
+  // withAction() would rewrite e.g. `.history` back to `.view`.
+  { prefix: "/education/weekly-recognition/nominate", permission: "weekly-recognition.nominate-view", fixed: true },
+  { prefix: "/education/weekly-recognition/review", permission: "weekly-recognition.review", fixed: true },
+  { prefix: "/education/weekly-recognition/history", permission: "weekly-recognition.history", fixed: true },
+  { prefix: "/education/weekly-recognition/annual-winner", permission: "weekly-recognition.annual-winner", fixed: true },
   { prefix: "/education/weekly-recognition", permission: "weekly-recognition.view" },
   // Lesson planning — one umbrella: list/review/analytics/templates need
   // lesson-plans.view (reviewers/analysts also hold it); /create → .create,
@@ -419,6 +425,15 @@ export function permissionForPath(pathname) {
   }
   for (const rule of RULES) {
     if (pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")) {
+      if (rule.fixed) {
+        const permissions = [rule.permission, withAction(rule.permission, "manage")];
+        const section = rule.permission.split(".", 1)[0];
+        return {
+          type: "protected",
+          permissions,
+          permissionGroups: [{ permissions, requiredPermissions: [sectionNotificationPermission(section)] }],
+        };
+      }
       const tail = pathname.slice(rule.prefix.length); // "" | "/create" | "/edit/123" | "/show/123"
       const action = actionForTail(tail);
       const base = withAction(rule.permission, action);

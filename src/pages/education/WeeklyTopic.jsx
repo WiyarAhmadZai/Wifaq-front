@@ -125,7 +125,7 @@ export default function WeeklyTopic() {
     setPoster({ file: null, preview: null, from: null, remove: false });
     setEditingId(null);
     // Past topics, to bring one (and its poster) back for a new week.
-    if (d?.can_select) get("/weekly-recognition/topics/library").then((r) => setLibrary(r.data?.data || [])).catch(() => {});
+    if (d?.can?.topic_create || d?.can?.topic_update) get("/weekly-recognition/topics/library").then((r) => setLibrary(r.data?.data || [])).catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
@@ -142,7 +142,11 @@ export default function WeeklyTopic() {
   useEffect(() => { load(); }, [load]);
 
   const topic = data?.topic;
-  const canSelect = Boolean(data?.can_select);
+  // One flag per button, from the backend's permission check.
+  const can = data?.can || {};
+  // The form is open while adding (topic-create) or editing (topic-update).
+  const showForm = editingId ? can.topic_update : can.topic_create;
+  const showTopicTools = can.topic_create || can.topic_update || can.close;
   const [evalTopic, setEvalTopic] = useState(null);
 
   // An empty form for another week — past weeks included, for recording the
@@ -263,11 +267,13 @@ export default function WeeklyTopic() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => navigate("/education/weekly-recognition/nominate")}
-              className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
-              ✍️ Nominate
-            </button>
-            {canSelect && topic && (
+            {can.nominate_view && (
+              <button onClick={() => navigate("/education/weekly-recognition/nominate")}
+                className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
+                ✍️ Nominate
+              </button>
+            )}
+            {can.review && topic && (
               <button onClick={() => navigate(`/education/weekly-recognition/review?topic_id=${topic.id}`)}
                 className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
                 ⚖️ Review &amp; Select
@@ -330,18 +336,18 @@ export default function WeeklyTopic() {
         )}
 
         {/* Topic form (tarbiyati lead / admin) */}
-        {canSelect ? (
+        {showTopicTools ? (
           <div id="weekly-topic-form" className="bg-white rounded-2xl border border-[#D0E0E0] shadow-sm p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-[10px] font-bold text-[#5A7A7E] uppercase tracking-wider">
-                {editingId ? `Editing: ${form.title || "topic"}` : "Add a new topic"}
+                {editingId ? `Editing: ${form.title || "topic"}` : showForm ? "Add a new topic" : "This week"}
               </h3>
               {editingId ? (
                 <button type="button" onClick={startNew}
                   className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#D0E0E0] hover:bg-[#F4F8F8]" style={{ color: TEAL }}>
-                  ✕ Cancel edit · + New topic
+                  ✕ Cancel edit{can.topic_create ? " · + New topic" : ""}
                 </button>
-              ) : topic && (
+              ) : topic && can.topic_update && (
                 <button type="button" onClick={() => startEdit(topic)}
                   className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-[#D0E0E0] hover:bg-[#F4F8F8]" style={{ color: TEAL }}>
                   ✏️ Edit “{topic.title}”
@@ -349,6 +355,7 @@ export default function WeeklyTopic() {
               )}
             </div>
 
+            {showForm && (<>
             {library.length > 0 && (
               <div className="mb-3">
                 <label className="block text-[10px] text-[#5A7A7E] mb-1">Reuse a past topic (with its poster)</label>
@@ -439,20 +446,23 @@ export default function WeeklyTopic() {
               onChange={(goals) => setForm((f) => ({ ...f, goals }))} />
             <PlanEditor heading="Daily activities" labels={DAY_LABELS} items={form.daily_activities}
               onChange={(daily_activities) => setForm((f) => ({ ...f, daily_activities }))} />
+            </>)}
 
             <div className="flex items-center gap-2 flex-wrap mt-4">
-              <button onClick={save} disabled={saving}
-                className="px-5 py-2 text-xs font-semibold text-white rounded-xl disabled:opacity-50"
-                style={{ background: TEAL }}>
-                {saving ? "Saving…" : editingId ? "Save changes" : "➕ Add topic"}
-              </button>
-              {topic?.status === "open" && (
+              {showForm && (
+                <button onClick={save} disabled={saving}
+                  className="px-5 py-2 text-xs font-semibold text-white rounded-xl disabled:opacity-50"
+                  style={{ background: TEAL }}>
+                  {saving ? "Saving…" : editingId ? "Save changes" : "➕ Add topic"}
+                </button>
+              )}
+              {can.close && topic?.status === "open" && (
                 <button onClick={closeNoAward}
                   className="px-4 py-2 text-xs font-semibold text-[#5A7A7E] border border-[#D0E0E0] rounded-xl hover:bg-[#F4F8F8]">
                   No award this week
                 </button>
               )}
-              {topic?.status === "no_award" && (
+              {can.close && topic?.status === "no_award" && (
                 <button onClick={reopen}
                   className="px-4 py-2 text-xs font-semibold text-[#5A7A7E] border border-[#D0E0E0] rounded-xl hover:bg-[#F4F8F8]">
                   Reopen for nominations
@@ -462,7 +472,7 @@ export default function WeeklyTopic() {
           </div>
         ) : (
           <div className="bg-[#FFF8E7] border border-[#E8D48B] rounded-2xl px-4 py-3 text-xs text-[#8A6F10]">
-            Only the tarbiyati lead sets the weekly topic. You can still nominate students all week.
+            You do not have permission to set the weekly topic.{can.nominate ? " You can still nominate students all week." : ""}
           </div>
         )}
 
@@ -488,25 +498,25 @@ export default function WeeklyTopic() {
                         Open
                       </button>
                     )}
-                    {t.status === "open" && (
+                    {t.status === "open" && can.nominate_view && (
                       <button onClick={() => navigate(`/education/weekly-recognition/nominate?topic_id=${t.id}`)}
                         className="text-[11px] font-semibold" style={{ color: TEAL }}>
                         ✍️ Nominate
                       </button>
                     )}
-                    {canSelect && (
+                    {can.review && (
                       <button onClick={() => navigate(`/education/weekly-recognition/review?topic_id=${t.id}`)}
                         className="text-[11px] font-semibold" style={{ color: TEAL }}>
                         Review →
                       </button>
                     )}
-                    {canSelect && (
+                    {can.evaluations && (
                       <button onClick={() => setEvalTopic(t)}
                         className="text-[11px] font-semibold px-2 py-0.5 rounded-lg border border-[#D0E0E0] text-[#0A3A3E] hover:bg-[#F4F8F8]">
                         📋 Evaluations
                       </button>
                     )}
-                    {canSelect && (
+                    {can.topic_delete && (
                       <button onClick={() => removeTopic(t)} title="Delete"
                         className="text-[11px] font-semibold px-2 py-0.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50">
                         🗑 Delete

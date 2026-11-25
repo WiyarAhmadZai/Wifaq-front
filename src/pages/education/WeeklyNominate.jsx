@@ -39,6 +39,8 @@ export default function WeeklyNominate() {
 
   const topic = data?.topic;
   const canNominate = Boolean(data?.can_nominate);
+  // One flag per button, from the backend's permission check.
+  const can = data?.can || {};
   const students = useMemo(() => data?.students || [], [data]);
 
   // Pre-select the topic's leaning area — most nominations follow it.
@@ -90,10 +92,12 @@ export default function WeeklyNominate() {
           <div className="text-3xl">🎯</div>
           <p className="text-sm font-semibold text-[#0A3A3E] mt-2">No weekly topic is set yet</p>
           <p className="text-xs text-[#5A7A7E] mt-1">The tarbiyati lead sets the topic before nominations open.</p>
-          <button onClick={() => navigate("/education/weekly-recognition")}
-            className="mt-4 px-5 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
-            Go to Weekly Topic
-          </button>
+          {can.topic_view && (
+            <button onClick={() => navigate("/education/weekly-recognition")}
+              className="mt-4 px-5 py-2 text-xs font-semibold text-white rounded-xl" style={{ background: TEAL }}>
+              Go to Weekly Topic
+            </button>
+          )}
         </div>
       </div>
     );
@@ -111,10 +115,12 @@ export default function WeeklyNominate() {
               This week's topic: <span className="font-semibold">{topic.title}</span> · {topic.week_start} → {topic.week_end}
             </p>
           </div>
-          <button onClick={() => navigate("/education/weekly-recognition")}
-            className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
-            🎯 Topic
-          </button>
+          {can.topic_view && (
+            <button onClick={() => navigate("/education/weekly-recognition")}
+              className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
+              🎯 Topic
+            </button>
+          )}
         </div>
       </div>
 
@@ -190,9 +196,11 @@ export default function WeeklyNominate() {
                       {(n.dimensions || []).map((d) => <DimPill key={d} d={d} />)}
                     </div>
                   </div>
-                  <button onClick={() => withdraw(n)} className="text-[11px] font-semibold text-red-500 shrink-0">
-                    Withdraw
-                  </button>
+                  {(can.nomination_delete || data?.can_manage) && (
+                    <button onClick={() => withdraw(n)} className="text-[11px] font-semibold text-red-500 shrink-0">
+                      Withdraw
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

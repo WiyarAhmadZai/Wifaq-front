@@ -205,6 +205,10 @@ export default function SurahMemorization() {
 
   if (loading) return <Loading />;
 
+  // One flag per button, from the backend's permission check.
+  const can = meta?.can || {};
+  const showItemForm = editingItem ? can.update : can.create;
+
   return (
     <Page>
       <Header
@@ -228,25 +232,31 @@ export default function SurahMemorization() {
               <h2 className="font-bold text-gray-800">{t("Manage memorization items")}</h2>
               <p className="text-xs text-gray-500 mt-1">{t("The list is shared by all classes. Deleted items stay in past student records.")}</p>
             </div>
-            <form onSubmit={saveItem} className="flex flex-wrap items-end gap-2">
-              <Field label={t(editingItem ? "Edit item name" : "New item name")}>
-                <Input value={itemName} onChange={(event) => setItemName(event.target.value)} maxLength={200} required />
-              </Field>
-              <Btn type="submit" disabled={busy || !itemName.trim()}>{t(editingItem ? "Save item" : "Add item")}</Btn>
-              {editingItem && <Btn tone="ghost" onClick={() => { setEditingItem(null); setItemName(""); }}>{t("Cancel")}</Btn>}
-            </form>
+            {showItemForm && (
+              <form onSubmit={saveItem} className="flex flex-wrap items-end gap-2">
+                <Field label={t(editingItem ? "Edit item name" : "New item name")}>
+                  <Input value={itemName} onChange={(event) => setItemName(event.target.value)} maxLength={200} required />
+                </Field>
+                <Btn type="submit" disabled={busy || !itemName.trim()}>{t(editingItem ? "Save item" : "Add item")}</Btn>
+                {editingItem && <Btn tone="ghost" onClick={() => { setEditingItem(null); setItemName(""); }}>{t("Cancel")}</Btn>}
+              </form>
+            )}
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {meta.items.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 px-3 py-2">
                 <span className="text-sm text-gray-700" dir="auto">{item.name}</span>
                 <span className="flex shrink-0 gap-1">
-                  <button type="button" className="text-xs font-semibold text-teal-700" onClick={() => { setEditingItem(item); setItemName(item.name); }}>
-                    {t("Edit")}
-                  </button>
-                  <button type="button" className="text-xs font-semibold text-red-600" disabled={busy} onClick={() => removeItem(item)}>
-                    {t("Delete")}
-                  </button>
+                  {can.update && (
+                    <button type="button" className="text-xs font-semibold text-teal-700" onClick={() => { setEditingItem(item); setItemName(item.name); }}>
+                      {t("Edit")}
+                    </button>
+                  )}
+                  {can.delete && (
+                    <button type="button" className="text-xs font-semibold text-red-600" disabled={busy} onClick={() => removeItem(item)}>
+                      {t("Delete")}
+                    </button>
+                  )}
                 </span>
               </div>
             ))}
@@ -320,6 +330,7 @@ export default function SurahMemorization() {
                       updateStudent={updateStudent}
                       toggleAssignment={toggleAssignment}
                       toggleMemorized={toggleMemorized}
+                      readOnly={!can.record}
                       onExpand={() => setExpandedStudent(isExpanded ? null : student.id)}
                     />
                   );
@@ -327,7 +338,7 @@ export default function SurahMemorization() {
               </tbody>
             </TableCard>
           )}
-          {rows.length > 0 && (
+          {rows.length > 0 && can.record && (
             <div className="sticky bottom-2 z-10 mt-4 flex justify-end">
               <Btn size="lg" disabled={busy || classLoading} onClick={save}>
                 {busy ? t("Saving...") : t("Save class progress")}
@@ -342,7 +353,7 @@ export default function SurahMemorization() {
 
 function FragmentRows({
   student, completed, items, expanded, t, updateStudent, toggleAssignment,
-  toggleMemorized, onExpand,
+  toggleMemorized, onExpand, readOnly = false,
 }) {
   const assigned = student.assignments.length;
 
@@ -377,6 +388,7 @@ function FragmentRows({
             max="10"
             step="0.5"
             value={student.score ?? ""}
+            disabled={readOnly}
             onChange={(event) => updateStudent(student.id, { score: event.target.value })}
             className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           />
@@ -386,6 +398,7 @@ function FragmentRows({
             aria-label={`${t("Participation / effort notes")} ${student.name}`}
             value={student.notes || ""}
             maxLength={2000}
+            disabled={readOnly}
             onChange={(event) => updateStudent(student.id, { notes: event.target.value })}
             placeholder={t("Optional")}
             className="w-full min-w-40 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
@@ -393,7 +406,7 @@ function FragmentRows({
         </td>
         <td className={tdCls}>
           <Btn tone="outline" size="sm" onClick={onExpand}>
-            {expanded ? t("Close") : t("Assign / track")}
+            {expanded ? t("Close") : t(readOnly ? "View" : "Assign / track")}
           </Btn>
         </td>
       </tr>
@@ -409,7 +422,7 @@ function FragmentRows({
                 const assignment = assignmentFor(student, item.id);
                 return (
                   <label key={item.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${assignment ? "border-teal-200 bg-teal-50/60" : "border-gray-100 bg-white"}`}>
-                    <input type="checkbox" checked={Boolean(assignment)} onChange={() => toggleAssignment(student, item)} />
+                    <input type="checkbox" checked={Boolean(assignment)} disabled={readOnly} onChange={() => toggleAssignment(student, item)} />
                     <span className="min-w-0 flex-1 truncate" dir="auto">{item.name}</span>
                     {assignment && (
                       <span className="flex shrink-0 items-center gap-1.5 text-[11px]">
@@ -417,6 +430,7 @@ function FragmentRows({
                           aria-label={`${t("Memorized")} ${item.name}`}
                           type="checkbox"
                           checked={Boolean(assignment.memorized)}
+                          disabled={readOnly}
                           onChange={() => toggleMemorized(student, item.id)}
                         />
                         {t("Memorized")}

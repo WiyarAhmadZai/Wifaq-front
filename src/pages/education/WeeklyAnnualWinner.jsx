@@ -6,6 +6,7 @@ import {
   DimPill, Spinner, StudentName, cleanClass, cleanName, describeError,
   isEmptyPayload, TEAL, GOLD_LT, GOLD_SOFT, GOLD_DEEP,
 } from "./weeklyUi";
+import { useAuth } from "../../admin/context/AuthContext";
 
 /**
  * Student of the Year — the annual end of the weekly recognition ladder.
@@ -18,6 +19,7 @@ import {
  */
 export default function WeeklyAnnualWinner() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [yearId, setYearId] = useState("");
@@ -68,10 +70,12 @@ export default function WeeklyAnnualWinner() {
                 </option>
               ))}
             </select>
-            <button onClick={() => navigate("/education/weekly-recognition/history")}
-              className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
-              🏆 Weekly winners
-            </button>
+            {hasPermission(["weekly-recognition.history", "weekly-recognition.manage"]) && (
+              <button onClick={() => navigate("/education/weekly-recognition/history")}
+                className="px-4 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold">
+                🏆 Weekly winners
+              </button>
+            )}
           </div>
         </div>
       </div>

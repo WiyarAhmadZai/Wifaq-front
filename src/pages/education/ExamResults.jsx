@@ -11,6 +11,7 @@ import {
 } from "../../api/gradebook";
 import { useAuth } from "../../admin/context/AuthContext";
 import { Page, Header, Card, TableCard, thCls, tdCls, Btn, Banner, Loading, LoadingRow } from "./gradebookUi";
+import { useI18n } from "../../i18n/I18nContext";
 
 const EXAMS = {
   chaharnima: { label: "Chaharnima Marks", max: 40 },
@@ -77,6 +78,7 @@ function termSelect(terms, value, onChange) {
 
 export default function SubjectMarksPage({ examType = "chaharnima" }) {
   const { hasPermission, isSuperAdmin } = useAuth();
+  const { t } = useI18n();
   const exam = EXAMS[examType] || EXAMS.chaharnima;
   const [meta, setMeta] = useState(null);
   const [classId, setClassId] = useState("");
@@ -150,7 +152,7 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
     setError("");
     setFeedback("");
     if (componentTotal !== exam.max) {
-      setError(`${exam.label} component maximums must add up to ${exam.max}.`);
+      setError(t("{} component maximums must add up to {}.", t(exam.label), exam.max));
       return;
     }
     for (const row of rows) {
@@ -158,7 +160,7 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
         const value = row[field.field];
         const maximum = Number(field.config?.max_marks || 0);
         if (value !== null && value !== "" && value !== undefined && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > maximum)) {
-          setError(`${row.name}: ${field.label} must be between 0 and ${maximum}.`);
+          setError(t("{}: {} must be between 0 and {}.", row.name, t(field.label), maximum));
           return;
         }
       }
@@ -177,9 +179,9 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
           paper_score: row.paper_score === "" ? null : row.paper_score,
         })),
       });
-      setFeedback(response.data?.message || "Marks saved.");
+      setFeedback(t(response.data?.message || "Marks saved."));
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Marks could not be saved.");
+      setError(t(requestError.response?.data?.message || "Marks could not be saved."));
     } finally {
       setBusy(false);
     }
@@ -200,16 +202,16 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
       }));
       const total = Math.round(Object.values(allComponents[type]).reduce((sum, value) => sum + value, 0) * 100) / 100;
       if (total !== EXAMS[type].max) {
-        setError(`${EXAMS[type].label} components must add up to ${EXAMS[type].max}.`);
+        setError(t("{} components must add up to {}.", t(EXAMS[type].label), EXAMS[type].max));
         return;
       }
     }
     setError("");
     try {
       await saveExamResultSettings({ passing_mark: Number(passingMark), components: allComponents });
-      setFeedback("Exam settings saved.");
+      setFeedback(t("Exam settings saved."));
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Settings could not be saved.");
+      setError(t(requestError.response?.data?.message || "Settings could not be saved."));
     }
   }
 
@@ -220,7 +222,10 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
 
   return (
     <Page>
-      <Header title={exam.label} subtitle={`${exam.max} marks per subject · Homework, class performance, paper`} />
+      <Header
+        title={t(exam.label)}
+        subtitle={t("{} marks per subject · Homework, class performance, paper", exam.max)}
+      />
       {error && <Banner kind="error" onClose={() => setError("")}>{error}</Banner>}
       {feedback && <Banner onClose={() => setFeedback("")}>{feedback}</Banner>}
       <Card className="mb-4 space-y-4">
@@ -236,25 +241,25 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500">
           <span>{selectedPair?.class_name}{selectedPair?.section ? ` · ${selectedPair.section}` : ""}{selectedPair?.subject_name ? ` · ${selectedPair.subject_name}` : ""}</span>
-          <span>Components total: <strong className={componentTotal === exam.max ? "text-emerald-700" : "text-red-700"}>{componentTotal} / {exam.max}</strong></span>
+          <span>{t("Components total:")} <strong className={componentTotal === exam.max ? "text-emerald-700" : "text-red-700"}>{componentTotal} / {exam.max}</strong></span>
         </div>
       </Card>
 
       {canConfigure && <Card className="mb-4">
         <button type="button" onClick={() => setSettingsOpen((open) => !open)} className="flex w-full items-center justify-between text-left text-sm font-bold text-gray-800">
-          Mark settings <span aria-hidden>{settingsOpen ? "−" : "+"}</span>
+          {t("Mark settings")} <span aria-hidden>{settingsOpen ? "−" : "+"}</span>
         </button>
         {settingsOpen && <div className="mt-4 space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {currentComponents.map((field) => <label key={field.key} className="text-xs font-semibold text-gray-600">{field.label} maximum
+            {currentComponents.map((field) => <label key={field.key} className="text-xs font-semibold text-gray-600">{t("{} maximum", t(field.label))}
               <input type="number" min="0" max={exam.max} step="0.5" value={field.config?.max_marks ?? ""} onChange={(event) => updateComponent(field.key, event.target.value)} className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
             </label>)}
-            <label className="text-xs font-semibold text-gray-600">Passing percentage
+            <label className="text-xs font-semibold text-gray-600">{t("Passing percentage")}
               <input type="number" min="0" max="100" step="0.5" value={passingMark} onChange={(event) => setPassingMark(event.target.value)} className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
             </label>
           </div>
-          <p className="text-xs text-gray-500">Chaharnima must total 40 and Salana must total 60. Current {exam.label} total: {componentTotal}.</p>
-          <Btn onClick={saveSettings}>Save settings</Btn>
+          <p className="text-xs text-gray-500">{t("Chaharnima must total 40 and Salana must total 60. Current {} total: {}.", t(exam.label), componentTotal)}</p>
+          <Btn onClick={saveSettings}>{t("Save settings")}</Btn>
         </div>}
       </Card>}
 
@@ -263,10 +268,10 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
         <TableCard>
           <thead><tr>
             <th className={thCls}>Student</th>
-            <th className={`${thCls} text-right`}>Homework /{currentComponents[0]?.config?.max_marks}</th>
-            <th className={`${thCls} text-right`}>Performance /{currentComponents[1]?.config?.max_marks}</th>
-            <th className={`${thCls} text-right`}>Paper /{currentComponents[2]?.config?.max_marks}</th>
-            <th className={`${thCls} text-right`}>Total /{exam.max}</th>
+            <th className={`${thCls} text-right`}>{t("{} /{}", t("Homework"), currentComponents[0]?.config?.max_marks ?? "")}</th>
+            <th className={`${thCls} text-right`}>{t("{} /{}", t("Performance"), currentComponents[1]?.config?.max_marks ?? "")}</th>
+            <th className={`${thCls} text-right`}>{t("{} /{}", t("Paper"), currentComponents[2]?.config?.max_marks ?? "")}</th>
+            <th className={`${thCls} text-right`}>{t("{} /{}", t("Total"), exam.max)}</th>
           </tr></thead>
           <tbody data-mark-entry>
             {rows.map((row) => {
@@ -274,16 +279,16 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
               return <tr key={row.student_id} className="hover:bg-gray-50">
                 <td className={tdCls}><span className="font-semibold text-gray-800">{row.name}</span>{row.father_name && <span className="ml-2 text-xs text-gray-500">· {row.father_name}</span>}<span className="block text-[11px] text-gray-400">{row.admission_no || ""}</span></td>
                 {currentComponents.map((field) => <td key={field.key} className={`${tdCls} text-right`}>
-                  <input data-mark-entry type="number" inputMode="decimal" min="0" max={field.config?.max_marks} step="0.5" value={row[field.field] ?? ""} onChange={(event) => updateScore(row.student_id, field.field, event.target.value)} onKeyDown={focusNext} className="w-24 rounded-md border border-gray-200 px-2 py-1.5 text-right text-sm tabular-nums" aria-label={`${field.label} marks for ${row.name}`} />
+                  <input data-mark-entry type="number" inputMode="decimal" min="0" max={field.config?.max_marks} step="0.5" value={row[field.field] ?? ""} onChange={(event) => updateScore(row.student_id, field.field, event.target.value)} onKeyDown={focusNext} className="w-24 rounded-md border border-gray-200 px-2 py-1.5 text-right text-sm tabular-nums" aria-label={t("{} marks for {}", t(field.label), row.name)} />
                 </td>)}
                 <td className={`${tdCls} text-right font-bold tabular-nums`}>{total.toFixed(2)}</td>
               </tr>;
             })}
           </tbody>
         </TableCard>
-        <div className="sticky bottom-3 mt-4 flex justify-end"><Btn onClick={saveMarks} disabled={!canSave || busy || componentTotal !== exam.max} size="lg">Save class marks</Btn></div>
+        <div className="sticky bottom-3 mt-4 flex justify-end"><Btn onClick={saveMarks} disabled={!canSave || busy || componentTotal !== exam.max} size="lg">{t("Save class marks")}</Btn></div>
       </>}
-      {!busy && rows.length === 0 && <Card><p className="py-8 text-center text-sm text-gray-500">Choose a class, section, subject, and academic year to enter marks.</p></Card>}
+      {!busy && rows.length === 0 && <Card><p className="py-8 text-center text-sm text-gray-500">{t("Choose a class, section, subject, and academic year to enter marks.")}</p></Card>}
     </Page>
   );
 }

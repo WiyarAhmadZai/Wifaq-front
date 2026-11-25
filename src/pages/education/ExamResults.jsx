@@ -381,7 +381,20 @@ function ResultSheetDoc({ student, report, activeClass, examType }) {
         {[["intellectual", "ذهنی"], ["character", "اخلاقی‌معنوی"], ["practical", "عملی"], ["social", "اجتماعی"]].map(([key, label]) => <div key={key}><dt className="green-text">{label}</dt><dd><Stars score={student.four_d?.[key]} /></dd></div>)}
       </dl></div>
       <div className="rs-card"><h2 className="gold">فعالیت‌های ویژهٔ مکتب</h2><dl className="rs-list">
-        {(student.activities || []).map((a) => <div key={a.key}><dt>{a.label}</dt><dd className={a.level ? `rs-level ${LEVEL_TONE[a.level]}` : "muted"}>{a.level || "—"}</dd></div>)}
+        {(student.activities || []).map((a) => <div key={a.key}>
+          <dt>{a.label}</dt>
+          <dd className={a.level ? `rs-level ${LEVEL_TONE[a.level]}` : "muted"}>
+            {a.key === "memorization"
+              ? a.score === null || a.score === undefined ? "—" : `${num(a.score)} / ${formatResultNumber(a.max_score)} · ${num(a.percentage)}٪`
+              : a.level || "—"}
+            {a.key === "memorization" && a.assigned > 0 && (
+              <small className="block">{formatResultNumber(a.completed)} / {formatResultNumber(a.assigned)} حفظ‌شده</small>
+            )}
+            {a.key === "weekly" && a.winner_percentage !== null && a.winner_percentage !== undefined && (
+              <small className="block">{num(a.winner_percentage)}٪ نسبت نامزدی برنده</small>
+            )}
+          </dd>
+        </div>)}
       </dl></div>
       <div className="rs-card"><h2 className="green">افتخارات</h2><ul className="rs-awards">
         <li>حاضری: <b>{honours.attendance_rate === null || honours.attendance_rate === undefined ? "—" : `${num(honours.attendance_rate)}٪`}</b>{ahead(honours.attendance_ahead_of) && <small> · {ahead(honours.attendance_ahead_of)}</small>}</li>

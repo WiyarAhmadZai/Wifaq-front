@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { get, del, put, peekCache } from '../../api/axios';
+import { get, del, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 
@@ -12,6 +12,10 @@ export default function JobApplicationList() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
+  const [selectedApplicantIds, setSelectedApplicantIds] = useState([]);
+  const [showBulkEmailModal, setShowBulkEmailModal] = useState(false);
+  const [bulkEmail, setBulkEmail] = useState({ subject: '', message: '' });
+  const [sendingBulkEmail, setSendingBulkEmail] = useState(false);
   const [statusUpdate, setStatusUpdate] = useState({
     status: '',
     message: ''
@@ -123,6 +127,8 @@ export default function JobApplicationList() {
   };
 
   const activeFilterCount = Object.values(filterValues).filter(v => v).length;
+  const selectedApplicantSet = useMemo(() => new Set(selectedApplicantIds), [selectedApplicantIds]);
+  const allApplicantsSelected = items.length > 0 && items.every(item => selectedApplicantSet.has(item.id));
 
   const handleCreate = () => {
     navigate('/hr/job-application/create');
@@ -150,6 +156,7 @@ export default function JobApplicationList() {
     if (result.isConfirmed) {
       try {
         await del(`/hr/job-applications/${id}`);
+        setSelectedApplicantIds(current => current.filter(selectedId => selectedId !== id));
         Swal.fire('Deleted!', 'Record has been deleted.', 'success');
         fetchItems();
       } catch (error) {
@@ -188,6 +195,50 @@ export default function JobApplicationList() {
     }
   };
 
+  const toggleApplicant = (id, checked) => {
+    setSelectedApplicantIds(current => (
+      checked ? [...new Set([...current, id])] : current.filter(selectedId => selectedId !== id)
+    ));
+  };
+
+  const toggleAllApplicants = (checked) => {
+    setSelectedApplicantIds(checked ? items.map(item => item.id) : []);
+  };
+
+  const sendBulkEmail = async (event) => {
+    event.preventDefault();
+    setSendingBulkEmail(true);
+
+    try {
+      const response = await post('/hr/job-applications/bulk-email', {
+        all_applicants: allApplicantsSelected,
+        application_ids: allApplicantsSelected ? [] : selectedApplicantIds,
+        subject: bulkEmail.subject.trim(),
+        message: bulkEmail.message.trim(),
+      });
+      const result = response.data.data || {};
+      const summary = `Queued: ${result.queued || 0}; skipped (invalid email): ${result.skipped || 0}; failed: ${result.failed || 0}.`;
+
+      setShowBulkEmailModal(false);
+      setBulkEmail({ subject: '', message: '' });
+      setSelectedApplicantIds([]);
+      await Swal.fire({
+        title: result.failed ? 'Email partially queued' : 'Bulk email queued',
+        text: summary,
+        icon: result.failed ? 'warning' : 'success',
+        confirmButtonColor: '#0d9488',
+      });
+    } catch (error) {
+      const result = error.response?.data?.data;
+      const summary = result
+        ? `Queued: ${result.queued || 0}; skipped (invalid email): ${result.skipped || 0}; failed: ${result.failed || 0}.`
+        : error.response?.data?.message || 'Unable to queue the bulk email.';
+      Swal.fire('Bulk email failed', summary, 'error');
+    } finally {
+      setSendingBulkEmail(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const styles = {
       new: 'bg-blue-100 text-blue-700',
@@ -206,17 +257,29 @@ export default function JobApplicationList() {
           <h2 className="text-base font-bold text-gray-800">Job Application</h2>
           <p className="text-xs text-gray-500 mt-0.5">Manage job application records</p>
         </div>
-        {canCreate && (
-          <button
-            onClick={handleCreate}
-            className="w-full sm:w-auto px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1.5 font-medium text-xs"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Entry
-          </button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-2">
+          {canUpdate && (
+            <button
+              type="button"
+              onClick={() => setShowBulkEmailModal(true)}
+              disabled={selectedApplicantIds.length === 0}
+              className="w-full sm:w-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-xs"
+            >
+              Email selected ({selectedApplicantIds.length})
+            </button>
+          )}
+          {canCreate && (
+            <button
+              onClick={handleCreate}
+              className="w-full sm:w-auto px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1.5 font-medium text-xs"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Entry
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -227,9 +290,20 @@ export default function JobApplicationList() {
       ) : (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
+            <table className="w-full min-w-[680px]">
               <thead className="bg-teal-50">
                 <tr>
+                  {canUpdate && (
+                    <th className="px-3 py-2 text-left">
+                      <input
+                        type="checkbox"
+                        checked={allApplicantsSelected}
+                        onChange={(event) => toggleAllApplicants(event.target.checked)}
+                        aria-label="Select all applicants"
+                        className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                      />
+                    </th>
+                  )}
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">
                     ID
                   </th>
@@ -256,6 +330,17 @@ export default function JobApplicationList() {
               <tbody className="divide-y divide-gray-100">
                 {items.map((item, index) => (
                   <tr key={item.id} className="hover:bg-gray-50">
+                    {canUpdate && (
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedApplicantSet.has(item.id)}
+                          onChange={(event) => toggleApplicant(item.id, event.target.checked)}
+                          aria-label={`Select ${item.full_name}`}
+                          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-xs font-medium text-teal-600">
                       #{String(index + 1).padStart(4, '0')}
                     </td>
@@ -419,6 +504,69 @@ export default function JobApplicationList() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showBulkEmailModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <form onSubmit={sendBulkEmail} className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Email applicants</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                This message will be sent privately to {allApplicantsSelected ? 'all' : 'the selected'} {selectedApplicantIds.length} applicant{selectedApplicantIds.length === 1 ? '' : 's'}.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label htmlFor="bulk-email-subject" className="block text-sm font-medium text-gray-700 mb-1">
+                  Subject
+                </label>
+                <input
+                  id="bulk-email-subject"
+                  type="text"
+                  maxLength={200}
+                  required
+                  value={bulkEmail.subject}
+                  onChange={(event) => setBulkEmail(current => ({ ...current, subject: event.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="bulk-email-message" className="block text-sm font-medium text-gray-700 mb-1">
+                  Message
+                </label>
+                <textarea
+                  id="bulk-email-message"
+                  required
+                  rows={7}
+                  maxLength={10000}
+                  value={bulkEmail.message}
+                  onChange={(event) => setBulkEmail(current => ({ ...current, message: event.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Each valid address receives a separate email. Delivery status is recorded per applicant.
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBulkEmailModal(false)}
+                disabled={sendingBulkEmail}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={sendingBulkEmail || !bulkEmail.subject.trim() || !bulkEmail.message.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:opacity-50"
+              >
+                {sendingBulkEmail ? 'Queuing...' : 'Send email'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

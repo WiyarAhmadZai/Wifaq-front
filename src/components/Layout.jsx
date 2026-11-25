@@ -1641,6 +1641,9 @@ export default function Layout() {
     { label: "Record 4D Rating", path: "/education/4d-self-rating", permission: "student-profiles.update" },
     { label: "Student Cards", path: "/education/cards", permission: "student-cards.view" },
     { label: "Card Rankings", path: "/education/card-rankings", permission: "student-card-rankings.view" },
+  ];
+  const specialActivitiesMenus = [
+    { label: "Surah Memorization", path: "/education/surah-memorization", permission: "surah-memorization.view" },
     { label: "Science Projects", path: "/education/science-projects", permission: "science-projects.view" },
     // Weekly Recognition — the weekly, topic-scoped version of the recognition
     // already done monthly. Same four areas, same student history.
@@ -1786,6 +1789,7 @@ export default function Layout() {
     { key: "planning", label: "Planning", items: planningMenus },
     { key: "teacher-management", label: "Teachers", items: teacherMenus },
     { key: "education", label: "Education", items: educationMenus },
+    { key: "special-activities", label: "Special Activities", items: specialActivitiesMenus },
     { key: "morning-assembly", label: "Morning Assembly", items: assemblyMenus },
     { key: "lesson-planning", label: "Lesson Plans", items: lessonPlanMenus },
     { key: "gradebook", label: "Gradebook", items: gradebookMenus },
@@ -2192,7 +2196,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus) || canSeeGroup(reportCardMenus) || canSeeGroup(subjectMarksMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(specialActivitiesMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus) || canSeeGroup(reportCardMenus) || canSeeGroup(subjectMarksMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -2204,6 +2208,19 @@ export default function Layout() {
               onClick={() => toggleMenu("education")}
             >
               {visible(educationMenus).map((item) => (
+                <SubMenuItem key={item.path} label={item.label} to={item.path}
+                             active={isActive(item.path)} onClick={closeSidebar} />
+              ))}
+            </ParentMenu>
+          )}
+          {canSeeGroup(specialActivitiesMenus) && (
+            <ParentMenu
+              icon={Icons.Puzzle}
+              label="Special Activities"
+              isOpen={openMenu.includes("special-activities")}
+              onClick={() => toggleMenu("special-activities")}
+            >
+              {visible(specialActivitiesMenus).map((item) => (
                 <SubMenuItem key={item.path} label={item.label} to={item.path}
                              active={isActive(item.path)} onClick={closeSidebar} />
               ))}

@@ -110,6 +110,7 @@ const WeeklyReview = lazy(() => import("./pages/education/WeeklyReview"));
 const WeeklyHistory = lazy(() => import("./pages/education/WeeklyHistory"));
 const WeeklyAnnualWinner = lazy(() => import("./pages/education/WeeklyAnnualWinner"));
 const ScienceProjects = lazy(() => import("./pages/education/ScienceProjects"));
+const SurahMemorization = lazy(() => import("./pages/education/SurahMemorization"));
 // Morning Assembly Program — its own light module.
 const AssemblyCalendar = lazy(() => import("./pages/assembly/AssemblyCalendar"));
 const AssemblyPlan = lazy(() => import("./pages/assembly/AssemblyPlan"));
@@ -638,6 +639,7 @@ function App() {
             <Route path="education/weekly-recognition/history" element={<Suspense fallback={<PageLoader />}><WeeklyHistory /></Suspense>} />
             <Route path="education/weekly-recognition/annual-winner" element={<Suspense fallback={<PageLoader />}><WeeklyAnnualWinner /></Suspense>} />
             <Route path="education/science-projects" element={<Suspense fallback={<PageLoader />}><ScienceProjects /></Suspense>} />
+            <Route path="education/surah-memorization" element={<Suspense fallback={<PageLoader />}><SurahMemorization /></Suspense>} />
 
             {/* Morning Assembly Program */}
             <Route path="assembly/calendar" element={<Suspense fallback={<PageLoader />}><AssemblyCalendar /></Suspense>} />

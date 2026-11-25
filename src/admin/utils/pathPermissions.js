@@ -102,8 +102,9 @@ const RULES = [
   // umbrella /education rule (longest-prefix sort handles it either way).
   { prefix: "/education/card-rankings", permission: "student-card-rankings.view" },
   { prefix: "/education/cards", permission: "student-cards.view" },
-  // Weekly Recognition — Best Performer of the Week. Lives inside Student
-  // Development; every teacher who may nominate also holds .view.
+  { prefix: "/education/surah-memorization", permission: "surah-memorization.view" },
+  { prefix: "/education/science-projects", permission: "science-projects.view" },
+  // Weekly Recognition — Best Performer of the Week, under Special Activities.
   { prefix: "/education/weekly-recognition", permission: "weekly-recognition.view" },
   // Lesson planning — one umbrella: list/review/analytics/templates need
   // lesson-plans.view (reviewers/analysts also hold it); /create → .create,

@@ -164,7 +164,7 @@ export function ChatProvider({ children }) {
 
   // ── Personal channel: new-message notifications across all conversations ────
   useEffect(() => {
-    if (!isAuthenticated || !myId) return;
+    if (!canUseChat || !isAuthenticated || !myId) return;
     if (!echo) return;
 
     const channel = echo.private(`chat.user.${myId}`);
@@ -212,7 +212,7 @@ export function ChatProvider({ children }) {
     // `conversations`/`soundEnabled` are read via closures that are cheap to
     // rebind; re-subscribing on myId change only is intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, myId, soundEnabled, echo]);
+  }, [canUseChat, isAuthenticated, myId, soundEnabled, echo]);
 
   // ── Active conversation channel: live thread + receipts + typing ───────────
   useEffect(() => {
@@ -528,7 +528,7 @@ export function ChatProvider({ children }) {
    * tab is hidden, so a backgrounded tab costs nothing.
    */
   useEffect(() => {
-    if (!isAuthenticated || !myId) return;
+    if (!canUseChat || !isAuthenticated || !myId) return;
 
     let stopped = false;
     /* One poll at a time, and slower when the server is slow.
@@ -641,7 +641,7 @@ export function ChatProvider({ children }) {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [isAuthenticated, myId]);
+  }, [canUseChat, isAuthenticated, myId]);
   // Tear the socket down on logout / when auth is lost.
   useEffect(() => {
     if (!isAuthenticated) {

@@ -272,7 +272,7 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
             {rows.map((row) => {
               const total = COMPONENT_FIELDS.reduce((sum, field) => sum + (Number(row[field.field]) || 0), 0);
               return <tr key={row.student_id} className="hover:bg-gray-50">
-                <td className={tdCls}><span className="font-semibold text-gray-800">{row.name}</span><span className="block text-[11px] text-gray-400">{row.admission_no || ""}</span></td>
+                <td className={tdCls}><span className="font-semibold text-gray-800">{row.name}</span>{row.father_name && <span className="ml-2 text-xs text-gray-500">· {row.father_name}</span>}<span className="block text-[11px] text-gray-400">{row.admission_no || ""}</span></td>
                 {currentComponents.map((field) => <td key={field.key} className={`${tdCls} text-right`}>
                   <input data-mark-entry type="number" inputMode="decimal" min="0" max={field.config?.max_marks} step="0.5" value={row[field.field] ?? ""} onChange={(event) => updateScore(row.student_id, field.field, event.target.value)} onKeyDown={focusNext} className="w-24 rounded-md border border-gray-200 px-2 py-1.5 text-right text-sm tabular-nums" aria-label={`${field.label} marks for ${row.name}`} />
                 </td>)}

@@ -5,6 +5,7 @@ import {
   listDrive, createFolder, uploadFiles, addLink, deleteFile, deleteFolder, createDocument,
   fileDownloadBlob,
   moveFile, moveFolder, copyFileTo, copyFolderTo,
+  renameFolder,
   getDriveSettings,
 } from "../../api/drive";
 import { peekCache } from "../../api/axios";
@@ -52,9 +53,11 @@ export default function Drive() {
   const folderId = searchParams.get("folder") || "";
 
   const [data, setData] = useState({ current: null, breadcrumb: [], folders: [], files: [], me: null });
+  const [loadedFolderId, setLoadedFolderId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef(null);
+  const loadRequestId = useRef(0);
 
   const [view, setView] = useState(() => localStorage.getItem("driveView") || "large");
   const changeView = (m) => { setView(m); localStorage.setItem("driveView", m); };
@@ -75,15 +78,6 @@ export default function Drive() {
     max_file_size_mb: 0,
     max_user_storage_mb: 0,
   });
-
-  useEffect(() => {
-    getDriveSettings()
-      .then((res) => {
-        const d = res.data?.data;
-        if (d) setUploadLimits(d);
-      })
-      .catch(() => {});
-  }, []);
 
   /**
    * Open a folder (or return to the root).
@@ -189,16 +183,29 @@ export default function Drive() {
   };
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     const __cached = peekCache("/drive", folderId ? { folder_id: folderId } : {});
-    if (__cached) { setData(__cached?.data || { current: null, breadcrumb: [], folders: [], files: [] }); setLoading(false); }
+    if (__cached) {
+      setData(__cached?.data || { current: null, breadcrumb: [], folders: [], files: [], me: null });
+      setLoadedFolderId(folderId);
+      setLoading(false);
+    } else {
+      setData({ current: null, breadcrumb: [], folders: [], files: [], me: null });
+    }
     try {
       const res = await listDrive(folderId);
-      setData(res.data?.data || { current: null, breadcrumb: [], folders: [], files: [] });
+      if (requestId === loadRequestId.current) {
+        setData(res.data?.data || { current: null, breadcrumb: [], folders: [], files: [], me: null });
+        setLoadedFolderId(folderId);
+      }
     } catch {
-      setData({ current: null, breadcrumb: [], folders: [], files: [] });
+      if (requestId === loadRequestId.current) {
+        setData({ current: null, breadcrumb: [], folders: [], files: [], me: null });
+        setLoadedFolderId(folderId);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
   }, [folderId]);
 
@@ -245,6 +252,22 @@ export default function Drive() {
   const openUpload = () => { setPending([]); setAudience(EMPTY_AUDIENCE); setUploadOpen(true); };
   const openLink = () => { setAudience(EMPTY_AUDIENCE); setLinkOpen(true); };
 
+  useEffect(() => {
+    if (!uploadOpen) return;
+    let active = true;
+    getDriveSettings()
+      .then((res) => {
+        const settings = res.data?.data;
+        if (active && settings) setUploadLimits(settings);
+      })
+      .catch((error) => {
+        if (active) {
+          Swal.fire("Upload settings unavailable", error.response?.data?.message || "The server will still validate upload limits.", "warning");
+        }
+      });
+    return () => { active = false; };
+  }, [uploadOpen]);
+
   // Queue files chosen via the browse button or drag-and-drop into the modal.
   const queueFiles = (fileList) => {
     const arr = Array.from(fileList || []);
@@ -287,6 +310,24 @@ export default function Drive() {
     const r = await Swal.fire({ title: `Delete "${f.name}"?`, text: "Everything inside is removed too. This cannot be undone.", icon: "warning", showCancelButton: true, confirmButtonColor: "#dc2626", confirmButtonText: "Delete" });
     if (!r.isConfirmed) return;
     try { await deleteFolder(f.id); await load(); } catch (e) { Swal.fire("Error", e.response?.data?.message || "Failed.", "error"); }
+  };
+  const renameFolderItem = async (f) => {
+    const r = await Swal.fire({
+      title: "Rename folder",
+      input: "text",
+      inputValue: f.name,
+      showCancelButton: true,
+      confirmButtonText: "Rename",
+      confirmButtonColor: "#0d9488",
+      inputValidator: (value) => (!value?.trim() ? "Enter a folder name" : undefined),
+    });
+    if (!r.isConfirmed) return;
+    try {
+      await renameFolder(f.id, r.value.trim());
+      await load();
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not rename folder.", "error");
+    }
   };
   const removeFile = async (f) => {
     const r = await Swal.fire({ title: `Delete "${f.name}"?`, icon: "warning", showCancelButton: true, confirmButtonColor: "#dc2626", confirmButtonText: "Delete" });
@@ -406,18 +447,18 @@ export default function Drive() {
         </div>
       </div>
 
-      {loading ? (
+      {loading || loadedFolderId !== folderId ? (
         <div className="text-center py-12"><div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" /></div>
       ) : isEmpty ? (
         <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
           <p className="text-sm text-gray-400">This folder is empty. Write a document, upload files, add a link, or create a folder.</p>
         </div>
       ) : view === "details" ? (
-        <DetailsView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+        <DetailsView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} renameFolderItem={renameFolderItem} dnd={dnd} />
       ) : view === "list" ? (
-        <ListView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+        <ListView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} renameFolderItem={renameFolderItem} dnd={dnd} />
       ) : (
-        <LargeView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} dnd={dnd} />
+        <LargeView data={data} me={data.me} goTo={goTo} openFile={openFile} downloadFile={downloadFile} copyLink={copyLink} removeFile={removeFile} removeFolder={removeFolder} renameFolderItem={renameFolderItem} dnd={dnd} />
       )}
 
       {/* Upload modal */}
@@ -564,7 +605,7 @@ function TransferButtons({ item, kind, dnd, inline }) {
 }
 
 /* ── Large icons (thumbnails) ── */
-function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, renameFolderItem, dnd }) {
   return (
     <>
       {data.folders.length > 0 && (
@@ -594,6 +635,9 @@ function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFil
               {canWrite(f, me) && (
                 <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-t border-gray-100 bg-gray-50">
                   <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                  <button onClick={(e) => { e.stopPropagation(); renameFolderItem(f); }}
+                    title="Rename folder"
+                    className="px-1.5 py-0.5 rounded text-[11px] text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors">Rename</button>
                   <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }}
                     title="Delete folder"
                     className="px-1.5 py-0.5 rounded text-[11px] text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">✕</button>
@@ -639,7 +683,7 @@ function LargeView({ data, me, goTo, openFile, downloadFile, copyLink, removeFil
 }
 
 /* ── List (compact rows) ── */
-function ListView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+function ListView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, renameFolderItem, dnd }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
       {data.folders.map((f) => (
@@ -654,6 +698,7 @@ function ListView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile
           {canWrite(f, me) && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
               <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+              <button onClick={(e) => { e.stopPropagation(); renameFolderItem(f); }} title="Rename folder" className="text-teal-500 hover:text-teal-700 text-xs px-1">Rename</button>
               <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
             </div>
           )}
@@ -679,7 +724,7 @@ function ListView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile
 }
 
 /* ── Details (table) ── */
-function DetailsView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, dnd }) {
+function DetailsView({ data, me, goTo, openFile, downloadFile, copyLink, removeFile, removeFolder, renameFolderItem, dnd }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <table className="w-full text-xs">
@@ -708,6 +753,7 @@ function DetailsView({ data, me, goTo, openFile, downloadFile, copyLink, removeF
               <td className="px-3 py-2">{canWrite(f, me) && (
                 <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100">
                   <TransferButtons item={f} kind="folder" dnd={dnd} inline />
+                  <button onClick={(e) => { e.stopPropagation(); renameFolderItem(f); }} title="Rename folder" className="text-teal-500 hover:text-teal-700">Rename</button>
                   <button onClick={(e) => { e.stopPropagation(); removeFolder(f); }} className="text-red-400 hover:text-red-600">✕</button>
                 </div>
               )}</td>

@@ -75,6 +75,7 @@ export const saveDocument = (id, fields) => put(`${BASE}/documents/${id}`, field
 
 export const deleteFile   = (id) => del(`${BASE}/files/${id}`);
 export const deleteFolder = (id) => del(`${BASE}/folders/${id}`);
+export const renameFolder = (id, name) => put(`${BASE}/folders/${id}`, { name });
 
 export const uploadFiles = (folderId, fileList, catalogue = {}, audience) => {
   const fd = new FormData();

@@ -9,6 +9,7 @@ import { get, put, post, del, peekCache } from '../api/axios';
 import { useAuth } from '../admin/context/AuthContext';
 import Swal from 'sweetalert2';
 import Select2 from '../components/hr/Select2';
+import ImmediateAttention from '../components/ImmediateAttention';
 import { fmtDate } from '../utils/formErrors';
 import { listDepartments } from '../api/departments';
 
@@ -1331,6 +1332,7 @@ function PasswordModal({ isAdmin, onClose, onSave, saving }) {
  * ──────────────────────────────────────────────────────────────────── */
 
 const LEAD_PRESETS = [
+  { value: 0,    label: "Immediately" },
   { value: 15,   label: "15 min" },
   { value: 30,   label: "30 min" },
   { value: 60,   label: "1 hr" },
@@ -1386,6 +1388,7 @@ function RemindersModal({ onClose }) {
   const [mine, setMine] = useState([]);
   const [available, setAvailable] = useState({ meetings: [], events: [], staff_tasks: [] });
   const [loading, setLoading] = useState(true);
+  const [loadErrors, setLoadErrors] = useState({ mine: "", available: "" });
   const [picked, setPicked] = useState(null);
   const [lead, setLead] = useState(60);
   const [customLead, setCustomLead] = useState("");
@@ -1394,14 +1397,34 @@ function RemindersModal({ onClose }) {
 
   const load = async () => {
     setLoading(true);
-    try {
-      const [m, a] = await Promise.all([
-        get('/me/reminders'),
-        get('/me/reminders/available'),
-      ]);
-      setMine(m.data?.data || []);
-      setAvailable(a.data?.data || { meetings: [], events: [], staff_tasks: [] });
-    } catch {/* leave empty */} finally { setLoading(false); }
+    setLoadErrors({ mine: "", available: "" });
+    const [mineResult, availableResult] = await Promise.allSettled([
+      get('/me/reminders'),
+      get('/me/reminders/available'),
+    ]);
+
+    const errors = { mine: "", available: "" };
+    if (mineResult.status === "fulfilled") {
+      setMine(mineResult.value.data?.data || []);
+    } else {
+      setMine([]);
+      errors.mine = mineResult.reason?.response?.data?.message || "Could not load your reminders.";
+    }
+
+    if (availableResult.status === "fulfilled") {
+      const data = availableResult.value.data?.data || {};
+      setAvailable({
+        meetings: Array.isArray(data.meetings) ? data.meetings : [],
+        events: Array.isArray(data.events) ? data.events : [],
+        staff_tasks: Array.isArray(data.staff_tasks) ? data.staff_tasks : [],
+      });
+    } else {
+      setAvailable({ meetings: [], events: [], staff_tasks: [] });
+      errors.available = availableResult.reason?.response?.data?.message || "Could not load items for reminders.";
+    }
+
+    setLoadErrors(errors);
+    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -1412,11 +1435,15 @@ function RemindersModal({ onClose }) {
     return lead;
   })();
 
-  const reminderAt = picked?.deadline
-    ? new Date(new Date(picked.deadline).getTime() - effectiveLead * 60_000)
-    : null;
+  const reminderAt = effectiveLead === 0
+    ? new Date()
+    : picked?.deadline
+      ? new Date(new Date(picked.deadline).getTime() - effectiveLead * 60_000)
+      : null;
   const reminderInPast = reminderAt ? reminderAt.getTime() <= Date.now() : false;
-  const itemAlreadyPast = picked?.deadline ? new Date(picked.deadline).getTime() <= Date.now() : false;
+  const itemAlreadyPast = effectiveLead !== 0 && picked?.deadline
+    ? new Date(picked.deadline).getTime() <= Date.now()
+    : false;
 
   const submit = async () => {
     if (!picked) return;
@@ -1430,22 +1457,34 @@ function RemindersModal({ onClose }) {
     }
     setSaving(true);
     try {
-      await post('/me/reminders', {
+      const response = await post('/me/reminders', {
         subject_type: picked.type,
         subject_id: picked.id,
         lead_minutes: effectiveLead,
         label: label.trim() || undefined,
       });
       setPicked(null); setLabel(""); setCustomLead(""); setLead(60);
-      load();
+      await load();
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: effectiveLead === 0 ? "Immediate reminder sent and saved." : (response.data?.message || "Reminder set."),
+        timer: 2200,
+        showConfirmButton: false,
+      });
     } catch (err) {
       Swal.fire("Error", err.response?.data?.message || "Failed to set reminder", "error");
     } finally { setSaving(false); }
   };
 
   const removeOne = async (id) => {
-    try { await del(`/me/reminders/${id}`); } catch {}
-    load();
+    try {
+      await del(`/me/reminders/${id}`);
+      await load();
+    } catch (err) {
+      Swal.fire("Error", err.response?.data?.message || "Could not remove the reminder.", "error");
+    }
   };
 
   const totalAvailable =
@@ -1496,16 +1535,20 @@ function RemindersModal({ onClose }) {
           {loading ? (
             <p className="text-xs text-gray-400">Loading…</p>
           ) : mine.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">No reminders set yet.</p>
+            <p className="text-xs text-gray-400 italic">{loadErrors.mine || "No reminders set yet."}</p>
           ) : (
             <ul className="space-y-2">
               {mine.map((r) => (
                 <li key={r.id} className="flex items-center gap-3 p-3 bg-amber-50/40 border border-amber-100 rounded-xl">
                   {typeBadge(r.subject_type)}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 truncate">{r.title}</p>
+                    <p className="text-xs font-semibold text-gray-800 truncate flex items-center gap-1.5">
+                      {r.title}
+                      {Number(r.lead_minutes) === 0 && <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 text-[9px] font-bold">Immediate</span>}
+                      {r.immediate_attention && <ImmediateAttention item={r} compact />}
+                    </p>
                     <p className="text-[10px] text-gray-500">
-                      Fires at <b>{fmtDT(r.remind_at)}</b> · {fmtLead(r.lead_minutes)} before
+                      {Number(r.lead_minutes) === 0 ? <>Sent at <b>{fmtDT(r.remind_at)}</b></> : <>Fires at <b>{fmtDT(r.remind_at)}</b> · {fmtLead(r.lead_minutes)} before</>}
                       {r.notified_at ? ' · already sent' : ''}
                     </p>
                   </div>
@@ -1525,9 +1568,14 @@ function RemindersModal({ onClose }) {
             </p>
             {loading ? (
               <p className="text-xs text-gray-400 italic">Loading your items…</p>
+            ) : loadErrors.available ? (
+              <div className="text-xs text-red-600" role="alert">
+                <p>{loadErrors.available}</p>
+                <button type="button" onClick={load} className="mt-1 underline">Try again</button>
+              </div>
             ) : totalAvailable === 0 ? (
               <p className="text-xs text-gray-400 italic">
-                You don't have any upcoming meetings, events, or assigned tasks with a future deadline.
+                You don't have any upcoming meetings, events, or assigned tasks.
               </p>
             ) : (
               <Select2
@@ -1557,7 +1605,7 @@ function RemindersModal({ onClose }) {
                   })),
                   ...(available.staff_tasks || []).map((it) => ({
                     value: `staff_task:${it.id}`,
-                    label: `[Task] ${it.title} — Deadline ${fmtDT(it.deadline)}${it.subtitle ? ' · ' + it.subtitle : ''}`,
+                    label: `[Task] ${it.immediate_attention ? 'Immediate attention · ' : ''}${it.title}${it.deadline ? ` — Deadline ${fmtDT(it.deadline)}` : ''}${it.subtitle ? ' · ' + it.subtitle : ''}`,
                   })),
                 ]}
               />
@@ -1568,8 +1616,11 @@ function RemindersModal({ onClose }) {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">Selected</p>
-                <p className="text-xs font-semibold text-amber-900">{picked.title}</p>
-                <p className="text-[10px] text-amber-700">Deadline / Start: {fmtDT(picked.deadline)}</p>
+                <p className="text-xs font-semibold text-amber-900 flex items-center gap-1.5">
+                  {picked.title}
+                  {picked.immediate_attention && <ImmediateAttention item={picked} compact />}
+                </p>
+                <p className="text-[10px] text-amber-700">{effectiveLead === 0 ? "Immediate reminder" : `Deadline / Start: ${fmtDT(picked.deadline)}`}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">How long before?</p>
@@ -1602,7 +1653,9 @@ function RemindersModal({ onClose }) {
                 ) : reminderInPast ? (
                   <span className="text-red-600 font-semibold">Lead time is too long — would fire in the past.</span>
                 ) : (
-                  <>Will fire at <b>{fmtDT(reminderAt?.toISOString())}</b> ({fmtLead(effectiveLead)} before).</>
+                  effectiveLead === 0
+                    ? <>Will notify you immediately.</>
+                    : <>Will fire at <b>{fmtDT(reminderAt?.toISOString())}</b> ({fmtLead(effectiveLead)} before).</>
                 )}
               </div>
             </div>

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { get, post, put } from "../../api/axios";
 import { PageHeader, EmptyState, Spinner } from "../../components/hr/HrUI";
+import { EvidencePicker } from "../../components/hr/TaskEvidence";
+import { uploadTaskEvidence } from "../../api/taskEvidence";
 
 /**
  * My Check-in — the Operations Hub task workspace (spec §2.2, §2.3, §2.6).
@@ -223,6 +225,8 @@ function CheckInModal({ task, onClose, onSaved }) {
   const [pct, setPct] = useState(task.progress || 0);
   const [text, setText] = useState("");
   const [reason, setReason] = useState("");
+  // Optional proof, offered when the task is marked done.
+  const [evidence, setEvidence] = useState([]);
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
@@ -231,6 +235,16 @@ function CheckInModal({ task, onClose, onSaved }) {
     setBusy(true);
     try {
       const r = await post(`/hr/staff-tasks/${task.id}/check-in`, { status, progress_pct: status === "done" ? 100 : Number(pct), update_text: text, blocked_reason: status === "blocked" ? reason : null });
+      if (status === "done" && evidence.length) {
+        try {
+          await uploadTaskEvidence(task.id, evidence);
+        } catch (e) {
+          // The check-in is saved; only the files did not go through.
+          Swal.fire("Task completed, files not attached", e.response?.data?.message || "Open the task and attach the evidence again.", "warning");
+          onSaved(r.data.data);
+          return;
+        }
+      }
       onSaved(r.data.data);
       Swal.fire({ icon: "success", title: status === "done" ? "Task completed" : "Update sent", timer: 1400, showConfirmButton: false });
     } catch (e) {
@@ -269,6 +283,7 @@ function CheckInModal({ task, onClose, onSaved }) {
               <p className="text-[11px] text-gray-400 mt-1">This alerts the person who assigned the task.</p>
             </div>
           )}
+          {status === "done" && <EvidencePicker files={evidence} onChange={setEvidence} />}
         </div>
         <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600">Cancel</button>

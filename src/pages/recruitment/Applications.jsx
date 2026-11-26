@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { get, del, peekCache } from "../../api/axios";
+import { get, del, post, peekCache } from "../../api/axios";
 import Swal from "sweetalert2";
 import ListExportActions from "../../components/ListExportActions";
 import { useAuth } from "../../admin/context/AuthContext";
@@ -187,8 +187,16 @@ const statusBadge = (val) => {
 
 export default function Applications() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const userId = user?.id;
+  // Bulk email: same grant the backend route checks.
+  const canEmail = hasPermission(["applications.email", "applications.manage"]);
+  // id → name, so the selection survives moving between pages and the
+  // email form can show who will receive it.
+  const [selected, setSelected] = useState(() => new Map());
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailForm, setEmailForm] = useState({ subject: "", message: "" });
+  const [sending, setSending] = useState(false);
   const [viewed, setViewed] = useState(() => loadViewed(userId));
 
   // Re-read on user change so a logout/login in the same tab does not carry
@@ -312,6 +320,64 @@ export default function Applications() {
 
   useEffect(() => { fetchFilterOptions(); }, [fetchFilterOptions]);
 
+  // A new search / status / filter is a different list: drop the selection so
+  // nobody who is no longer on screen gets emailed. Changing PAGE keeps it, so
+  // HR can pick people from several pages.
+  const listKey = (() => {
+    const p = new URLSearchParams(paramString);
+    p.delete("page");
+    return p.toString();
+  })();
+  useEffect(() => { setSelected(new Map()); }, [listKey]);
+
+  const toggleOne = (item, checked) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (checked) next.set(item.id, item.full_name); else next.delete(item.id);
+      return next;
+    });
+  };
+  const pageAllSelected = items.length > 0 && items.every((it) => selected.has(it.id));
+  const togglePage = (checked) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      items.forEach((it) => { if (checked) next.set(it.id, it.full_name); else next.delete(it.id); });
+      return next;
+    });
+  };
+
+  const sendEmail = async (e) => {
+    e.preventDefault();
+    setSending(true);
+    try {
+      const r = await post("/recruitment/applications/bulk-email", {
+        application_ids: [...selected.keys()],
+        subject: emailForm.subject.trim(),
+        message: emailForm.message.trim(),
+      });
+      const d = r.data?.data || {};
+      const notes = [
+        d.skipped?.length ? `No valid email: ${d.skipped.join(", ")}` : "",
+        d.failed?.length ? `Failed: ${d.failed.join(", ")}` : "",
+      ].filter(Boolean).join("\n");
+      setEmailOpen(false);
+      setEmailForm({ subject: "", message: "" });
+      setSelected(new Map());
+      Swal.fire({
+        icon: notes ? "warning" : "success",
+        title: `Email sent to ${d.queued || 0} applicant(s)`,
+        text: notes || undefined,
+        confirmButtonColor: "#0d9488",
+      });
+    } catch (err) {
+      const d = err.response?.data?.data;
+      const extra = d?.skipped?.length ? `\nNo valid email: ${d.skipped.join(", ")}` : "";
+      Swal.fire("Email not sent", (err.response?.data?.message || "Could not send the email.") + extra, "error");
+    } finally {
+      setSending(false);
+    }
+  };
+
   // Export/print: fetch ALL matching applications (endpoint supports per_page).
   const fetchAllApplications = async () => {
     const params = new URLSearchParams();
@@ -400,6 +466,16 @@ export default function Applications() {
             Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
           <ListExportActions getRows={fetchAllApplications} columns={APP_EXPORT_COLS} title="Applications" />
+          {canEmail && (
+            <button type="button" onClick={() => setEmailOpen(true)} disabled={selected.size === 0}
+              title={selected.size === 0 ? "Tick applicants in the list first" : undefined}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 font-medium text-xs">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Email selected ({selected.size})
+            </button>
+          )}
           <button onClick={() => navigate("/recruitment/applications/create")}
             className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-1.5 font-medium text-xs">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -598,6 +674,13 @@ export default function Applications() {
             <table className="w-full min-w-[860px]">
               <thead className="bg-teal-50">
                 <tr>
+                  {canEmail && (
+                    <th className="px-3 py-2 w-8">
+                      <input type="checkbox" checked={pageAllSelected} onChange={(e) => togglePage(e.target.checked)}
+                        aria-label="Select all applicants on this page" title="Select all on this page"
+                        className="rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                    </th>
+                  )}
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Applicant</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Job Posting</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold text-teal-800 uppercase tracking-wider">Contact</th>
@@ -618,6 +701,14 @@ export default function Applications() {
                       className={`cursor-pointer transition-colors ${conf.row}`}
                       title={conf.hint}
                       onClick={() => openApplication(item.id)}>
+                    {canEmail && (
+                      <td className="px-3 py-2.5 w-8" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={selected.has(item.id)}
+                          onChange={(e) => toggleOne(item, e.target.checked)}
+                          aria-label={`Select ${item.full_name}`}
+                          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                      </td>
+                    )}
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
                         {/* Colour alone would not survive a colour-vision
@@ -740,6 +831,46 @@ export default function Applications() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Bulk email */}
+      {emailOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <form onSubmit={sendEmail} className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-gray-800">Email {selected.size} applicant{selected.size === 1 ? "" : "s"}</h3>
+              <p className="text-xs text-gray-500 mt-1">Each person receives a separate, private email addressed by name.</p>
+              <div className="mt-2 max-h-20 overflow-y-auto text-[11px] text-gray-600">
+                {[...selected.values()].join(", ")}
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label htmlFor="bulk-subject" className="block text-xs font-medium text-gray-700 mb-1">Subject</label>
+                <input id="bulk-subject" type="text" maxLength={200} required value={emailForm.subject}
+                  onChange={(e) => setEmailForm((f) => ({ ...f, subject: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              </div>
+              <div>
+                <label htmlFor="bulk-message" className="block text-xs font-medium text-gray-700 mb-1">Message</label>
+                <textarea id="bulk-message" rows={7} maxLength={10000} required value={emailForm.message}
+                  onChange={(e) => setEmailForm((f) => ({ ...f, message: e.target.value }))}
+                  placeholder={'Starts with "Dear <name>," automatically.'}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2 rounded-b-lg">
+              <button type="button" onClick={() => setEmailOpen(false)} disabled={sending}
+                className="px-4 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+              <button type="submit" disabled={sending || !emailForm.subject.trim() || !emailForm.message.trim()}
+                className="px-4 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {sending ? "Sending..." : "Send email"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

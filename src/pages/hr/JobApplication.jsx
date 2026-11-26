@@ -3,10 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { get, del, post, put, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
+import { useAuth } from '../../admin/context/AuthContext';
 
 export default function JobApplicationList() {
   const navigate = useNavigate();
   const { canCreate, canUpdate, canDelete } = useResourcePermissions('applications');
+  const { hasPermission } = useAuth();
+  // Same grant the backend route checks, so the button never leads to a 403.
+  const canBulkEmail = hasPermission('job-applications.manage');
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -104,6 +108,12 @@ export default function JobApplicationList() {
   useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+
+  // A new search or filter shows a different list: drop the old selection so
+  // nobody hidden from view is emailed.
+  useEffect(() => {
+    setSelectedApplicantIds([]);
+  }, [searchQuery, filterValues]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -210,9 +220,13 @@ export default function JobApplicationList() {
     setSendingBulkEmail(true);
 
     try {
+      // Always send the exact ids. `all_applicants: true` makes the backend
+      // email EVERY applicant in the database, ignoring the search and
+      // filters — so "select all" on a filtered list would reach people HR
+      // never saw.
       const response = await post('/hr/job-applications/bulk-email', {
-        all_applicants: allApplicantsSelected,
-        application_ids: allApplicantsSelected ? [] : selectedApplicantIds,
+        all_applicants: false,
+        application_ids: selectedApplicantIds,
         subject: bulkEmail.subject.trim(),
         message: bulkEmail.message.trim(),
       });
@@ -258,7 +272,7 @@ export default function JobApplicationList() {
           <p className="text-xs text-gray-500 mt-0.5">Manage job application records</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          {canUpdate && (
+          {canBulkEmail && (
             <button
               type="button"
               onClick={() => setShowBulkEmailModal(true)}
@@ -293,7 +307,7 @@ export default function JobApplicationList() {
             <table className="w-full min-w-[680px]">
               <thead className="bg-teal-50">
                 <tr>
-                  {canUpdate && (
+                  {canBulkEmail && (
                     <th className="px-3 py-2 text-left">
                       <input
                         type="checkbox"
@@ -330,7 +344,7 @@ export default function JobApplicationList() {
               <tbody className="divide-y divide-gray-100">
                 {items.map((item, index) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    {canUpdate && (
+                    {canBulkEmail && (
                       <td className="px-3 py-2">
                         <input
                           type="checkbox"
@@ -513,7 +527,7 @@ export default function JobApplicationList() {
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-800">Email applicants</h3>
               <p className="text-sm text-gray-600 mt-1">
-                This message will be sent privately to {allApplicantsSelected ? 'all' : 'the selected'} {selectedApplicantIds.length} applicant{selectedApplicantIds.length === 1 ? '' : 's'}.
+                This message will be sent privately to the {selectedApplicantIds.length} selected applicant{selectedApplicantIds.length === 1 ? '' : 's'}.
               </p>
             </div>
             <div className="p-6 space-y-4">

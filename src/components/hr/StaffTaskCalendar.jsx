@@ -9,6 +9,8 @@ import RichTextField, { RichTextView } from "../RichTextField";
 import { useResourcePermissions } from "../../admin/utils/useResourcePermissions";
 import { useAuth } from "../../admin/context/AuthContext";
 import ImmediateAttention from "../ImmediateAttention";
+import { EvidencePicker } from "./TaskEvidence";
+import { uploadTaskEvidence } from "../../api/taskEvidence";
 
 /**
  * One staff member's tasks on a month calendar. Shown on their profile and,
@@ -257,6 +259,8 @@ export function TaskStatusModal({ task, onClose, onSaved, canReport = false, can
   // The assignee's response on the task — their own words
   // on how the work went: completed, modified, blocked.
   const [comment, setComment] = useState("");
+  // Optional proof attached when completing the task.
+  const [evidence, setEvidence] = useState([]);
   const [busy, setBusy] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -308,6 +312,14 @@ export function TaskStatusModal({ task, onClose, onSaved, canReport = false, can
       if (status !== task.status) patch.status = status;
       if (comment.trim()) patch.update_text = comment.trim();
       if (Object.keys(patch).length) await put(`/hr/staff-tasks/${task.id}`, patch);
+      if (evidence.length) {
+        try {
+          await uploadTaskEvidence(task.id, evidence);
+        } catch (e) {
+          // The task itself is saved; only the files did not go through.
+          Swal.fire("Task saved, files not attached", e.response?.data?.message || "Open the task and attach the evidence again.", "warning");
+        }
+      }
       const durTotal = start && end ? Math.max(0, toMin(end) - toMin(start)) : 0;
       const slotChanged = (start || null) !== (task.planned_time || null)
         || (end || null) !== (task.end_time || null)
@@ -413,6 +425,11 @@ export function TaskStatusModal({ task, onClose, onSaved, canReport = false, can
               <p className="mt-1.5 text-[11px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2" dir="auto" data-no-i18n>{task.last_update}</p>
             )}
           </div>
+
+          {/* Optional proof, offered to the assignee as they complete it. */}
+          {canReport && status === "completed" && (
+            <EvidencePicker files={evidence} onChange={setEvidence} />
+          )}
 
           {task.planned_date && (
             <div>

@@ -10,6 +10,7 @@ import { RateWorkButton } from "../../components/hr/StaffRatings";
 import { RichTextView } from "../../components/RichTextField";
 import { richTextToPlain } from "../../utils/richText";
 import { TaskReportModal } from "../../components/hr/StaffTaskCalendar";
+import { TaskEvidencePanel } from "../../components/hr/TaskEvidence";
 
 const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
 
@@ -418,6 +419,15 @@ export default function StaffTaskShow() {
               </div>
             )}
           </div>
+
+          {/* Proof of the work — the assigner / supervisor verifies it here.
+              The assignee (or an admin on their behalf) may add more. */}
+          <TaskEvidencePanel
+            taskId={Number(id)}
+            evidence={data.evidence || []}
+            canUpload={Boolean(data.mine || isSuperAdmin)}
+            onChanged={fetchItem}
+          />
         </div>
 
         {/* Right Column - Timeline */}

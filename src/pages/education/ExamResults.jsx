@@ -116,6 +116,12 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
   }));
   const componentTotal = Math.round(currentComponents.reduce((total, field) => total + Number(field.config?.max_marks || 0), 0) * 100) / 100;
 
+  function handleClassChange(nextClassId) {
+    const nextPair = (meta?.pairs || []).find((pair) => String(pair.school_class_id) === String(nextClassId));
+    setClassId(String(nextClassId));
+    setSubjectId(nextPair ? String(nextPair.subject_id) : "");
+  }
+
   useEffect(() => {
     if (pairs.length && !pairs.some((pair) => String(pair.subject_id) === String(subjectId))) setSubjectId(String(pairs[0].subject_id));
     if (!pairs.length) setSubjectId("");
@@ -124,16 +130,27 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
   useEffect(() => {
     if (!classId || !subjectId || !termId) {
       setRows([]);
-      return;
+      setBusy(false);
+      return undefined;
     }
+    let active = true;
     setBusy(true);
     setError("");
     examResultSheet({ class_id: classId, subject_id: subjectId, academic_term_id: termId, exam_type: examType })
-      .then((response) => setRows((response.data?.data || []).map((row) => ({ ...row }))))
+      .then((response) => {
+        if (active) setRows((response.data?.data || []).map((row) => ({ ...row })));
+      })
       .catch((requestError) => {
+        if (!active) return;
         setRows([]);
         setError(requestError.response?.data?.message || "Could not load marks.");
-      }).finally(() => setBusy(false));
+      }).finally(() => {
+        if (active) setBusy(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [classId, subjectId, termId, examType]);
 
   function updateScore(studentId, field, value) {
@@ -229,7 +246,7 @@ export default function SubjectMarksPage({ examType = "chaharnima" }) {
       {error && <Banner kind="error" onClose={() => setError("")}>{error}</Banner>}
       {feedback && <Banner onClose={() => setFeedback("")}>{feedback}</Banner>}
       <Card className="mb-4 space-y-4">
-        <ClassAndSection classes={meta?.classes || []} classId={classId} onChange={setClassId} />
+        <ClassAndSection classes={meta?.classes || []} classId={classId} onChange={handleClassChange} />
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="text-xs font-semibold text-gray-600">Subject
             <select value={subjectId} onChange={(event) => setSubjectId(event.target.value)} className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">

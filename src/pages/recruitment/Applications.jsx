@@ -34,6 +34,36 @@ const pipelineStages = [
   { key: "withdrawn", label: "Withdrawn", color: "bg-gray-500", light: "bg-gray-50 text-gray-700 border-gray-200" },
 ];
 
+/**
+ * Ready-made bulk emails. Placeholders are filled per applicant on the server:
+ * {name} {position} {date} {time} {location}. `confirm` turns on "ask them to
+ * confirm attendance" — the email then carries a personal confirm link.
+ */
+const EMAIL_TEMPLATES = [
+  {
+    key: "written_test", label: "Written test invitation", confirm: true,
+    subject: "Invitation to the written test — {position}",
+    message: "Thank you for applying for the {position} position at Wifaq Education Network.\n\nWe are pleased to invite you to a written test:\n\nDate: {date}\nTime: {time}\nLocation: {location}\n\nPlease arrive 15 minutes early and bring your ID card (Tazkira) and a pen.",
+  },
+  {
+    key: "interview", label: "Interview invitation", confirm: true,
+    subject: "Interview invitation — {position}",
+    message: "Thank you for your interest in the {position} position.\n\nWe would like to invite you to an interview:\n\nDate: {date}\nTime: {time}\nLocation: {location}\n\nPlease bring your ID card (Tazkira) and copies of your certificates.",
+  },
+  {
+    key: "under_review", label: "Application received / under review", confirm: false,
+    subject: "Your application for {position}",
+    message: "Thank you for applying for the {position} position at Wifaq Education Network.\n\nWe have received your application and it is under review. We will contact you about the next step.",
+  },
+  {
+    key: "not_selected", label: "Not selected", confirm: false,
+    subject: "Your application for {position}",
+    message: "Thank you for your interest in the {position} position and for the time you gave to your application.\n\nAfter careful review, we will not be moving forward with your application at this time. We encourage you to apply for future openings.",
+  },
+];
+
+const BLANK_EMAIL = { template: "", subject: "", message: "", ask_confirmation: false, event_at: "", location: "" };
+
 const inputCls =
   "w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500";
 
@@ -195,7 +225,8 @@ export default function Applications() {
   // email form can show who will receive it.
   const [selected, setSelected] = useState(() => new Map());
   const [emailOpen, setEmailOpen] = useState(false);
-  const [emailForm, setEmailForm] = useState({ subject: "", message: "" });
+  const [emailForm, setEmailForm] = useState(BLANK_EMAIL);
+  const [selectingAll, setSelectingAll] = useState(false);
   const [sending, setSending] = useState(false);
   const [viewed, setViewed] = useState(() => loadViewed(userId));
 
@@ -235,7 +266,8 @@ export default function Applications() {
   const FILTER_KEYS = [
     "job_posting_id", "review", "gender", "native_language", "education_level",
     "field_of_study", "source", "min_experience", "max_experience",
-    "min_age", "max_age", "met_requirements", "applied_within_days", "sort",
+    "min_age", "max_age", "met_requirements", "applied_within_days",
+    "applied_from", "applied_to", "sort",
   ];
   const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""]));
   const activeFilterCount = FILTER_KEYS.filter((k) => k !== "sort" && filters[k]).length;
@@ -346,6 +378,35 @@ export default function Applications() {
     });
   };
 
+  // Everyone the current search / status / filters match — every page, not
+  // just the one on screen (e.g. all who applied between two dates).
+  const selectAllMatching = async () => {
+    setSelectingAll(true);
+    try {
+      const params = new URLSearchParams(paramString);
+      params.delete("page");
+      params.delete("sort");
+      const r = await get(`/recruitment/applications/matching-ids?${params.toString()}`, { cache: false });
+      const next = new Map();
+      (r.data?.data || []).forEach((a) => next.set(a.id, a.full_name));
+      setSelected(next);
+      if ((r.data?.total || 0) > next.size) {
+        Swal.fire("Limit reached", `Selected the first ${next.size} of ${r.data.total}. Narrow the filters to email the rest.`, "info");
+      }
+    } catch {
+      Swal.fire("Error", "Could not select the matching applicants.", "error");
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
+  const applyTemplate = (key) => {
+    const t = EMAIL_TEMPLATES.find((x) => x.key === key);
+    setEmailForm((f) => t
+      ? { ...f, template: key, subject: t.subject, message: t.message, ask_confirmation: t.confirm }
+      : { ...f, template: "" });
+  };
+
   const sendEmail = async (e) => {
     e.preventDefault();
     setSending(true);
@@ -354,6 +415,9 @@ export default function Applications() {
         application_ids: [...selected.keys()],
         subject: emailForm.subject.trim(),
         message: emailForm.message.trim(),
+        ask_confirmation: emailForm.ask_confirmation,
+        event_at: emailForm.event_at || null,
+        location: emailForm.location.trim() || null,
       });
       const d = r.data?.data || {};
       const notes = [
@@ -361,8 +425,10 @@ export default function Applications() {
         d.failed?.length ? `Failed: ${d.failed.join(", ")}` : "",
       ].filter(Boolean).join("\n");
       setEmailOpen(false);
-      setEmailForm({ subject: "", message: "" });
+      setEmailForm(BLANK_EMAIL);
       setSelected(new Map());
+      // Refresh so the Invited / Attending badges appear.
+      fetchItems(page, activeFilter, urlSearch, Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""])));
       Swal.fire({
         icon: notes ? "warning" : "success",
         title: `Email sent to ${d.queued || 0} applicant(s)`,
@@ -599,6 +665,16 @@ export default function Applications() {
                 ]} allLabel="Any time" />
             </Field>
 
+            {/* A date range — "everyone who applied from the 1st to the 15th". */}
+            <Field label="Applied from">
+              <input type="date" value={filters.applied_from} max={filters.applied_to || undefined}
+                onChange={(e) => setParams({ applied_from: e.target.value, page: 1 })} className={inputCls} />
+            </Field>
+            <Field label="Applied to">
+              <input type="date" value={filters.applied_to} min={filters.applied_from || undefined}
+                onChange={(e) => setParams({ applied_to: e.target.value, page: 1 })} className={inputCls} />
+            </Field>
+
             <Field label="Sort by">
               <Select value={filters.sort} onChange={(v) => setParams({ sort: v, page: 1 })}
                 options={[
@@ -661,6 +737,23 @@ export default function Applications() {
           </span>
         )}
       </div>
+
+      {/* Selection across pages: the page checkbox picks this page; this
+          picks everyone the filters match (e.g. a date range). */}
+      {canEmail && selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          <span><strong>{selected.size}</strong> selected.</span>
+          {meta.total > selected.size && (
+            <button type="button" onClick={selectAllMatching} disabled={selectingAll}
+              className="font-semibold underline hover:text-blue-900 disabled:opacity-50">
+              {selectingAll ? "Selecting…" : `Select all ${meta.total} matching the current filters`}
+            </button>
+          )}
+          <button type="button" onClick={() => setSelected(new Map())} className="ms-auto text-blue-700 hover:underline">
+            Clear selection
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       {loading ? (
@@ -741,6 +834,20 @@ export default function Applications() {
                                 applied before
                               </span>
                             ) : null}
+                            {/* Last bulk-email invitation: did they confirm? */}
+                            {item.latest_invitation && (
+                              item.latest_invitation.confirmed_at ? (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700"
+                                  title={`Confirmed attending: ${item.latest_invitation.subject}`}>
+                                  ✓ attending
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-100 text-sky-700"
+                                  title={`Invited, not confirmed yet: ${item.latest_invitation.subject}`}>
+                                  invited
+                                </span>
+                              )
+                            )}
                           </div>
                         </div>
                       </div>
@@ -845,7 +952,15 @@ export default function Applications() {
                 {[...selected.values()].join(", ")}
               </div>
             </div>
-            <div className="px-5 py-4 space-y-3">
+            <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              <div>
+                <label htmlFor="bulk-template" className="block text-xs font-medium text-gray-700 mb-1">Template</label>
+                <select id="bulk-template" value={emailForm.template} onChange={(e) => applyTemplate(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+                  <option value="">Custom message</option>
+                  {EMAIL_TEMPLATES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+              </div>
               <div>
                 <label htmlFor="bulk-subject" className="block text-xs font-medium text-gray-700 mb-1">Subject</label>
                 <input id="bulk-subject" type="text" maxLength={200} required value={emailForm.subject}
@@ -858,7 +973,41 @@ export default function Applications() {
                   onChange={(e) => setEmailForm((f) => ({ ...f, message: e.target.value }))}
                   placeholder={'Starts with "Dear <name>," automatically.'}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                <p className="mt-1 text-[10px] text-gray-400">
+                  Filled in for each applicant: <code>{"{name}"}</code> <code>{"{position}"}</code> <code>{"{date}"}</code> <code>{"{time}"}</code> <code>{"{location}"}</code>
+                </p>
               </div>
+
+              <label className="flex items-start gap-2 rounded-lg border border-gray-200 px-3 py-2 cursor-pointer">
+                <input type="checkbox" checked={emailForm.ask_confirmation}
+                  onChange={(e) => setEmailForm((f) => ({ ...f, ask_confirmation: e.target.checked }))}
+                  className="mt-0.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                <span className="text-xs text-gray-700">
+                  <span className="font-semibold">Ask applicants to confirm they will attend</span>
+                  <span className="block text-[10px] text-gray-400">Each email gets a personal link. Who confirmed shows as “✓ attending” in this list.</span>
+                </span>
+              </label>
+
+              {(emailForm.ask_confirmation || /\{(date|time|location)\}/.test(emailForm.subject + emailForm.message)) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="bulk-event-at" className="block text-xs font-medium text-gray-700 mb-1">
+                      Date &amp; time {emailForm.ask_confirmation && <span className="text-red-500">*</span>}
+                    </label>
+                    <input id="bulk-event-at" type="datetime-local" value={emailForm.event_at}
+                      required={emailForm.ask_confirmation}
+                      onChange={(e) => setEmailForm((f) => ({ ...f, event_at: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                  </div>
+                  <div>
+                    <label htmlFor="bulk-location" className="block text-xs font-medium text-gray-700 mb-1">Location</label>
+                    <input id="bulk-location" type="text" maxLength={255} value={emailForm.location}
+                      onChange={(e) => setEmailForm((f) => ({ ...f, location: e.target.value }))}
+                      placeholder="e.g. Wifaq main campus, Hall 2"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2 rounded-b-lg">
               <button type="button" onClick={() => setEmailOpen(false)} disabled={sending}

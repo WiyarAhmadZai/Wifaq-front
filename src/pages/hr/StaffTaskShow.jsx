@@ -329,6 +329,23 @@ export default function StaffTaskShow() {
             </div>
           </div>
 
+          {/* Came from a talking point — say so and link back to it. */}
+          {data.talking_point && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Created from a talking point</p>
+                <p className="text-sm text-indigo-900 truncate">{data.talking_point.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/hr/talking-points/${data.talking_point.id}`)}
+                className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shrink-0"
+              >
+                Open talking point →
+              </button>
+            </div>
+          )}
+
           {/* Stars on the five standards — offered to the assignee's superiors. */}
           <RateWorkButton type="staff_task" id={Number(id)} title={data.title || richTextToPlain(data.task)} />
 

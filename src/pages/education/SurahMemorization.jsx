@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import Swal from "sweetalert2";
 import {
   createMemorizationItem,
   deleteMemorizationItem,
@@ -23,7 +24,7 @@ function errorMessage(error, t, fallback) {
 }
 
 export default function SurahMemorization() {
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
   const [meta, setMeta] = useState(null);
   const [classId, setClassId] = useState("");
   const [termId, setTermId] = useState("");
@@ -143,7 +144,17 @@ export default function SurahMemorization() {
       };
       await saveSurahMemorizationClass(classId, payload);
       drafts.current.delete(selectionKey);
-      setNotice(t("Changes saved."));
+      const refreshed = await surahMemorizationClass(classId, { academic_term_id: termId }).catch(() => null);
+      setRows(refreshed?.data?.data?.students ?? rows);
+      Swal.fire({
+        toast: true,
+        position: dir === "rtl" ? "top-start" : "top-end",
+        icon: "success",
+        title: t("Changes saved."),
+        timer: 2200,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
     } catch (e) {
       setError(errorMessage(e, t, "Could not save changes."));
     } finally {
@@ -421,11 +432,13 @@ function FragmentRows({
               {items.map((item) => {
                 const assignment = assignmentFor(student, item.id);
                 return (
-                  <label key={item.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${assignment ? "border-teal-200 bg-teal-50/60" : "border-gray-100 bg-white"}`}>
-                    <input type="checkbox" checked={Boolean(assignment)} disabled={readOnly} onChange={() => toggleAssignment(student, item)} />
-                    <span className="min-w-0 flex-1 truncate" dir="auto">{item.name}</span>
+                  <div key={item.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${assignment ? "border-teal-200 bg-teal-50/60" : "border-gray-100 bg-white"}`}>
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                      <input type="checkbox" checked={Boolean(assignment)} disabled={readOnly} onChange={() => toggleAssignment(student, item)} />
+                      <span className="min-w-0 flex-1 truncate" dir="auto">{item.name}</span>
+                    </label>
                     {assignment && (
-                      <span className="flex shrink-0 items-center gap-1.5 text-[11px]">
+                      <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px]">
                         <input
                           aria-label={`${t("Memorized")} ${item.name}`}
                           type="checkbox"
@@ -434,9 +447,9 @@ function FragmentRows({
                           onChange={() => toggleMemorized(student, item.id)}
                         />
                         {t("Memorized")}
-                      </span>
+                      </label>
                     )}
-                  </label>
+                  </div>
                 );
               })}
               {student.assignments.filter((assignment) => assignment.deleted).map((assignment) => (

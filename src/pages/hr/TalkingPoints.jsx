@@ -54,6 +54,7 @@ export default function TalkingPoints() {
   // finds entries that only name someone in the title or notes.
   const [person, setPerson] = useState("");
   const [search, setSearch] = useState("");
+  const [pinBusyId, setPinBusyId] = useState(null);
 
   // Everyone who appears on a talking point, with how many they appear on.
   const people = useMemo(() => {
@@ -124,6 +125,25 @@ export default function TalkingPoints() {
       .catch((e) => Swal.fire("Error", e.response?.data?.message || "Could not update.", "error"));
   });
 
+  const togglePin = async (tp) => {
+    if (pinBusyId !== null) return;
+    const pinned = !tp.is_pinned;
+    setPinBusyId(tp.id);
+    try {
+      await post(`/hr/talking-points/${tp.id}/pin`, { pinned });
+      setRows((list) => list
+        .map((row) => String(row.id) === String(tp.id) ? { ...row, is_pinned: pinned } : row)
+        .sort((a, b) => Number(Boolean(b.is_pinned)) - Number(Boolean(a.is_pinned))));
+      setFetched((current) => current && String(current.id) === String(tp.id)
+        ? { ...current, is_pinned: pinned }
+        : current);
+    } catch (e) {
+      Swal.fire("Error", e.response?.data?.message || "Could not update the pin.", "error");
+    } finally {
+      setPinBusyId(null);
+    }
+  };
+
   return (
     <div className="px-4 py-5 space-y-4">
       {openId ? (
@@ -131,11 +151,18 @@ export default function TalkingPoints() {
         <div className="max-w-3xl mx-auto space-y-3">
           <button onClick={closeView} className="text-xs font-semibold text-teal-700 hover:underline">← Talking Points</button>
           {openTp ? (
-            <ViewModal key={openTp.id} asPage tp={openTp} onClose={closeView} onChanged={refresh} actions={canEditTp(openTp) && (<>
-              <button onClick={() => setModal({ mode: "edit", tp: openTp })} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Edit</button>
-              <button onClick={() => toggleComplete(openTp)} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">{openTp.status === "completed" ? "Reopen" : "Complete"}</button>
-              {!openTp.task_id && <button onClick={() => setConvertTarget(openTp)} className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">Convert to task or appointment</button>}
-            </>)} />
+            <ViewModal key={openTp.id} asPage tp={openTp} onClose={closeView} onChanged={refresh} actions={<>
+              <button onClick={() => togglePin(openTp)} disabled={pinBusyId === openTp.id}
+                title={openTp.is_pinned ? "Unpin from top" : "Pin to top"}
+                className="px-2.5 py-1 rounded-lg border border-amber-200 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+                {pinBusyId === openTp.id ? "Saving…" : openTp.is_pinned ? "Unpin" : "Pin"}
+              </button>
+              {canEditTp(openTp) && (<>
+                <button onClick={() => setModal({ mode: "edit", tp: openTp })} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">Edit</button>
+                <button onClick={() => toggleComplete(openTp)} className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">{openTp.status === "completed" ? "Reopen" : "Complete"}</button>
+                {!openTp.task_id && <button onClick={() => setConvertTarget(openTp)} className="px-2.5 py-1 rounded-lg border border-teal-200 text-[11px] font-semibold text-teal-700 hover:bg-teal-50">Convert to task or appointment</button>}
+              </>)}
+            </>} />
           ) : <Spinner />}
         </div>
       ) : (<>
@@ -193,6 +220,7 @@ export default function TalkingPoints() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <ImmediateAttention item={tp} compact />
+                    {tp.is_pinned && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">Pinned</span>}
                     <span className="font-semibold text-gray-900" data-no-i18n>{tp.title}</span>
                     {tp.task && (
                       <a href={`/hr/staff-task/show/${tp.task.id}`}
@@ -236,6 +264,11 @@ export default function TalkingPoints() {
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5 flex-shrink-0">
+                  <button onClick={() => togglePin(tp)} disabled={pinBusyId === tp.id}
+                    title={tp.is_pinned ? "Unpin from top" : "Pin to top"}
+                    className="px-2.5 py-1 rounded-lg border border-amber-200 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+                    {pinBusyId === tp.id ? "Saving…" : tp.is_pinned ? "Unpin" : "Pin"}
+                  </button>
                   <button onClick={() => openView(tp)}
                     className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">View</button>
                   <button onClick={() => openView(tp)}

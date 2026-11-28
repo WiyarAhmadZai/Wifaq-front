@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { get, del, put, post, API_BASE_URL, peekCache } from '../../api/axios';
+import { get, del, put, post, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 import { fmtDate, fmtDateTime } from "../../utils/formErrors";
@@ -11,8 +11,7 @@ import { RichTextView } from "../../components/RichTextField";
 import { richTextToPlain } from "../../utils/richText";
 import { TaskReportModal } from "../../components/hr/StaffTaskCalendar";
 import { TaskEvidencePanel } from "../../components/hr/TaskEvidence";
-
-const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
+import { StaffAvatar } from "../../components/hr/HrUI";
 
 const Icons = {
   User: () => (
@@ -357,13 +356,10 @@ export default function StaffTaskShow() {
             </h3>
             {/* Staff Card */}
             <div className="flex items-center gap-4 p-4 bg-teal-50 rounded-xl border border-teal-100 mb-4">
-              {data.staff?.profile_photo ? (
-                <img src={`${STORAGE}/storage/${data.staff.profile_photo}`} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-14 h-14 rounded-xl bg-teal-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-                  {(data.staff?.application?.full_name || data.staff_name || '?').charAt(0)}
-                </div>
-              )}
+              <StaffAvatar
+                staff={data.staff}
+                name={data.staff?.application?.full_name || data.staff_name}
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-gray-800">{data.staff?.application?.full_name || data.staff_name}</p>
                 <p className="text-xs text-teal-600">{data.staff?.employee_id} {data.staff?.department ? `· ${data.staff.department}` : ''} {data.staff?.role_title_en ? `· ${data.staff.role_title_en}` : ''}</p>

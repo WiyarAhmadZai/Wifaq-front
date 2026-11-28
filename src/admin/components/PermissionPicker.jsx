@@ -23,32 +23,70 @@ const SECTION_PARENT_PERMISSIONS = {
   "weekly-recognition": "special-activities.view",
 };
 
+const MODULE_LABELS = {
+  "special-activities": "Special Activities",
+  "surah-memorization": "Surah Memorization",
+  "science-projects": "Science Projects",
+  "weekly-recognition": "Weekly Recognition",
+};
+
+const SPECIAL_ACTIVITY_MODULES = [
+  "surah-memorization",
+  "science-projects",
+  "weekly-recognition",
+];
+const SPECIAL_ACTIVITY_MODULE_SET = new Set(SPECIAL_ACTIVITY_MODULES);
+
+const groupItems = (group) => [
+  ...group.items,
+  ...(group.children || []).flatMap(groupItems),
+];
+
 export default function PermissionPicker({ permissions, value, onChange, readOnly = false }) {
   const [filter, setFilter] = useState("");
 
   const selected = useMemo(() => (value instanceof Set ? value : new Set(value || [])), [value]);
 
   const grouped = useMemo(() => {
-    const groups = {};
+    const byModule = {};
     (permissions || []).forEach((p) => {
       const [module] = p.name.split(".", 2);
-      if (!groups[module]) groups[module] = [];
-      groups[module].push(p);
+      if (!byModule[module]) byModule[module] = [];
+      byModule[module].push(p);
     });
-    return Object.entries(groups)
+    const modules = Object.entries(byModule)
       .map(([module, items]) => ({
         module,
         items: items.sort((a, b) => a.name.localeCompare(b.name)),
-      }))
+      }));
+    const hasSpecialActivities = modules.some((g) => SPECIAL_ACTIVITY_MODULE_SET.has(g.module) || g.module === "special-activities");
+    const regular = modules.filter((g) => !SPECIAL_ACTIVITY_MODULE_SET.has(g.module) && g.module !== "special-activities");
+    const children = SPECIAL_ACTIVITY_MODULES
+      .map((module) => modules.find((g) => g.module === module))
+      .filter(Boolean);
+    const specialActivities = hasSpecialActivities
+      ? [{
+          module: "special-activities",
+          items: modules.find((g) => g.module === "special-activities")?.items || [],
+          children,
+        }]
+      : [];
+    return [...regular, ...specialActivities]
       .sort((a, b) => a.module.localeCompare(b.module));
   }, [permissions]);
 
   const filteredGroups = useMemo(() => {
-    if (!filter.trim()) return grouped;
-    const q = filter.toLowerCase();
-    return grouped
-      .map((g) => ({ ...g, items: g.items.filter((p) => p.name.toLowerCase().includes(q)) }))
-      .filter((g) => g.items.length > 0);
+    const q = filter.trim().toLowerCase();
+    if (!q) return grouped;
+    const filterGroup = (group) => {
+      const label = (MODULE_LABELS[group.module] || group.module).toLowerCase();
+      if (label.includes(q)) return group;
+      const items = group.items.filter((p) => p.name.toLowerCase().includes(q));
+      const children = (group.children || []).map(filterGroup).filter(Boolean);
+      if (!items.length && !children.length) return null;
+      return { ...group, items, children };
+    };
+    return grouped.map(filterGroup).filter(Boolean);
   }, [grouped, filter]);
 
   // Each module's "Receive section notifications" permission, by module name.
@@ -89,7 +127,7 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
   const toggleGroup = (group, allChecked) => {
     if (readOnly) return;
     const next = new Set(selected);
-    group.items.forEach((p) => {
+    groupItems(group).forEach((p) => {
       if (allChecked) {
         next.delete(p.name);
       } else {
@@ -102,6 +140,59 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
 
   const totalSelected = selected.size;
   const totalAvailable = (permissions || []).length;
+
+  const renderGroup = (group, nested = false) => {
+    const items = groupItems(group);
+    if (!items.length) return null;
+    const groupSelected = items.filter((p) => selected.has(p.name)).length;
+    const allChecked = groupSelected === items.length;
+    const someChecked = groupSelected > 0 && !allChecked;
+    return (
+      <div key={group.module} className={`${nested ? "rounded-lg" : "rounded-xl"} border border-gray-100 overflow-hidden`}>
+        <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={allChecked}
+              ref={(el) => { if (el) el.indeterminate = someChecked; }}
+              onChange={() => toggleGroup(group, allChecked)}
+              disabled={readOnly}
+              className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+            />
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+              {MODULE_LABELS[group.module] || group.module}
+            </span>
+            <span className="text-[10px] text-gray-400">({groupSelected}/{items.length})</span>
+          </div>
+        </div>
+        {group.items.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 p-2">
+            {group.items.map((p) => (
+              <label key={p.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${readOnly ? "" : "hover:bg-teal-50 cursor-pointer"}`}>
+                <input
+                  type="checkbox"
+                  checked={selected.has(p.name)}
+                  onChange={() => toggle(p.name)}
+                  disabled={readOnly}
+                  className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                />
+                <span className="text-gray-700 break-all">
+                  {PERMISSION_LABELS[p.name] || (p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")
+                    ? "Receive section notifications"
+                    : p.name.split(".").slice(1).join(".") || p.name)}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+        {group.children?.length > 0 && (
+          <div className="space-y-2 border-t border-gray-100 bg-white p-2">
+            {group.children.map((child) => renderGroup(child, true))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-3">
@@ -118,47 +209,7 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
       </div>
 
       <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-        {filteredGroups.map((g) => {
-          const groupSelected = g.items.filter((p) => selected.has(p.name)).length;
-          const allChecked = groupSelected === g.items.length;
-          const someChecked = groupSelected > 0 && !allChecked;
-          return (
-            <div key={g.module} className="border border-gray-100 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={allChecked}
-                    ref={(el) => { if (el) el.indeterminate = someChecked; }}
-                    onChange={() => toggleGroup(g, allChecked)}
-                    disabled={readOnly}
-                    className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
-                  />
-                  <span className="text-xs font-bold uppercase tracking-wider text-gray-700">{g.module}</span>
-                  <span className="text-[10px] text-gray-400">({groupSelected}/{g.items.length})</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 p-2">
-                {g.items.map((p) => (
-                  <label key={p.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${readOnly ? "" : "hover:bg-teal-50 cursor-pointer"}`}>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(p.name)}
-                      onChange={() => toggle(p.name)}
-                      disabled={readOnly}
-                      className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
-                    />
-                    <span className="text-gray-700 break-all">
-                      {PERMISSION_LABELS[p.name] || (p.name.endsWith(".notifications") || p.name.endsWith(".notifications.receive")
-                        ? "Receive section notifications"
-                        : p.name.split(".").slice(1).join(".") || p.name)}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+        {filteredGroups.map((group) => renderGroup(group))}
         {filteredGroups.length === 0 && (
           <div className="text-center py-8 text-sm text-gray-400">No permissions match "{filter}"</div>
         )}

@@ -3,6 +3,20 @@
  * the brand teal so every HR page looks like one product.
  */
 import { useState, useRef, useEffect } from "react";
+import { API_BASE_URL } from "../../api/axios";
+
+const STORAGE_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
+
+function staffPhotoUrl(path) {
+  if (!path) return null;
+  const value = String(path).trim();
+  if (!value) return null;
+  if (/^(?:https?:)?\/\//i.test(value) || /^(?:data|blob):/i.test(value)) return value;
+  const relative = value.replace(/^\/+/, "");
+  return relative.startsWith("storage/")
+    ? `${STORAGE_ORIGIN}/${relative}`
+    : `${STORAGE_ORIGIN}/storage/${relative}`;
+}
 
 /* ============================================================
  * DateField — drop-in replacement for native
@@ -200,6 +214,34 @@ export function EmptyState({ icon = "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 
 export function Spinner({ size = 8 }) {
   const sz = `w-${size} h-${size}`;
   return <div className={`inline-block ${sz} border-2 border-teal-600 border-t-transparent rounded-full animate-spin`} />;
+}
+
+/** Staff photo with a linked-user fallback and initials if neither file loads. */
+export function StaffAvatar({ staff, name, className = "w-14 h-14", rounded = "rounded-xl" }) {
+  const sources = [...new Set(
+    [staff?.profile_photo, staff?.user?.profile_photo].map(staffPhotoUrl).filter(Boolean),
+  )];
+  const [failed, setFailed] = useState([]);
+  const src = sources.find((url) => !failed.includes(url));
+  const label = name || staff?.application?.full_name || staff?.full_name || staff?.name || "?";
+  const initial = String(label).trim().charAt(0).toUpperCase() || "?";
+
+  if (!src) {
+    return (
+      <div className={`${className} ${rounded} bg-teal-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0`}>
+        {initial}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={label}
+      onError={() => setFailed((urls) => urls.includes(src) ? urls : [...urls, src])}
+      className={`${className} ${rounded} object-cover flex-shrink-0`}
+    />
+  );
 }
 
 export function Section({ title, subtitle, icon, action, children }) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { get, del, put, post, API_BASE_URL, peekCache } from '../../api/axios';
+import { get, del, put, post, peekCache } from '../../api/axios';
 import Swal from 'sweetalert2';
 import { fmtDate } from "../../utils/formErrors";
 import { richTextToPlain } from "../../utils/richText";
@@ -9,8 +9,7 @@ import StaffTaskCalendar from "../../components/hr/StaffTaskCalendar";
 import { useResourcePermissions } from '../../admin/utils/useResourcePermissions';
 import { RatePill } from '../../components/hr/StaffRatings';
 import { useBulkRatings } from '../../components/hr/ratingKit';
-
-const STORAGE = API_BASE_URL.replace(/\/api\/?$/, '');
+import { StaffAvatar } from "../../components/hr/HrUI";
 
 const statusStyle = { pending: "bg-yellow-50 text-yellow-700", in_progress: "bg-teal-50 text-teal-700", completed: "bg-teal-50 text-teal-700", cancelled: "bg-gray-100 text-gray-500 line-through" };
 const statusDot = { pending: "bg-yellow-500", in_progress: "bg-teal-500", completed: "bg-teal-600", cancelled: "bg-gray-400" };
@@ -336,13 +335,11 @@ export default function StaffTask() {
                   <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        {item.staff?.profile_photo ? (
-                          <img src={`${STORAGE}/storage/${item.staff.profile_photo}`} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-bold text-white">{getStaffName(item).charAt(0)}</span>
-                          </div>
-                        )}
+                        <StaffAvatar
+                          staff={item.staff}
+                          name={getStaffName(item)}
+                          className="w-10 h-10 text-xs"
+                        />
                         <div>
                           <p className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">{getStaffName(item)}
                             {item.staff_id && (

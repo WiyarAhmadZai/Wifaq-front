@@ -13,6 +13,7 @@ const APP_EXPORT_COLS = [
   { key: "contact_number", label: "Contact" },
   { key: "source", label: "Source" },
   { key: "status", label: "Status" },
+  { key: "attendance", label: "Exam Attendance", exportValue: (it) => ATTENDANCE_OPTIONS.find((o) => o.value === attendanceOf(it))?.label || "" },
   { key: "created_at", label: "Applied", exportValue: (it) => (it.created_at ? String(it.created_at).slice(0, 10) : "") },
   // Screening aggregates — additive, existing columns untouched.
   { key: "reviews_count", label: "Reviewers", exportValue: (it) => it.reviews_count ?? 0 },
@@ -61,6 +62,49 @@ const EMAIL_TEMPLATES = [
     message: "Thank you for your interest in the {position} position and for the time you gave to your application.\n\nAfter careful review, we will not be moving forward with your application at this time. We encourage you to apply for future openings.",
   },
 ];
+
+const ATTENDANCE_OPTIONS = [
+  { value: "coming", label: "Coming (confirmed)" },
+  { value: "not_coming", label: "Not coming (declined)" },
+  { value: "awaiting_response", label: "Awaiting response" },
+  { value: "not_invited", label: "Not invited" },
+];
+
+const attendanceOf = (item) => {
+  const invitation = item.latest_invitation;
+  if (!invitation) return "not_invited";
+  if (invitation.confirmed_at) return "coming";
+  if (invitation.declined_at) return "not_coming";
+  return "awaiting_response";
+};
+
+const attendanceBadge = (item) => {
+  const invitation = item.latest_invitation;
+  const state = attendanceOf(item);
+  const styles = {
+    coming: "bg-emerald-100 text-emerald-700",
+    not_coming: "bg-red-100 text-red-700",
+    awaiting_response: "bg-sky-100 text-sky-700",
+    not_invited: "bg-gray-100 text-gray-500",
+  };
+  const labels = {
+    coming: "Coming",
+    not_coming: "Not coming",
+    awaiting_response: "Awaiting response",
+    not_invited: "Not invited",
+  };
+  const titles = {
+    coming: `Confirmed attending: ${invitation?.subject || "latest invitation"}`,
+    not_coming: `Declined: ${invitation?.subject || "latest invitation"}`,
+    awaiting_response: `No response yet: ${invitation?.subject || "latest invitation"}`,
+    not_invited: "No exam or interview invitation has been sent yet",
+  };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${styles[state]}`} title={titles[state]}>
+      {labels[state]}
+    </span>
+  );
+};
 
 const BLANK_EMAIL = { template: "", subject: "", message: "", ask_confirmation: false, event_at: "", location: "" };
 
@@ -265,7 +309,7 @@ export default function Applications() {
    */
   const FILTER_KEYS = [
     "job_posting_id", "review", "gender", "native_language", "education_level",
-    "field_of_study", "source", "min_experience", "max_experience",
+    "field_of_study", "source", "attendance", "min_experience", "max_experience",
     "min_age", "max_age", "met_requirements", "applied_within_days",
     "applied_from", "applied_to", "sort",
   ];
@@ -427,7 +471,7 @@ export default function Applications() {
       setEmailOpen(false);
       setEmailForm(BLANK_EMAIL);
       setSelected(new Map());
-      // Refresh so the Invited / Attending badges appear.
+      // Refresh so the attendance badges appear.
       fetchItems(page, activeFilter, urlSearch, Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""])));
       Swal.fire({
         icon: notes ? "warning" : "success",
@@ -511,7 +555,7 @@ export default function Applications() {
     });
     if (result.isConfirmed) {
       try { await del(`/recruitment/applications/${id}`); } catch { /* */ }
-      fetchItems(page, activeFilter, urlSearch);
+      fetchItems(page, activeFilter, urlSearch, Object.fromEntries(FILTER_KEYS.map((k) => [k, searchParams.get(k) || ""])));
       fetchFilterOptions();
       Swal.fire("Deleted!", "Application has been deleted.", "success");
     }
@@ -525,7 +569,7 @@ export default function Applications() {
           <h2 className="text-base font-bold text-gray-800">Applications</h2>
           <p className="text-xs text-gray-500 mt-0.5">Manage candidates through the hiring pipeline</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -535,6 +579,19 @@ export default function Applications() {
             <input type="text" value={searchQuery} onChange={handleSearch} placeholder="Search candidates..."
               className="w-full sm:w-64 pl-10 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
+          <select
+            aria-label="Filter by exam attendance"
+            title="Show applicants who are coming, not coming, awaiting a response, or not invited"
+            value={filters.attendance}
+            onChange={(e) => setParams({ attendance: e.target.value, page: 1 })}
+            className={`w-full sm:w-44 px-3 py-1.5 rounded-lg border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+              filters.attendance ? "border-teal-300 bg-teal-50 text-teal-700" : "border-gray-200 bg-white text-gray-600"
+            }`}>
+            <option value="">All attendance</option>
+            {ATTENDANCE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
           <button onClick={() => setShowFilters((v) => !v)}
             className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
               activeFilterCount > 0
@@ -827,7 +884,7 @@ export default function Applications() {
                         </div>
                         <div className="min-w-0">
                           <span className={`text-xs ${conf.name}`}>{item.full_name}</span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${conf.chip}`}>{conf.label}</span>
                             {unopened && (
                               <span className="text-[9px] font-semibold text-amber-600" title="You have not opened this one">
@@ -848,20 +905,8 @@ export default function Applications() {
                                 applied before
                               </span>
                             ) : null}
-                            {/* Last bulk-email invitation: did they confirm? */}
-                            {item.latest_invitation && (
-                              item.latest_invitation.confirmed_at ? (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700"
-                                  title={`Confirmed attending: ${item.latest_invitation.subject}`}>
-                                  ✓ attending
-                                </span>
-                              ) : (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-100 text-sky-700"
-                                  title={`Invited, not confirmed yet: ${item.latest_invitation.subject}`}>
-                                  invited
-                                </span>
-                              )
-                            )}
+                            {/* Response to the latest exam / interview invitation. */}
+                            {attendanceBadge(item)}
                           </div>
                         </div>
                       </div>
@@ -997,8 +1042,8 @@ export default function Applications() {
                   onChange={(e) => setEmailForm((f) => ({ ...f, ask_confirmation: e.target.checked }))}
                   className="mt-0.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
                 <span className="text-xs text-gray-700">
-                  <span className="font-semibold">Ask applicants to confirm they will attend</span>
-                  <span className="block text-[10px] text-gray-400">Each email gets a personal link. Who confirmed shows as “✓ attending” in this list.</span>
+                  <span className="font-semibold">Ask applicants to confirm whether they will attend</span>
+                  <span className="block text-[10px] text-gray-400">Each email gets a private link to accept or decline. Filter the list by attendance to see each group.</span>
                 </span>
               </label>
 

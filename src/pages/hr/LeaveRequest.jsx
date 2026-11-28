@@ -476,8 +476,8 @@ export default function LeaveRequest() {
               )}
             </div>
             <div className="px-5 py-3 border-t border-gray-100 text-[10px] text-gray-500">
-              Annual allocation can also come from the employee&apos;s active contract.
-              Excess approved leave is recorded as unpaid and included in payroll deductions.
+              Approved leave is paid. Only leave explicitly marked as Unpaid Leave is included in payroll deductions;
+              leave balances track usage without changing approved leave into unpaid leave.
             </div>
           </div>
         </div>

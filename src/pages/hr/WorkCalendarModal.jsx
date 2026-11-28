@@ -333,7 +333,7 @@ export default function WorkCalendarModal({ onClose }) {
               <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">How this affects salary</h3>
               <ul className="text-[11px] text-gray-600 space-y-1.5 list-disc pl-4">
                 <li><strong>Weekend and closed days cost nothing.</strong> Payroll drops them before it counts a single chargeable day, even if an “absent” mark was left on one.</li>
-                <li><strong>Approved leave is paid</strong> while the staff member's annual allowance lasts — the <em>Annual leave days</em> figure on their contract. Days taken beyond it are unpaid.</li>
+                <li><strong>Approved leave is paid.</strong> Leave balances track usage, but exceeding a balance does not make approved leave unpaid. Only leave explicitly recorded as <em>Unpaid Leave</em> is deducted.</li>
                 <li><strong>Rejected leave, leave never approved, and plain absence are unpaid</strong>, charged at salary ÷ days in month.</li>
                 <li>Every deduction appears as its own line on the payslip and in the payroll journal entry, so the reason is always visible.</li>
               </ul>

@@ -546,7 +546,7 @@ function AttendancePayrollSection({ staffId, navigate }) {
             <div className="p-4">
               {data.payroll_deduction.chargeable_days === 0 ? (
                 <p className="text-xs text-emerald-700">
-                  ✓ No deduction — {data.payroll_deduction.paid_leave_days}/{data.payroll_deduction.free_allowance} paid leaves used this month.
+                  ✓ No deduction — {data.payroll_deduction.paid_leave_days} approved paid leave day(s) this month.
                 </p>
               ) : (
                 <>

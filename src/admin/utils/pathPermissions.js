@@ -102,6 +102,7 @@ const RULES = [
   // umbrella /education rule (longest-prefix sort handles it either way).
   { prefix: "/education/card-rankings", permission: "student-card-rankings.view" },
   { prefix: "/education/cards", permission: "student-cards.view" },
+  // Special Activities — every child route also requires the parent-section grant.
   { prefix: "/education/surah-memorization", permission: "surah-memorization.view" },
   { prefix: "/education/science-projects", permission: "science-projects.view" },
   // Weekly Recognition — Best Performer of the Week, under Special Activities.
@@ -378,6 +379,18 @@ function sectionNotificationPermission(section) {
     : `${section}.notifications`;
 }
 
+const SPECIAL_ACTIVITY_SECTIONS = new Set([
+  "surah-memorization",
+  "science-projects",
+  "weekly-recognition",
+]);
+
+function requiredPermissionsForSection(section) {
+  const required = [sectionNotificationPermission(section)];
+  if (SPECIAL_ACTIVITY_SECTIONS.has(section)) required.push("special-activities.view");
+  return required;
+}
+
 function notificationPermissionForPublicPath(pathname) {
   if (pathname === "/notifications" || pathname.startsWith("/notifications/")) {
     return "notifications.view";
@@ -431,7 +444,7 @@ export function permissionForPath(pathname) {
         return {
           type: "protected",
           permissions,
-          permissionGroups: [{ permissions, requiredPermissions: [sectionNotificationPermission(section)] }],
+          permissionGroups: [{ permissions, requiredPermissions: requiredPermissionsForSection(section) }],
         };
       }
       const tail = pathname.slice(rule.prefix.length); // "" | "/create" | "/edit/123" | "/show/123"
@@ -467,7 +480,7 @@ export function permissionForPath(pathname) {
         const section = permission.split(".", 1)[0];
         return {
           permissions: [withAction(permission, action), withAction(permission, "manage")],
-          requiredPermissions: [sectionNotificationPermission(section)],
+          requiredPermissions: requiredPermissionsForSection(section),
         };
       });
       return { type: "protected", permissions: candidates, permissionGroups };

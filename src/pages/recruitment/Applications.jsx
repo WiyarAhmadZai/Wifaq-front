@@ -444,14 +444,28 @@ export default function Applications() {
     }
   };
 
-  // Export/print: fetch ALL matching applications (endpoint supports per_page).
+  // Export/print: the API caps per_page at 100, so fetch every page using
+  // the same search, status, category filters and sort as the visible list.
   const fetchAllApplications = async () => {
-    const params = new URLSearchParams();
-    params.append("per_page", 9999);
-    if (activeFilter !== "all") params.append("status", activeFilter);
-    if (urlSearch) params.append("search", urlSearch);
-    const r = await get(`/recruitment/applications?${params.toString()}`);
-    return r.data?.data || [];
+    const params = new URLSearchParams(paramString);
+    params.delete("page");
+    params.delete("per_page");
+    params.set("per_page", "100");
+
+    const rows = [];
+    let currentPage = 1;
+    let lastPage = 1;
+
+    do {
+      params.set("page", currentPage);
+      const r = await get(`/recruitment/applications?${params.toString()}`, { cache: false });
+      const pageRows = r.data?.data;
+      if (Array.isArray(pageRows)) rows.push(...pageRows);
+      lastPage = Math.max(currentPage, Number(r.data?.meta?.last_page) || currentPage);
+      currentPage += 1;
+    } while (currentPage <= lastPage);
+
+    return rows;
   };
 
   const handleSearch = (e) => setSearchQuery(e.target.value);

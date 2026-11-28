@@ -14,6 +14,13 @@ const PERMISSION_LABELS = {
   "student-profiles.view-all": "Student profiles: all classes",
   "student-profiles.scope-taught-classes": "Student profiles: only the classes they teach",
   "student-profiles.scope-homeroom": "Student profiles: only their own homeroom class",
+  "special-activities.view": "Open Special Activities section",
+};
+
+const SECTION_PARENT_PERMISSIONS = {
+  "surah-memorization": "special-activities.view",
+  "science-projects": "special-activities.view",
+  "weekly-recognition": "special-activities.view",
 };
 
 export default function PermissionPicker({ permissions, value, onChange, readOnly = false }) {
@@ -58,6 +65,15 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
     return map;
   }, [permissions]);
 
+  const addDependencies = (next, name) => {
+    if (name.endsWith(".notifications") || name.endsWith(".notifications.receive")) return;
+    const module = name.split(".", 1)[0];
+    const notif = notifByModule[module];
+    if (notif) next.add(notif);
+    const parent = SECTION_PARENT_PERMISSIONS[module];
+    if (parent) next.add(parent);
+  };
+
   const toggle = (name) => {
     if (readOnly) return;
     const next = new Set(selected);
@@ -65,11 +81,7 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
       next.delete(name);
     } else {
       next.add(name);
-      const isNotif = name.endsWith(".notifications") || name.endsWith(".notifications.receive");
-      if (!isNotif) {
-        const notif = notifByModule[name.split(".", 1)[0]];
-        if (notif) next.add(notif);
-      }
+      addDependencies(next, name);
     }
     onChange(next);
   };
@@ -78,7 +90,12 @@ export default function PermissionPicker({ permissions, value, onChange, readOnl
     if (readOnly) return;
     const next = new Set(selected);
     group.items.forEach((p) => {
-      if (allChecked) next.delete(p.name); else next.add(p.name);
+      if (allChecked) {
+        next.delete(p.name);
+      } else {
+        next.add(p.name);
+        addDependencies(next, p.name);
+      }
     });
     onChange(next);
   };

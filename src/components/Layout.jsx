@@ -1654,6 +1654,8 @@ export default function Layout() {
     // Derived from the weekly winners above — computed, never selected.
     { label: "Annual Winner", path: "/education/weekly-recognition/annual-winner", permission: "weekly-recognition.annual-winner", alt: ["weekly-recognition.manage"] },
   ];
+  const canAccessSpecialActivities = hasPermission("special-activities.view")
+    && canSeeGroup(specialActivitiesMenus);
 
   // Morning Assembly Program — its own light module. It references the Drive
   // Assembly Program Kit, the Task Board and Weekly Recognition rather than
@@ -2196,7 +2198,7 @@ export default function Layout() {
           </ParentMenu>
           )}
 
-          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canSeeGroup(specialActivitiesMenus) || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus) || canSeeGroup(reportCardMenus) || canSeeGroup(subjectMarksMenus)) && (
+          {(canSeeGroup(teacherMenus) || canSeeGroup(classMgmtMenus) || canSeeGroup(academic) || canSeeGroup(studentsMenus) || canSeeGroup(educationMenus) || canAccessSpecialActivities || canSeeGroup(assemblyMenus) || canSeeGroup(essentialBookMenus) || canSeeGroup(lessonPlanMenus) || canSeeGroup(gradebookMenus) || canSeeGroup(reportCardMenus) || canSeeGroup(subjectMarksMenus)) && (
             <MenuSection title="Academic" />
           )}
 
@@ -2213,7 +2215,7 @@ export default function Layout() {
               ))}
             </ParentMenu>
           )}
-          {canSeeGroup(specialActivitiesMenus) && (
+          {canAccessSpecialActivities && (
             <ParentMenu
               icon={Icons.Puzzle}
               label="Special Activities"
